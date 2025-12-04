@@ -1,0 +1,978 @@
+@prefix : <https://w3id.org/elixir-code/structure#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+# =============================================================================
+# Ontology Declaration
+# =============================================================================
+
+<https://w3id.org/elixir-code/structure> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/elixir-code/structure/1.0.0> ;
+    owl:versionInfo "1.0.0" ;
+    owl:imports <https://w3id.org/elixir-code/core> ;
+    dc:title "Elixir Code Structure Ontology"@en ;
+    dc:description """Elixir-specific code structure ontology. Models modules,
+    functions with arity-based identity, protocols, behaviours, and module
+    attributes. Extends the core ontology with Elixir language semantics."""@en ;
+    dc:creator "Pascal Music" ;
+    dc:date "2025-01-01"^^xsd:date ;
+    dcterms:license <https://creativecommons.org/licenses/by/4.0/> .
+
+# =============================================================================
+# Module System
+# =============================================================================
+
+:Module a owl:Class ;
+    rdfs:label "Module"@en ;
+    rdfs:comment """An Elixir module - a collection of functions and macros under
+    a namespaced atom. Modules are the primary unit of code organization in Elixir.
+    Module names are atoms prefixed with 'Elixir.' at runtime."""@en ;
+    rdfs:subClassOf core:CodeElement ;
+    skos:example "defmodule MyApp.Users do ... end"@en .
+
+:NestedModule a owl:Class ;
+    rdfs:label "Nested Module"@en ;
+    rdfs:comment """A module defined inside another module using defmodule.
+    Nested modules are separate compilation units despite the lexical nesting."""@en ;
+    rdfs:subClassOf :Module .
+
+:ModuleAlias a owl:Class ;
+    rdfs:label "Module Alias"@en ;
+    rdfs:comment """An alias directive that creates a shortened reference to a module.
+    Example: alias MyApp.Users, as: U."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:Import a owl:Class ;
+    rdfs:label "Import"@en ;
+    rdfs:comment """An import directive that brings functions from another module
+    into the local namespace. Can be scoped with :only or :except."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:Require a owl:Class ;
+    rdfs:label "Require"@en ;
+    rdfs:comment """A require directive that ensures a module is compiled before
+    the current module, enabling use of its macros."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:Use a owl:Class ;
+    rdfs:label "Use"@en ;
+    rdfs:comment """A use directive that invokes the __using__/1 macro of a module,
+    enabling code injection patterns common in frameworks."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+# =============================================================================
+# Module Attributes
+# =============================================================================
+
+:ModuleAttribute a owl:Class ;
+    rdfs:label "Module Attribute"@en ;
+    rdfs:comment """A module attribute defined with @attr syntax. Attributes serve
+    as compile-time constants, metadata storage, or temporary storage during
+    compilation."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:RegisteredAttribute a owl:Class ;
+    rdfs:label "Registered Attribute"@en ;
+    rdfs:comment """An attribute registered with Module.register_attribute/3 that
+    accumulates values or persists to runtime."""@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:AccumulatingAttribute a owl:Class ;
+    rdfs:label "Accumulating Attribute"@en ;
+    rdfs:comment "An attribute that accumulates values rather than replacing them."@en ;
+    rdfs:subClassOf :RegisteredAttribute .
+
+# Built-in semantic attributes
+:DocAttribute a owl:Class ;
+    rdfs:label "Doc Attribute"@en ;
+    rdfs:comment """Documentation attributes: @moduledoc, @doc, @typedoc.
+    These are stored in compiled module chunks."""@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:ModuledocAttribute a owl:Class ;
+    rdfs:label "Moduledoc Attribute"@en ;
+    rdfs:subClassOf :DocAttribute .
+
+:TypedocAttribute a owl:Class ;
+    rdfs:label "Typedoc Attribute"@en ;
+    rdfs:subClassOf :DocAttribute .
+
+:DeprecatedAttribute a owl:Class ;
+    rdfs:label "Deprecated Attribute"@en ;
+    rdfs:comment "The @deprecated attribute marking functions as deprecated."@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:SinceAttribute a owl:Class ;
+    rdfs:label "Since Attribute"@en ;
+    rdfs:comment "The @since attribute indicating when a function was added."@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:ExternalResourceAttribute a owl:Class ;
+    rdfs:label "External Resource Attribute"@en ;
+    rdfs:comment """The @external_resource attribute registering files that affect
+    compilation, triggering recompilation when they change."""@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:CompileAttribute a owl:Class ;
+    rdfs:label "Compile Attribute"@en ;
+    rdfs:comment "The @compile attribute for module compilation options."@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:OnDefinitionAttribute a owl:Class ;
+    rdfs:label "On Definition Attribute"@en ;
+    rdfs:comment "The @on_definition callback for function definition hooks."@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:BeforeCompileAttribute a owl:Class ;
+    rdfs:label "Before Compile Attribute"@en ;
+    rdfs:comment "The @before_compile callback hook."@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:AfterCompileAttribute a owl:Class ;
+    rdfs:label "After Compile Attribute"@en ;
+    rdfs:comment "The @after_compile callback hook."@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:DeriveAttribute a owl:Class ;
+    rdfs:label "Derive Attribute"@en ;
+    rdfs:comment """The @derive attribute for automatic protocol implementation
+    derivation for structs."""@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+# =============================================================================
+# Type System
+# =============================================================================
+
+:TypeSpec a owl:Class ;
+    rdfs:label "Type Spec"@en ;
+    rdfs:comment """A type specification defined with @type, @typep, or @opaque.
+    Types are used for documentation and static analysis with Dialyzer."""@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:PublicType a owl:Class ;
+    rdfs:label "Public Type"@en ;
+    rdfs:comment "A public type defined with @type."@en ;
+    rdfs:subClassOf :TypeSpec .
+
+:PrivateType a owl:Class ;
+    rdfs:label "Private Type"@en ;
+    rdfs:comment "A private type defined with @typep."@en ;
+    rdfs:subClassOf :TypeSpec .
+
+:OpaqueType a owl:Class ;
+    rdfs:label "Opaque Type"@en ;
+    rdfs:comment "An opaque type defined with @opaque - external code cannot inspect its structure."@en ;
+    rdfs:subClassOf :TypeSpec .
+
+:FunctionSpec a owl:Class ;
+    rdfs:label "Function Spec"@en ;
+    rdfs:comment """A function type specification defined with @spec.
+    Documents and enables static analysis of function signatures."""@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:CallbackSpec a owl:Class ;
+    rdfs:label "Callback Spec"@en ;
+    rdfs:comment "A behaviour callback specification defined with @callback."@en ;
+    rdfs:subClassOf :ModuleAttribute .
+
+:OptionalCallbackSpec a owl:Class ;
+    rdfs:label "Optional Callback Spec"@en ;
+    rdfs:comment "An optional behaviour callback defined with @optional_callbacks."@en ;
+    rdfs:subClassOf :CallbackSpec .
+
+:MacroCallbackSpec a owl:Class ;
+    rdfs:label "Macro Callback Spec"@en ;
+    rdfs:comment "A macro callback specification defined with @macrocallback."@en ;
+    rdfs:subClassOf :CallbackSpec .
+
+:TypeExpression a owl:Class ;
+    rdfs:label "Type Expression"@en ;
+    rdfs:comment "A type expression used in specs and type definitions."@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:BasicType a owl:Class ;
+    rdfs:label "Basic Type"@en ;
+    rdfs:comment "A basic built-in type like atom(), integer(), binary()."@en ;
+    rdfs:subClassOf :TypeExpression .
+
+:UnionType a owl:Class ;
+    rdfs:label "Union Type"@en ;
+    rdfs:comment "A union of types: type1 | type2."@en ;
+    rdfs:subClassOf :TypeExpression .
+
+:TupleType a owl:Class ;
+    rdfs:label "Tuple Type"@en ;
+    rdfs:comment "A tuple type: {type1, type2, ...}."@en ;
+    rdfs:subClassOf :TypeExpression .
+
+:ListType a owl:Class ;
+    rdfs:label "List Type"@en ;
+    rdfs:comment "A list type: [type]."@en ;
+    rdfs:subClassOf :TypeExpression .
+
+:MapType a owl:Class ;
+    rdfs:label "Map Type"@en ;
+    rdfs:comment "A map type: %{key => value} or %{required(k) => v, optional(k2) => v2}."@en ;
+    rdfs:subClassOf :TypeExpression .
+
+:FunctionType a owl:Class ;
+    rdfs:label "Function Type"@en ;
+    rdfs:comment "A function type: (arg_types -> return_type)."@en ;
+    rdfs:subClassOf :TypeExpression .
+
+:ParameterizedType a owl:Class ;
+    rdfs:label "Parameterized Type"@en ;
+    rdfs:comment "A type with type parameters: Enumerable.t(element)."@en ;
+    rdfs:subClassOf :TypeExpression .
+
+:TypeVariable a owl:Class ;
+    rdfs:label "Type Variable"@en ;
+    rdfs:comment "A type variable used in polymorphic type definitions."@en ;
+    rdfs:subClassOf :TypeExpression .
+
+:WhenClauseType a owl:Class ;
+    rdfs:label "When Clause Type"@en ;
+    rdfs:comment "A type constraint in a when clause of a spec."@en ;
+    rdfs:subClassOf :TypeExpression .
+
+# =============================================================================
+# Functions - Core Elixir Identity
+# =============================================================================
+
+:Function a owl:Class ;
+    rdfs:label "Function"@en ;
+    rdfs:comment """An Elixir function identified by the triple (Module, Name, Arity).
+    Functions with the same name but different arities are distinct functions.
+    This is fundamental to Elixir's function identity model."""@en ;
+    rdfs:subClassOf core:CodeElement ;
+    owl:hasKey ( :belongsTo :functionName :arity ) ;
+    skos:example "Enum.map/2 and Enum.map/3 are different functions."@en .
+
+:PublicFunction a owl:Class ;
+    rdfs:label "Public Function"@en ;
+    rdfs:comment "A function defined with def, callable from outside the module."@en ;
+    rdfs:subClassOf :Function .
+
+:PrivateFunction a owl:Class ;
+    rdfs:label "Private Function"@en ;
+    rdfs:comment "A function defined with defp, only callable within the module."@en ;
+    rdfs:subClassOf :Function .
+
+:GuardFunction a owl:Class ;
+    rdfs:label "Guard Function"@en ;
+    rdfs:comment """A function defined with defguard/defguardp that can be used
+    in guard clauses. Must only use guard-safe expressions."""@en ;
+    rdfs:subClassOf :Function .
+
+:DelegatedFunction a owl:Class ;
+    rdfs:label "Delegated Function"@en ;
+    rdfs:comment "A function created with defdelegate that forwards to another module."@en ;
+    rdfs:subClassOf :Function .
+
+:FunctionClause a owl:Class ;
+    rdfs:label "Function Clause"@en ;
+    rdfs:comment """A single clause of a function definition. Functions can have
+    multiple clauses with different patterns that are matched in source order.
+    First matching clause wins."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:FunctionHead a owl:Class ;
+    rdfs:label "Function Head"@en ;
+    rdfs:comment """The head of a function clause: name, parameters, and guards.
+    Parameters can include patterns and default values."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:FunctionBody a owl:Class ;
+    rdfs:label "Function Body"@en ;
+    rdfs:comment "The body of a function clause containing the implementation."@en ;
+    rdfs:subClassOf core:Block .
+
+:Parameter a owl:Class ;
+    rdfs:label "Parameter"@en ;
+    rdfs:comment "A function parameter, which can be a pattern."@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:DefaultParameter a owl:Class ;
+    rdfs:label "Default Parameter"@en ;
+    rdfs:comment """A parameter with a default value using \\\\ syntax.
+    Creates multiple function arities at compile time."""@en ;
+    rdfs:subClassOf :Parameter .
+
+# =============================================================================
+# Anonymous Functions
+# =============================================================================
+
+:AnonymousFunction a owl:Class ;
+    rdfs:label "Anonymous Function"@en ;
+    rdfs:comment """An anonymous function created with fn...end syntax.
+    Can have multiple clauses and captures lexical scope."""@en ;
+    rdfs:subClassOf core:Closure .
+
+:CapturedFunction a owl:Class ;
+    rdfs:label "Captured Function"@en ;
+    rdfs:comment """A function reference created with the capture operator &.
+    Example: &Enum.map/2 or &(&1 + &2)."""@en ;
+    rdfs:subClassOf core:FunctionReference .
+
+:PartialApplication a owl:Class ;
+    rdfs:label "Partial Application"@en ;
+    rdfs:comment "An anonymous function created from partial capture: &(&1 + 5)."@en ;
+    rdfs:subClassOf :CapturedFunction .
+
+# =============================================================================
+# Protocols
+# =============================================================================
+
+:Protocol a owl:Class ;
+    rdfs:label "Protocol"@en ;
+    rdfs:comment """An Elixir protocol defining polymorphic behavior based on
+    data type. Protocols enable type-based dispatch on the first argument,
+    similar to type classes in Haskell."""@en ;
+    rdfs:subClassOf core:CodeElement ;
+    skos:example "defprotocol Size do def size(data) end"@en .
+
+:ProtocolFunction a owl:Class ;
+    rdfs:label "Protocol Function"@en ;
+    rdfs:comment "A function declared within a protocol definition."@en ;
+    rdfs:subClassOf :Function .
+
+:ProtocolImplementation a owl:Class ;
+    rdfs:label "Protocol Implementation"@en ;
+    rdfs:comment """An implementation of a protocol for a specific data type.
+    Can be defined with defimpl or automatically derived with @derive."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:DerivedImplementation a owl:Class ;
+    rdfs:label "Derived Implementation"@en ;
+    rdfs:comment """A protocol implementation automatically generated via @derive.
+    The protocol must support derivation."""@en ;
+    rdfs:subClassOf :ProtocolImplementation .
+
+:AnyImplementation a owl:Class ;
+    rdfs:label "Any Implementation"@en ;
+    rdfs:comment """A fallback implementation for the Any type when the protocol
+    has @fallback_to_any set to true."""@en ;
+    rdfs:subClassOf :ProtocolImplementation .
+
+:ProtocolConsolidation a owl:Class ;
+    rdfs:label "Protocol Consolidation"@en ;
+    rdfs:comment """The compile-time process of combining all protocol implementations.
+    Improves runtime performance by creating dispatch tables."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+# =============================================================================
+# Behaviours
+# =============================================================================
+
+:Behaviour a owl:Class ;
+    rdfs:label "Behaviour"@en ;
+    rdfs:comment """An Elixir behaviour defining a contract of callback functions.
+    Modules use @behaviour to declare they implement a behaviour.
+    Unlike protocols, behaviours are module-based, not type-based."""@en ;
+    rdfs:subClassOf core:CodeElement ;
+    skos:example "GenServer, Supervisor, Plug are common behaviours."@en .
+
+:CallbackFunction a owl:Class ;
+    rdfs:label "Callback Function"@en ;
+    rdfs:comment "A function that must or may be implemented by behaviour implementors."@en ;
+    rdfs:subClassOf :Function .
+
+:RequiredCallback a owl:Class ;
+    rdfs:label "Required Callback"@en ;
+    rdfs:comment "A callback that must be implemented."@en ;
+    rdfs:subClassOf :CallbackFunction .
+
+:OptionalCallback a owl:Class ;
+    rdfs:label "Optional Callback"@en ;
+    rdfs:comment "A callback that may optionally be implemented."@en ;
+    rdfs:subClassOf :CallbackFunction .
+
+:MacroCallback a owl:Class ;
+    rdfs:label "Macro Callback"@en ;
+    rdfs:comment "A macro callback defined with @macrocallback."@en ;
+    rdfs:subClassOf :CallbackFunction .
+
+:BehaviourImplementation a owl:Class ;
+    rdfs:label "Behaviour Implementation"@en ;
+    rdfs:comment "A module that implements a behaviour via @behaviour."@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:DefaultImplementation a owl:Class ;
+    rdfs:label "Default Implementation"@en ;
+    rdfs:comment """A default callback implementation provided via defoverridable
+    and the __using__/1 macro pattern."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+# =============================================================================
+# Structs and Exceptions
+# =============================================================================
+
+:Struct a owl:Class ;
+    rdfs:label "Struct"@en ;
+    rdfs:comment """An Elixir struct - a map with a fixed set of keys and a
+    __struct__ field identifying the module. Defined with defstruct."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:StructField a owl:Class ;
+    rdfs:label "Struct Field"@en ;
+    rdfs:comment "A field in a struct definition, with optional default value."@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:EnforcedKey a owl:Class ;
+    rdfs:label "Enforced Key"@en ;
+    rdfs:comment "A struct field listed in @enforce_keys that must be provided."@en ;
+    rdfs:subClassOf :StructField .
+
+:Exception a owl:Class ;
+    rdfs:label "Exception"@en ;
+    rdfs:comment """An Elixir exception module defined with defexception.
+    Implements the Exception behaviour."""@en ;
+    rdfs:subClassOf :Struct .
+
+# =============================================================================
+# Macros and Metaprogramming
+# =============================================================================
+
+:Macro a owl:Class ;
+    rdfs:label "Macro"@en ;
+    rdfs:comment """An Elixir macro that operates on quoted expressions at compile time.
+    Macros receive AST and return AST, enabling powerful metaprogramming."""@en ;
+    rdfs:subClassOf core:CodeElement ;
+    skos:example "defmacro unless(condition, do: block) do ... end"@en .
+
+:PublicMacro a owl:Class ;
+    rdfs:label "Public Macro"@en ;
+    rdfs:comment "A macro defined with defmacro, usable from other modules."@en ;
+    rdfs:subClassOf :Macro .
+
+:PrivateMacro a owl:Class ;
+    rdfs:label "Private Macro"@en ;
+    rdfs:comment "A macro defined with defmacrop, only usable within the module."@en ;
+    rdfs:subClassOf :Macro .
+
+:MacroClause a owl:Class ;
+    rdfs:label "Macro Clause"@en ;
+    rdfs:comment "A single clause of a macro definition."@en ;
+    rdfs:subClassOf :FunctionClause .
+
+:QuotedExpression a owl:Class ;
+    rdfs:label "Quoted Expression"@en ;
+    rdfs:comment """An AST representation created with quote do...end.
+    The fundamental unit of Elixir metaprogramming."""@en ;
+    rdfs:subClassOf core:Expression .
+
+:UnquoteExpression a owl:Class ;
+    rdfs:label "Unquote Expression"@en ;
+    rdfs:comment """An unquote() call that injects a value into a quoted expression.
+    Evaluates at quote time, not at runtime."""@en ;
+    rdfs:subClassOf core:Expression .
+
+:UnquoteSplicingExpression a owl:Class ;
+    rdfs:label "Unquote Splicing Expression"@en ;
+    rdfs:comment """An unquote_splicing() call that injects and flattens a list
+    into a quoted expression."""@en ;
+    rdfs:subClassOf :UnquoteExpression .
+
+:MacroExpansion a owl:Class ;
+    rdfs:label "Macro Expansion"@en ;
+    rdfs:comment "The result of expanding a macro call during compilation."@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:Binding a owl:Class ;
+    rdfs:label "Binding"@en ;
+    rdfs:comment "A variable binding in quote with bind_quoted option."@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:Hygiene a owl:Class ;
+    rdfs:label "Hygiene"@en ;
+    rdfs:comment """Macro hygiene context for variable scoping.
+    Controls whether variables leak between macro and caller."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+# =============================================================================
+# Object Properties
+# =============================================================================
+
+# Module relationships
+:belongsTo a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "belongs to"@en ;
+    rdfs:comment "Indicates the module containing a function, macro, or type."@en ;
+    rdfs:domain :Function ;
+    rdfs:range :Module .
+
+:containsFunction a owl:ObjectProperty ;
+    rdfs:label "contains function"@en ;
+    rdfs:comment "A module contains these functions."@en ;
+    owl:inverseOf :belongsTo ;
+    rdfs:domain :Module ;
+    rdfs:range :Function .
+
+:containsMacro a owl:ObjectProperty ;
+    rdfs:label "contains macro"@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Macro .
+
+:containsType a owl:ObjectProperty ;
+    rdfs:label "contains type"@en ;
+    rdfs:domain :Module ;
+    rdfs:range :TypeSpec .
+
+:containsStruct a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "contains struct"@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Struct .
+
+:hasNestedModule a owl:ObjectProperty ;
+    rdfs:label "has nested module"@en ;
+    rdfs:domain :Module ;
+    rdfs:range :NestedModule .
+
+:parentModule a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "parent module"@en ;
+    rdfs:comment "The lexically enclosing module for a nested module."@en ;
+    owl:inverseOf :hasNestedModule ;
+    rdfs:domain :NestedModule ;
+    rdfs:range :Module .
+
+# Module directives
+:aliasesModule a owl:ObjectProperty ;
+    rdfs:label "aliases module"@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Module .
+
+:importsFrom a owl:ObjectProperty ;
+    rdfs:label "imports from"@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Module .
+
+:requiresModule a owl:ObjectProperty ;
+    rdfs:label "requires module"@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Module .
+
+:usesModule a owl:ObjectProperty ;
+    rdfs:label "uses module"@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Module .
+
+# Module attributes
+:hasAttribute a owl:ObjectProperty ;
+    rdfs:label "has attribute"@en ;
+    rdfs:domain :Module ;
+    rdfs:range :ModuleAttribute .
+
+:hasSpec a owl:ObjectProperty ;
+    rdfs:label "has spec"@en ;
+    rdfs:domain :Function ;
+    rdfs:range :FunctionSpec .
+
+:hasTypeVariable a owl:ObjectProperty ;
+    rdfs:label "has type variable"@en ;
+    rdfs:domain :TypeSpec ;
+    rdfs:range :TypeVariable .
+
+# Function structure
+:hasClauses a owl:ObjectProperty ;
+    rdfs:label "has clauses"@en ;
+    rdfs:comment "Links a function to its ordered list of clauses."@en ;
+    rdfs:domain :Function ;
+    rdfs:range rdf:List .
+
+:hasClause a owl:ObjectProperty ;
+    rdfs:label "has clause"@en ;
+    rdfs:comment "Individual clause relationship (when order isn't critical)."@en ;
+    rdfs:domain :Function ;
+    rdfs:range :FunctionClause .
+
+:hasHead a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has head"@en ;
+    rdfs:domain :FunctionClause ;
+    rdfs:range :FunctionHead .
+
+:hasBody a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has body"@en ;
+    rdfs:domain :FunctionClause ;
+    rdfs:range :FunctionBody .
+
+:hasParameter a owl:ObjectProperty ;
+    rdfs:label "has parameter"@en ;
+    rdfs:domain :FunctionHead ;
+    rdfs:range :Parameter .
+
+:hasDefaultValue a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has default value"@en ;
+    rdfs:domain :DefaultParameter ;
+    rdfs:range core:Expression .
+
+:delegatesTo a owl:ObjectProperty ;
+    rdfs:label "delegates to"@en ;
+    rdfs:comment "The target function for a delegated function."@en ;
+    rdfs:domain :DelegatedFunction ;
+    rdfs:range :Function .
+
+:callsFunction a owl:ObjectProperty ;
+    rdfs:label "calls function"@en ;
+    rdfs:comment "Indicates a function calls another function."@en ;
+    rdfs:domain :Function ;
+    rdfs:range :Function .
+
+:callsMacro a owl:ObjectProperty ;
+    rdfs:label "calls macro"@en ;
+    rdfs:domain :Function ;
+    rdfs:range :Macro .
+
+# Protocol relationships
+:definesProtocolFunction a owl:ObjectProperty ;
+    rdfs:label "defines protocol function"@en ;
+    rdfs:domain :Protocol ;
+    rdfs:range :ProtocolFunction .
+
+:implementsProtocol a owl:ObjectProperty ;
+    rdfs:label "implements protocol"@en ;
+    rdfs:domain :ProtocolImplementation ;
+    rdfs:range :Protocol .
+
+:forDataType a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "for data type"@en ;
+    rdfs:comment "The data type this protocol implementation handles."@en ;
+    rdfs:domain :ProtocolImplementation .
+
+:derivesProtocol a owl:ObjectProperty ;
+    rdfs:label "derives protocol"@en ;
+    rdfs:comment "A struct deriving protocol implementations."@en ;
+    rdfs:domain :Struct ;
+    rdfs:range :Protocol .
+
+# Behaviour relationships
+:definesBehaviour a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "defines behaviour"@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Behaviour .
+
+:definesCallback a owl:ObjectProperty ;
+    rdfs:label "defines callback"@en ;
+    rdfs:domain :Behaviour ;
+    rdfs:range :CallbackFunction .
+
+:implementsBehaviour a owl:ObjectProperty ;
+    rdfs:label "implements behaviour"@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Behaviour .
+
+:implementsCallback a owl:ObjectProperty ;
+    rdfs:label "implements callback"@en ;
+    rdfs:domain :Function ;
+    rdfs:range :CallbackFunction .
+
+:overridesDefault a owl:ObjectProperty ;
+    rdfs:label "overrides default"@en ;
+    rdfs:domain :Function ;
+    rdfs:range :DefaultImplementation .
+
+# Struct relationships
+:hasField a owl:ObjectProperty ;
+    rdfs:label "has field"@en ;
+    rdfs:domain :Struct ;
+    rdfs:range :StructField .
+
+:hasEnforcedKey a owl:ObjectProperty ;
+    rdfs:label "has enforced key"@en ;
+    rdfs:subPropertyOf :hasField ;
+    rdfs:domain :Struct ;
+    rdfs:range :EnforcedKey .
+
+# Macro relationships
+:expandsTo a owl:ObjectProperty ;
+    rdfs:label "expands to"@en ;
+    rdfs:comment "Links a macro call to its expansion."@en ;
+    rdfs:domain :Macro ;
+    rdfs:range :MacroExpansion .
+
+:quotesExpression a owl:ObjectProperty ;
+    rdfs:label "quotes expression"@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range core:Expression .
+
+:unquotesValue a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "unquotes value"@en ;
+    rdfs:domain :UnquoteExpression ;
+    rdfs:range core:Expression .
+
+# Type relationships
+:hasReturnType a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has return type"@en ;
+    rdfs:domain :FunctionSpec ;
+    rdfs:range :TypeExpression .
+
+:hasParameterType a owl:ObjectProperty ;
+    rdfs:label "has parameter type"@en ;
+    rdfs:domain :FunctionSpec ;
+    rdfs:range :TypeExpression .
+
+:unionOf a owl:ObjectProperty ;
+    rdfs:label "union of"@en ;
+    rdfs:domain :UnionType ;
+    rdfs:range :TypeExpression .
+
+:elementType a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "element type"@en ;
+    rdfs:domain :ListType ;
+    rdfs:range :TypeExpression .
+
+:keyType a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "key type"@en ;
+    rdfs:domain :MapType ;
+    rdfs:range :TypeExpression .
+
+:valueType a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "value type"@en ;
+    rdfs:domain :MapType ;
+    rdfs:range :TypeExpression .
+
+:referencesType a owl:ObjectProperty ;
+    rdfs:label "references type"@en ;
+    rdfs:comment "A type expression that references a defined type."@en ;
+    rdfs:domain :TypeExpression ;
+    rdfs:range :TypeSpec .
+
+# =============================================================================
+# Data Properties
+# =============================================================================
+
+# Module identity
+:moduleName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "module name"@en ;
+    rdfs:comment "The fully qualified module name as an atom string."@en ;
+    rdfs:domain :Module ;
+    rdfs:range xsd:string .
+
+:aliasName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "alias name"@en ;
+    rdfs:domain :ModuleAlias ;
+    rdfs:range xsd:string .
+
+# Function identity - CRITICAL: arity is intrinsic
+:functionName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "function name"@en ;
+    rdfs:domain :Function ;
+    rdfs:range xsd:string .
+
+:arity a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "arity"@en ;
+    rdfs:comment """The number of arguments a function accepts.
+    Fundamental to function identity in Elixir."""@en ;
+    rdfs:domain :Function ;
+    rdfs:range xsd:nonNegativeInteger .
+
+:minArity a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "minimum arity"@en ;
+    rdfs:comment "Minimum arity when default arguments create multiple arities."@en ;
+    rdfs:domain :Function ;
+    rdfs:range xsd:nonNegativeInteger .
+
+:clauseOrder a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "clause order"@en ;
+    rdfs:comment "The 1-indexed position of a clause in pattern matching order."@en ;
+    rdfs:domain :FunctionClause ;
+    rdfs:range xsd:positiveInteger .
+
+# Parameter properties
+:parameterPosition a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "parameter position"@en ;
+    rdfs:domain :Parameter ;
+    rdfs:range xsd:nonNegativeInteger .
+
+:parameterName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "parameter name"@en ;
+    rdfs:domain :Parameter ;
+    rdfs:range xsd:string .
+
+# Attribute properties
+:attributeName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "attribute name"@en ;
+    rdfs:domain :ModuleAttribute ;
+    rdfs:range xsd:string .
+
+:attributeValue a owl:DatatypeProperty ;
+    rdfs:label "attribute value"@en ;
+    rdfs:domain :ModuleAttribute ;
+    rdfs:range xsd:string .
+
+:isAccumulating a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is accumulating"@en ;
+    rdfs:domain :RegisteredAttribute ;
+    rdfs:range xsd:boolean .
+
+:persistToRuntime a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "persist to runtime"@en ;
+    rdfs:domain :RegisteredAttribute ;
+    rdfs:range xsd:boolean .
+
+# Documentation
+:docstring a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "docstring"@en ;
+    rdfs:range xsd:string .
+
+:isDocFalse a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is doc false"@en ;
+    rdfs:comment "Indicates @doc false was set to hide documentation."@en ;
+    rdfs:domain :Function ;
+    rdfs:range xsd:boolean .
+
+:deprecationMessage a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "deprecation message"@en ;
+    rdfs:domain :DeprecatedAttribute ;
+    rdfs:range xsd:string .
+
+:sinceVersion a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "since version"@en ;
+    rdfs:domain :SinceAttribute ;
+    rdfs:range xsd:string .
+
+# Type properties
+:typeName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "type name"@en ;
+    rdfs:domain :TypeSpec ;
+    rdfs:range xsd:string .
+
+:typeArity a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "type arity"@en ;
+    rdfs:comment "Number of type parameters."@en ;
+    rdfs:domain :TypeSpec ;
+    rdfs:range xsd:nonNegativeInteger .
+
+# Protocol properties
+:protocolName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "protocol name"@en ;
+    rdfs:domain :Protocol ;
+    rdfs:range xsd:string .
+
+:fallbackToAny a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "fallback to any"@en ;
+    rdfs:comment "Whether the protocol uses Any implementation as fallback."@en ;
+    rdfs:domain :Protocol ;
+    rdfs:range xsd:boolean .
+
+:isConsolidated a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is consolidated"@en ;
+    rdfs:domain :Protocol ;
+    rdfs:range xsd:boolean .
+
+# Struct properties
+:fieldName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "field name"@en ;
+    rdfs:domain :StructField ;
+    rdfs:range xsd:string .
+
+:hasDefaultFieldValue a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "has default field value"@en ;
+    rdfs:domain :StructField ;
+    rdfs:range xsd:boolean .
+
+:exceptionMessage a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "exception message"@en ;
+    rdfs:domain :Exception ;
+    rdfs:range xsd:string .
+
+# Macro properties
+:macroName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "macro name"@en ;
+    rdfs:domain :Macro ;
+    rdfs:range xsd:string .
+
+:macroArity a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "macro arity"@en ;
+    rdfs:domain :Macro ;
+    rdfs:range xsd:nonNegativeInteger .
+
+:isHygienic a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is hygienic"@en ;
+    rdfs:comment "Whether the macro maintains hygiene (default true)."@en ;
+    rdfs:domain :Macro ;
+    rdfs:range xsd:boolean .
+
+:quoteContext a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "quote context"@en ;
+    rdfs:comment "The context option for quote: :match, :guard, etc."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range xsd:string .
+
+# =============================================================================
+# OWL Axioms
+# =============================================================================
+
+# Function types are disjoint
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        :PublicFunction
+        :PrivateFunction
+        :GuardFunction
+    ) .
+
+# Type spec types are disjoint
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        :PublicType
+        :PrivateType
+        :OpaqueType
+    ) .
+
+# Macro types are disjoint
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        :PublicMacro
+        :PrivateMacro
+    ) .
+
+# Every function must have arity
+:Function rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :arity ;
+    owl:cardinality 1
+] .
+
+# Every function must belong to a module
+:Function rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :belongsTo ;
+    owl:cardinality 1
+] .
+
+# Every function must have at least one clause
+:Function rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasClause ;
+    owl:minCardinality 1
+] .
+
+# Every function clause has exactly one head
+:FunctionClause rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasHead ;
+    owl:cardinality 1
+] .
+
+# Protocol implementations must specify protocol and data type
+:ProtocolImplementation rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :implementsProtocol ;
+    owl:cardinality 1
+] , [
+    a owl:Restriction ;
+    owl:onProperty :forDataType ;
+    owl:cardinality 1
+] .
+
+# Macros have arity
+:Macro rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :macroArity ;
+    owl:cardinality 1
+] .
+
