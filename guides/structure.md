@@ -120,7 +120,12 @@ struct:Parameter a owl:Class ;
 
 struct:DefaultParameter a owl:Class ;
     rdfs:subClassOf struct:Parameter .
+
+struct:PatternParameter a owl:Class ;
+    rdfs:subClassOf struct:Parameter .
 ```
+
+**Key insight**: Parameters in Elixir are patterns. A parameter can be a simple variable, or a complex destructuring pattern like `{a, b}` or `%{name: name}`.
 
 Default parameters create multiple arities at compile time:
 
@@ -133,6 +138,43 @@ Properties:
 - `parameterPosition` - 0-indexed position
 - `parameterName` - Variable name
 - `hasDefaultValue` - Default expression (for DefaultParameter)
+- `hasPatternExpression` - Links to the parameter's pattern (e.g., `TuplePattern`, `MapPattern`)
+- `hasTypeAnnotation` - Links to the type from the corresponding `@spec`
+
+Ordered parameters:
+```turtle
+struct:hasParameters a owl:ObjectProperty ;
+    rdfs:domain struct:FunctionHead ;
+    rdfs:range rdf:List .  # Ordered list of parameters
+```
+
+### Return Expressions
+
+In Elixir, there is no explicit `return` keyword. The last expression in a function body is implicitly returned.
+
+```turtle
+struct:FunctionBody a owl:Class ;
+    rdfs:subClassOf core:Block .
+
+struct:ReturnExpression a owl:Class ;
+    rdfs:subClassOf core:Expression .
+```
+
+The `returnsExpression` property links a function body to its final expression:
+
+```turtle
+struct:returnsExpression a owl:ObjectProperty ;
+    rdfs:domain struct:FunctionBody ;
+    rdfs:range core:Expression .
+```
+
+Example:
+```elixir
+def add(a, b) do
+  result = a + b
+  result  # This is the return expression
+end
+```
 
 ### Function Relationships
 
@@ -388,8 +430,10 @@ struct:FunctionSpec a owl:Class ;
 ```
 
 Properties:
-- `hasParameterType` - Types of parameters
+- `hasParameterType` - Types of parameters (unordered)
+- `hasParameterTypes` - Ordered list of parameter types (via `rdf:List`)
 - `hasReturnType` - Return type
+- `hasTypeAnnotation` - Links individual parameters to their types
 
 ### Type Expressions
 
@@ -514,7 +558,51 @@ otp:GenServerImplementation a owl:Class ;
 
 ## Usage Examples
 
-### Modeling a Function
+### Modeling a Function with Parameters and Return
+
+```elixir
+@spec process({:ok, term} | {:error, term}) :: term | nil
+def process({:ok, value}), do: value
+def process({:error, _reason}), do: nil
+```
+
+```turtle
+# Function with pattern parameters
+ex:process1 a struct:PublicFunction ;
+    struct:belongsTo ex:ProcessorModule ;
+    struct:functionName "process" ;
+    struct:arity 1 ;
+    struct:hasClauses ( ex:processOkClause ex:processErrorClause ) ;
+    struct:hasSpec ex:processSpec .
+
+# First clause - matches {:ok, value}
+ex:processOkClause a struct:FunctionClause ;
+    struct:clauseOrder 1 ;
+    struct:hasHead ex:processOkHead ;
+    struct:hasBody ex:processOkBody .
+
+ex:processOkHead a struct:FunctionHead ;
+    struct:hasParameters ( ex:okParam ) .
+
+ex:okParam a struct:PatternParameter ;
+    struct:parameterPosition 0 ;
+    struct:hasPatternExpression ex:okTuplePattern ;
+    struct:hasTypeAnnotation ex:okOrErrorType .
+
+ex:okTuplePattern a core:TuplePattern ;
+    # Pattern: {:ok, value}
+    core:hasChild ex:okAtom, ex:valueVar .
+
+ex:processOkBody a struct:FunctionBody ;
+    struct:returnsExpression ex:valueVarRef .  # Returns the bound value
+
+# Type spec
+ex:processSpec a struct:FunctionSpec ;
+    struct:hasParameterTypes ( ex:okOrErrorType ) ;
+    struct:hasReturnType ex:termOrNilType .
+```
+
+### Modeling a Simple Function
 
 ```elixir
 def greet(name, greeting \\ "Hello") do
@@ -536,12 +624,21 @@ ex:greetClause1 a struct:FunctionClause ;
     struct:hasBody ex:greetBody .
 
 ex:greetHead a struct:FunctionHead ;
-    struct:hasParameter ex:nameParam, ex:greetingParam .
+    struct:hasParameters ( ex:nameParam ex:greetingParam ) .
+
+ex:nameParam a struct:Parameter ;
+    struct:parameterName "name" ;
+    struct:parameterPosition 0 ;
+    struct:hasPatternExpression ex:nameVarPattern .
 
 ex:greetingParam a struct:DefaultParameter ;
     struct:parameterName "greeting" ;
     struct:parameterPosition 1 ;
+    struct:hasPatternExpression ex:greetingVarPattern ;
     struct:hasDefaultValue ex:helloLiteral .
+
+ex:greetBody a struct:FunctionBody ;
+    struct:returnsExpression ex:interpolatedString .  # The string interpolation
 ```
 
 ### Modeling a Protocol Implementation
@@ -563,6 +660,8 @@ ex:sizeForBitString a struct:ProtocolImplementation ;
 
 1. **Arity as identity**: Functions are keyed by (module, name, arity) via `owl:hasKey`
 2. **Ordered clauses**: `rdf:List` preserves pattern matching order
-3. **Protocol/Behaviour distinction**: Different dispatch mechanisms need different models
-4. **Macro awareness**: First-class representation of metaprogramming constructs
-5. **Type system integration**: Specs and types are part of the semantic model
+3. **Parameters are patterns**: Parameters link to `core:Pattern` via `hasPatternExpression`
+4. **Implicit returns**: `returnsExpression` explicitly models Elixir's implicit return
+5. **Protocol/Behaviour distinction**: Different dispatch mechanisms need different models
+6. **Macro awareness**: First-class representation of metaprogramming constructs
+7. **Type system integration**: Specs and types are part of the semantic model, with direct links from parameters to their types
