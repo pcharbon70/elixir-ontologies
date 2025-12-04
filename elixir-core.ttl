@@ -1,0 +1,857 @@
+@prefix : <https://w3id.org/elixir-code/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix bfo: <http://purl.obolibrary.org/obo/> .
+@prefix iao: <http://purl.obolibrary.org/obo/IAO_> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+# =============================================================================
+# Ontology Declaration
+# =============================================================================
+
+<https://w3id.org/elixir-code/core> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/elixir-code/core/1.0.0> ;
+    owl:versionInfo "1.0.0" ;
+    dc:title "Elixir Code Core Ontology"@en ;
+    dc:description """Core ontology for representing Elixir source code structures.
+    Provides foundational classes for AST elements, expressions, and language-agnostic
+    code constructs. Aligned with BFO (Basic Formal Ontology) and IAO (Information
+    Artifact Ontology) for semantic rigor."""@en ;
+    dc:creator "Pascal Music" ;
+    dc:date "2025-01-01"^^xsd:date ;
+    dcterms:license <https://creativecommons.org/licenses/by/4.0/> ;
+    rdfs:seeAlso <https://elixir-lang.org/docs.html> .
+
+# =============================================================================
+# Foundational Classes (aligned with BFO/IAO)
+# =============================================================================
+
+# BFO:Generically Dependent Continuant - abstract content that can be realized
+# in multiple physical artifacts (source files, compiled bytecode, etc.)
+:CodeElement a owl:Class ;
+    rdfs:label "Code Element"@en ;
+    rdfs:comment """Abstract base class for all code constructs. Represents
+    information content that is generically dependent on its carriers (source
+    files, memory representations). Aligned with BFO:Generically Dependent
+    Continuant."""@en ;
+    rdfs:subClassOf bfo:BFO_0000031 ;
+    skos:definition "A unit of source code that carries semantic meaning within a program."@en .
+
+:SourceLocation a owl:Class ;
+    rdfs:label "Source Location"@en ;
+    rdfs:comment """Represents the location of a code element within a source file.
+    Includes file path, line numbers, and column positions."""@en ;
+    rdfs:subClassOf bfo:BFO_0000006 .  # Spatial Region
+
+:SourceFile a owl:Class ;
+    rdfs:label "Source File"@en ;
+    rdfs:comment "A physical file containing Elixir source code (.ex or .exs)."@en ;
+    rdfs:subClassOf bfo:BFO_0000030 .  # Object - physical carrier
+
+# =============================================================================
+# Abstract Syntax Tree Classes
+# =============================================================================
+
+:ASTNode a owl:Class ;
+    rdfs:label "AST Node"@en ;
+    rdfs:comment """Base class for Abstract Syntax Tree nodes. Represents the
+    hierarchical structure of parsed Elixir code following the 3-tuple format:
+    {atom | tuple, keyword_list_metadata, list_of_children}."""@en ;
+    rdfs:subClassOf :CodeElement .
+
+:Expression a owl:Class ;
+    rdfs:label "Expression"@en ;
+    rdfs:comment """An evaluable code construct that produces a value. In Elixir,
+    almost everything is an expression."""@en ;
+    rdfs:subClassOf :ASTNode .
+
+:Statement a owl:Class ;
+    rdfs:label "Statement"@en ;
+    rdfs:comment """A code construct that performs an action. In Elixir, statements
+    are typically expressions evaluated for their side effects."""@en ;
+    rdfs:subClassOf :ASTNode .
+
+:Declaration a owl:Class ;
+    rdfs:label "Declaration"@en ;
+    rdfs:comment "A code construct that introduces a named entity into scope."@en ;
+    rdfs:subClassOf :ASTNode .
+
+# =============================================================================
+# Literal Types
+# =============================================================================
+
+:Literal a owl:Class ;
+    rdfs:label "Literal"@en ;
+    rdfs:comment "A constant value expressed directly in source code."@en ;
+    rdfs:subClassOf :Expression .
+
+:AtomLiteral a owl:Class ;
+    rdfs:label "Atom Literal"@en ;
+    rdfs:comment """An Elixir atom - a constant whose name is its value.
+    Examples: :ok, :error, true, false, nil."""@en ;
+    rdfs:subClassOf :Literal .
+
+:IntegerLiteral a owl:Class ;
+    rdfs:label "Integer Literal"@en ;
+    rdfs:comment "An integer value in decimal, hex, octal, or binary notation."@en ;
+    rdfs:subClassOf :Literal .
+
+:FloatLiteral a owl:Class ;
+    rdfs:label "Float Literal"@en ;
+    rdfs:comment "A floating-point number literal."@en ;
+    rdfs:subClassOf :Literal .
+
+:StringLiteral a owl:Class ;
+    rdfs:label "String Literal"@en ;
+    rdfs:comment """A UTF-8 encoded binary string. May include interpolation
+    and escape sequences."""@en ;
+    rdfs:subClassOf :Literal .
+
+:CharlistLiteral a owl:Class ;
+    rdfs:label "Charlist Literal"@en ;
+    rdfs:comment "A list of Unicode codepoints, denoted with single quotes."@en ;
+    rdfs:subClassOf :Literal .
+
+:BinaryLiteral a owl:Class ;
+    rdfs:label "Binary Literal"@en ;
+    rdfs:comment "A binary or bitstring literal."@en ;
+    rdfs:subClassOf :Literal .
+
+:ListLiteral a owl:Class ;
+    rdfs:label "List Literal"@en ;
+    rdfs:comment "A linked list literal containing zero or more elements."@en ;
+    rdfs:subClassOf :Literal .
+
+:TupleLiteral a owl:Class ;
+    rdfs:label "Tuple Literal"@en ;
+    rdfs:comment "A tuple literal containing a fixed number of elements."@en ;
+    rdfs:subClassOf :Literal .
+
+:MapLiteral a owl:Class ;
+    rdfs:label "Map Literal"@en ;
+    rdfs:comment "A map literal with key-value pairs."@en ;
+    rdfs:subClassOf :Literal .
+
+:KeywordListLiteral a owl:Class ;
+    rdfs:label "Keyword List Literal"@en ;
+    rdfs:comment """A list of {atom, value} tuples, commonly used for options.
+    Example: [name: \"John\", age: 30]."""@en ;
+    rdfs:subClassOf :Literal .
+
+:SigilLiteral a owl:Class ;
+    rdfs:label "Sigil Literal"@en ;
+    rdfs:comment """A sigil expression like ~r/pattern/, ~s(string), ~w(word list).
+    Custom sigils can be defined via sigil_x/2 functions."""@en ;
+    rdfs:subClassOf :Literal .
+
+:RangeLiteral a owl:Class ;
+    rdfs:label "Range Literal"@en ;
+    rdfs:comment "A range struct representing a sequence, e.g., 1..10 or 1..10//2."@en ;
+    rdfs:subClassOf :Literal .
+
+# =============================================================================
+# Operator Expressions
+# =============================================================================
+
+:OperatorExpression a owl:Class ;
+    rdfs:label "Operator Expression"@en ;
+    rdfs:comment "An expression applying an operator to operands."@en ;
+    rdfs:subClassOf :Expression .
+
+:UnaryOperator a owl:Class ;
+    rdfs:label "Unary Operator"@en ;
+    rdfs:comment "An operator with a single operand."@en ;
+    rdfs:subClassOf :OperatorExpression .
+
+:BinaryOperator a owl:Class ;
+    rdfs:label "Binary Operator"@en ;
+    rdfs:comment "An operator with two operands."@en ;
+    rdfs:subClassOf :OperatorExpression .
+
+:ArithmeticOperator a owl:Class ;
+    rdfs:label "Arithmetic Operator"@en ;
+    rdfs:comment "Mathematical operators: +, -, *, /, div, rem."@en ;
+    rdfs:subClassOf :OperatorExpression .
+
+:ComparisonOperator a owl:Class ;
+    rdfs:label "Comparison Operator"@en ;
+    rdfs:comment "Comparison operators: ==, !=, ===, !==, <, >, <=, >=."@en ;
+    rdfs:subClassOf :OperatorExpression .
+
+:LogicalOperator a owl:Class ;
+    rdfs:label "Logical Operator"@en ;
+    rdfs:comment "Boolean operators: and, or, not, &&, ||, !."@en ;
+    rdfs:subClassOf :OperatorExpression .
+
+:PipeOperator a owl:Class ;
+    rdfs:label "Pipe Operator"@en ;
+    rdfs:comment """The pipe operator |> which passes the result of the left
+    expression as the first argument to the right expression."""@en ;
+    rdfs:subClassOf :OperatorExpression .
+
+:MatchOperator a owl:Class ;
+    rdfs:label "Match Operator"@en ;
+    rdfs:comment """The pattern match operator = which binds values to patterns.
+    Central to Elixir's destructuring capabilities."""@en ;
+    rdfs:subClassOf :OperatorExpression .
+
+:CaptureOperator a owl:Class ;
+    rdfs:label "Capture Operator"@en ;
+    rdfs:comment "The & operator for creating anonymous functions from named functions."@en ;
+    rdfs:subClassOf :OperatorExpression .
+
+:StringConcatOperator a owl:Class ;
+    rdfs:label "String Concatenation Operator"@en ;
+    rdfs:comment "The <> operator for binary/string concatenation."@en ;
+    rdfs:subClassOf :OperatorExpression .
+
+:ListOperator a owl:Class ;
+    rdfs:label "List Operator"@en ;
+    rdfs:comment "List operators: ++ (concatenation), -- (subtraction)."@en ;
+    rdfs:subClassOf :OperatorExpression .
+
+:InOperator a owl:Class ;
+    rdfs:label "In Operator"@en ;
+    rdfs:comment "The 'in' operator for membership testing in enumerables."@en ;
+    rdfs:subClassOf :OperatorExpression .
+
+# =============================================================================
+# Control Flow Expressions
+# =============================================================================
+
+:ControlFlowExpression a owl:Class ;
+    rdfs:label "Control Flow Expression"@en ;
+    rdfs:comment "An expression that controls program execution flow."@en ;
+    rdfs:subClassOf :Expression .
+
+:IfExpression a owl:Class ;
+    rdfs:label "If Expression"@en ;
+    rdfs:comment "Conditional branching with if/else."@en ;
+    rdfs:subClassOf :ControlFlowExpression .
+
+:UnlessExpression a owl:Class ;
+    rdfs:label "Unless Expression"@en ;
+    rdfs:comment "Negated conditional (unless condition do ... end)."@en ;
+    rdfs:subClassOf :ControlFlowExpression .
+
+:CaseExpression a owl:Class ;
+    rdfs:label "Case Expression"@en ;
+    rdfs:comment """Pattern matching control flow. Matches a value against
+    multiple patterns with optional guards."""@en ;
+    rdfs:subClassOf :ControlFlowExpression .
+
+:CondExpression a owl:Class ;
+    rdfs:label "Cond Expression"@en ;
+    rdfs:comment """Multi-branch conditional that evaluates conditions until
+    one is truthy."""@en ;
+    rdfs:subClassOf :ControlFlowExpression .
+
+:WithExpression a owl:Class ;
+    rdfs:label "With Expression"@en ;
+    rdfs:comment """Monadic binding for sequential pattern matching with
+    early return on match failure."""@en ;
+    rdfs:subClassOf :ControlFlowExpression .
+
+:TryExpression a owl:Class ;
+    rdfs:label "Try Expression"@en ;
+    rdfs:comment "Exception handling with rescue, catch, and after clauses."@en ;
+    rdfs:subClassOf :ControlFlowExpression .
+
+:RaiseExpression a owl:Class ;
+    rdfs:label "Raise Expression"@en ;
+    rdfs:comment "Raises an exception."@en ;
+    rdfs:subClassOf :ControlFlowExpression .
+
+:ThrowExpression a owl:Class ;
+    rdfs:label "Throw Expression"@en ;
+    rdfs:comment "Throws a value to be caught by a catch clause."@en ;
+    rdfs:subClassOf :ControlFlowExpression .
+
+:ReceiveExpression a owl:Class ;
+    rdfs:label "Receive Expression"@en ;
+    rdfs:comment """Waits for a message in the process mailbox, matching against
+    patterns with optional timeout."""@en ;
+    rdfs:subClassOf :ControlFlowExpression .
+
+# =============================================================================
+# Comprehension Expressions
+# =============================================================================
+
+:Comprehension a owl:Class ;
+    rdfs:label "Comprehension"@en ;
+    rdfs:comment "A construct for generating collections from enumerables."@en ;
+    rdfs:subClassOf :Expression .
+
+:ForComprehension a owl:Class ;
+    rdfs:label "For Comprehension"@en ;
+    rdfs:comment """Elixir's for macro for iteration with generators, filters,
+    and optional :into, :reduce, and :uniq options."""@en ;
+    rdfs:subClassOf :Comprehension .
+
+:Generator a owl:Class ;
+    rdfs:label "Generator"@en ;
+    rdfs:comment "A pattern <- enumerable clause in a comprehension."@en ;
+    rdfs:subClassOf :Expression .
+
+:BitstringGenerator a owl:Class ;
+    rdfs:label "Bitstring Generator"@en ;
+    rdfs:comment "A pattern <<- bitstring clause for binary comprehensions."@en ;
+    rdfs:subClassOf :Generator .
+
+:Filter a owl:Class ;
+    rdfs:label "Filter"@en ;
+    rdfs:comment "A boolean expression in a comprehension that filters elements."@en ;
+    rdfs:subClassOf :Expression .
+
+# =============================================================================
+# Pattern Matching
+# =============================================================================
+
+:Pattern a owl:Class ;
+    rdfs:label "Pattern"@en ;
+    rdfs:comment """A structure used in pattern matching to destructure and
+    bind values. Patterns can be nested and combined with guards."""@en ;
+    rdfs:subClassOf :ASTNode .
+
+:LiteralPattern a owl:Class ;
+    rdfs:label "Literal Pattern"@en ;
+    rdfs:comment "A pattern matching against a specific literal value."@en ;
+    rdfs:subClassOf :Pattern .
+
+:VariablePattern a owl:Class ;
+    rdfs:label "Variable Pattern"@en ;
+    rdfs:comment "A pattern that binds a matched value to a variable name."@en ;
+    rdfs:subClassOf :Pattern .
+
+:WildcardPattern a owl:Class ;
+    rdfs:label "Wildcard Pattern"@en ;
+    rdfs:comment "The underscore _ pattern that matches anything and discards the value."@en ;
+    rdfs:subClassOf :Pattern .
+
+:PinPattern a owl:Class ;
+    rdfs:label "Pin Pattern"@en ;
+    rdfs:comment """The ^variable pattern that matches against a variable's
+    existing value rather than rebinding it."""@en ;
+    rdfs:subClassOf :Pattern .
+
+:TuplePattern a owl:Class ;
+    rdfs:label "Tuple Pattern"@en ;
+    rdfs:comment "A pattern matching a tuple structure with nested patterns."@en ;
+    rdfs:subClassOf :Pattern .
+
+:ListPattern a owl:Class ;
+    rdfs:label "List Pattern"@en ;
+    rdfs:comment """A pattern matching list structure, including head|tail
+    decomposition patterns."""@en ;
+    rdfs:subClassOf :Pattern .
+
+:MapPattern a owl:Class ;
+    rdfs:label "Map Pattern"@en ;
+    rdfs:comment "A pattern matching specific keys in a map."@en ;
+    rdfs:subClassOf :Pattern .
+
+:StructPattern a owl:Class ;
+    rdfs:label "Struct Pattern"@en ;
+    rdfs:comment "A pattern matching a struct with specific field values."@en ;
+    rdfs:subClassOf :Pattern .
+
+:BinaryPattern a owl:Class ;
+    rdfs:label "Binary Pattern"@en ;
+    rdfs:comment """A pattern for matching binary/bitstring data with size
+    and type specifiers."""@en ;
+    rdfs:subClassOf :Pattern .
+
+:AsPattern a owl:Class ;
+    rdfs:label "As Pattern"@en ;
+    rdfs:comment """A pattern that binds the entire matched value while also
+    destructuring it (pattern = var)."""@en ;
+    rdfs:subClassOf :Pattern .
+
+:Guard a owl:Class ;
+    rdfs:label "Guard"@en ;
+    rdfs:comment """A boolean expression constraining a pattern match. Only
+    a limited set of expressions are allowed in guards."""@en ;
+    rdfs:subClassOf :Expression .
+
+:GuardClause a owl:Class ;
+    rdfs:label "Guard Clause"@en ;
+    rdfs:comment "A when clause containing one or more guard expressions."@en ;
+    rdfs:subClassOf :ASTNode .
+
+# =============================================================================
+# Block Structures
+# =============================================================================
+
+:Block a owl:Class ;
+    rdfs:label "Block"@en ;
+    rdfs:comment """A sequence of expressions. The value of a block is the
+    value of its last expression."""@en ;
+    rdfs:subClassOf :Expression .
+
+:DoBlock a owl:Class ;
+    rdfs:label "Do Block"@en ;
+    rdfs:comment "A do...end block containing a sequence of expressions."@en ;
+    rdfs:subClassOf :Block .
+
+:FnBlock a owl:Class ;
+    rdfs:label "Fn Block"@en ;
+    rdfs:comment "An anonymous function block with fn ... end syntax."@en ;
+    rdfs:subClassOf :Block .
+
+# =============================================================================
+# Variable and Reference
+# =============================================================================
+
+:Variable a owl:Class ;
+    rdfs:label "Variable"@en ;
+    rdfs:comment """A named reference to a value. Variables in Elixir are
+    immutable once bound within a scope but can be rebound."""@en ;
+    rdfs:subClassOf :Expression .
+
+:Reference a owl:Class ;
+    rdfs:label "Reference"@en ;
+    rdfs:comment "A reference to a named entity (module, function, variable)."@en ;
+    rdfs:subClassOf :Expression .
+
+:ModuleReference a owl:Class ;
+    rdfs:label "Module Reference"@en ;
+    rdfs:comment "A reference to a module by its atom name."@en ;
+    rdfs:subClassOf :Reference .
+
+:FunctionReference a owl:Class ;
+    rdfs:label "Function Reference"@en ;
+    rdfs:comment "A reference to a function, possibly captured with &Module.fun/arity."@en ;
+    rdfs:subClassOf :Reference .
+
+:RemoteCall a owl:Class ;
+    rdfs:label "Remote Call"@en ;
+    rdfs:comment "A function call with explicit module: Module.function(args)."@en ;
+    rdfs:subClassOf :Expression .
+
+:LocalCall a owl:Class ;
+    rdfs:label "Local Call"@en ;
+    rdfs:comment "A function call within the current module scope."@en ;
+    rdfs:subClassOf :Expression .
+
+# =============================================================================
+# Scope and Environment
+# =============================================================================
+
+:Scope a owl:Class ;
+    rdfs:label "Scope"@en ;
+    rdfs:comment """A lexical scope defining the visibility of bindings.
+    Elixir has module scope, function scope, and block scope."""@en ;
+    rdfs:subClassOf :CodeElement .
+
+:ModuleScope a owl:Class ;
+    rdfs:label "Module Scope"@en ;
+    rdfs:subClassOf :Scope .
+
+:FunctionScope a owl:Class ;
+    rdfs:label "Function Scope"@en ;
+    rdfs:subClassOf :Scope .
+
+:BlockScope a owl:Class ;
+    rdfs:label "Block Scope"@en ;
+    rdfs:subClassOf :Scope .
+
+:Binding a owl:Class ;
+    rdfs:label "Binding"@en ;
+    rdfs:comment "An association of a name with a value within a scope."@en ;
+    rdfs:subClassOf :CodeElement .
+
+:Closure a owl:Class ;
+    rdfs:label "Closure"@en ;
+    rdfs:comment """An anonymous function that captures variables from its
+    defining lexical environment."""@en ;
+    rdfs:subClassOf :FnBlock .
+
+# =============================================================================
+# Object Properties
+# =============================================================================
+
+# Source location properties
+:hasSourceLocation a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has source location"@en ;
+    rdfs:domain :CodeElement ;
+    rdfs:range :SourceLocation .
+
+:inSourceFile a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "in source file"@en ;
+    rdfs:domain :SourceLocation ;
+    rdfs:range :SourceFile .
+
+# AST structure properties
+:hasChild a owl:ObjectProperty ;
+    rdfs:label "has child"@en ;
+    rdfs:comment "Links a node to its children in the AST."@en ;
+    rdfs:domain :ASTNode ;
+    rdfs:range :ASTNode .
+
+:hasParent a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has parent"@en ;
+    rdfs:comment "Links a node to its parent in the AST."@en ;
+    owl:inverseOf :hasChild ;
+    rdfs:domain :ASTNode ;
+    rdfs:range :ASTNode .
+
+:hasLeftOperand a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has left operand"@en ;
+    rdfs:subPropertyOf :hasChild ;
+    rdfs:domain :BinaryOperator ;
+    rdfs:range :Expression .
+
+:hasRightOperand a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has right operand"@en ;
+    rdfs:subPropertyOf :hasChild ;
+    rdfs:domain :BinaryOperator ;
+    rdfs:range :Expression .
+
+:hasOperand a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has operand"@en ;
+    rdfs:subPropertyOf :hasChild ;
+    rdfs:domain :UnaryOperator ;
+    rdfs:range :Expression .
+
+# Pattern matching properties
+:hasPattern a owl:ObjectProperty ;
+    rdfs:label "has pattern"@en ;
+    rdfs:range :Pattern .
+
+:hasGuard a owl:ObjectProperty ;
+    rdfs:label "has guard"@en ;
+    rdfs:range :GuardClause .
+
+:bindsVariable a owl:ObjectProperty ;
+    rdfs:label "binds variable"@en ;
+    rdfs:domain :Pattern ;
+    rdfs:range :Variable .
+
+:pinsVariable a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "pins variable"@en ;
+    rdfs:domain :PinPattern ;
+    rdfs:range :Variable .
+
+# Control flow properties
+:hasCondition a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has condition"@en ;
+    rdfs:range :Expression .
+
+:hasThenBranch a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has then branch"@en ;
+    rdfs:range :Block .
+
+:hasElseBranch a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has else branch"@en ;
+    rdfs:range :Block .
+
+:hasClause a owl:ObjectProperty ;
+    rdfs:label "has clause"@en ;
+    rdfs:comment "Links a case/cond/receive to its pattern clauses."@en .
+
+:hasRescueClause a owl:ObjectProperty ;
+    rdfs:label "has rescue clause"@en ;
+    rdfs:domain :TryExpression .
+
+:hasCatchClause a owl:ObjectProperty ;
+    rdfs:label "has catch clause"@en ;
+    rdfs:domain :TryExpression .
+
+:hasAfterClause a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has after clause"@en ;
+    rdfs:domain :TryExpression ;
+    rdfs:range :Block .
+
+:hasElseClause a owl:ObjectProperty ;
+    rdfs:label "has else clause"@en .
+
+# Comprehension properties
+:hasGenerator a owl:ObjectProperty ;
+    rdfs:label "has generator"@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range :Generator .
+
+:hasFilter a owl:ObjectProperty ;
+    rdfs:label "has filter"@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range :Filter .
+
+:hasIntoCollector a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has into collector"@en ;
+    rdfs:domain :ForComprehension .
+
+# Block and scope properties
+:containsExpression a owl:ObjectProperty ;
+    rdfs:label "contains expression"@en ;
+    rdfs:domain :Block ;
+    rdfs:range :Expression .
+
+:definesScope a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "defines scope"@en ;
+    rdfs:range :Scope .
+
+:parentScope a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "parent scope"@en ;
+    rdfs:domain :Scope ;
+    rdfs:range :Scope .
+
+:hasBinding a owl:ObjectProperty ;
+    rdfs:label "has binding"@en ;
+    rdfs:domain :Scope ;
+    rdfs:range :Binding .
+
+:capturesVariable a owl:ObjectProperty ;
+    rdfs:label "captures variable"@en ;
+    rdfs:comment "Indicates a closure captures a variable from outer scope."@en ;
+    rdfs:domain :Closure ;
+    rdfs:range :Variable .
+
+# Reference properties
+:refersToModule a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "refers to module"@en ;
+    rdfs:domain :ModuleReference .
+
+:refersToFunction a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "refers to function"@en ;
+    rdfs:domain :FunctionReference .
+
+:refersToVariable a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "refers to variable"@en ;
+    rdfs:domain :Variable .
+
+# =============================================================================
+# Data Properties
+# =============================================================================
+
+# Source location data
+:startLine a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "start line"@en ;
+    rdfs:domain :SourceLocation ;
+    rdfs:range xsd:positiveInteger .
+
+:endLine a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "end line"@en ;
+    rdfs:domain :SourceLocation ;
+    rdfs:range xsd:positiveInteger .
+
+:startColumn a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "start column"@en ;
+    rdfs:domain :SourceLocation ;
+    rdfs:range xsd:positiveInteger .
+
+:endColumn a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "end column"@en ;
+    rdfs:domain :SourceLocation ;
+    rdfs:range xsd:positiveInteger .
+
+:filePath a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "file path"@en ;
+    rdfs:domain :SourceFile ;
+    rdfs:range xsd:string .
+
+# Source text and identity
+:sourceText a owl:DatatypeProperty ;
+    rdfs:label "source text"@en ;
+    rdfs:comment "The original source code text of a code element."@en ;
+    rdfs:domain :CodeElement ;
+    rdfs:range xsd:string .
+
+:name a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "name"@en ;
+    rdfs:comment "The identifier name of a code element."@en ;
+    rdfs:range xsd:string .
+
+# Literal values
+:atomValue a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "atom value"@en ;
+    rdfs:domain :AtomLiteral ;
+    rdfs:range xsd:string .
+
+:integerValue a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "integer value"@en ;
+    rdfs:domain :IntegerLiteral ;
+    rdfs:range xsd:integer .
+
+:floatValue a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "float value"@en ;
+    rdfs:domain :FloatLiteral ;
+    rdfs:range xsd:double .
+
+:stringValue a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "string value"@en ;
+    rdfs:domain :StringLiteral ;
+    rdfs:range xsd:string .
+
+:binaryValue a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "binary value"@en ;
+    rdfs:domain :BinaryLiteral ;
+    rdfs:range xsd:base64Binary .
+
+# Operator identity
+:operatorSymbol a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "operator symbol"@en ;
+    rdfs:domain :OperatorExpression ;
+    rdfs:range xsd:string .
+
+# Sigil properties
+:sigilChar a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "sigil character"@en ;
+    rdfs:comment "The character following ~ that identifies the sigil type."@en ;
+    rdfs:domain :SigilLiteral ;
+    rdfs:range xsd:string .
+
+:sigilContent a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "sigil content"@en ;
+    rdfs:domain :SigilLiteral ;
+    rdfs:range xsd:string .
+
+:sigilModifiers a owl:DatatypeProperty ;
+    rdfs:label "sigil modifiers"@en ;
+    rdfs:domain :SigilLiteral ;
+    rdfs:range xsd:string .
+
+# Range properties
+:rangeStart a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "range start"@en ;
+    rdfs:domain :RangeLiteral ;
+    rdfs:range xsd:integer .
+
+:rangeEnd a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "range end"@en ;
+    rdfs:domain :RangeLiteral ;
+    rdfs:range xsd:integer .
+
+:rangeStep a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "range step"@en ;
+    rdfs:domain :RangeLiteral ;
+    rdfs:range xsd:integer .
+
+# Block ordering
+:expressionOrder a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "expression order"@en ;
+    rdfs:comment "The position of an expression within a block (1-indexed)."@en ;
+    rdfs:range xsd:positiveInteger .
+
+# Timeout for receive
+:timeoutValue a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "timeout value"@en ;
+    rdfs:domain :ReceiveExpression ;
+    rdfs:range xsd:nonNegativeInteger .
+
+# =============================================================================
+# OWL Axioms
+# =============================================================================
+
+# Disjoint classes for literal types
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        :AtomLiteral
+        :IntegerLiteral
+        :FloatLiteral
+        :StringLiteral
+        :CharlistLiteral
+        :BinaryLiteral
+        :ListLiteral
+        :TupleLiteral
+        :MapLiteral
+        :KeywordListLiteral
+        :SigilLiteral
+        :RangeLiteral
+    ) .
+
+# Disjoint classes for operator types
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        :ArithmeticOperator
+        :ComparisonOperator
+        :LogicalOperator
+        :PipeOperator
+        :MatchOperator
+        :CaptureOperator
+        :StringConcatOperator
+        :ListOperator
+        :InOperator
+    ) .
+
+# Disjoint classes for control flow
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        :IfExpression
+        :UnlessExpression
+        :CaseExpression
+        :CondExpression
+        :WithExpression
+        :TryExpression
+        :ReceiveExpression
+    ) .
+
+# Disjoint classes for patterns
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        :LiteralPattern
+        :VariablePattern
+        :WildcardPattern
+        :PinPattern
+        :TuplePattern
+        :ListPattern
+        :MapPattern
+        :StructPattern
+        :BinaryPattern
+        :AsPattern
+    ) .
+
+# Disjoint classes for scopes
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        :ModuleScope
+        :FunctionScope
+        :BlockScope
+    ) .
+
+# All code elements have at most one source location
+:CodeElement rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasSourceLocation ;
+    owl:maxCardinality 1
+] .
+
+# Binary operators must have exactly two operands
+:BinaryOperator rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasLeftOperand ;
+    owl:cardinality 1
+] , [
+    a owl:Restriction ;
+    owl:onProperty :hasRightOperand ;
+    owl:cardinality 1
+] .
+
+# Unary operators must have exactly one operand
+:UnaryOperator rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasOperand ;
+    owl:cardinality 1
+] .
+
+# If expression must have condition and then branch
+:IfExpression rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasCondition ;
+    owl:cardinality 1
+] , [
+    a owl:Restriction ;
+    owl:onProperty :hasThenBranch ;
+    owl:cardinality 1
+] .
+
+# Property chain: transitivity of scope nesting
+:ancestorScope a owl:ObjectProperty, owl:TransitiveProperty ;
+    rdfs:label "ancestor scope"@en ;
+    rdfs:domain :Scope ;
+    rdfs:range :Scope ;
+    owl:propertyChainAxiom ( :parentScope :ancestorScope ) .
+

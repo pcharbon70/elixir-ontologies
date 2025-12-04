@@ -1,0 +1,597 @@
+@prefix : <https://w3id.org/elixir-code/shapes#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix otp: <https://w3id.org/elixir-code/otp#> .
+@prefix evo: <https://w3id.org/elixir-code/evolution#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+
+# =============================================================================
+# Shapes Graph Declaration
+# =============================================================================
+
+<https://w3id.org/elixir-code/shapes> a owl:Ontology ;
+    owl:versionInfo "1.0.0" ;
+    dc:title "Elixir Ontology SHACL Shapes"@en ;
+    dc:description """SHACL shapes for validating Elixir code knowledge graphs.
+    Provides closed-world constraints complementing OWL axioms for data quality
+    validation."""@en .
+
+# =============================================================================
+# Module Shapes
+# =============================================================================
+
+:ModuleShape a sh:NodeShape ;
+    sh:targetClass struct:Module ;
+    sh:property [
+        sh:path struct:moduleName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[A-Z][A-Za-z0-9_]*(\\.[A-Z][A-Za-z0-9_]*)*$" ;
+        sh:message "Module name must be a valid Elixir module name (UpperCamelCase with optional dots)"@en
+    ] ;
+    sh:property [
+        sh:path struct:containsFunction ;
+        sh:class struct:Function ;
+        sh:message "Module can only contain Function instances"@en
+    ] ;
+    sh:property [
+        sh:path struct:containsMacro ;
+        sh:class struct:Macro ;
+        sh:message "Module can only contain Macro instances"@en
+    ] ;
+    sh:property [
+        sh:path struct:implementsBehaviour ;
+        sh:class struct:Behaviour ;
+        sh:message "Behaviour implementation must reference a Behaviour"@en
+    ] .
+
+:NestedModuleShape a sh:NodeShape ;
+    sh:targetClass struct:NestedModule ;
+    sh:property [
+        sh:path struct:parentModule ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class struct:Module ;
+        sh:message "Nested module must have exactly one parent module"@en
+    ] .
+
+# =============================================================================
+# Function Shapes - Core to Elixir Identity
+# =============================================================================
+
+:FunctionShape a sh:NodeShape ;
+    sh:targetClass struct:Function ;
+    sh:property [
+        sh:path struct:functionName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z_][a-z0-9_]*[!?]?$" ;
+        sh:message "Function name must be valid Elixir identifier (snake_case, optional ! or ?)"@en
+    ] ;
+    sh:property [
+        sh:path struct:arity ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:maxInclusive 255 ;
+        sh:message "Function arity must be between 0 and 255"@en
+    ] ;
+    sh:property [
+        sh:path struct:belongsTo ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class struct:Module ;
+        sh:message "Function must belong to exactly one module"@en
+    ] ;
+    sh:property [
+        sh:path struct:hasClause ;
+        sh:minCount 1 ;
+        sh:class struct:FunctionClause ;
+        sh:message "Function must have at least one clause"@en
+    ] .
+
+:FunctionClauseShape a sh:NodeShape ;
+    sh:targetClass struct:FunctionClause ;
+    sh:property [
+        sh:path struct:clauseOrder ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:positiveInteger ;
+        sh:message "Function clause must have a clause order (1-indexed)"@en
+    ] ;
+    sh:property [
+        sh:path struct:hasHead ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class struct:FunctionHead ;
+        sh:message "Function clause must have exactly one head"@en
+    ] ;
+    sh:property [
+        sh:path struct:hasBody ;
+        sh:maxCount 1 ;
+        sh:class struct:FunctionBody ;
+        sh:message "Function clause can have at most one body (bodyless for protocol)"@en
+    ] .
+
+:ParameterShape a sh:NodeShape ;
+    sh:targetClass struct:Parameter ;
+    sh:property [
+        sh:path struct:parameterPosition ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:message "Parameter must have a position"@en
+    ] .
+
+:DefaultParameterShape a sh:NodeShape ;
+    sh:targetClass struct:DefaultParameter ;
+    sh:property [
+        sh:path struct:hasDefaultValue ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "Default parameter must have a default value"@en
+    ] .
+
+# =============================================================================
+# Macro Shapes
+# =============================================================================
+
+:MacroShape a sh:NodeShape ;
+    sh:targetClass struct:Macro ;
+    sh:property [
+        sh:path struct:macroName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Macro must have a name"@en
+    ] ;
+    sh:property [
+        sh:path struct:macroArity ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:message "Macro must have an arity"@en
+    ] .
+
+# =============================================================================
+# Protocol Shapes
+# =============================================================================
+
+:ProtocolShape a sh:NodeShape ;
+    sh:targetClass struct:Protocol ;
+    sh:property [
+        sh:path struct:protocolName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Protocol must have a name"@en
+    ] ;
+    sh:property [
+        sh:path struct:definesProtocolFunction ;
+        sh:minCount 1 ;
+        sh:class struct:ProtocolFunction ;
+        sh:message "Protocol must define at least one function"@en
+    ] ;
+    sh:property [
+        sh:path struct:fallbackToAny ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:boolean ;
+        sh:message "fallbackToAny must be boolean"@en
+    ] .
+
+:ProtocolImplementationShape a sh:NodeShape ;
+    sh:targetClass struct:ProtocolImplementation ;
+    sh:property [
+        sh:path struct:implementsProtocol ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class struct:Protocol ;
+        sh:message "Implementation must specify exactly one protocol"@en
+    ] ;
+    sh:property [
+        sh:path struct:forDataType ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "Implementation must specify exactly one data type"@en
+    ] .
+
+# =============================================================================
+# Behaviour Shapes
+# =============================================================================
+
+:BehaviourShape a sh:NodeShape ;
+    sh:targetClass struct:Behaviour ;
+    sh:property [
+        sh:path struct:definesCallback ;
+        sh:minCount 1 ;
+        sh:class struct:CallbackFunction ;
+        sh:message "Behaviour must define at least one callback"@en
+    ] .
+
+:CallbackSpecShape a sh:NodeShape ;
+    sh:targetClass struct:CallbackSpec ;
+    sh:property [
+        sh:path core:name ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Callback spec must have a name"@en
+    ] .
+
+# =============================================================================
+# Type System Shapes
+# =============================================================================
+
+:TypeSpecShape a sh:NodeShape ;
+    sh:targetClass struct:TypeSpec ;
+    sh:property [
+        sh:path struct:typeName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z_][a-z0-9_]*$" ;
+        sh:message "Type name must be valid Elixir type identifier"@en
+    ] ;
+    sh:property [
+        sh:path struct:typeArity ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:message "Type must specify arity"@en
+    ] .
+
+:FunctionSpecShape a sh:NodeShape ;
+    sh:targetClass struct:FunctionSpec ;
+    sh:property [
+        sh:path struct:hasReturnType ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class struct:TypeExpression ;
+        sh:message "Function spec must have exactly one return type"@en
+    ] .
+
+# =============================================================================
+# Struct Shapes
+# =============================================================================
+
+:StructShape a sh:NodeShape ;
+    sh:targetClass struct:Struct ;
+    sh:property [
+        sh:path struct:hasField ;
+        sh:class struct:StructField ;
+        sh:message "Struct fields must be StructField instances"@en
+    ] .
+
+:StructFieldShape a sh:NodeShape ;
+    sh:targetClass struct:StructField ;
+    sh:property [
+        sh:path struct:fieldName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-z_][a-z0-9_]*$" ;
+        sh:message "Field name must be valid atom (snake_case)"@en
+    ] .
+
+# =============================================================================
+# Source Location Shapes
+# =============================================================================
+
+:SourceLocationShape a sh:NodeShape ;
+    sh:targetClass core:SourceLocation ;
+    sh:property [
+        sh:path core:startLine ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:positiveInteger ;
+        sh:message "Source location must have start line"@en
+    ] ;
+    sh:property [
+        sh:path core:endLine ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:positiveInteger ;
+        sh:message "End line must be positive integer"@en
+    ] ;
+    sh:property [
+        sh:path core:inSourceFile ;
+        sh:maxCount 1 ;
+        sh:class core:SourceFile ;
+        sh:message "Must reference a SourceFile"@en
+    ] ;
+    # Constraint: endLine >= startLine
+    sh:sparql [
+        sh:message "End line must be >= start line" ;
+        sh:prefixes <https://w3id.org/elixir-code/shapes> ;
+        sh:select """
+            SELECT $this ?startLine ?endLine
+            WHERE {
+                $this core:startLine ?startLine .
+                $this core:endLine ?endLine .
+                FILTER (?endLine < ?startLine)
+            }
+        """
+    ] .
+
+# =============================================================================
+# OTP Shapes
+# =============================================================================
+
+:SupervisorShape a sh:NodeShape ;
+    sh:targetClass otp:Supervisor ;
+    sh:property [
+        sh:path otp:hasStrategy ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( otp:OneForOne otp:OneForAll otp:RestForOne ) ;
+        sh:message "Supervisor must have exactly one valid strategy"@en
+    ] ;
+    sh:property [
+        sh:path otp:maxRestarts ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:message "Max restarts must be non-negative integer"@en
+    ] ;
+    sh:property [
+        sh:path otp:maxSeconds ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:positiveInteger ;
+        sh:message "Max seconds must be positive integer"@en
+    ] .
+
+:DynamicSupervisorShape a sh:NodeShape ;
+    sh:targetClass otp:DynamicSupervisor ;
+    sh:property [
+        sh:path otp:hasStrategy ;
+        sh:hasValue otp:OneForOne ;
+        sh:message "DynamicSupervisor must use :one_for_one strategy"@en
+    ] .
+
+:ChildSpecShape a sh:NodeShape ;
+    sh:targetClass otp:ChildSpec ;
+    sh:property [
+        sh:path otp:childId ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Child spec must have an id"@en
+    ] ;
+    sh:property [
+        sh:path otp:hasRestartStrategy ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( otp:Permanent otp:Temporary otp:Transient ) ;
+        sh:message "Child spec must have valid restart strategy"@en
+    ] ;
+    sh:property [
+        sh:path otp:hasChildType ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( otp:WorkerType otp:SupervisorType ) ;
+        sh:message "Child spec must have valid type (worker or supervisor)"@en
+    ] ;
+    sh:property [
+        sh:path otp:startModule ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Child spec must have start module"@en
+    ] .
+
+:GenServerImplementationShape a sh:NodeShape ;
+    sh:targetClass otp:GenServerImplementation ;
+    sh:property [
+        sh:path otp:hasGenServerCallback ;
+        sh:qualifiedValueShape [
+            sh:class otp:InitCallback
+        ] ;
+        sh:qualifiedMinCount 1 ;
+        sh:message "GenServer implementation should have init/1 callback"@en
+    ] .
+
+:ETSTableShape a sh:NodeShape ;
+    sh:targetClass otp:ETSTable ;
+    sh:property [
+        sh:path otp:ownedByProcess ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:class otp:Process ;
+        sh:message "ETS table must have exactly one owner process"@en
+    ] ;
+    sh:property [
+        sh:path otp:hasTableType ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( otp:SetTable otp:OrderedSetTable otp:BagTable otp:DuplicateBagTable ) ;
+        sh:message "ETS table must have valid type"@en
+    ] ;
+    sh:property [
+        sh:path otp:hasAccessType ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( otp:PublicTable otp:ProtectedTable otp:PrivateTable ) ;
+        sh:message "ETS table must have valid access type"@en
+    ] .
+
+# =============================================================================
+# Evolution/Provenance Shapes
+# =============================================================================
+
+:CommitShape a sh:NodeShape ;
+    sh:targetClass evo:Commit ;
+    sh:property [
+        sh:path evo:commitHash ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-f0-9]{40}$" ;
+        sh:message "Commit hash must be 40-character hex string"@en
+    ] ;
+    sh:property [
+        sh:path evo:commitMessage ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:minLength 1 ;
+        sh:message "Commit must have a non-empty message"@en
+    ] ;
+    sh:property [
+        sh:path evo:authoredAt ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:dateTime ;
+        sh:message "Commit must have author timestamp"@en
+    ] ;
+    sh:property [
+        sh:path evo:wasAssociatedWith ;
+        sh:minCount 1 ;
+        sh:class evo:DevelopmentAgent ;
+        sh:message "Commit must be associated with at least one agent"@en
+    ] ;
+    sh:property [
+        sh:path evo:containsChange ;
+        sh:minCount 1 ;
+        sh:class evo:ChangeSet ;
+        sh:message "Commit must contain at least one change"@en
+    ] .
+
+:CodeVersionShape a sh:NodeShape ;
+    sh:targetClass evo:CodeVersion ;
+    sh:property [
+        sh:path evo:versionString ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Code version must have version string"@en
+    ] .
+
+:SemanticVersionShape a sh:NodeShape ;
+    sh:targetClass evo:SemanticVersion ;
+    sh:property [
+        sh:path evo:majorVersion ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:message "Semantic version must have major version"@en
+    ] ;
+    sh:property [
+        sh:path evo:minorVersion ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:message "Semantic version must have minor version"@en
+    ] ;
+    sh:property [
+        sh:path evo:patchVersion ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:nonNegativeInteger ;
+        sh:message "Semantic version must have patch version"@en
+    ] .
+
+:RepositoryShape a sh:NodeShape ;
+    sh:targetClass evo:Repository ;
+    sh:property [
+        sh:path evo:repositoryUrl ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:anyURI ;
+        sh:message "Repository URL must be valid URI"@en
+    ] ;
+    sh:property [
+        sh:path evo:defaultBranch ;
+        sh:maxCount 1 ;
+        sh:class evo:Branch ;
+        sh:message "Default branch must be a Branch"@en
+    ] .
+
+:BranchShape a sh:NodeShape ;
+    sh:targetClass evo:Branch ;
+    sh:property [
+        sh:path evo:branchName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-zA-Z0-9/_-]+$" ;
+        sh:message "Branch name must be valid"@en
+    ] .
+
+:DeveloperShape a sh:NodeShape ;
+    sh:targetClass evo:Developer ;
+    sh:property [
+        sh:path evo:developerName ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Developer must have a name"@en
+    ] ;
+    sh:property [
+        sh:path evo:developerEmail ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$" ;
+        sh:message "Email must be valid format"@en
+    ] .
+
+:ChangeSetShape a sh:NodeShape ;
+    sh:targetClass evo:ChangeSet ;
+    sh:property [
+        sh:path evo:changedElement ;
+        sh:minCount 1 ;
+        sh:message "ChangeSet must affect at least one code element"@en
+    ] .
+
+# =============================================================================
+# Cross-cutting Constraints
+# =============================================================================
+
+# Ensure function arities match parameter counts
+:FunctionArityMatchShape a sh:NodeShape ;
+    sh:targetClass struct:Function ;
+    sh:sparql [
+        sh:message "Function arity should match parameter count in first clause" ;
+        sh:prefixes <https://w3id.org/elixir-code/shapes> ;
+        sh:select """
+            SELECT $this ?arity ?paramCount
+            WHERE {
+                $this struct:arity ?arity .
+                $this struct:hasClause ?clause .
+                ?clause struct:clauseOrder 1 .
+                ?clause struct:hasHead ?head .
+                {
+                    SELECT ?head (COUNT(?param) AS ?paramCount)
+                    WHERE {
+                        ?head struct:hasParameter ?param .
+                    }
+                    GROUP BY ?head
+                }
+                FILTER (?arity != ?paramCount)
+            }
+        """
+    ] .
+
+# Ensure protocol implementations implement all required functions
+:ProtocolComplianceShape a sh:NodeShape ;
+    sh:targetClass struct:ProtocolImplementation ;
+    sh:sparql [
+        sh:message "Protocol implementation should implement all protocol functions" ;
+        sh:prefixes <https://w3id.org/elixir-code/shapes> ;
+        sh:select """
+            SELECT $this ?protocol ?missingFunc
+            WHERE {
+                $this struct:implementsProtocol ?protocol .
+                ?protocol struct:definesProtocolFunction ?missingFunc .
+                FILTER NOT EXISTS {
+                    $this struct:containsFunction ?implFunc .
+                    ?implFunc struct:functionName ?name .
+                    ?missingFunc struct:functionName ?name .
+                }
+            }
+        """
+    ] .
+

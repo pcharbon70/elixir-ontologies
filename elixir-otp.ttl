@@ -1,0 +1,847 @@
+@prefix : <https://w3id.org/elixir-code/otp#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+# =============================================================================
+# Ontology Declaration
+# =============================================================================
+
+<https://w3id.org/elixir-code/otp> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/elixir-code/otp/1.0.0> ;
+    owl:versionInfo "1.0.0" ;
+    owl:imports <https://w3id.org/elixir-code/structure> ;
+    dc:title "Elixir OTP Runtime Ontology"@en ;
+    dc:description """Ontology for OTP (Open Telecom Platform) runtime patterns
+    in Elixir. Models processes, supervision trees, GenServer, Agent, Task,
+    and other BEAM VM runtime abstractions. Captures the dynamic architecture
+    of Elixir applications."""@en ;
+    dc:creator "Pascal Music" ;
+    dc:date "2025-01-01"^^xsd:date ;
+    dcterms:license <https://creativecommons.org/licenses/by/4.0/> .
+
+# =============================================================================
+# Process Fundamentals
+# =============================================================================
+
+:Process a owl:Class ;
+    rdfs:label "Process"@en ;
+    rdfs:comment """A lightweight BEAM process. Processes are isolated, share
+    nothing, and communicate via message passing. Each process has its own
+    heap, stack, and mailbox."""@en ;
+    skos:definition "The fundamental unit of concurrency in the BEAM VM."@en .
+
+:ProcessIdentity a owl:Class ;
+    rdfs:label "Process Identity"@en ;
+    rdfs:comment """The identity of a process: PID, registered name, or via tuple.
+    Processes can be addressed by multiple mechanisms."""@en .
+
+:PID a owl:Class ;
+    rdfs:label "PID"@en ;
+    rdfs:comment "A process identifier - a reference to a running process."@en ;
+    rdfs:subClassOf :ProcessIdentity .
+
+:RegisteredName a owl:Class ;
+    rdfs:label "Registered Name"@en ;
+    rdfs:comment "An atom registered to identify a process locally or globally."@en ;
+    rdfs:subClassOf :ProcessIdentity .
+
+:LocalRegistration a owl:Class ;
+    rdfs:label "Local Registration"@en ;
+    rdfs:comment "A process registered on the local node with an atom name."@en ;
+    rdfs:subClassOf :RegisteredName .
+
+:GlobalRegistration a owl:Class ;
+    rdfs:label "Global Registration"@en ;
+    rdfs:comment "A process registered globally across all connected nodes."@en ;
+    rdfs:subClassOf :RegisteredName .
+
+:ViaRegistration a owl:Class ;
+    rdfs:label "Via Registration"@en ;
+    rdfs:comment """A process registered through a registry module like Registry
+    or :gproc. Uses {:via, module, key} tuple format."""@en ;
+    rdfs:subClassOf :ProcessIdentity .
+
+:ProcessMailbox a owl:Class ;
+    rdfs:label "Process Mailbox"@en ;
+    rdfs:comment """The message queue for a process. Messages are pattern-matched
+    with receive blocks in the order they can be matched."""@en .
+
+:ProcessLinks a owl:Class ;
+    rdfs:label "Process Links"@en ;
+    rdfs:comment """Bidirectional links between processes. When a linked process
+    exits abnormally, exit signals propagate to linked processes."""@en .
+
+:ProcessMonitor a owl:Class ;
+    rdfs:label "Process Monitor"@en ;
+    rdfs:comment """Unidirectional monitoring of a process. The monitor receives
+    a :DOWN message when the monitored process exits."""@en .
+
+# =============================================================================
+# OTP Behaviours
+# =============================================================================
+
+:OTPBehaviour a owl:Class ;
+    rdfs:label "OTP Behaviour"@en ;
+    rdfs:comment """A standard OTP behaviour providing common patterns for
+    building fault-tolerant systems."""@en ;
+    rdfs:subClassOf struct:Behaviour .
+
+:GenServer a owl:Class ;
+    rdfs:label "GenServer"@en ;
+    rdfs:comment """The generic server behaviour. Manages state through callbacks:
+    init/1, handle_call/3, handle_cast/2, handle_info/2, handle_continue/2,
+    terminate/2, code_change/3."""@en ;
+    rdfs:subClassOf :OTPBehaviour ;
+    skos:example """defmodule Counter do
+  use GenServer
+  def init(count), do: {:ok, count}
+  def handle_call(:get, _from, count), do: {:reply, count, count}
+end"""@en .
+
+:GenServerImplementation a owl:Class ;
+    rdfs:label "GenServer Implementation"@en ;
+    rdfs:comment "A module that implements the GenServer behaviour."@en ;
+    rdfs:subClassOf struct:BehaviourImplementation .
+
+:SupervisorBehaviour a owl:Class ;
+    rdfs:label "Supervisor Behaviour"@en ;
+    rdfs:comment """The supervisor behaviour for building fault-tolerant supervision
+    trees. Implements init/1 callback returning child specifications and strategy."""@en ;
+    rdfs:subClassOf :OTPBehaviour .
+
+:Application a owl:Class ;
+    rdfs:label "Application"@en ;
+    rdfs:comment """An OTP application - a component that can be started and stopped
+    as a unit. Implements start/2 and optionally stop/1, prep_stop/1."""@en ;
+    rdfs:subClassOf :OTPBehaviour .
+
+:GenEventManager a owl:Class ;
+    rdfs:label "GenEvent Manager"@en ;
+    rdfs:comment "Deprecated event manager behaviour, superseded by :gen_statem."@en ;
+    rdfs:subClassOf :OTPBehaviour ;
+    owl:deprecated true .
+
+:GenStatem a owl:Class ;
+    rdfs:label "GenStatem"@en ;
+    rdfs:comment """Generic state machine behaviour (:gen_statem). Supports
+    callback mode and state enter calls."""@en ;
+    rdfs:subClassOf :OTPBehaviour .
+
+# =============================================================================
+# Higher-Level Abstractions
+# =============================================================================
+
+:Agent a owl:Class ;
+    rdfs:label "Agent"@en ;
+    rdfs:comment """Simple state wrapper around a process. Provides get/update/get_and_update
+    operations. Implemented atop GenServer."""@en ;
+    rdfs:subClassOf :OTPBehaviour ;
+    skos:example "Agent.start_link(fn -> 0 end)"@en .
+
+:Task a owl:Class ;
+    rdfs:label "Task"@en ;
+    rdfs:comment """Abstraction for async/await pattern. Tasks are processes
+    designed for single computations that send results back."""@en ;
+    rdfs:subClassOf :Process ;
+    skos:example "Task.async(fn -> expensive_computation() end)"@en .
+
+:TaskSupervisor a owl:Class ;
+    rdfs:label "Task Supervisor"@en ;
+    rdfs:comment """A supervisor specialized for dynamic Task children.
+    Supports async_nolink for fire-and-forget tasks."""@en ;
+    rdfs:subClassOf :Supervisor .
+
+:Registry a owl:Class ;
+    rdfs:label "Registry"@en ;
+    rdfs:comment """A local, decentralized, and scalable key-value process registry.
+    Supports unique and duplicate registrations."""@en ;
+    rdfs:subClassOf :GenServer .
+
+:DynamicSupervisor a owl:Class ;
+    rdfs:label "Dynamic Supervisor"@en ;
+    rdfs:comment """A supervisor for dynamically starting and stopping children.
+    Only supports :one_for_one strategy."""@en ;
+    rdfs:subClassOf :Supervisor .
+
+:PartitionSupervisor a owl:Class ;
+    rdfs:label "Partition Supervisor"@en ;
+    rdfs:comment """Supervisor that partitions children across schedulers for
+    better performance in high-concurrency scenarios."""@en ;
+    rdfs:subClassOf :Supervisor .
+
+# =============================================================================
+# Supervision
+# =============================================================================
+
+:Supervisor a owl:Class ;
+    rdfs:label "Supervisor"@en ;
+    rdfs:comment """A process that monitors and manages child processes according
+    to a supervision strategy. Core to OTP's fault tolerance."""@en ;
+    rdfs:subClassOf :Process .
+
+:SupervisionTree a owl:Class ;
+    rdfs:label "Supervision Tree"@en ;
+    rdfs:comment """A hierarchical structure of supervisors and workers forming
+    the backbone of an OTP application."""@en .
+
+:ChildSpec a owl:Class ;
+    rdfs:label "Child Spec"@en ;
+    rdfs:comment """Specification for a child process in a supervisor.
+    Includes id, start, restart strategy, type, and shutdown."""@en .
+
+:SupervisionStrategy a owl:Class ;
+    rdfs:label "Supervision Strategy"@en ;
+    rdfs:comment "The restart strategy used by a supervisor."@en .
+
+:OneForOne a :SupervisionStrategy ;
+    rdfs:label "One For One"@en ;
+    rdfs:comment """If a child terminates, only that child is restarted.
+    Other children are unaffected."""@en .
+
+:OneForAll a :SupervisionStrategy ;
+    rdfs:label "One For All"@en ;
+    rdfs:comment """If a child terminates, all other children are terminated
+    and then all children are restarted."""@en .
+
+:RestForOne a :SupervisionStrategy ;
+    rdfs:label "Rest For One"@en ;
+    rdfs:comment """If a child terminates, the child and all children started
+    after it are terminated and restarted."""@en .
+
+:RestartStrategy a owl:Class ;
+    rdfs:label "Restart Strategy"@en ;
+    rdfs:comment "How a child process should be restarted when it exits."@en .
+
+:Permanent a :RestartStrategy ;
+    rdfs:label "Permanent"@en ;
+    rdfs:comment "Always restart the child when it terminates."@en .
+
+:Temporary a :RestartStrategy ;
+    rdfs:label "Temporary"@en ;
+    rdfs:comment "Never restart the child when it terminates."@en .
+
+:Transient a :RestartStrategy ;
+    rdfs:label "Transient"@en ;
+    rdfs:comment "Restart only if child terminates abnormally (non-:normal exit)."@en .
+
+:ChildType a owl:Class ;
+    rdfs:label "Child Type"@en ;
+    rdfs:comment "The type of a supervised child process."@en .
+
+:WorkerType a :ChildType ;
+    rdfs:label "Worker Type"@en ;
+    rdfs:comment "A worker process (not a supervisor)."@en .
+
+:SupervisorType a :ChildType ;
+    rdfs:label "Supervisor Type"@en ;
+    rdfs:comment "A supervisor process (may have its own children)."@en .
+
+:ShutdownStrategy a owl:Class ;
+    rdfs:label "Shutdown Strategy"@en ;
+    rdfs:comment "How a child should be terminated during supervisor shutdown."@en .
+
+:BrutalKill a :ShutdownStrategy ;
+    rdfs:label "Brutal Kill"@en ;
+    rdfs:comment "Kill the process immediately with :kill signal."@en .
+
+:InfiniteShutdown a :ShutdownStrategy ;
+    rdfs:label "Infinite Shutdown"@en ;
+    rdfs:comment "Wait indefinitely for the process to terminate."@en .
+
+:TimeoutShutdown a owl:Class ;
+    rdfs:label "Timeout Shutdown"@en ;
+    rdfs:comment "Wait for specified milliseconds before brutal kill."@en ;
+    rdfs:subClassOf :ShutdownStrategy .
+
+# =============================================================================
+# GenServer Callbacks and Messages
+# =============================================================================
+
+:GenServerCallback a owl:Class ;
+    rdfs:label "GenServer Callback"@en ;
+    rdfs:comment "A callback function in a GenServer implementation."@en ;
+    rdfs:subClassOf struct:CallbackFunction .
+
+:InitCallback a owl:Class ;
+    rdfs:label "Init Callback"@en ;
+    rdfs:comment """The init/1 callback initializing GenServer state.
+    Returns {:ok, state}, {:ok, state, opts}, or {:stop, reason}."""@en ;
+    rdfs:subClassOf :GenServerCallback .
+
+:HandleCallCallback a owl:Class ;
+    rdfs:label "Handle Call Callback"@en ;
+    rdfs:comment """The handle_call/3 callback for synchronous requests.
+    Receives request, from (caller PID + ref), and state."""@en ;
+    rdfs:subClassOf :GenServerCallback .
+
+:HandleCastCallback a owl:Class ;
+    rdfs:label "Handle Cast Callback"@en ;
+    rdfs:comment "The handle_cast/2 callback for asynchronous messages."@en ;
+    rdfs:subClassOf :GenServerCallback .
+
+:HandleInfoCallback a owl:Class ;
+    rdfs:label "Handle Info Callback"@en ;
+    rdfs:comment """The handle_info/2 callback for all other messages
+    (not calls or casts)."""@en ;
+    rdfs:subClassOf :GenServerCallback .
+
+:HandleContinueCallback a owl:Class ;
+    rdfs:label "Handle Continue Callback"@en ;
+    rdfs:comment """The handle_continue/2 callback for deferred work after
+    init or other callbacks return {:continue, term}."""@en ;
+    rdfs:subClassOf :GenServerCallback .
+
+:TerminateCallback a owl:Class ;
+    rdfs:label "Terminate Callback"@en ;
+    rdfs:comment "The terminate/2 callback for cleanup before process exits."@en ;
+    rdfs:subClassOf :GenServerCallback .
+
+:CodeChangeCallback a owl:Class ;
+    rdfs:label "Code Change Callback"@en ;
+    rdfs:comment "The code_change/3 callback for hot code upgrades."@en ;
+    rdfs:subClassOf :GenServerCallback .
+
+:GenServerMessage a owl:Class ;
+    rdfs:label "GenServer Message"@en ;
+    rdfs:comment "A message sent to a GenServer process."@en .
+
+:Call a owl:Class ;
+    rdfs:label "Call"@en ;
+    rdfs:comment "A synchronous GenServer.call message expecting a reply."@en ;
+    rdfs:subClassOf :GenServerMessage .
+
+:Cast a owl:Class ;
+    rdfs:label "Cast"@en ;
+    rdfs:comment "An asynchronous GenServer.cast message with no reply."@en ;
+    rdfs:subClassOf :GenServerMessage .
+
+:Info a owl:Class ;
+    rdfs:label "Info"@en ;
+    rdfs:comment "Any other message sent directly to the process mailbox."@en ;
+    rdfs:subClassOf :GenServerMessage .
+
+:GenServerReply a owl:Class ;
+    rdfs:label "GenServer Reply"@en ;
+    rdfs:comment "A reply from a GenServer callback."@en .
+
+:ReplyTuple a owl:Class ;
+    rdfs:label "Reply Tuple"@en ;
+    rdfs:comment "{:reply, reply, state} return from handle_call."@en ;
+    rdfs:subClassOf :GenServerReply .
+
+:NoReplyTuple a owl:Class ;
+    rdfs:label "No Reply Tuple"@en ;
+    rdfs:comment "{:noreply, state} return when using GenServer.reply later."@en ;
+    rdfs:subClassOf :GenServerReply .
+
+:StopTuple a owl:Class ;
+    rdfs:label "Stop Tuple"@en ;
+    rdfs:comment "{:stop, reason, state} to terminate the GenServer."@en ;
+    rdfs:subClassOf :GenServerReply .
+
+# =============================================================================
+# Distributed Erlang
+# =============================================================================
+
+:Node a owl:Class ;
+    rdfs:label "Node"@en ;
+    rdfs:comment """An Erlang/Elixir node - a running BEAM VM instance that
+    can communicate with other nodes."""@en .
+
+:Cluster a owl:Class ;
+    rdfs:label "Cluster"@en ;
+    rdfs:comment "A collection of connected Erlang nodes."@en .
+
+:NodeConnection a owl:Class ;
+    rdfs:label "Node Connection"@en ;
+    rdfs:comment "A connection between two nodes in a cluster."@en .
+
+:DistributedProcess a owl:Class ;
+    rdfs:label "Distributed Process"@en ;
+    rdfs:comment "A process that can be accessed from remote nodes."@en ;
+    rdfs:subClassOf :Process .
+
+:RemoteCall a owl:Class ;
+    rdfs:label "Remote Call"@en ;
+    rdfs:comment """A function call to a remote node using :rpc.call/4 or
+    Node.spawn/4."""@en .
+
+:GlobalProcess a owl:Class ;
+    rdfs:label "Global Process"@en ;
+    rdfs:comment """A process registered globally across all connected nodes
+    using :global or similar."""@en ;
+    rdfs:subClassOf :DistributedProcess .
+
+# =============================================================================
+# ETS and DETS
+# =============================================================================
+
+:ETSTable a owl:Class ;
+    rdfs:label "ETS Table"@en ;
+    rdfs:comment """An Erlang Term Storage table - in-memory storage with
+    constant-time access. Owned by a process."""@en .
+
+:ETSTableType a owl:Class ;
+    rdfs:label "ETS Table Type"@en ;
+    rdfs:comment "The storage type of an ETS table."@en .
+
+:SetTable a :ETSTableType ;
+    rdfs:label "Set Table"@en ;
+    rdfs:comment "Only one object per key allowed."@en .
+
+:OrderedSetTable a :ETSTableType ;
+    rdfs:label "Ordered Set Table"@en ;
+    rdfs:comment "Set with keys in term order."@en .
+
+:BagTable a :ETSTableType ;
+    rdfs:label "Bag Table"@en ;
+    rdfs:comment "Multiple objects per key allowed, but duplicates removed."@en .
+
+:DuplicateBagTable a :ETSTableType ;
+    rdfs:label "Duplicate Bag Table"@en ;
+    rdfs:comment "Multiple objects per key including duplicates."@en .
+
+:ETSAccessType a owl:Class ;
+    rdfs:label "ETS Access Type"@en ;
+    rdfs:comment "Access control for ETS tables."@en .
+
+:PublicTable a :ETSAccessType ;
+    rdfs:label "Public Table"@en ;
+    rdfs:comment "Any process can read and write."@en .
+
+:ProtectedTable a :ETSAccessType ;
+    rdfs:label "Protected Table"@en ;
+    rdfs:comment "Any process can read, only owner can write."@en .
+
+:PrivateTable a :ETSAccessType ;
+    rdfs:label "Private Table"@en ;
+    rdfs:comment "Only owner process can read and write."@en .
+
+:DETSTable a owl:Class ;
+    rdfs:label "DETS Table"@en ;
+    rdfs:comment "Disk-based ETS table for persistent storage."@en .
+
+# =============================================================================
+# Telemetry and Metrics
+# =============================================================================
+
+:TelemetryEvent a owl:Class ;
+    rdfs:label "Telemetry Event"@en ;
+    rdfs:comment """A Telemetry event emitted by an OTP application.
+    Named by a list of atoms."""@en .
+
+:TelemetryHandler a owl:Class ;
+    rdfs:label "Telemetry Handler"@en ;
+    rdfs:comment "A function attached to handle Telemetry events."@en .
+
+:TelemetrySpan a owl:Class ;
+    rdfs:label "Telemetry Span"@en ;
+    rdfs:comment "A span measuring duration with start/stop/exception events."@en .
+
+# =============================================================================
+# Object Properties
+# =============================================================================
+
+# Process relationships
+:hasIdentity a owl:ObjectProperty ;
+    rdfs:label "has identity"@en ;
+    rdfs:domain :Process ;
+    rdfs:range :ProcessIdentity .
+
+:hasMailbox a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has mailbox"@en ;
+    rdfs:domain :Process ;
+    rdfs:range :ProcessMailbox .
+
+:linkedTo a owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:label "linked to"@en ;
+    rdfs:comment "Bidirectional process link."@en ;
+    rdfs:domain :Process ;
+    rdfs:range :Process .
+
+:monitors a owl:ObjectProperty ;
+    rdfs:label "monitors"@en ;
+    rdfs:domain :Process ;
+    rdfs:range :Process .
+
+:isMonitoredBy a owl:ObjectProperty ;
+    rdfs:label "is monitored by"@en ;
+    owl:inverseOf :monitors ;
+    rdfs:domain :Process ;
+    rdfs:range :Process .
+
+:spawns a owl:ObjectProperty ;
+    rdfs:label "spawns"@en ;
+    rdfs:domain :Process ;
+    rdfs:range :Process .
+
+:spawnedBy a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "spawned by"@en ;
+    owl:inverseOf :spawns ;
+    rdfs:domain :Process ;
+    rdfs:range :Process .
+
+:sendsMessageTo a owl:ObjectProperty ;
+    rdfs:label "sends message to"@en ;
+    rdfs:domain :Process ;
+    rdfs:range :Process .
+
+:receivesMessageFrom a owl:ObjectProperty ;
+    rdfs:label "receives message from"@en ;
+    owl:inverseOf :sendsMessageTo .
+
+# Supervision relationships
+:supervisedBy a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "supervised by"@en ;
+    rdfs:domain :Process ;
+    rdfs:range :Supervisor .
+
+:supervises a owl:ObjectProperty ;
+    rdfs:label "supervises"@en ;
+    owl:inverseOf :supervisedBy ;
+    rdfs:domain :Supervisor ;
+    rdfs:range :Process .
+
+:hasStrategy a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has strategy"@en ;
+    rdfs:domain :Supervisor ;
+    rdfs:range :SupervisionStrategy .
+
+:hasChildSpec a owl:ObjectProperty ;
+    rdfs:label "has child spec"@en ;
+    rdfs:domain :Supervisor ;
+    rdfs:range :ChildSpec .
+
+:hasChildren a owl:ObjectProperty ;
+    rdfs:label "has children"@en ;
+    rdfs:comment "Ordered list of child specs."@en ;
+    rdfs:domain :Supervisor ;
+    rdfs:range rdf:List .
+
+:specForProcess a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "spec for process"@en ;
+    rdfs:domain :ChildSpec ;
+    rdfs:range :Process .
+
+:hasRestartStrategy a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has restart strategy"@en ;
+    rdfs:domain :ChildSpec ;
+    rdfs:range :RestartStrategy .
+
+:hasChildType a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has child type"@en ;
+    rdfs:domain :ChildSpec ;
+    rdfs:range :ChildType .
+
+:hasShutdownStrategy a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has shutdown strategy"@en ;
+    rdfs:domain :ChildSpec ;
+    rdfs:range :ShutdownStrategy .
+
+:partOfTree a owl:ObjectProperty ;
+    rdfs:label "part of tree"@en ;
+    rdfs:domain :Process ;
+    rdfs:range :SupervisionTree .
+
+:rootSupervisor a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "root supervisor"@en ;
+    rdfs:domain :SupervisionTree ;
+    rdfs:range :Supervisor .
+
+# OTP Behaviour relationships
+:implementsOTPBehaviour a owl:ObjectProperty ;
+    rdfs:label "implements OTP behaviour"@en ;
+    rdfs:domain struct:Module ;
+    rdfs:range :OTPBehaviour .
+
+:hasGenServerCallback a owl:ObjectProperty ;
+    rdfs:label "has GenServer callback"@en ;
+    rdfs:domain :GenServerImplementation ;
+    rdfs:range :GenServerCallback .
+
+:handlesMessage a owl:ObjectProperty ;
+    rdfs:label "handles message"@en ;
+    rdfs:domain :GenServerCallback ;
+    rdfs:range :GenServerMessage .
+
+:producesReply a owl:ObjectProperty ;
+    rdfs:label "produces reply"@en ;
+    rdfs:domain :GenServerCallback ;
+    rdfs:range :GenServerReply .
+
+# Registration relationships
+:registeredIn a owl:ObjectProperty ;
+    rdfs:label "registered in"@en ;
+    rdfs:domain :ViaRegistration ;
+    rdfs:range :Registry .
+
+:registeredWithKey a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "registered with key"@en ;
+    rdfs:domain :ViaRegistration .
+
+# Node relationships
+:runsOn a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "runs on"@en ;
+    rdfs:domain :Process ;
+    rdfs:range :Node .
+
+:connectedTo a owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:label "connected to"@en ;
+    rdfs:domain :Node ;
+    rdfs:range :Node .
+
+:partOfCluster a owl:ObjectProperty ;
+    rdfs:label "part of cluster"@en ;
+    rdfs:domain :Node ;
+    rdfs:range :Cluster .
+
+# ETS relationships
+:ownsTable a owl:ObjectProperty ;
+    rdfs:label "owns table"@en ;
+    rdfs:domain :Process ;
+    rdfs:range :ETSTable .
+
+:ownedByProcess a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "owned by process"@en ;
+    owl:inverseOf :ownsTable ;
+    rdfs:domain :ETSTable ;
+    rdfs:range :Process .
+
+:hasTableType a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has table type"@en ;
+    rdfs:domain :ETSTable ;
+    rdfs:range :ETSTableType .
+
+:hasAccessType a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has access type"@en ;
+    rdfs:domain :ETSTable ;
+    rdfs:range :ETSAccessType .
+
+:heirProcess a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "heir process"@en ;
+    rdfs:comment "Process that inherits ETS table if owner dies."@en ;
+    rdfs:domain :ETSTable ;
+    rdfs:range :Process .
+
+# Telemetry relationships
+:emitsEvent a owl:ObjectProperty ;
+    rdfs:label "emits event"@en ;
+    rdfs:domain :Process ;
+    rdfs:range :TelemetryEvent .
+
+:handlesEvent a owl:ObjectProperty ;
+    rdfs:label "handles event"@en ;
+    rdfs:domain :TelemetryHandler ;
+    rdfs:range :TelemetryEvent .
+
+# =============================================================================
+# Data Properties
+# =============================================================================
+
+# Process identity
+:pidString a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "PID string"@en ;
+    rdfs:comment "String representation of PID like #PID<0.123.0>."@en ;
+    rdfs:domain :PID ;
+    rdfs:range xsd:string .
+
+:registeredAtom a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "registered atom"@en ;
+    rdfs:domain :RegisteredName ;
+    rdfs:range xsd:string .
+
+:viaModule a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "via module"@en ;
+    rdfs:domain :ViaRegistration ;
+    rdfs:range xsd:string .
+
+:viaKey a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "via key"@en ;
+    rdfs:domain :ViaRegistration ;
+    rdfs:range xsd:string .
+
+# Child spec properties
+:childId a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "child id"@en ;
+    rdfs:domain :ChildSpec ;
+    rdfs:range xsd:string .
+
+:startModule a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "start module"@en ;
+    rdfs:domain :ChildSpec ;
+    rdfs:range xsd:string .
+
+:startFunction a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "start function"@en ;
+    rdfs:domain :ChildSpec ;
+    rdfs:range xsd:string .
+
+:shutdownTimeout a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "shutdown timeout"@en ;
+    rdfs:domain :TimeoutShutdown ;
+    rdfs:range xsd:nonNegativeInteger .
+
+# Supervisor properties
+:maxRestarts a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "max restarts"@en ;
+    rdfs:domain :Supervisor ;
+    rdfs:range xsd:nonNegativeInteger .
+
+:maxSeconds a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "max seconds"@en ;
+    rdfs:domain :Supervisor ;
+    rdfs:range xsd:positiveInteger .
+
+:extraArguments a owl:DatatypeProperty ;
+    rdfs:label "extra arguments"@en ;
+    rdfs:comment "Extra arguments passed to DynamicSupervisor.start_child."@en ;
+    rdfs:domain :DynamicSupervisor ;
+    rdfs:range xsd:string .
+
+# Node properties
+:nodeName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "node name"@en ;
+    rdfs:domain :Node ;
+    rdfs:range xsd:string .
+
+:nodeHost a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "node host"@en ;
+    rdfs:domain :Node ;
+    rdfs:range xsd:string .
+
+:cookie a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "cookie"@en ;
+    rdfs:comment "Erlang cookie for cluster authentication."@en ;
+    rdfs:domain :Cluster ;
+    rdfs:range xsd:string .
+
+# ETS properties
+:tableName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "table name"@en ;
+    rdfs:domain :ETSTable ;
+    rdfs:range xsd:string .
+
+:isNamedTable a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is named table"@en ;
+    rdfs:domain :ETSTable ;
+    rdfs:range xsd:boolean .
+
+:keyPosition a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "key position"@en ;
+    rdfs:comment "Position of key in stored tuples (1-indexed)."@en ;
+    rdfs:domain :ETSTable ;
+    rdfs:range xsd:positiveInteger .
+
+:readConcurrency a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "read concurrency"@en ;
+    rdfs:domain :ETSTable ;
+    rdfs:range xsd:boolean .
+
+:writeConcurrency a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "write concurrency"@en ;
+    rdfs:domain :ETSTable ;
+    rdfs:range xsd:boolean .
+
+:compressData a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "compress data"@en ;
+    rdfs:domain :ETSTable ;
+    rdfs:range xsd:boolean .
+
+# Registry properties
+:registryType a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "registry type"@en ;
+    rdfs:comment "unique or duplicate registration."@en ;
+    rdfs:domain :Registry ;
+    rdfs:range xsd:string .
+
+:registryPartitions a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "registry partitions"@en ;
+    rdfs:domain :Registry ;
+    rdfs:range xsd:positiveInteger .
+
+# Telemetry properties
+:eventName a owl:DatatypeProperty ;
+    rdfs:label "event name"@en ;
+    rdfs:comment "List of atoms as dot-separated string."@en ;
+    rdfs:domain :TelemetryEvent ;
+    rdfs:range xsd:string .
+
+:handlerModule a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "handler module"@en ;
+    rdfs:domain :TelemetryHandler ;
+    rdfs:range xsd:string .
+
+:handlerFunction a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "handler function"@en ;
+    rdfs:domain :TelemetryHandler ;
+    rdfs:range xsd:string .
+
+# =============================================================================
+# OWL Axioms
+# =============================================================================
+
+# Supervision strategies are mutually exclusive
+[] a owl:AllDifferent ;
+    owl:distinctMembers ( :OneForOne :OneForAll :RestForOne ) .
+
+# Restart strategies are mutually exclusive
+[] a owl:AllDifferent ;
+    owl:distinctMembers ( :Permanent :Temporary :Transient ) .
+
+# Child types are mutually exclusive
+[] a owl:AllDifferent ;
+    owl:distinctMembers ( :WorkerType :SupervisorType ) .
+
+# ETS table types are disjoint
+[] a owl:AllDifferent ;
+    owl:distinctMembers ( :SetTable :OrderedSetTable :BagTable :DuplicateBagTable ) .
+
+# ETS access types are disjoint
+[] a owl:AllDifferent ;
+    owl:distinctMembers ( :PublicTable :ProtectedTable :PrivateTable ) .
+
+# Every supervisor has exactly one strategy
+:Supervisor rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasStrategy ;
+    owl:cardinality 1
+] .
+
+# Every child spec has a restart strategy
+:ChildSpec rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasRestartStrategy ;
+    owl:cardinality 1
+] .
+
+# Every child spec has a type
+:ChildSpec rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasChildType ;
+    owl:cardinality 1
+] .
+
+# ETS tables have exactly one owner
+:ETSTable rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :ownedByProcess ;
+    owl:cardinality 1
+] .
+
+# Process links are symmetric (defined above)
+# Monitoring is asymmetric
+
+# DynamicSupervisor only uses OneForOne
+:DynamicSupervisor rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :hasStrategy ;
+    owl:hasValue :OneForOne
+] .
+

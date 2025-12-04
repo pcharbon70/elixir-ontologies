@@ -1,0 +1,865 @@
+@prefix : <https://w3id.org/elixir-code/evolution#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix otp: <https://w3id.org/elixir-code/otp#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+# =============================================================================
+# Ontology Declaration
+# =============================================================================
+
+<https://w3id.org/elixir-code/evolution> a owl:Ontology ;
+    owl:versionIRI <https://w3id.org/elixir-code/evolution/1.0.0> ;
+    owl:versionInfo "1.0.0" ;
+    owl:imports <https://w3id.org/elixir-code/structure> ,
+                <http://www.w3.org/ns/prov-o#> ;
+    dc:title "Elixir Code Evolution Ontology"@en ;
+    dc:description """Temporal provenance layer for tracking Elixir code evolution.
+    Integrates W3C PROV-O for comprehensive activity chains linking code changes
+    to agents, commits, and versions. Supports RDF-star annotations for fine-grained
+    statement-level provenance and bitemporal modeling."""@en ;
+    dc:creator "Pascal Music" ;
+    dc:date "2025-01-01"^^xsd:date ;
+    dcterms:license <https://creativecommons.org/licenses/by/4.0/> ;
+    rdfs:seeAlso <http://www.w3.org/TR/prov-o/> .
+
+# =============================================================================
+# PROV-O Aligned Classes
+# =============================================================================
+
+# Entities - Code Artifacts
+:CodeVersion a owl:Class ;
+    rdfs:label "Code Version"@en ;
+    rdfs:comment """A versioned snapshot of code - a module, function, or entire
+    codebase at a specific point in time. Aligns with prov:Entity."""@en ;
+    rdfs:subClassOf prov:Entity .
+
+:ModuleVersion a owl:Class ;
+    rdfs:label "Module Version"@en ;
+    rdfs:comment "A specific version of an Elixir module."@en ;
+    rdfs:subClassOf :CodeVersion .
+
+:FunctionVersion a owl:Class ;
+    rdfs:label "Function Version"@en ;
+    rdfs:comment "A specific version of a function."@en ;
+    rdfs:subClassOf :CodeVersion .
+
+:TypeVersion a owl:Class ;
+    rdfs:label "Type Version"@en ;
+    rdfs:comment "A specific version of a type specification."@en ;
+    rdfs:subClassOf :CodeVersion .
+
+:CodebaseSnapshot a owl:Class ;
+    rdfs:label "Codebase Snapshot"@en ;
+    rdfs:comment "A complete snapshot of a codebase at a specific version."@en ;
+    rdfs:subClassOf :CodeVersion .
+
+:ReleaseArtifact a owl:Class ;
+    rdfs:label "Release Artifact"@en ;
+    rdfs:comment "A compiled release artifact (.tar.gz, Docker image, etc.)."@en ;
+    rdfs:subClassOf prov:Entity .
+
+:BeamFile a owl:Class ;
+    rdfs:label "BEAM File"@en ;
+    rdfs:comment "A compiled .beam file containing BEAM bytecode."@en ;
+    rdfs:subClassOf :ReleaseArtifact .
+
+# Activities - Development Actions
+:DevelopmentActivity a owl:Class ;
+    rdfs:label "Development Activity"@en ;
+    rdfs:comment "An activity that creates or modifies code."@en ;
+    rdfs:subClassOf prov:Activity .
+
+:Commit a owl:Class ;
+    rdfs:label "Commit"@en ;
+    rdfs:comment "A version control commit recording a set of changes."@en ;
+    rdfs:subClassOf :DevelopmentActivity .
+
+:MergeCommit a owl:Class ;
+    rdfs:label "Merge Commit"@en ;
+    rdfs:comment "A commit merging branches."@en ;
+    rdfs:subClassOf :Commit .
+
+:Refactoring a owl:Class ;
+    rdfs:label "Refactoring"@en ;
+    rdfs:comment "An activity restructuring code without changing behavior."@en ;
+    rdfs:subClassOf :DevelopmentActivity .
+
+:FunctionExtraction a owl:Class ;
+    rdfs:label "Function Extraction"@en ;
+    rdfs:comment "Extracting code into a new function."@en ;
+    rdfs:subClassOf :Refactoring .
+
+:ModuleExtraction a owl:Class ;
+    rdfs:label "Module Extraction"@en ;
+    rdfs:comment "Extracting code into a new module."@en ;
+    rdfs:subClassOf :Refactoring .
+
+:Rename a owl:Class ;
+    rdfs:label "Rename"@en ;
+    rdfs:comment "Renaming a code element."@en ;
+    rdfs:subClassOf :Refactoring .
+
+:InlineRefactoring a owl:Class ;
+    rdfs:label "Inline Refactoring"@en ;
+    rdfs:comment "Inlining a function or variable."@en ;
+    rdfs:subClassOf :Refactoring .
+
+:CodeReview a owl:Class ;
+    rdfs:label "Code Review"@en ;
+    rdfs:comment "A review activity on a pull request or changeset."@en ;
+    rdfs:subClassOf :DevelopmentActivity .
+
+:BugFix a owl:Class ;
+    rdfs:label "Bug Fix"@en ;
+    rdfs:comment "An activity fixing a defect."@en ;
+    rdfs:subClassOf :DevelopmentActivity .
+
+:FeatureAddition a owl:Class ;
+    rdfs:label "Feature Addition"@en ;
+    rdfs:comment "An activity adding new functionality."@en ;
+    rdfs:subClassOf :DevelopmentActivity .
+
+:Deprecation a owl:Class ;
+    rdfs:label "Deprecation"@en ;
+    rdfs:comment "Marking code as deprecated."@en ;
+    rdfs:subClassOf :DevelopmentActivity .
+
+:Deletion a owl:Class ;
+    rdfs:label "Deletion"@en ;
+    rdfs:comment "Removing code from the codebase."@en ;
+    rdfs:subClassOf :DevelopmentActivity .
+
+:Compilation a owl:Class ;
+    rdfs:label "Compilation"@en ;
+    rdfs:comment "The activity of compiling source code to BEAM."@en ;
+    rdfs:subClassOf prov:Activity .
+
+:Release a owl:Class ;
+    rdfs:label "Release"@en ;
+    rdfs:comment "Building and publishing a release."@en ;
+    rdfs:subClassOf prov:Activity .
+
+:Deployment a owl:Class ;
+    rdfs:label "Deployment"@en ;
+    rdfs:comment "Deploying code to a target environment."@en ;
+    rdfs:subClassOf prov:Activity .
+
+:HotCodeUpgrade a owl:Class ;
+    rdfs:label "Hot Code Upgrade"@en ;
+    rdfs:comment "Upgrading running code without stopping the system."@en ;
+    rdfs:subClassOf :Deployment .
+
+# Agents - Who Made Changes
+:DevelopmentAgent a owl:Class ;
+    rdfs:label "Development Agent"@en ;
+    rdfs:comment "An agent that participates in development activities."@en ;
+    rdfs:subClassOf prov:Agent .
+
+:Developer a owl:Class ;
+    rdfs:label "Developer"@en ;
+    rdfs:comment "A human developer who writes or modifies code."@en ;
+    rdfs:subClassOf :DevelopmentAgent .
+
+:Team a owl:Class ;
+    rdfs:label "Team"@en ;
+    rdfs:comment "A team of developers."@en ;
+    rdfs:subClassOf :DevelopmentAgent .
+
+:Bot a owl:Class ;
+    rdfs:label "Bot"@en ;
+    rdfs:comment "An automated system (CI/CD, renovate, dependabot)."@en ;
+    rdfs:subClassOf :DevelopmentAgent .
+
+:LLMAgent a owl:Class ;
+    rdfs:label "LLM Agent"@en ;
+    rdfs:comment "An LLM-based coding assistant."@en ;
+    rdfs:subClassOf :Bot .
+
+:CISystem a owl:Class ;
+    rdfs:label "CI System"@en ;
+    rdfs:comment "A continuous integration system."@en ;
+    rdfs:subClassOf :Bot .
+
+# =============================================================================
+# Change Tracking
+# =============================================================================
+
+:ChangeSet a owl:Class ;
+    rdfs:label "Change Set"@en ;
+    rdfs:comment """A set of changes between versions. Enables delta-based
+    versioning for efficient storage."""@en ;
+    rdfs:subClassOf prov:Entity .
+
+:Addition a owl:Class ;
+    rdfs:label "Addition"@en ;
+    rdfs:comment "A new code element added to the codebase."@en ;
+    rdfs:subClassOf :ChangeSet .
+
+:Modification a owl:Class ;
+    rdfs:label "Modification"@en ;
+    rdfs:comment "A change to existing code."@en ;
+    rdfs:subClassOf :ChangeSet .
+
+:Removal a owl:Class ;
+    rdfs:label "Removal"@en ;
+    rdfs:comment "Removal of code from the codebase."@en ;
+    rdfs:subClassOf :ChangeSet .
+
+:SignatureChange a owl:Class ;
+    rdfs:label "Signature Change"@en ;
+    rdfs:comment "A change to function signature (parameters, return type)."@en ;
+    rdfs:subClassOf :Modification .
+
+:BodyChange a owl:Class ;
+    rdfs:label "Body Change"@en ;
+    rdfs:comment "A change to function or macro body."@en ;
+    rdfs:subClassOf :Modification .
+
+:DocumentationChange a owl:Class ;
+    rdfs:label "Documentation Change"@en ;
+    rdfs:comment "A change to documentation only."@en ;
+    rdfs:subClassOf :Modification .
+
+:DependencyChange a owl:Class ;
+    rdfs:label "Dependency Change"@en ;
+    rdfs:comment "A change to dependencies (mix.exs)."@en ;
+    rdfs:subClassOf :ChangeSet .
+
+:DependencyAddition a owl:Class ;
+    rdfs:label "Dependency Addition"@en ;
+    rdfs:subClassOf :DependencyChange .
+
+:DependencyRemoval a owl:Class ;
+    rdfs:label "Dependency Removal"@en ;
+    rdfs:subClassOf :DependencyChange .
+
+:DependencyUpdate a owl:Class ;
+    rdfs:label "Dependency Update"@en ;
+    rdfs:subClassOf :DependencyChange .
+
+# =============================================================================
+# Version Control Integration
+# =============================================================================
+
+:Repository a owl:Class ;
+    rdfs:label "Repository"@en ;
+    rdfs:comment "A version control repository."@en .
+
+:Branch a owl:Class ;
+    rdfs:label "Branch"@en ;
+    rdfs:comment "A branch in version control."@en .
+
+:Tag a owl:Class ;
+    rdfs:label "Tag"@en ;
+    rdfs:comment "A version control tag marking a release point."@en .
+
+:PullRequest a owl:Class ;
+    rdfs:label "Pull Request"@en ;
+    rdfs:comment "A pull/merge request for code review."@en ;
+    rdfs:subClassOf :DevelopmentActivity .
+
+# =============================================================================
+# Roles
+# =============================================================================
+
+:DevelopmentRole a owl:Class ;
+    rdfs:label "Development Role"@en ;
+    rdfs:comment "A role an agent plays in a development activity."@en ;
+    rdfs:subClassOf prov:Role .
+
+:Author a :DevelopmentRole ;
+    rdfs:label "Author"@en ;
+    rdfs:comment "The author of a change."@en .
+
+:Committer a :DevelopmentRole ;
+    rdfs:label "Committer"@en ;
+    rdfs:comment "The committer who applied a change."@en .
+
+:Reviewer a :DevelopmentRole ;
+    rdfs:label "Reviewer"@en ;
+    rdfs:comment "A code reviewer."@en .
+
+:Approver a :DevelopmentRole ;
+    rdfs:label "Approver"@en ;
+    rdfs:comment "An agent who approved changes."@en .
+
+:Maintainer a :DevelopmentRole ;
+    rdfs:label "Maintainer"@en ;
+    rdfs:comment "A project maintainer."@en .
+
+# =============================================================================
+# Semantic Versioning
+# =============================================================================
+
+:SemanticVersion a owl:Class ;
+    rdfs:label "Semantic Version"@en ;
+    rdfs:comment "A version following semver (major.minor.patch)."@en .
+
+:BreakingChange a owl:Class ;
+    rdfs:label "Breaking Change"@en ;
+    rdfs:comment "A change that breaks backward compatibility."@en ;
+    rdfs:subClassOf :ChangeSet .
+
+:MinorChange a owl:Class ;
+    rdfs:label "Minor Change"@en ;
+    rdfs:comment "A backward-compatible feature addition."@en ;
+    rdfs:subClassOf :ChangeSet .
+
+:PatchChange a owl:Class ;
+    rdfs:label "Patch Change"@en ;
+    rdfs:comment "A backward-compatible bug fix."@en ;
+    rdfs:subClassOf :ChangeSet .
+
+# =============================================================================
+# Temporal Modeling (Bitemporal)
+# =============================================================================
+
+:TemporalExtent a owl:Class ;
+    rdfs:label "Temporal Extent"@en ;
+    rdfs:comment """Captures when a fact was true (valid time) and when it
+    was recorded (transaction time) for bitemporal modeling."""@en .
+
+:ValidTime a owl:Class ;
+    rdfs:label "Valid Time"@en ;
+    rdfs:comment "When a fact was/is true in the real world."@en ;
+    rdfs:subClassOf :TemporalExtent .
+
+:TransactionTime a owl:Class ;
+    rdfs:label "Transaction Time"@en ;
+    rdfs:comment "When a fact was recorded in the knowledge base."@en ;
+    rdfs:subClassOf :TemporalExtent .
+
+# =============================================================================
+# Object Properties (PROV-O aligned)
+# =============================================================================
+
+# Entity derivation
+:wasRevisionOf a owl:ObjectProperty ;
+    rdfs:label "was revision of"@en ;
+    rdfs:subPropertyOf prov:wasRevisionOf ;
+    rdfs:domain :CodeVersion ;
+    rdfs:range :CodeVersion .
+
+:hasPreviousVersion a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has previous version"@en ;
+    rdfs:subPropertyOf :wasRevisionOf ;
+    rdfs:domain :CodeVersion ;
+    rdfs:range :CodeVersion .
+
+:hasNextVersion a owl:ObjectProperty ;
+    rdfs:label "has next version"@en ;
+    owl:inverseOf :hasPreviousVersion ;
+    rdfs:domain :CodeVersion ;
+    rdfs:range :CodeVersion .
+
+:wasQuotedFrom a owl:ObjectProperty ;
+    rdfs:label "was quoted from"@en ;
+    rdfs:comment "Code copied or adapted from another source."@en ;
+    rdfs:subPropertyOf prov:wasQuotedFrom ;
+    rdfs:domain :CodeVersion ;
+    rdfs:range :CodeVersion .
+
+# Activity relationships
+:wasGeneratedBy a owl:ObjectProperty ;
+    rdfs:label "was generated by"@en ;
+    rdfs:subPropertyOf prov:wasGeneratedBy ;
+    rdfs:domain :CodeVersion ;
+    rdfs:range :DevelopmentActivity .
+
+:used a owl:ObjectProperty ;
+    rdfs:label "used"@en ;
+    rdfs:subPropertyOf prov:used ;
+    rdfs:domain :DevelopmentActivity ;
+    rdfs:range :CodeVersion .
+
+:wasInvalidatedBy a owl:ObjectProperty ;
+    rdfs:label "was invalidated by"@en ;
+    rdfs:subPropertyOf prov:wasInvalidatedBy ;
+    rdfs:domain :CodeVersion ;
+    rdfs:range :DevelopmentActivity .
+
+:wasInformedBy a owl:ObjectProperty ;
+    rdfs:label "was informed by"@en ;
+    rdfs:subPropertyOf prov:wasInformedBy ;
+    rdfs:domain :DevelopmentActivity ;
+    rdfs:range :DevelopmentActivity .
+
+# Agent relationships
+:wasAttributedTo a owl:ObjectProperty ;
+    rdfs:label "was attributed to"@en ;
+    rdfs:subPropertyOf prov:wasAttributedTo ;
+    rdfs:domain :CodeVersion ;
+    rdfs:range :DevelopmentAgent .
+
+:wasAssociatedWith a owl:ObjectProperty ;
+    rdfs:label "was associated with"@en ;
+    rdfs:subPropertyOf prov:wasAssociatedWith ;
+    rdfs:domain :DevelopmentActivity ;
+    rdfs:range :DevelopmentAgent .
+
+:actedOnBehalfOf a owl:ObjectProperty ;
+    rdfs:label "acted on behalf of"@en ;
+    rdfs:subPropertyOf prov:actedOnBehalfOf ;
+    rdfs:domain :DevelopmentAgent ;
+    rdfs:range :DevelopmentAgent .
+
+:hadRole a owl:ObjectProperty ;
+    rdfs:label "had role"@en ;
+    rdfs:range :DevelopmentRole .
+
+:memberOf a owl:ObjectProperty ;
+    rdfs:label "member of"@en ;
+    rdfs:domain :Developer ;
+    rdfs:range :Team .
+
+# Qualified associations
+:qualifiedAssociation a owl:ObjectProperty ;
+    rdfs:label "qualified association"@en ;
+    rdfs:subPropertyOf prov:qualifiedAssociation ;
+    rdfs:domain :DevelopmentActivity .
+
+:qualifiedAttribution a owl:ObjectProperty ;
+    rdfs:label "qualified attribution"@en ;
+    rdfs:subPropertyOf prov:qualifiedAttribution ;
+    rdfs:domain :CodeVersion .
+
+# Change relationships
+:containsChange a owl:ObjectProperty ;
+    rdfs:label "contains change"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range :ChangeSet .
+
+:appliedTo a owl:ObjectProperty ;
+    rdfs:label "applied to"@en ;
+    rdfs:domain :ChangeSet ;
+    rdfs:range core:CodeElement .
+
+:changedElement a owl:ObjectProperty ;
+    rdfs:label "changed element"@en ;
+    rdfs:domain :ChangeSet ;
+    rdfs:range core:CodeElement .
+
+:producedVersion a owl:ObjectProperty ;
+    rdfs:label "produced version"@en ;
+    rdfs:domain :ChangeSet ;
+    rdfs:range :CodeVersion .
+
+:fromVersion a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "from version"@en ;
+    rdfs:domain :ChangeSet ;
+    rdfs:range :CodeVersion .
+
+:toVersion a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "to version"@en ;
+    rdfs:domain :ChangeSet ;
+    rdfs:range :CodeVersion .
+
+# Version control
+:inRepository a owl:ObjectProperty ;
+    rdfs:label "in repository"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range :Repository .
+
+:onBranch a owl:ObjectProperty ;
+    rdfs:label "on branch"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range :Branch .
+
+:hasBranch a owl:ObjectProperty ;
+    rdfs:label "has branch"@en ;
+    rdfs:domain :Repository ;
+    rdfs:range :Branch .
+
+:hasTag a owl:ObjectProperty ;
+    rdfs:label "has tag"@en ;
+    rdfs:domain :Repository ;
+    rdfs:range :Tag .
+
+:taggedCommit a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "tagged commit"@en ;
+    rdfs:domain :Tag ;
+    rdfs:range :Commit .
+
+:defaultBranch a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "default branch"@en ;
+    rdfs:domain :Repository ;
+    rdfs:range :Branch .
+
+:mergedFrom a owl:ObjectProperty ;
+    rdfs:label "merged from"@en ;
+    rdfs:domain :MergeCommit ;
+    rdfs:range :Branch .
+
+:parentCommit a owl:ObjectProperty ;
+    rdfs:label "parent commit"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range :Commit .
+
+:associatedPR a owl:ObjectProperty ;
+    rdfs:label "associated PR"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range :PullRequest .
+
+:mergesPR a owl:ObjectProperty ;
+    rdfs:label "merges PR"@en ;
+    rdfs:domain :MergeCommit ;
+    rdfs:range :PullRequest .
+
+# Compilation and release
+:compilesTo a owl:ObjectProperty ;
+    rdfs:label "compiles to"@en ;
+    rdfs:domain :Compilation ;
+    rdfs:range :BeamFile .
+
+:compiledFrom a owl:ObjectProperty ;
+    rdfs:label "compiled from"@en ;
+    owl:inverseOf :compilesTo ;
+    rdfs:domain :BeamFile ;
+    rdfs:range :Compilation .
+
+:includesArtifact a owl:ObjectProperty ;
+    rdfs:label "includes artifact"@en ;
+    rdfs:domain :Release ;
+    rdfs:range :ReleaseArtifact .
+
+:releasedVersion a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "released version"@en ;
+    rdfs:domain :Release ;
+    rdfs:range :CodebaseSnapshot .
+
+:deployedArtifact a owl:ObjectProperty ;
+    rdfs:label "deployed artifact"@en ;
+    rdfs:domain :Deployment ;
+    rdfs:range :ReleaseArtifact .
+
+# Temporal relationships
+:hasTemporalExtent a owl:ObjectProperty ;
+    rdfs:label "has temporal extent"@en .
+
+:supersedes a owl:ObjectProperty ;
+    rdfs:label "supersedes"@en ;
+    rdfs:comment "Indicates a statement supersedes a previous one."@en .
+
+:supersededBy a owl:ObjectProperty ;
+    rdfs:label "superseded by"@en ;
+    owl:inverseOf :supersedes .
+
+# Dependency provenance
+:addsDependency a owl:ObjectProperty ;
+    rdfs:label "adds dependency"@en ;
+    rdfs:domain :DependencyAddition .
+
+:removesDependency a owl:ObjectProperty ;
+    rdfs:label "removes dependency"@en ;
+    rdfs:domain :DependencyRemoval .
+
+:updatesDependency a owl:ObjectProperty ;
+    rdfs:label "updates dependency"@en ;
+    rdfs:domain :DependencyUpdate .
+
+# =============================================================================
+# Data Properties
+# =============================================================================
+
+# Commit metadata
+:commitHash a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "commit hash"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range xsd:string .
+
+:shortHash a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "short hash"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range xsd:string .
+
+:commitMessage a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "commit message"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range xsd:string .
+
+:commitSubject a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "commit subject"@en ;
+    rdfs:comment "First line of commit message."@en ;
+    rdfs:domain :Commit ;
+    rdfs:range xsd:string .
+
+:commitBody a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "commit body"@en ;
+    rdfs:comment "Body of commit message after first line."@en ;
+    rdfs:domain :Commit ;
+    rdfs:range xsd:string .
+
+:authoredAt a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "authored at"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range xsd:dateTime .
+
+:committedAt a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "committed at"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range xsd:dateTime .
+
+:isSigned a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is signed"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range xsd:boolean .
+
+# Repository metadata
+:repositoryUrl a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "repository URL"@en ;
+    rdfs:domain :Repository ;
+    rdfs:range xsd:anyURI .
+
+:repositoryName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "repository name"@en ;
+    rdfs:domain :Repository ;
+    rdfs:range xsd:string .
+
+:branchName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "branch name"@en ;
+    rdfs:domain :Branch ;
+    rdfs:range xsd:string .
+
+:tagName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "tag name"@en ;
+    rdfs:domain :Tag ;
+    rdfs:range xsd:string .
+
+:tagAnnotation a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "tag annotation"@en ;
+    rdfs:domain :Tag ;
+    rdfs:range xsd:string .
+
+# Version strings
+:versionString a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "version string"@en ;
+    rdfs:domain :CodeVersion ;
+    rdfs:range xsd:string .
+
+:majorVersion a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "major version"@en ;
+    rdfs:domain :SemanticVersion ;
+    rdfs:range xsd:nonNegativeInteger .
+
+:minorVersion a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "minor version"@en ;
+    rdfs:domain :SemanticVersion ;
+    rdfs:range xsd:nonNegativeInteger .
+
+:patchVersion a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "patch version"@en ;
+    rdfs:domain :SemanticVersion ;
+    rdfs:range xsd:nonNegativeInteger .
+
+:prereleaseLabel a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "prerelease label"@en ;
+    rdfs:domain :SemanticVersion ;
+    rdfs:range xsd:string .
+
+:buildMetadata a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "build metadata"@en ;
+    rdfs:domain :SemanticVersion ;
+    rdfs:range xsd:string .
+
+# Temporal properties
+:validFrom a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "valid from"@en ;
+    rdfs:comment "When the fact became true (valid time start)."@en ;
+    rdfs:range xsd:dateTime .
+
+:validTo a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "valid to"@en ;
+    rdfs:comment "When the fact ceased to be true (valid time end)."@en ;
+    rdfs:range xsd:dateTime .
+
+:recordedAt a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "recorded at"@en ;
+    rdfs:comment "When the fact was recorded (transaction time start)."@en ;
+    rdfs:range xsd:dateTime .
+
+:supersededAt a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "superseded at"@en ;
+    rdfs:comment "When the recorded fact was superseded (transaction time end)."@en ;
+    rdfs:range xsd:dateTime .
+
+# Agent metadata
+:developerName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "developer name"@en ;
+    rdfs:domain :Developer ;
+    rdfs:range xsd:string .
+
+:developerEmail a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "developer email"@en ;
+    rdfs:domain :Developer ;
+    rdfs:range xsd:string .
+
+:githubUsername a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "GitHub username"@en ;
+    rdfs:domain :Developer ;
+    rdfs:range xsd:string .
+
+:teamName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "team name"@en ;
+    rdfs:domain :Team ;
+    rdfs:range xsd:string .
+
+:botName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "bot name"@en ;
+    rdfs:domain :Bot ;
+    rdfs:range xsd:string .
+
+:llmModel a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "LLM model"@en ;
+    rdfs:domain :LLMAgent ;
+    rdfs:range xsd:string .
+
+# Change statistics
+:linesAdded a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "lines added"@en ;
+    rdfs:domain :ChangeSet ;
+    rdfs:range xsd:nonNegativeInteger .
+
+:linesRemoved a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "lines removed"@en ;
+    rdfs:domain :ChangeSet ;
+    rdfs:range xsd:nonNegativeInteger .
+
+:filesChanged a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "files changed"@en ;
+    rdfs:domain :Commit ;
+    rdfs:range xsd:nonNegativeInteger .
+
+# PR metadata
+:prNumber a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "PR number"@en ;
+    rdfs:domain :PullRequest ;
+    rdfs:range xsd:positiveInteger .
+
+:prTitle a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "PR title"@en ;
+    rdfs:domain :PullRequest ;
+    rdfs:range xsd:string .
+
+:prDescription a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "PR description"@en ;
+    rdfs:domain :PullRequest ;
+    rdfs:range xsd:string .
+
+:prState a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "PR state"@en ;
+    rdfs:comment "open, closed, merged"@en ;
+    rdfs:domain :PullRequest ;
+    rdfs:range xsd:string .
+
+# Build/deploy metadata
+:buildNumber a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "build number"@en ;
+    rdfs:domain :Compilation ;
+    rdfs:range xsd:positiveInteger .
+
+:targetEnvironment a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "target environment"@en ;
+    rdfs:domain :Deployment ;
+    rdfs:range xsd:string .
+
+:mixEnv a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "Mix environment"@en ;
+    rdfs:comment "dev, test, prod"@en ;
+    rdfs:domain :Compilation ;
+    rdfs:range xsd:string .
+
+# =============================================================================
+# OWL Axioms
+# =============================================================================
+
+# Activities are disjoint
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        :Commit
+        :Refactoring
+        :CodeReview
+        :BugFix
+        :FeatureAddition
+        :Deprecation
+        :Deletion
+        :Compilation
+        :Release
+        :Deployment
+    ) .
+
+# Change types are disjoint
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        :Addition
+        :Modification
+        :Removal
+    ) .
+
+# Roles are disjoint
+[] a owl:AllDifferent ;
+    owl:distinctMembers ( :Author :Committer :Reviewer :Approver :Maintainer ) .
+
+# Agent types are disjoint
+[] a owl:AllDisjointClasses ;
+    owl:members (
+        :Developer
+        :Bot
+        :Team
+    ) .
+
+# Every commit has exactly one hash
+:Commit rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :commitHash ;
+    owl:cardinality 1
+] .
+
+# Every commit has at least one change
+:Commit rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :containsChange ;
+    owl:minCardinality 1
+] .
+
+# Every version has exactly one version string
+:CodeVersion rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :versionString ;
+    owl:cardinality 1
+] .
+
+# Transitivity for version chain
+:wasRevisionOf a owl:TransitiveProperty .
+
+# Property chain: if commit contains change and change produces version
+[] a owl:Axiom ;
+    owl:annotatedSource :Commit ;
+    owl:annotatedProperty :wasGeneratedBy ;
+    rdfs:comment "Versions generated by commits through change sets."@en .
+
+# =============================================================================
+# RDF-star Pattern Examples (Comments)
+# =============================================================================
+
+# RDF-star enables statement-level annotations. Examples:
+#
+# <<:myFunction :hasReturnType :String>> 
+#     :addedInVersion "2.0" ;
+#     prov:wasGeneratedBy :commit_abc123 ;
+#     prov:generatedAtTime "2024-03-15"^^xsd:dateTime .
+#
+# <<:getUserById :hasParameter :userId>>
+#     :validFrom "2024-03-01"^^xsd:date ;
+#     :supersededAt "2024-06-01"^^xsd:date ;
+#     prov:wasAttributedTo :alice .
+#
+# This enables fine-grained provenance without full reification overhead.
+
