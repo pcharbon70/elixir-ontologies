@@ -160,21 +160,73 @@ Key properties:
 
 ## Key Properties
 
-### Source Location
+### Source Location and References
 
-Every code element can have a source location:
+Every code element can have a source location and direct links to source files:
 
 ```turtle
 core:hasSourceLocation a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:domain core:CodeElement ;
     rdfs:range core:SourceLocation .
+
+core:hasSourceFile a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:domain core:CodeElement ;
+    rdfs:range core:SourceFile .  # Direct shortcut
 ```
 
 Location properties:
 - `startLine`, `endLine` - Line numbers (1-indexed)
 - `startColumn`, `endColumn` - Column positions
-- `inSourceFile` - Reference to the source file
-- `filePath` - File system path
+- `inSourceFile` - Reference to the source file (from SourceLocation)
+- `filePath` - Absolute file system path
+- `relativeFilePath` - Path relative to repository root
+- `sourceUrl` - Direct URL to view the code (e.g., GitHub permalink)
+
+### Repository and Version Control
+
+Source files can be linked to their repository and specific commits:
+
+```turtle
+core:Repository a owl:Class .
+core:CommitRef a owl:Class .
+```
+
+**Repository properties:**
+- `repositoryUrl` - URL of the repository (e.g., `https://github.com/elixir-lang/elixir`)
+- `repositoryName` - Name of the repository
+
+**Commit properties:**
+- `commitSha` - Full SHA hash of the commit
+- `commitTag` - Tag name (e.g., `v1.15.0`)
+- `branchName` - Branch name (e.g., `main`)
+
+**Relationship chain:**
+```
+CodeElement --hasSourceFile--> SourceFile --inRepository--> Repository
+                                    |
+                                    +--atCommit--> CommitRef
+```
+
+Example:
+```turtle
+ex:myFunction core:hasSourceFile ex:usersFile ;
+    core:sourceUrl "https://github.com/org/app/blob/abc123/lib/users.ex#L10-L25"^^xsd:anyURI .
+
+ex:usersFile a core:SourceFile ;
+    core:filePath "/home/dev/app/lib/users.ex" ;
+    core:relativeFilePath "lib/users.ex" ;
+    core:inRepository ex:appRepo ;
+    core:atCommit ex:commit123 .
+
+ex:appRepo a core:Repository ;
+    core:repositoryUrl "https://github.com/org/app"^^xsd:anyURI ;
+    core:repositoryName "app" .
+
+ex:commit123 a core:CommitRef ;
+    core:commitSha "abc123def456..." ;
+    core:commitTag "v1.0.0" ;
+    core:branchName "main" .
+```
 
 ### AST Structure
 
@@ -309,3 +361,4 @@ ex:valueVar a core:Variable ;
 3. **Scope tracking**: Essential for understanding variable visibility and closures
 4. **BFO alignment**: Enables interoperability with other BFO-based ontologies
 5. **Language-agnostic base**: Core concepts apply to other functional languages
+6. **Source traceability**: Direct links from code elements to source files, repositories, and commits enable full provenance tracking

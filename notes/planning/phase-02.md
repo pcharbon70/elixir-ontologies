@@ -1,0 +1,125 @@
+# Phase 2: AST Parsing Infrastructure
+
+This phase builds the infrastructure for parsing Elixir source files into AST and extracting source location information. We'll create utilities for reading files, parsing code, and walking AST structures.
+
+## 2.1 File Reading and Parsing
+
+This section implements file reading with encoding handling and AST parsing using Elixir's built-in capabilities.
+
+### 2.1.1 File Reader Module
+- [ ] **Task 2.1.1 Complete**
+
+Create a file reader that handles encoding and provides source text alongside AST.
+
+- [ ] 2.1.1.1 Create `lib/elixir_ontologies/analyzer/file_reader.ex`
+- [ ] 2.1.1.2 Implement `FileReader.read/1` returning `{:ok, source}` or `{:error, reason}`
+- [ ] 2.1.1.3 Handle UTF-8 encoding with BOM detection
+- [ ] 2.1.1.4 Implement `FileReader.read!/1` raising on error
+- [ ] 2.1.1.5 Track file metadata (path, size, mtime)
+- [ ] 2.1.1.6 Write file reader tests (success: 6 tests pass)
+
+### 2.1.2 AST Parser Module
+- [ ] **Task 2.1.2 Complete**
+
+Create an AST parser wrapping `Code.string_to_quoted` with enhanced error handling.
+
+- [ ] 2.1.2.1 Create `lib/elixir_ontologies/analyzer/parser.ex`
+- [ ] 2.1.2.2 Implement `Parser.parse/1` accepting source string
+- [ ] 2.1.2.3 Configure parser options: `columns: true`, `token_metadata: true`
+- [ ] 2.1.2.4 Implement `Parser.parse/2` with custom options
+- [ ] 2.1.2.5 Return structured error on parse failure with line/column
+- [ ] 2.1.2.6 Implement `Parser.parse_file/1` combining read + parse
+- [ ] 2.1.2.7 Write parser tests including error cases (success: 10 tests pass)
+
+**Section 2.1 Unit Tests:**
+- [ ] Test FileReader handles valid Elixir files
+- [ ] Test FileReader reports missing files
+- [ ] Test Parser extracts AST from simple module
+- [ ] Test Parser extracts AST from complex module
+- [ ] Test Parser returns line/column on syntax error
+- [ ] Test Parser options propagate correctly
+
+## 2.2 AST Walking Infrastructure
+
+This section implements the AST traversal system that visits all nodes in the tree, collecting information for RDF generation.
+
+### 2.2.1 AST Walker Module
+- [ ] **Task 2.2.1 Complete**
+
+Create a generic AST walker using Macro.traverse with accumulator pattern.
+
+- [ ] 2.2.1.1 Create `lib/elixir_ontologies/analyzer/ast_walker.ex`
+- [ ] 2.2.1.2 Implement `ASTWalker.walk/3` with AST, initial_acc, and visitor function
+- [ ] 2.2.1.3 Implement pre-order and post-order callbacks
+- [ ] 2.2.1.4 Support selective walking (skip subtrees)
+- [ ] 2.2.1.5 Track depth and parent chain during traversal
+- [ ] 2.2.1.6 Implement `ASTWalker.find_all/2` for pattern-based collection
+- [ ] 2.2.1.7 Write walker tests (success: 12 tests pass)
+
+### 2.2.2 Node Matchers
+- [ ] **Task 2.2.2 Complete**
+
+Create pattern matchers for identifying specific AST node types.
+
+- [ ] 2.2.2.1 Create `lib/elixir_ontologies/analyzer/matchers.ex`
+- [ ] 2.2.2.2 Implement `Matchers.module?/1` detecting `defmodule`
+- [ ] 2.2.2.3 Implement `Matchers.function?/1` detecting `def/defp`
+- [ ] 2.2.2.4 Implement `Matchers.macro?/1` detecting `defmacro/defmacrop`
+- [ ] 2.2.2.5 Implement `Matchers.protocol?/1` detecting `defprotocol`
+- [ ] 2.2.2.6 Implement `Matchers.behaviour?/1` detecting `@behaviour`
+- [ ] 2.2.2.7 Implement `Matchers.struct?/1` detecting `defstruct`
+- [ ] 2.2.2.8 Implement `Matchers.type_spec?/1` detecting `@type/@spec/@callback`
+- [ ] 2.2.2.9 Implement `Matchers.use?/1`, `Matchers.import?/1`, `Matchers.alias?/1`
+- [ ] 2.2.2.10 Write matcher tests (success: 20 tests covering all patterns)
+
+**Section 2.2 Unit Tests:**
+- [ ] Test ASTWalker visits all nodes
+- [ ] Test ASTWalker accumulator updates correctly
+- [ ] Test ASTWalker depth tracking
+- [ ] Test each Matcher function with positive cases
+- [ ] Test each Matcher function with negative cases
+- [ ] Test Matchers handle edge cases (empty modules, etc.)
+
+## 2.3 Source Location Tracking
+
+This section implements extraction and tracking of source locations for all code elements, enabling the `hasSourceLocation` property.
+
+### 2.3.1 Location Extractor
+- [ ] **Task 2.3.1 Complete**
+
+Create utilities for extracting source locations from AST metadata.
+
+- [ ] 2.3.1.1 Create `lib/elixir_ontologies/analyzer/location.ex`
+- [ ] 2.3.1.2 Implement `Location.extract/1` getting line/column from AST node
+- [ ] 2.3.1.3 Implement `Location.extract_range/1` getting start and end positions
+- [ ] 2.3.1.4 Handle nodes without location metadata (return nil gracefully)
+- [ ] 2.3.1.5 Implement `Location.span/2` calculating extent from start/end nodes
+- [ ] 2.3.1.6 Create `%SourceLocation{}` struct with start_line, end_line, start_column, end_column
+- [ ] 2.3.1.7 Write location extraction tests (success: 10 tests pass)
+
+### 2.3.2 End Position Estimation
+- [ ] **Task 2.3.2 Complete**
+
+Implement heuristics for estimating end positions when not available in metadata.
+
+- [ ] 2.3.2.1 Implement end line estimation from last child node
+- [ ] 2.3.2.2 Implement end line estimation from `end` keyword for blocks
+- [ ] 2.3.2.3 Handle single-line constructs (end_line = start_line)
+- [ ] 2.3.2.4 Document estimation limitations
+- [ ] 2.3.2.5 Write estimation tests with various constructs (success: 8 tests pass)
+
+**Section 2.3 Unit Tests:**
+- [ ] Test location extraction from def node
+- [ ] Test location extraction from defmodule node
+- [ ] Test location extraction from literals
+- [ ] Test end position estimation for multi-line functions
+- [ ] Test single-line function locations
+- [ ] Test graceful handling of missing metadata
+
+## Phase 2 Integration Tests
+
+- [ ] Test full file parsing pipeline: read → parse → walk → extract locations
+- [ ] Test walker finds all modules in multi-module file
+- [ ] Test walker finds all functions in complex module
+- [ ] Test location tracking through nested structures
+- [ ] Test error handling for malformed files

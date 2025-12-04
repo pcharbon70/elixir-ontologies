@@ -52,6 +52,19 @@
     rdfs:comment "A physical file containing Elixir source code (.ex or .exs)."@en ;
     rdfs:subClassOf bfo:BFO_0000030 .  # Object - physical carrier
 
+:Repository a owl:Class ;
+    rdfs:label "Repository"@en ;
+    rdfs:comment """A version control repository containing source code.
+    Typically a git repository hosting Elixir projects."""@en ;
+    rdfs:subClassOf bfo:BFO_0000031 .
+
+:CommitRef a owl:Class ;
+    rdfs:label "Commit Reference"@en ;
+    rdfs:comment """A reference to a specific commit in a repository.
+    Can be a SHA, tag, or branch name. Provides point-in-time
+    source code identification."""@en ;
+    rdfs:subClassOf bfo:BFO_0000031 .
+
 # =============================================================================
 # Abstract Syntax Tree Classes
 # =============================================================================
@@ -485,6 +498,33 @@
     rdfs:domain :SourceLocation ;
     rdfs:range :SourceFile .
 
+:hasSourceFile a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has source file"@en ;
+    rdfs:comment """Direct link from a code element to its source file.
+    Provides a shortcut without going through SourceLocation."""@en ;
+    rdfs:domain :CodeElement ;
+    rdfs:range :SourceFile .
+
+:inRepository a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "in repository"@en ;
+    rdfs:comment "Links a source file to its containing repository."@en ;
+    rdfs:domain :SourceFile ;
+    rdfs:range :Repository .
+
+:atCommit a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "at commit"@en ;
+    rdfs:comment """Links a source file to a specific commit reference.
+    Identifies the exact version of the source code."""@en ;
+    rdfs:domain :SourceFile ;
+    rdfs:range :CommitRef .
+
+:containsFile a owl:ObjectProperty ;
+    rdfs:label "contains file"@en ;
+    rdfs:comment "Links a repository to the source files it contains."@en ;
+    owl:inverseOf :inRepository ;
+    rdfs:domain :Repository ;
+    rdfs:range :SourceFile .
+
 # AST structure properties
 :hasChild a owl:ObjectProperty ;
     rdfs:label "has child"@en ;
@@ -650,6 +690,52 @@
 
 :filePath a owl:DatatypeProperty, owl:FunctionalProperty ;
     rdfs:label "file path"@en ;
+    rdfs:domain :SourceFile ;
+    rdfs:range xsd:string .
+
+# Repository and commit properties
+:repositoryUrl a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "repository URL"@en ;
+    rdfs:comment """The URL of the version control repository.
+    Example: https://github.com/elixir-lang/elixir"""@en ;
+    rdfs:domain :Repository ;
+    rdfs:range xsd:anyURI .
+
+:repositoryName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "repository name"@en ;
+    rdfs:comment "The name of the repository (e.g., 'elixir', 'phoenix')."@en ;
+    rdfs:domain :Repository ;
+    rdfs:range xsd:string .
+
+:commitSha a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "commit SHA"@en ;
+    rdfs:comment "The full SHA hash of the commit."@en ;
+    rdfs:domain :CommitRef ;
+    rdfs:range xsd:string .
+
+:commitTag a owl:DatatypeProperty ;
+    rdfs:label "commit tag"@en ;
+    rdfs:comment "A tag name pointing to this commit (e.g., 'v1.15.0')."@en ;
+    rdfs:domain :CommitRef ;
+    rdfs:range xsd:string .
+
+:branchName a owl:DatatypeProperty ;
+    rdfs:label "branch name"@en ;
+    rdfs:comment "The branch name (e.g., 'main', 'develop')."@en ;
+    rdfs:domain :CommitRef ;
+    rdfs:range xsd:string .
+
+:sourceUrl a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "source URL"@en ;
+    rdfs:comment """A direct URL to view the source code, such as a GitHub
+    permalink. Example: https://github.com/org/repo/blob/abc123/lib/foo.ex#L10-L25"""@en ;
+    rdfs:domain :CodeElement ;
+    rdfs:range xsd:anyURI .
+
+:relativeFilePath a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "relative file path"@en ;
+    rdfs:comment """The file path relative to the repository root.
+    Example: lib/my_app/users.ex"""@en ;
     rdfs:domain :SourceFile ;
     rdfs:range xsd:string .
 
