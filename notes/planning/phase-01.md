@@ -97,24 +97,24 @@ Create the IRI builder that generates consistent, path-based IRIs for all code e
 - [x] 1.3.1.11 Write IRI generation tests (success: 45 tests pass)
 
 ### 1.3.2 IRI Utilities
-- [ ] **Task 1.3.2 Complete**
+- [x] **Task 1.3.2 Complete**
 
 Implement utility functions for IRI manipulation and validation.
 
-- [ ] 1.3.2.1 Implement `IRI.parse/1` to extract components from an IRI
-- [ ] 1.3.2.2 Implement `IRI.valid?/1` to validate IRI format
-- [ ] 1.3.2.3 Implement `IRI.escape_name/1` for safe IRI component encoding
-- [ ] 1.3.2.4 Implement `IRI.module_from_iri/1` to extract module name
-- [ ] 1.3.2.5 Implement `IRI.function_from_iri/1` to extract {module, name, arity}
-- [ ] 1.3.2.6 Write utility tests (success: 12 tests pass)
+- [x] 1.3.2.1 Implement `IRI.parse/1` to extract components from an IRI
+- [x] 1.3.2.2 Implement `IRI.valid?/1` to validate IRI format
+- [x] 1.3.2.3 Implement `IRI.escape_name/1` for safe IRI component encoding (already done in 1.3.1)
+- [x] 1.3.2.4 Implement `IRI.module_from_iri/1` to extract module name
+- [x] 1.3.2.5 Implement `IRI.function_from_iri/1` to extract {module, name, arity}
+- [x] 1.3.2.6 Write utility tests (success: 43 new tests, 88 total)
 
 **Section 1.3 Unit Tests:**
-- [ ] Test IRI generation for modules with nested names
-- [ ] Test IRI generation for functions with special characters (!, ?)
-- [ ] Test IRI generation for operators (+, -, |>, etc.)
-- [ ] Test IRI parsing extracts correct components
-- [ ] Test IRI escaping handles all edge cases
-- [ ] Test round-trip: generate → parse → components match
+- [x] Test IRI generation for modules with nested names
+- [x] Test IRI generation for functions with special characters (!, ?)
+- [x] Test IRI generation for operators (+, -, |>, etc.)
+- [x] Test IRI parsing extracts correct components
+- [x] Test IRI escaping handles all edge cases
+- [x] Test round-trip: generate → parse → components match
 
 ## 1.4 Graph CRUD Operations
 

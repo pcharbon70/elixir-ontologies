@@ -317,4 +317,320 @@ defmodule ElixirOntologies.IRITest do
       end
     end
   end
+
+  # ===========================================================================
+  # IRI Utilities Tests (Task 1.3.2)
+  # ===========================================================================
+
+  describe "valid?/1" do
+    test "returns true for valid RDF IRIs" do
+      assert IRI.valid?(RDF.iri("https://example.org/code#MyApp"))
+      assert IRI.valid?(RDF.iri("https://example.org/code#MyApp/func/1"))
+    end
+
+    test "returns true for valid IRI strings" do
+      assert IRI.valid?("https://example.org/code#MyApp")
+    end
+
+    test "returns false for invalid IRIs" do
+      refute IRI.valid?("not a valid iri")
+      refute IRI.valid?("")
+      refute IRI.valid?(nil)
+    end
+  end
+
+  describe "unescape_name/1" do
+    test "unescapes question mark" do
+      assert IRI.unescape_name("valid%3F") == "valid?"
+    end
+
+    test "unescapes exclamation mark" do
+      assert IRI.unescape_name("update%21") == "update!"
+    end
+
+    test "unescapes pipe operator" do
+      assert IRI.unescape_name("%7C%3E") == "|>"
+    end
+
+    test "preserves normal names" do
+      assert IRI.unescape_name("normal_name") == "normal_name"
+    end
+
+    test "round-trip with escape_name" do
+      names = ["valid?", "update!", "|>", "++", "normal", "MyApp.Users"]
+
+      for name <- names do
+        assert IRI.unescape_name(IRI.escape_name(name)) == name
+      end
+    end
+  end
+
+  describe "parse/1" do
+    test "parses module IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp.Users")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :module
+      assert result.base_iri == "https://example.org/code#"
+      assert result.module == "MyApp.Users"
+    end
+
+    test "parses function IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp.Users/get_user/1")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :function
+      assert result.base_iri == "https://example.org/code#"
+      assert result.module == "MyApp.Users"
+      assert result.function == "get_user"
+      assert result.arity == 1
+    end
+
+    test "parses function IRI with escaped characters" do
+      iri = RDF.iri("https://example.org/code#MyApp/valid%3F/1")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :function
+      assert result.function == "valid?"
+    end
+
+    test "parses clause IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp/get/2/clause/0")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :clause
+      assert result.module == "MyApp"
+      assert result.function == "get"
+      assert result.arity == 2
+      assert result.clause == 0
+    end
+
+    test "parses parameter IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp/get/2/clause/0/param/1")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :parameter
+      assert result.module == "MyApp"
+      assert result.function == "get"
+      assert result.clause == 0
+      assert result.parameter == 1
+    end
+
+    test "parses file IRI" do
+      iri = RDF.iri("https://example.org/code#file/lib/my_app/users.ex")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :file
+      assert result.base_iri == "https://example.org/code#"
+      assert result.path == "lib/my_app/users.ex"
+    end
+
+    test "parses file IRI with spaces" do
+      iri = RDF.iri("https://example.org/code#file/lib/my%20app/users.ex")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :file
+      assert result.path == "lib/my app/users.ex"
+    end
+
+    test "parses location IRI" do
+      iri = RDF.iri("https://example.org/code#file/lib/users.ex/L10-25")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :location
+      assert result.path == "lib/users.ex"
+      assert result.start_line == 10
+      assert result.end_line == 25
+    end
+
+    test "parses repository IRI" do
+      iri = RDF.iri("https://example.org/code#repo/a1b2c3d4")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :repository
+      assert result.base_iri == "https://example.org/code#"
+      assert result.repo_hash == "a1b2c3d4"
+    end
+
+    test "parses commit IRI" do
+      iri = RDF.iri("https://example.org/code#repo/a1b2c3d4/commit/abc123def")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :commit
+      assert result.repo_hash == "a1b2c3d4"
+      assert result.sha == "abc123def"
+    end
+
+    test "returns error for unknown pattern" do
+      assert {:error, _} = IRI.parse("https://example.org/unknown")
+    end
+
+    test "works with string input" do
+      assert {:ok, result} = IRI.parse("https://example.org/code#MyApp")
+      assert result.type == :module
+    end
+  end
+
+  describe "module_from_iri/1" do
+    test "extracts module from module IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp.Users")
+      assert {:ok, "MyApp.Users"} = IRI.module_from_iri(iri)
+    end
+
+    test "extracts module from function IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp.Users/get_user/1")
+      assert {:ok, "MyApp.Users"} = IRI.module_from_iri(iri)
+    end
+
+    test "extracts module from clause IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp.Users/get/1/clause/0")
+      assert {:ok, "MyApp.Users"} = IRI.module_from_iri(iri)
+    end
+
+    test "extracts module from parameter IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp.Users/get/1/clause/0/param/0")
+      assert {:ok, "MyApp.Users"} = IRI.module_from_iri(iri)
+    end
+
+    test "returns error for file IRI" do
+      iri = RDF.iri("https://example.org/code#file/lib/app.ex")
+      assert {:error, "Not a module or function IRI"} = IRI.module_from_iri(iri)
+    end
+
+    test "returns error for repository IRI" do
+      iri = RDF.iri("https://example.org/code#repo/abc123")
+      assert {:error, "Not a module or function IRI"} = IRI.module_from_iri(iri)
+    end
+  end
+
+  describe "function_from_iri/1" do
+    test "extracts function from function IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp.Users/get_user/1")
+      assert {:ok, {"MyApp.Users", "get_user", 1}} = IRI.function_from_iri(iri)
+    end
+
+    test "extracts function with escaped characters" do
+      iri = RDF.iri("https://example.org/code#MyApp/valid%3F/1")
+      assert {:ok, {"MyApp", "valid?", 1}} = IRI.function_from_iri(iri)
+    end
+
+    test "extracts function from clause IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp/get/2/clause/0")
+      assert {:ok, {"MyApp", "get", 2}} = IRI.function_from_iri(iri)
+    end
+
+    test "extracts function from parameter IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp/get/2/clause/0/param/1")
+      assert {:ok, {"MyApp", "get", 2}} = IRI.function_from_iri(iri)
+    end
+
+    test "returns error for module IRI" do
+      iri = RDF.iri("https://example.org/code#MyApp.Users")
+      assert {:error, "Not a function IRI"} = IRI.function_from_iri(iri)
+    end
+
+    test "returns error for file IRI" do
+      iri = RDF.iri("https://example.org/code#file/lib/app.ex")
+      assert {:error, "Not a function IRI"} = IRI.function_from_iri(iri)
+    end
+  end
+
+  describe "round-trip: generate → parse → verify" do
+    test "module round-trip" do
+      module_name = "MyApp.Accounts.User"
+      iri = IRI.for_module(@base_iri, module_name)
+      assert {:ok, parsed} = IRI.parse(iri)
+      assert parsed.type == :module
+      assert parsed.module == module_name
+    end
+
+    test "function round-trip" do
+      module = "MyApp.Users"
+      func = "get_user"
+      arity = 2
+
+      iri = IRI.for_function(@base_iri, module, func, arity)
+      assert {:ok, parsed} = IRI.parse(iri)
+      assert parsed.type == :function
+      assert parsed.module == module
+      assert parsed.function == func
+      assert parsed.arity == arity
+    end
+
+    test "function with special characters round-trip" do
+      module = "MyApp"
+      func = "valid?"
+      arity = 1
+
+      iri = IRI.for_function(@base_iri, module, func, arity)
+      assert {:ok, parsed} = IRI.parse(iri)
+      assert parsed.function == func
+    end
+
+    test "clause round-trip" do
+      func_iri = IRI.for_function(@base_iri, "MyApp", "get", 1)
+      clause_iri = IRI.for_clause(func_iri, 2)
+
+      assert {:ok, parsed} = IRI.parse(clause_iri)
+      assert parsed.type == :clause
+      assert parsed.module == "MyApp"
+      assert parsed.function == "get"
+      assert parsed.arity == 1
+      assert parsed.clause == 2
+    end
+
+    test "parameter round-trip" do
+      func_iri = IRI.for_function(@base_iri, "MyApp", "get", 2)
+      clause_iri = IRI.for_clause(func_iri, 0)
+      param_iri = IRI.for_parameter(clause_iri, 1)
+
+      assert {:ok, parsed} = IRI.parse(param_iri)
+      assert parsed.type == :parameter
+      assert parsed.module == "MyApp"
+      assert parsed.function == "get"
+      assert parsed.clause == 0
+      assert parsed.parameter == 1
+    end
+
+    test "file round-trip" do
+      path = "lib/my_app/users.ex"
+      iri = IRI.for_source_file(@base_iri, path)
+
+      assert {:ok, parsed} = IRI.parse(iri)
+      assert parsed.type == :file
+      assert parsed.path == path
+    end
+
+    test "location round-trip" do
+      file_iri = IRI.for_source_file(@base_iri, "lib/users.ex")
+      loc_iri = IRI.for_source_location(file_iri, 10, 25)
+
+      assert {:ok, parsed} = IRI.parse(loc_iri)
+      assert parsed.type == :location
+      assert parsed.path == "lib/users.ex"
+      assert parsed.start_line == 10
+      assert parsed.end_line == 25
+    end
+
+    test "repository round-trip" do
+      iri = IRI.for_repository(@base_iri, "https://github.com/user/repo")
+      assert {:ok, parsed} = IRI.parse(iri)
+      assert parsed.type == :repository
+      assert String.length(parsed.repo_hash) == 8
+    end
+
+    test "commit round-trip" do
+      repo_iri = IRI.for_repository(@base_iri, "https://github.com/user/repo")
+      commit_iri = IRI.for_commit(repo_iri, "abc123def")
+
+      assert {:ok, parsed} = IRI.parse(commit_iri)
+      assert parsed.type == :commit
+      assert parsed.sha == "abc123def"
+    end
+
+    test "module_from_iri round-trip" do
+      module = "MyApp.Accounts.User"
+      iri = IRI.for_module(@base_iri, module)
+      assert {:ok, ^module} = IRI.module_from_iri(iri)
+    end
+
+    test "function_from_iri round-trip" do
+      module = "MyApp.Users"
+      func = "update!"
+      arity = 2
+
+      iri = IRI.for_function(@base_iri, module, func, arity)
+      assert {:ok, {^module, ^func, ^arity}} = IRI.function_from_iri(iri)
+    end
+  end
 end

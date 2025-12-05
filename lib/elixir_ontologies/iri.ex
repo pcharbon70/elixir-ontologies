@@ -264,6 +264,202 @@ defmodule ElixirOntologies.IRI do
     RDF.iri("#{base}/commit/#{sha}")
   end
 
+  # ===========================================================================
+  # IRI Utilities
+  # ===========================================================================
+
+  @doc """
+  Checks if an IRI is valid.
+
+  Delegates to `RDF.IRI.valid?/1`.
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.valid?(RDF.iri("https://example.org/code#MyApp"))
+      true
+
+      iex> ElixirOntologies.IRI.valid?("not a valid iri")
+      false
+  """
+  @spec valid?(any()) :: boolean()
+  def valid?(iri) do
+    RDF.IRI.valid?(iri)
+  end
+
+  @doc """
+  Parses an IRI into its component parts.
+
+  Returns a map with the IRI type and its components, or `{:error, reason}`
+  if the IRI doesn't match any known pattern.
+
+  ## Supported Types
+
+  - `:module` - Module IRI (e.g., `base#MyApp.Users`)
+  - `:function` - Function IRI (e.g., `base#MyApp/get_user/1`)
+  - `:clause` - Clause IRI (e.g., `.../clause/0`)
+  - `:parameter` - Parameter IRI (e.g., `.../param/0`)
+  - `:file` - File IRI (e.g., `base#file/lib/users.ex`)
+  - `:location` - Location IRI (e.g., `.../L10-25`)
+  - `:repository` - Repository IRI (e.g., `base#repo/a1b2c3d4`)
+  - `:commit` - Commit IRI (e.g., `.../commit/abc123`)
+
+  ## Examples
+
+      iex> {:ok, result} = ElixirOntologies.IRI.parse(RDF.iri("https://example.org/code#MyApp.Users"))
+      iex> result.type
+      :module
+      iex> result.module
+      "MyApp.Users"
+
+      iex> {:ok, result} = ElixirOntologies.IRI.parse(RDF.iri("https://example.org/code#MyApp/get/1"))
+      iex> result.type
+      :function
+      iex> result.module
+      "MyApp"
+      iex> result.function
+      "get"
+      iex> result.arity
+      1
+  """
+  @spec parse(String.t() | RDF.IRI.t()) :: {:ok, map()} | {:error, String.t()}
+  def parse(iri) do
+    iri_string = to_string(iri)
+
+    cond do
+      # Parameter IRI: .../clause/N/param/N
+      match = Regex.run(~r/^(.+)\/clause\/(\d+)\/param\/(\d+)$/, iri_string) ->
+        [_, parent, clause, param] = match
+        {:ok, parse_parameter(parent, clause, param)}
+
+      # Clause IRI: .../N/clause/N
+      match = Regex.run(~r/^(.+)\/(\d+)\/clause\/(\d+)$/, iri_string) ->
+        [_, parent, arity, clause] = match
+        {:ok, parse_clause(parent, arity, clause)}
+
+      # Location IRI: .../L{start}-{end}
+      match = Regex.run(~r/^(.+)\/L(\d+)-(\d+)$/, iri_string) ->
+        [_, file_iri, start_line, end_line] = match
+        {:ok, parse_location(file_iri, start_line, end_line)}
+
+      # Commit IRI: .../repo/hash/commit/sha
+      match = Regex.run(~r/^(.+#repo\/[a-f0-9]+)\/commit\/([a-f0-9]+)$/, iri_string) ->
+        [_, repo_iri, sha] = match
+        {:ok, parse_commit(repo_iri, sha)}
+
+      # Repository IRI: base#repo/hash
+      match = Regex.run(~r/^(.+#)repo\/([a-f0-9]+)$/, iri_string) ->
+        [_, base, hash] = match
+        {:ok, %{type: :repository, base_iri: base, repo_hash: hash}}
+
+      # File IRI: base#file/path
+      match = Regex.run(~r/^(.+#)file\/(.+)$/, iri_string) ->
+        [_, base, path] = match
+        {:ok, %{type: :file, base_iri: base, path: URI.decode(path)}}
+
+      # Function IRI: base#Module/name/arity
+      match = Regex.run(~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)\/([^\/]+)\/(\d+)$/, iri_string) ->
+        [_, base, module, func, arity] = match
+        {:ok, %{
+          type: :function,
+          base_iri: base,
+          module: URI.decode(module),
+          function: URI.decode(func),
+          arity: String.to_integer(arity)
+        }}
+
+      # Module IRI: base#ModuleName (must start with uppercase)
+      match = Regex.run(~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)$/, iri_string) ->
+        [_, base, module] = match
+        {:ok, %{type: :module, base_iri: base, module: URI.decode(module)}}
+
+      true ->
+        {:error, "Unknown IRI pattern: #{iri_string}"}
+    end
+  end
+
+  @doc """
+  Extracts the module name from a module or function IRI.
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.module_from_iri(RDF.iri("https://example.org/code#MyApp.Users"))
+      {:ok, "MyApp.Users"}
+
+      iex> ElixirOntologies.IRI.module_from_iri(RDF.iri("https://example.org/code#MyApp.Users/get_user/1"))
+      {:ok, "MyApp.Users"}
+
+      iex> ElixirOntologies.IRI.module_from_iri(RDF.iri("https://example.org/code#file/lib/app.ex"))
+      {:error, "Not a module or function IRI"}
+  """
+  @spec module_from_iri(String.t() | RDF.IRI.t()) :: {:ok, String.t()} | {:error, String.t()}
+  def module_from_iri(iri) do
+    case parse(iri) do
+      {:ok, %{type: :module, module: module}} -> {:ok, module}
+      {:ok, %{type: :function, module: module}} -> {:ok, module}
+      {:ok, %{type: :clause}} -> extract_module_from_clause(iri)
+      {:ok, %{type: :parameter}} -> extract_module_from_parameter(iri)
+      {:ok, _} -> {:error, "Not a module or function IRI"}
+      {:error, _} = error -> error
+    end
+  end
+
+  @doc """
+  Extracts the function signature from a function IRI.
+
+  Returns `{:ok, {module, function_name, arity}}` or an error.
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.function_from_iri(RDF.iri("https://example.org/code#MyApp.Users/get_user/1"))
+      {:ok, {"MyApp.Users", "get_user", 1}}
+
+      iex> ElixirOntologies.IRI.function_from_iri(RDF.iri("https://example.org/code#MyApp/valid%3F/1"))
+      {:ok, {"MyApp", "valid?", 1}}
+
+      iex> ElixirOntologies.IRI.function_from_iri(RDF.iri("https://example.org/code#MyApp.Users"))
+      {:error, "Not a function IRI"}
+  """
+  @spec function_from_iri(String.t() | RDF.IRI.t()) :: {:ok, {String.t(), String.t(), non_neg_integer()}} | {:error, String.t()}
+  def function_from_iri(iri) do
+    case parse(iri) do
+      {:ok, %{type: :function, module: module, function: func, arity: arity}} ->
+        {:ok, {module, func, arity}}
+      {:ok, %{type: :clause}} ->
+        extract_function_from_clause(iri)
+      {:ok, %{type: :parameter}} ->
+        extract_function_from_parameter(iri)
+      {:ok, _} ->
+        {:error, "Not a function IRI"}
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc """
+  Unescapes URL-encoded characters in a name.
+
+  This is the inverse of `escape_name/1`.
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.unescape_name("valid%3F")
+      "valid?"
+
+      iex> ElixirOntologies.IRI.unescape_name("update%21")
+      "update!"
+
+      iex> ElixirOntologies.IRI.unescape_name("normal_name")
+      "normal_name"
+  """
+  @spec unescape_name(String.t()) :: String.t()
+  def unescape_name(name) when is_binary(name) do
+    URI.decode(name)
+  end
+
+  # ===========================================================================
+  # Private Helpers
+  # ===========================================================================
+
   # Helper to convert module atom to string representation
   defp module_to_string(module) when is_atom(module) do
     module
@@ -279,5 +475,106 @@ defmodule ElixirOntologies.IRI do
     |> String.split("/")
     |> Enum.map(&escape_name/1)
     |> Enum.join("/")
+  end
+
+  # Parse helpers for complex IRI types
+  defp parse_parameter(parent, clause, param) do
+    # parent is the function IRI: base#Module/func/arity
+    # We need to extract module, func, and arity from it
+    case Regex.run(~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)\/([^\/]+)\/(\d+)$/, parent) do
+      [_, base, module, func, arity] ->
+        %{
+          type: :parameter,
+          base_iri: base,
+          module: URI.decode(module),
+          function: URI.decode(func),
+          arity: String.to_integer(arity),
+          clause: String.to_integer(clause),
+          parameter: String.to_integer(param)
+        }
+      _ ->
+        %{type: :parameter, clause: String.to_integer(clause), parameter: String.to_integer(param)}
+    end
+  end
+
+  defp parse_clause(parent, arity, clause) do
+    # parent is base#Module/func, arity is the function arity
+    case Regex.run(~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)\/([^\/]+)$/, parent) do
+      [_, base, module, func] ->
+        %{
+          type: :clause,
+          base_iri: base,
+          module: URI.decode(module),
+          function: URI.decode(func),
+          arity: String.to_integer(arity),
+          clause: String.to_integer(clause)
+        }
+      _ ->
+        %{type: :clause, arity: String.to_integer(arity), clause: String.to_integer(clause)}
+    end
+  end
+
+  defp parse_location(file_iri, start_line, end_line) do
+    case Regex.run(~r/^(.+#)file\/(.+)$/, file_iri) do
+      [_, base, path] ->
+        %{
+          type: :location,
+          base_iri: base,
+          path: URI.decode(path),
+          start_line: String.to_integer(start_line),
+          end_line: String.to_integer(end_line)
+        }
+      _ ->
+        %{
+          type: :location,
+          start_line: String.to_integer(start_line),
+          end_line: String.to_integer(end_line)
+        }
+    end
+  end
+
+  defp parse_commit(repo_iri, sha) do
+    case Regex.run(~r/^(.+#)repo\/([a-f0-9]+)$/, repo_iri) do
+      [_, base, hash] ->
+        %{type: :commit, base_iri: base, repo_hash: hash, sha: sha}
+      _ ->
+        %{type: :commit, sha: sha}
+    end
+  end
+
+  defp extract_module_from_clause(iri) do
+    iri_string = to_string(iri)
+    # Remove /clause/N from the end, then parse as function
+    case Regex.run(~r/^(.+)\/clause\/\d+$/, iri_string) do
+      [_, func_iri] -> module_from_iri(func_iri)
+      _ -> {:error, "Could not extract module from clause IRI"}
+    end
+  end
+
+  defp extract_module_from_parameter(iri) do
+    iri_string = to_string(iri)
+    # Remove /param/N from the end, then delegate to clause extraction
+    case Regex.run(~r/^(.+)\/param\/\d+$/, iri_string) do
+      [_, clause_iri] -> extract_module_from_clause(clause_iri)
+      _ -> {:error, "Could not extract module from parameter IRI"}
+    end
+  end
+
+  defp extract_function_from_clause(iri) do
+    iri_string = to_string(iri)
+    # Remove /clause/N from the end, then parse as function
+    case Regex.run(~r/^(.+)\/clause\/\d+$/, iri_string) do
+      [_, func_iri] -> function_from_iri(func_iri)
+      _ -> {:error, "Could not extract function from clause IRI"}
+    end
+  end
+
+  defp extract_function_from_parameter(iri) do
+    iri_string = to_string(iri)
+    # Remove /param/N from the end, then delegate to clause extraction
+    case Regex.run(~r/^(.+)\/param\/\d+$/, iri_string) do
+      [_, clause_iri] -> extract_function_from_clause(clause_iri)
+      _ -> {:error, "Could not extract function from parameter IRI"}
+    end
   end
 end
