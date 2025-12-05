@@ -121,32 +121,32 @@ Implement utility functions for IRI manipulation and validation.
 This section implements the Graph wrapper providing clean APIs for creating, loading, saving, and manipulating RDF graphs.
 
 ### 1.4.1 Graph Module
-- [ ] **Task 1.4.1 Complete**
+- [x] **Task 1.4.1 Complete**
 
 Create the main Graph module wrapping RDF.ex functionality with a domain-specific API.
 
-- [ ] 1.4.1.1 Create `lib/elixir_ontologies/graph.ex` module
-- [ ] 1.4.1.2 Define `%Graph{}` struct wrapping `RDF.Graph`
-- [ ] 1.4.1.3 Implement `Graph.new/1` accepting optional base_iri
-- [ ] 1.4.1.4 Implement `Graph.add/2` for adding single statements
-- [ ] 1.4.1.5 Implement `Graph.add_all/2` for adding multiple statements
-- [ ] 1.4.1.6 Implement `Graph.merge/2` for combining graphs
-- [ ] 1.4.1.7 Implement `Graph.subjects/1` returning all subjects
-- [ ] 1.4.1.8 Implement `Graph.describe/2` returning all triples for a subject
-- [ ] 1.4.1.9 Implement `Graph.query/2` for SPARQL queries (when sparql available)
-- [ ] 1.4.1.10 Write graph manipulation tests (success: 15 tests pass)
+- [x] 1.4.1.1 Create `lib/elixir_ontologies/graph.ex` module
+- [x] 1.4.1.2 Define `%Graph{}` struct wrapping `RDF.Graph`
+- [x] 1.4.1.3 Implement `Graph.new/1` accepting optional base_iri
+- [x] 1.4.1.4 Implement `Graph.add/2` for adding single statements
+- [x] 1.4.1.5 Implement `Graph.add_all/2` for adding multiple statements
+- [x] 1.4.1.6 Implement `Graph.merge/2` for combining graphs
+- [x] 1.4.1.7 Implement `Graph.subjects/1` returning all subjects
+- [x] 1.4.1.8 Implement `Graph.describe/2` returning all triples for a subject
+- [x] 1.4.1.9 Implement `Graph.query/2` for SPARQL queries (when sparql available)
+- [x] 1.4.1.10 Write graph manipulation tests (success: 52 tests pass - 39 tests + 13 doctests)
 
 ### 1.4.2 Graph Serialization
-- [ ] **Task 1.4.2 Complete**
+- [x] **Task 1.4.2 Complete**
 
 Implement graph serialization to Turtle format with proper prefix handling.
 
-- [ ] 1.4.2.1 Implement `Graph.to_turtle/1` serializing to Turtle string
-- [ ] 1.4.2.2 Implement `Graph.to_turtle/2` with options (prefixes, base)
-- [ ] 1.4.2.3 Implement `Graph.save/2` writing to file path
-- [ ] 1.4.2.4 Implement `Graph.save/3` with format option
-- [ ] 1.4.2.5 Ensure all ontology prefixes are included in output
-- [ ] 1.4.2.6 Write serialization tests (success: output is valid Turtle)
+- [x] 1.4.2.1 Implement `Graph.to_turtle/1` serializing to Turtle string
+- [x] 1.4.2.2 Implement `Graph.to_turtle/2` with options (prefixes, base)
+- [x] 1.4.2.3 Implement `Graph.save/2` writing to file path
+- [x] 1.4.2.4 Implement `Graph.save/3` with format option
+- [x] 1.4.2.5 Ensure all ontology prefixes are included in output
+- [x] 1.4.2.6 Write serialization tests (success: 16 new tests, output is valid Turtle)
 
 ### 1.4.3 Graph Loading
 - [ ] **Task 1.4.3 Complete**
