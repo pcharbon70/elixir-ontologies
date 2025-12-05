@@ -78,66 +78,66 @@ Create extractors for all operator types with operand relationships.
 This section extracts pattern matching constructs which are fundamental to Elixir.
 
 ### 3.3.1 Pattern Extractor Module
-- [ ] **Task 3.3.1 Complete**
+- [x] **Task 3.3.1 Complete**
 
 Create extractors for all 11 pattern types.
 
-- [ ] 3.3.1.1 Create `lib/elixir_ontologies/extractors/pattern.ex`
-- [ ] 3.3.1.2 Implement `Pattern.extract/1` dispatching by pattern type
-- [ ] 3.3.1.3 Extract `LiteralPattern` with matched value
-- [ ] 3.3.1.4 Extract `VariablePattern` with `bindsVariable` property
-- [ ] 3.3.1.5 Extract `WildcardPattern` (_)
-- [ ] 3.3.1.6 Extract `PinPattern` (^var) with `pinsVariable` property
-- [ ] 3.3.1.7 Extract `TuplePattern` with nested patterns
-- [ ] 3.3.1.8 Extract `ListPattern` including head|tail decomposition
-- [ ] 3.3.1.9 Extract `MapPattern` with key patterns
-- [ ] 3.3.1.10 Extract `StructPattern` with struct name and field patterns
-- [ ] 3.3.1.11 Extract `BinaryPattern` with size/type specifiers
-- [ ] 3.3.1.12 Extract `AsPattern` (pattern = var)
-- [ ] 3.3.1.13 Extract `Guard` and `GuardClause`
-- [ ] 3.3.1.14 Write pattern tests (success: 22 tests)
+- [x] 3.3.1.1 Create `lib/elixir_ontologies/extractors/pattern.ex`
+- [x] 3.3.1.2 Implement `Pattern.extract/1` dispatching by pattern type
+- [x] 3.3.1.3 Extract `LiteralPattern` with matched value
+- [x] 3.3.1.4 Extract `VariablePattern` with `bindsVariable` property
+- [x] 3.3.1.5 Extract `WildcardPattern` (_)
+- [x] 3.3.1.6 Extract `PinPattern` (^var) with `pinsVariable` property
+- [x] 3.3.1.7 Extract `TuplePattern` with nested patterns
+- [x] 3.3.1.8 Extract `ListPattern` including head|tail decomposition
+- [x] 3.3.1.9 Extract `MapPattern` with key patterns
+- [x] 3.3.1.10 Extract `StructPattern` with struct name and field patterns
+- [x] 3.3.1.11 Extract `BinaryPattern` with size/type specifiers
+- [x] 3.3.1.12 Extract `AsPattern` (pattern = var)
+- [x] 3.3.1.13 Extract `Guard` and `GuardClause`
+- [x] 3.3.1.14 Write pattern tests (success: 110 tests - 30 doctests + 80 unit tests)
 
 **Section 3.3 Unit Tests:**
-- [ ] Test variable pattern binding
-- [ ] Test wildcard pattern
-- [ ] Test pin pattern
-- [ ] Test tuple pattern with nested elements
-- [ ] Test list pattern with head|tail
-- [ ] Test map pattern with various key types
-- [ ] Test struct pattern (e.g., %User{name: name})
-- [ ] Test binary pattern with specifiers
-- [ ] Test guard clause extraction
+- [x] Test variable pattern binding
+- [x] Test wildcard pattern
+- [x] Test pin pattern
+- [x] Test tuple pattern with nested elements
+- [x] Test list pattern with head|tail
+- [x] Test map pattern with various key types
+- [x] Test struct pattern (e.g., %User{name: name})
+- [x] Test binary pattern with specifiers
+- [x] Test guard clause extraction
 
 ## 3.4 Control Flow Extractors
 
 This section extracts control flow expressions: if, unless, case, cond, with, try, receive.
 
 ### 3.4.1 Control Flow Extractor Module
-- [ ] **Task 3.4.1 Complete**
+- [x] **Task 3.4.1 Complete**
 
 Create extractors for all control flow expression types.
 
-- [ ] 3.4.1.1 Create `lib/elixir_ontologies/extractors/control_flow.ex`
-- [ ] 3.4.1.2 Extract `IfExpression` with condition, then branch, else branch
-- [ ] 3.4.1.3 Extract `UnlessExpression` (syntactic negation of if)
-- [ ] 3.4.1.4 Extract `CaseExpression` with matched value and clauses
-- [ ] 3.4.1.5 Extract `CondExpression` with condition-body pairs
-- [ ] 3.4.1.6 Extract `WithExpression` with match clauses and else
-- [ ] 3.4.1.7 Extract `TryExpression` with body, rescue, catch, after clauses
-- [ ] 3.4.1.8 Extract `RaiseExpression` with exception
-- [ ] 3.4.1.9 Extract `ThrowExpression` with thrown value
-- [ ] 3.4.1.10 Extract `ReceiveExpression` with patterns and timeout
-- [ ] 3.4.1.11 Link clauses via `hasClause` property
-- [ ] 3.4.1.12 Write control flow tests (success: 18 tests)
+- [x] 3.4.1.1 Create `lib/elixir_ontologies/extractors/control_flow.ex`
+- [x] 3.4.1.2 Extract `IfExpression` with condition, then branch, else branch
+- [x] 3.4.1.3 Extract `UnlessExpression` (syntactic negation of if)
+- [x] 3.4.1.4 Extract `CaseExpression` with matched value and clauses
+- [x] 3.4.1.5 Extract `CondExpression` with condition-body pairs
+- [x] 3.4.1.6 Extract `WithExpression` with match clauses and else
+- [x] 3.4.1.7 Extract `TryExpression` with body, rescue, catch, after clauses
+- [x] 3.4.1.8 Extract `RaiseExpression` with exception
+- [x] 3.4.1.9 Extract `ThrowExpression` with thrown value
+- [x] 3.4.1.10 Extract `ReceiveExpression` with patterns and timeout
+- [x] 3.4.1.11 Link clauses via `hasClause` property
+- [x] 3.4.1.12 Write control flow tests (success: 92 tests - 27 doctests + 65 unit tests)
 
 **Section 3.4 Unit Tests:**
-- [ ] Test if/else extraction
-- [ ] Test unless extraction
-- [ ] Test case with multiple clauses
-- [ ] Test cond extraction
-- [ ] Test with expression including else clause
-- [ ] Test try/rescue/after extraction
-- [ ] Test receive with timeout
+- [x] Test if/else extraction
+- [x] Test unless extraction
+- [x] Test case with multiple clauses
+- [x] Test cond extraction
+- [x] Test with expression including else clause
+- [x] Test try/rescue/after extraction
+- [x] Test receive with timeout
 
 ## 3.5 Comprehension and Block Extractors
 
