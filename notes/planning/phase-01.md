@@ -42,37 +42,38 @@ Establish configuration options for the analyzer including base IRI, output opti
 This section defines RDF namespaces matching all ontology prefixes. These namespaces enable proper IRI construction and provide a clean API for building RDF statements.
 
 ### 1.2.1 Core Ontology Namespaces
-- [ ] **Task 1.2.1 Complete**
+- [x] **Task 1.2.1 Complete**
 
 Define namespace modules for each ontology using RDF.ex's namespace definition macros.
 
-- [ ] 1.2.1.1 Create `lib/elixir_ontologies/namespaces.ex` as central namespace registry
-- [ ] 1.2.1.2 Define `ElixirOntologies.NS.Core` for `https://w3id.org/elixir-code/core#`
-- [ ] 1.2.1.3 Define `ElixirOntologies.NS.Structure` for `https://w3id.org/elixir-code/structure#`
-- [ ] 1.2.1.4 Define `ElixirOntologies.NS.OTP` for `https://w3id.org/elixir-code/otp#`
-- [ ] 1.2.1.5 Define `ElixirOntologies.NS.Evolution` for `https://w3id.org/elixir-code/evolution#`
-- [ ] 1.2.1.6 Include standard namespaces: RDF, RDFS, OWL, XSD, PROV, BFO, IAO
-- [ ] 1.2.1.7 Create helper function `prefix_map/0` returning all prefixes for serialization
-- [ ] 1.2.1.8 Write namespace tests (success: all IRIs resolve correctly)
+- [x] 1.2.1.1 Create `lib/elixir_ontologies/ns.ex` as central namespace registry
+- [x] 1.2.1.2 Define `ElixirOntologies.NS.Core` for `https://w3id.org/elixir-code/core#`
+- [x] 1.2.1.3 Define `ElixirOntologies.NS.Structure` for `https://w3id.org/elixir-code/structure#`
+- [x] 1.2.1.4 Define `ElixirOntologies.NS.OTP` for `https://w3id.org/elixir-code/otp#`
+- [x] 1.2.1.5 Define `ElixirOntologies.NS.Evolution` for `https://w3id.org/elixir-code/evolution#`
+- [x] 1.2.1.6 Include standard namespaces: RDF, RDFS, OWL, XSD, PROV, BFO, IAO
+- [x] 1.2.1.7 Create helper function `prefix_map/0` returning all prefixes for serialization
+- [x] 1.2.1.8 Write namespace tests (success: 60 tests pass)
 
 ### 1.2.2 Namespace Term Definitions
-- [ ] **Task 1.2.2 Complete**
+- [x] **Task 1.2.2 Complete**
 
 Define individual terms within each namespace for type-safe RDF construction.
+Note: Terms are automatically loaded from ontology TTL files using RDF.ex's `file:` option.
 
-- [ ] 1.2.2.1 Define Core namespace terms: `CodeElement`, `SourceFile`, `SourceLocation`, `Repository`, `CommitRef`, all AST classes
-- [ ] 1.2.2.2 Define Structure namespace terms: `Module`, `Function`, `Parameter`, `FunctionClause`, all Elixir constructs
-- [ ] 1.2.2.3 Define OTP namespace terms: `GenServer`, `Supervisor`, `Process`, all OTP patterns
-- [ ] 1.2.2.4 Define Evolution namespace terms: `Commit`, `DevelopmentActivity`, all provenance classes
-- [ ] 1.2.2.5 Define property terms for all object and data properties
-- [ ] 1.2.2.6 Write term definition tests (success: 50+ terms defined and accessible)
+- [x] 1.2.2.1 Define Core namespace terms: `CodeElement`, `SourceFile`, `SourceLocation`, `Repository`, `CommitRef`, all AST classes
+- [x] 1.2.2.2 Define Structure namespace terms: `Module`, `Function`, `Parameter`, `FunctionClause`, all Elixir constructs
+- [x] 1.2.2.3 Define OTP namespace terms: `GenServer`, `Supervisor`, `Process`, all OTP patterns
+- [x] 1.2.2.4 Define Evolution namespace terms: `Commit`, `DevelopmentActivity`, all provenance classes
+- [x] 1.2.2.5 Define property terms for all object and data properties
+- [x] 1.2.2.6 Write term definition tests (success: 60 tests covering all namespaces)
 
 **Section 1.2 Unit Tests:**
-- [ ] Test each namespace module is defined
-- [ ] Test IRI generation for class terms
-- [ ] Test IRI generation for property terms
-- [ ] Test prefix_map/0 returns complete mapping
-- [ ] Test namespace terms match ontology definitions
+- [x] Test each namespace module is defined
+- [x] Test IRI generation for class terms
+- [x] Test IRI generation for property terms
+- [x] Test prefix_map/0 returns complete mapping
+- [x] Test namespace terms match ontology definitions
 
 ## 1.3 IRI Generation
 
