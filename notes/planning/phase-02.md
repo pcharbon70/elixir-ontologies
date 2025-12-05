@@ -118,8 +118,10 @@ Implement heuristics for estimating end positions when not available in metadata
 
 ## Phase 2 Integration Tests
 
-- [ ] Test full file parsing pipeline: read → parse → walk → extract locations
-- [ ] Test walker finds all modules in multi-module file
-- [ ] Test walker finds all functions in complex module
-- [ ] Test location tracking through nested structures
-- [ ] Test error handling for malformed files
+- [x] Test full file parsing pipeline: read → parse → walk → extract locations
+- [x] Test walker finds all modules in multi-module file
+- [x] Test walker finds all functions in complex module
+- [x] Test location tracking through nested structures
+- [x] Test error handling for malformed files
+
+**Phase 2 Complete**: 28 integration tests covering all requirements.
