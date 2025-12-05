@@ -619,11 +619,208 @@ defmodule ElixirOntologies.GraphTest do
       path = Path.join(tmp_dir, "roundtrip.ttl")
       :ok = Graph.save(original, path)
 
-      # Load and verify
-      {:ok, loaded_rdf} = RDF.Turtle.read_file(path)
-      loaded = Graph.from_rdf_graph(loaded_rdf)
+      # Load and verify using Graph.load
+      {:ok, loaded} = Graph.load(path)
 
       assert Graph.statement_count(loaded) == Graph.statement_count(original)
+    end
+  end
+
+  # ===========================================================================
+  # Loading Tests
+  # ===========================================================================
+
+  describe "from_turtle/1" do
+    test "parses valid Turtle string" do
+      turtle = """
+      @prefix struct: <https://w3id.org/elixir-code/structure#> .
+      <https://example.org/code#MyApp> a struct:Module .
+      """
+
+      {:ok, graph} = Graph.from_turtle(turtle)
+
+      assert %Graph{} = graph
+      assert Graph.statement_count(graph) == 1
+    end
+
+    test "parses Turtle with multiple statements" do
+      turtle = """
+      @prefix struct: <https://w3id.org/elixir-code/structure#> .
+      <https://example.org/code#MyApp> a struct:Module ;
+          struct:moduleName "MyApp" .
+      <https://example.org/code#OtherApp> a struct:Module .
+      """
+
+      {:ok, graph} = Graph.from_turtle(turtle)
+
+      assert Graph.statement_count(graph) == 3
+    end
+
+    test "returns error for invalid Turtle" do
+      invalid_turtle = "this is not valid turtle syntax {"
+
+      {:error, {:parse_error, _message}} = Graph.from_turtle(invalid_turtle)
+    end
+
+    test "accepts base_iri option" do
+      turtle = """
+      @prefix struct: <https://w3id.org/elixir-code/structure#> .
+      <https://example.org/code#MyApp> a struct:Module .
+      """
+
+      {:ok, graph} = Graph.from_turtle(turtle, base_iri: "https://example.org/")
+
+      assert graph.base_iri == ~I<https://example.org/>
+    end
+  end
+
+  describe "from_turtle!/1" do
+    test "returns graph on success" do
+      turtle = """
+      @prefix struct: <https://w3id.org/elixir-code/structure#> .
+      <https://example.org/code#MyApp> a struct:Module .
+      """
+
+      graph = Graph.from_turtle!(turtle)
+
+      assert %Graph{} = graph
+      assert Graph.statement_count(graph) == 1
+    end
+
+    test "raises on parse error" do
+      invalid_turtle = "not valid {"
+
+      assert_raise RuntimeError, ~r/Failed to parse Turtle/, fn ->
+        Graph.from_turtle!(invalid_turtle)
+      end
+    end
+  end
+
+  describe "load/1 and load/2" do
+    @tag :tmp_dir
+    test "loads graph from .ttl file", %{tmp_dir: tmp_dir} do
+      # First save a graph
+      original =
+        Graph.new()
+        |> Graph.add({@subject_a, RDF.type(), Structure.Module})
+
+      path = Path.join(tmp_dir, "test.ttl")
+      :ok = Graph.save(original, path)
+
+      # Then load it
+      {:ok, loaded} = Graph.load(path)
+
+      assert %Graph{} = loaded
+      assert Graph.statement_count(loaded) == 1
+    end
+
+    @tag :tmp_dir
+    test "loads graph from .turtle file", %{tmp_dir: tmp_dir} do
+      original =
+        Graph.new()
+        |> Graph.add({@subject_a, RDF.type(), Structure.Module})
+
+      path = Path.join(tmp_dir, "test.turtle")
+      :ok = Graph.save(original, path, format: :turtle)
+
+      {:ok, loaded} = Graph.load(path)
+
+      assert Graph.statement_count(loaded) == 1
+    end
+
+    @tag :tmp_dir
+    test "accepts explicit format option", %{tmp_dir: tmp_dir} do
+      original =
+        Graph.new()
+        |> Graph.add({@subject_a, RDF.type(), Structure.Module})
+
+      # Save with non-standard extension
+      path = Path.join(tmp_dir, "test.rdf")
+      :ok = Graph.save(original, path, format: :turtle)
+
+      # Load with explicit format
+      {:ok, loaded} = Graph.load(path, format: :turtle)
+
+      assert Graph.statement_count(loaded) == 1
+    end
+
+    @tag :tmp_dir
+    test "accepts base_iri option", %{tmp_dir: tmp_dir} do
+      original =
+        Graph.new()
+        |> Graph.add({@subject_a, RDF.type(), Structure.Module})
+
+      path = Path.join(tmp_dir, "test.ttl")
+      :ok = Graph.save(original, path)
+
+      {:ok, loaded} = Graph.load(path, base_iri: "https://example.org/")
+
+      assert loaded.base_iri == ~I<https://example.org/>
+    end
+
+    test "returns error for nonexistent file" do
+      {:error, :enoent} = Graph.load("/nonexistent/file.ttl")
+    end
+
+    test "returns error for unknown format" do
+      {:error, {:unknown_format, ".xyz"}} = Graph.load("/some/file.xyz")
+    end
+
+    test "returns error for unsupported format" do
+      {:error, {:unsupported_format, :json_ld}} = Graph.load("/some/file.ttl", format: :json_ld)
+    end
+  end
+
+  describe "load!/1" do
+    @tag :tmp_dir
+    test "returns graph on success", %{tmp_dir: tmp_dir} do
+      original =
+        Graph.new()
+        |> Graph.add({@subject_a, RDF.type(), Structure.Module})
+
+      path = Path.join(tmp_dir, "test.ttl")
+      :ok = Graph.save(original, path)
+
+      loaded = Graph.load!(path)
+
+      assert %Graph{} = loaded
+    end
+
+    test "raises on file not found" do
+      assert_raise RuntimeError, ~r/File not found/, fn ->
+        Graph.load!("/nonexistent/file.ttl")
+      end
+    end
+
+    test "raises on unknown format" do
+      assert_raise RuntimeError, ~r/Unknown file format/, fn ->
+        Graph.load!("/some/file.xyz")
+      end
+    end
+  end
+
+  describe "complete round-trip with load" do
+    @tag :tmp_dir
+    test "save → load → save → load preserves data", %{tmp_dir: tmp_dir} do
+      original =
+        Graph.new()
+        |> Graph.add({@subject_a, RDF.type(), Structure.Module})
+        |> Graph.add({@subject_a, Structure.moduleName(), "MyApp.ModuleA"})
+        |> Graph.add({@subject_b, RDF.type(), Structure.Module})
+        |> Graph.add({@subject_c, RDF.type(), Structure.Module})
+
+      path1 = Path.join(tmp_dir, "round1.ttl")
+      path2 = Path.join(tmp_dir, "round2.ttl")
+
+      # First round-trip
+      :ok = Graph.save(original, path1)
+      {:ok, loaded1} = Graph.load(path1)
+
+      # Second round-trip
+      :ok = Graph.save(loaded1, path2)
+      {:ok, loaded2} = Graph.load(path2)
+
+      assert Graph.statement_count(loaded2) == Graph.statement_count(original)
     end
   end
 end

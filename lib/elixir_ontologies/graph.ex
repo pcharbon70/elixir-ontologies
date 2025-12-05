@@ -503,4 +503,142 @@ defmodule ElixirOntologies.Graph do
       {:error, reason} -> raise "Failed to save graph to #{path}: #{inspect(reason)}"
     end
   end
+
+  # ===========================================================================
+  # Loading
+  # ===========================================================================
+
+  @doc """
+  Loads a graph from a file.
+
+  The format is auto-detected from the file extension:
+  - `.ttl` → Turtle format
+
+  ## Examples
+
+      {:ok, graph} = Graph.load("/path/to/graph.ttl")
+  """
+  @spec load(Path.t()) :: {:ok, t()} | {:error, term()}
+  def load(path) when is_binary(path) do
+    load(path, [])
+  end
+
+  @doc """
+  Loads a graph from a file with options.
+
+  ## Options
+
+  - `:format` - Explicitly specify format (`:turtle`). If not provided, auto-detected from extension.
+  - `:base_iri` - Base IRI for the loaded graph
+
+  ## Examples
+
+      {:ok, graph} = Graph.load("/path/to/graph.ttl", format: :turtle)
+      {:ok, graph} = Graph.load("/path/to/graph.ttl", base_iri: "https://example.org/")
+  """
+  @spec load(Path.t(), keyword()) :: {:ok, t()} | {:error, term()}
+  def load(path, opts) when is_binary(path) and is_list(opts) do
+    format = Keyword.get(opts, :format) || detect_format(path)
+    base_iri = Keyword.get(opts, :base_iri)
+
+    case format do
+      :turtle -> load_turtle_file(path, base_iri)
+      nil -> {:error, {:unknown_format, Path.extname(path)}}
+      other -> {:error, {:unsupported_format, other}}
+    end
+  end
+
+  defp detect_format(path) do
+    case Path.extname(path) do
+      ".ttl" -> :turtle
+      ".turtle" -> :turtle
+      _ -> nil
+    end
+  end
+
+  defp load_turtle_file(path, base_iri) do
+    case File.read(path) do
+      {:ok, content} -> from_turtle(content, base_iri: base_iri)
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Loads a graph from a file, raising on error.
+
+  ## Examples
+
+      graph = Graph.load!("/path/to/graph.ttl")
+  """
+  @spec load!(Path.t(), keyword()) :: t()
+  def load!(path, opts \\ []) do
+    case load(path, opts) do
+      {:ok, graph} -> graph
+      {:error, reason} -> raise "Failed to load graph from #{path}: #{format_load_error(reason)}"
+    end
+  end
+
+  @doc """
+  Parses a Turtle string into a graph.
+
+  ## Options
+
+  - `:base_iri` - Base IRI for the graph
+
+  ## Examples
+
+      iex> turtle = \"""
+      ...> @prefix struct: <https://w3id.org/elixir-code/structure#> .
+      ...> <https://example.org/code#MyApp> a struct:Module .
+      ...> \"""
+      iex> {:ok, graph} = ElixirOntologies.Graph.from_turtle(turtle)
+      iex> ElixirOntologies.Graph.statement_count(graph)
+      1
+  """
+  @spec from_turtle(String.t(), keyword()) :: {:ok, t()} | {:error, term()}
+  def from_turtle(turtle_string, opts \\ []) when is_binary(turtle_string) do
+    base_iri = Keyword.get(opts, :base_iri)
+
+    case RDF.Turtle.read_string(turtle_string) do
+      {:ok, rdf_graph} ->
+        graph = from_rdf_graph(rdf_graph, base_iri: base_iri)
+        {:ok, graph}
+
+      {:error, reason} ->
+        {:error, {:parse_error, format_parse_error(reason)}}
+    end
+  end
+
+  @doc """
+  Parses a Turtle string into a graph, raising on error.
+
+  ## Examples
+
+      turtle = \"""
+      @prefix struct: <https://w3id.org/elixir-code/structure#> .
+      <https://example.org/code#MyApp> a struct:Module .
+      \"""
+      graph = Graph.from_turtle!(turtle)
+  """
+  @spec from_turtle!(String.t(), keyword()) :: t()
+  def from_turtle!(turtle_string, opts \\ []) do
+    case from_turtle(turtle_string, opts) do
+      {:ok, graph} -> graph
+      {:error, reason} -> raise "Failed to parse Turtle: #{format_load_error(reason)}"
+    end
+  end
+
+  defp format_parse_error(reason) when is_binary(reason), do: reason
+
+  defp format_parse_error(%{message: message, line: line}) do
+    "Line #{line}: #{message}"
+  end
+
+  defp format_parse_error(reason), do: inspect(reason)
+
+  defp format_load_error({:parse_error, details}), do: "Parse error: #{details}"
+  defp format_load_error({:unsupported_format, format}), do: "Unsupported format: #{format}"
+  defp format_load_error({:unknown_format, ext}), do: "Unknown file format for extension: #{ext}"
+  defp format_load_error(:enoent), do: "File not found"
+  defp format_load_error(reason), do: inspect(reason)
 end

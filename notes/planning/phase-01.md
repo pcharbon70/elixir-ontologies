@@ -149,24 +149,24 @@ Implement graph serialization to Turtle format with proper prefix handling.
 - [x] 1.4.2.6 Write serialization tests (success: 16 new tests, output is valid Turtle)
 
 ### 1.4.3 Graph Loading
-- [ ] **Task 1.4.3 Complete**
+- [x] **Task 1.4.3 Complete**
 
 Implement graph loading from Turtle files.
 
-- [ ] 1.4.3.1 Implement `Graph.load/1` loading from file path
-- [ ] 1.4.3.2 Implement `Graph.load/2` with format option
-- [ ] 1.4.3.3 Implement `Graph.from_turtle/1` parsing Turtle string
-- [ ] 1.4.3.4 Handle parse errors with clear messages
-- [ ] 1.4.3.5 Write loading tests with sample Turtle files (success: 8 tests pass)
+- [x] 1.4.3.1 Implement `Graph.load/1` loading from file path
+- [x] 1.4.3.2 Implement `Graph.load/2` with format option
+- [x] 1.4.3.3 Implement `Graph.from_turtle/1` parsing Turtle string
+- [x] 1.4.3.4 Handle parse errors with clear messages
+- [x] 1.4.3.5 Write loading tests with sample Turtle files (success: 17 new tests)
 
 **Section 1.4 Unit Tests:**
-- [ ] Test Graph.new/0 creates empty graph
-- [ ] Test Graph.add/2 adds triples correctly
-- [ ] Test Graph.merge/2 combines graphs without duplicates
-- [ ] Test Graph.to_turtle/1 produces valid output
-- [ ] Test Graph.save/2 writes to file
-- [ ] Test Graph.load/1 reads from file
-- [ ] Test round-trip: save → load → graphs equal
+- [x] Test Graph.new/0 creates empty graph
+- [x] Test Graph.add/2 adds triples correctly
+- [x] Test Graph.merge/2 combines graphs without duplicates
+- [x] Test Graph.to_turtle/1 produces valid output
+- [x] Test Graph.save/2 writes to file
+- [x] Test Graph.load/1 reads from file
+- [x] Test round-trip: save → load → graphs equal
 
 ## Phase 1 Integration Tests
 
