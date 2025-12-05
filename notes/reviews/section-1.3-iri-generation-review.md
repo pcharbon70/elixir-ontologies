@@ -206,15 +206,15 @@ end
 
 ### Before Merge (Recommended)
 
-1. [ ] Add 5-10 error path tests to reach 90% coverage
-2. [ ] Run `mix format`
+1. [x] Add 5-10 error path tests to reach 90% coverage *(Done: 15 tests added)*
+2. [x] Run `mix format` *(Done)*
 
-### Post-Merge (Technical Debt)
+### Post-Merge (Technical Debt) - **All Completed**
 
-1. [ ] Extract regex patterns to module attributes (performance)
-2. [ ] Add input validation guards (robustness)
-3. [ ] Refactor DRY violations (maintainability)
-4. [ ] Add Dialyzer to project (type safety)
+1. [x] Extract regex patterns to module attributes (performance) *(Done: 11 patterns)*
+2. [x] Add input validation guards (robustness) *(Done: 4 functions)*
+3. [x] Refactor DRY violations (maintainability) *(Done: build_iri/2, append_to_iri/2)*
+4. [x] Add Dialyzer to project (type safety) *(Done: dialyxir 1.4)*
 
 ---
 

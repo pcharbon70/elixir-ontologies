@@ -28,12 +28,14 @@ defmodule ElixirOntologies.IRITest do
 
     test "escapes other operators" do
       assert IRI.escape_name("+") == "%2B"
-      assert IRI.escape_name("-") == "-"  # hyphen is safe
+      # hyphen is safe
+      assert IRI.escape_name("-") == "-"
       assert IRI.escape_name("*") == "%2A"
       assert IRI.escape_name("/") == "%2F"
       assert IRI.escape_name("<>") == "%3C%3E"
       assert IRI.escape_name("++") == "%2B%2B"
-      assert IRI.escape_name("--") == "--"  # hyphens are safe
+      # hyphens are safe
+      assert IRI.escape_name("--") == "--"
       assert IRI.escape_name("&&") == "%26%26"
       assert IRI.escape_name("||") == "%7C%7C"
     end
@@ -127,8 +129,12 @@ defmodule ElixirOntologies.IRITest do
 
     test "generates IRI for subsequent clauses" do
       func_iri = RDF.iri("https://example.org/code#MyApp/get/1")
-      assert to_string(IRI.for_clause(func_iri, 1)) == "https://example.org/code#MyApp/get/1/clause/1"
-      assert to_string(IRI.for_clause(func_iri, 2)) == "https://example.org/code#MyApp/get/1/clause/2"
+
+      assert to_string(IRI.for_clause(func_iri, 1)) ==
+               "https://example.org/code#MyApp/get/1/clause/1"
+
+      assert to_string(IRI.for_clause(func_iri, 2)) ==
+               "https://example.org/code#MyApp/get/1/clause/2"
     end
 
     test "works with string IRI" do
@@ -147,8 +153,12 @@ defmodule ElixirOntologies.IRITest do
 
     test "generates IRI for subsequent parameters" do
       clause_iri = RDF.iri("https://example.org/code#MyApp/get/2/clause/0")
-      assert to_string(IRI.for_parameter(clause_iri, 0)) == "https://example.org/code#MyApp/get/2/clause/0/param/0"
-      assert to_string(IRI.for_parameter(clause_iri, 1)) == "https://example.org/code#MyApp/get/2/clause/0/param/1"
+
+      assert to_string(IRI.for_parameter(clause_iri, 0)) ==
+               "https://example.org/code#MyApp/get/2/clause/0/param/0"
+
+      assert to_string(IRI.for_parameter(clause_iri, 1)) ==
+               "https://example.org/code#MyApp/get/2/clause/0/param/1"
     end
 
     test "works with string IRI" do
@@ -171,7 +181,9 @@ defmodule ElixirOntologies.IRITest do
 
     test "handles deeply nested paths" do
       iri = IRI.for_source_file(@base_iri, "lib/my_app/web/controllers/api/v1/user_controller.ex")
-      assert to_string(iri) == "https://example.org/code#file/lib/my_app/web/controllers/api/v1/user_controller.ex"
+
+      assert to_string(iri) ==
+               "https://example.org/code#file/lib/my_app/web/controllers/api/v1/user_controller.ex"
     end
 
     test "normalizes Windows path separators" do
@@ -276,7 +288,9 @@ defmodule ElixirOntologies.IRITest do
       assert to_string(mod_iri) == "https://example.org/code#MyApp.Users"
       assert to_string(func_iri) == "https://example.org/code#MyApp.Users/get_user/1"
       assert to_string(clause_iri) == "https://example.org/code#MyApp.Users/get_user/1/clause/0"
-      assert to_string(param_iri) == "https://example.org/code#MyApp.Users/get_user/1/clause/0/param/0"
+
+      assert to_string(param_iri) ==
+               "https://example.org/code#MyApp.Users/get_user/1/clause/0/param/0"
     end
 
     test "can compose complete IRI chain for source location" do
@@ -294,7 +308,9 @@ defmodule ElixirOntologies.IRITest do
       commit_iri = IRI.for_commit(repo_iri, "abc123")
 
       assert to_string(repo_iri) =~ ~r"^https://example.org/code#repo/[a-f0-9]{8}$"
-      assert to_string(commit_iri) =~ ~r"^https://example.org/code#repo/[a-f0-9]{8}/commit/abc123$"
+
+      assert to_string(commit_iri) =~
+               ~r"^https://example.org/code#repo/[a-f0-9]{8}/commit/abc123$"
     end
   end
 
@@ -631,6 +647,124 @@ defmodule ElixirOntologies.IRITest do
 
       iri = IRI.for_function(@base_iri, module, func, arity)
       assert {:ok, {^module, ^func, ^arity}} = IRI.function_from_iri(iri)
+    end
+  end
+
+  # ===========================================================================
+  # Error Path Tests (for 90%+ coverage)
+  # ===========================================================================
+
+  describe "error paths" do
+    test "parse returns error for completely malformed IRI" do
+      assert {:error, _} = IRI.parse("not-a-valid-iri")
+      assert {:error, _} = IRI.parse("https://example.org/no-hash-separator")
+    end
+
+    test "parse returns error for IRI with lowercase module name" do
+      # Module names must start with uppercase
+      assert {:error, _} = IRI.parse("https://example.org/code#lowercase")
+    end
+
+    test "parse returns error for empty fragment" do
+      assert {:error, _} = IRI.parse("https://example.org/code#")
+    end
+
+    test "module_from_iri returns error for completely invalid IRI" do
+      assert {:error, _} = IRI.module_from_iri("not-valid")
+    end
+
+    test "module_from_iri returns error for location IRI" do
+      iri = RDF.iri("https://example.org/code#file/lib/app.ex/L10-20")
+      assert {:error, "Not a module or function IRI"} = IRI.module_from_iri(iri)
+    end
+
+    test "module_from_iri returns error for commit IRI" do
+      iri = RDF.iri("https://example.org/code#repo/abc12345/commit/def67890")
+      assert {:error, "Not a module or function IRI"} = IRI.module_from_iri(iri)
+    end
+
+    test "function_from_iri returns error for completely invalid IRI" do
+      assert {:error, _} = IRI.function_from_iri("not-valid")
+    end
+
+    test "function_from_iri returns error for location IRI" do
+      iri = RDF.iri("https://example.org/code#file/lib/app.ex/L10-20")
+      assert {:error, "Not a function IRI"} = IRI.function_from_iri(iri)
+    end
+
+    test "function_from_iri returns error for repository IRI" do
+      iri = RDF.iri("https://example.org/code#repo/abc12345")
+      assert {:error, "Not a function IRI"} = IRI.function_from_iri(iri)
+    end
+
+    test "function_from_iri returns error for commit IRI" do
+      iri = RDF.iri("https://example.org/code#repo/abc12345/commit/def67890")
+      assert {:error, "Not a function IRI"} = IRI.function_from_iri(iri)
+    end
+  end
+
+  describe "input validation" do
+    test "for_source_location validates line numbers are positive" do
+      file_iri = IRI.for_source_file(@base_iri, "lib/app.ex")
+
+      # Valid case
+      assert %RDF.IRI{} = IRI.for_source_location(file_iri, 1, 10)
+
+      # Invalid: zero or negative start_line
+      assert_raise FunctionClauseError, fn ->
+        IRI.for_source_location(file_iri, 0, 10)
+      end
+
+      assert_raise FunctionClauseError, fn ->
+        IRI.for_source_location(file_iri, -1, 10)
+      end
+    end
+
+    test "for_source_location validates end_line >= start_line" do
+      file_iri = IRI.for_source_file(@base_iri, "lib/app.ex")
+
+      # Valid: end_line == start_line (single line)
+      assert %RDF.IRI{} = IRI.for_source_location(file_iri, 5, 5)
+
+      # Invalid: end_line < start_line
+      assert_raise FunctionClauseError, fn ->
+        IRI.for_source_location(file_iri, 10, 5)
+      end
+    end
+
+    test "for_clause validates clause_order is non-negative" do
+      func_iri = IRI.for_function(@base_iri, "MyApp", "get", 1)
+
+      # Valid case
+      assert %RDF.IRI{} = IRI.for_clause(func_iri, 0)
+
+      # Invalid: negative clause order
+      assert_raise FunctionClauseError, fn ->
+        IRI.for_clause(func_iri, -1)
+      end
+    end
+
+    test "for_parameter validates position is non-negative" do
+      func_iri = IRI.for_function(@base_iri, "MyApp", "get", 1)
+      clause_iri = IRI.for_clause(func_iri, 0)
+
+      # Valid case
+      assert %RDF.IRI{} = IRI.for_parameter(clause_iri, 0)
+
+      # Invalid: negative position
+      assert_raise FunctionClauseError, fn ->
+        IRI.for_parameter(clause_iri, -1)
+      end
+    end
+
+    test "for_function validates arity is non-negative" do
+      # Valid case
+      assert %RDF.IRI{} = IRI.for_function(@base_iri, "MyApp", "get", 0)
+
+      # Invalid: negative arity
+      assert_raise FunctionClauseError, fn ->
+        IRI.for_function(@base_iri, "MyApp", "get", -1)
+      end
     end
   end
 end

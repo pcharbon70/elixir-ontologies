@@ -55,10 +55,11 @@ defmodule ElixirOntologies.NS do
   # - Control flow (IfExpression, CaseExpression, WithExpression, etc.)
   # - Pattern matching (Pattern, Guard, GuardClause)
   # - Blocks and scopes (Block, DoBlock, Scope, Closure)
-  defvocab Core,
+  defvocab(Core,
     base_iri: "https://w3id.org/elixir-code/core#",
     file: "priv/ontologies/elixir-core.ttl",
     case_violations: :ignore
+  )
 
   # Structure ontology namespace for Elixir-specific constructs.
   # Base IRI: https://w3id.org/elixir-code/structure#
@@ -72,10 +73,11 @@ defmodule ElixirOntologies.NS do
   # - Structs and exceptions (Struct, StructField, Exception)
   # - Macros (Macro, QuotedExpression, UnquoteExpression)
   # - Type system (TypeExpression, UnionType, FunctionType)
-  defvocab Structure,
+  defvocab(Structure,
     base_iri: "https://w3id.org/elixir-code/structure#",
     file: "priv/ontologies/elixir-structure.ttl",
     case_violations: :ignore
+  )
 
   # OTP ontology namespace for runtime patterns.
   # Base IRI: https://w3id.org/elixir-code/otp#
@@ -88,10 +90,11 @@ defmodule ElixirOntologies.NS do
   # - Distributed Erlang (Node, Cluster)
   # - ETS/DETS (ETSTable, DETSTable)
   # - Telemetry (TelemetryEvent, TelemetryHandler)
-  defvocab OTP,
+  defvocab(OTP,
     base_iri: "https://w3id.org/elixir-code/otp#",
     file: "priv/ontologies/elixir-otp.ttl",
     case_violations: :ignore
+  )
 
   # Evolution ontology namespace for temporal provenance.
   # Base IRI: https://w3id.org/elixir-code/evolution#
@@ -104,10 +107,11 @@ defmodule ElixirOntologies.NS do
   # - Version control (Repository, Branch, Tag, PullRequest)
   # - Semantic versioning (SemanticVersion, BreakingChange)
   # - Temporal modeling (TemporalExtent, ValidTime, TransactionTime)
-  defvocab Evolution,
+  defvocab(Evolution,
     base_iri: "https://w3id.org/elixir-code/evolution#",
     file: "priv/ontologies/elixir-evolution.ttl",
     case_violations: :ignore
+  )
 
   # ============================================================================
   # Additional Standard Namespaces
@@ -115,7 +119,7 @@ defmodule ElixirOntologies.NS do
 
   # W3C PROV-O namespace for provenance.
   # Base IRI: http://www.w3.org/ns/prov#
-  defvocab PROV,
+  defvocab(PROV,
     base_iri: "http://www.w3.org/ns/prov#",
     terms: ~w[
       Entity Activity Agent
@@ -128,10 +132,11 @@ defmodule ElixirOntologies.NS do
       atLocation
       Role
     ]a
+  )
 
   # Basic Formal Ontology (BFO) namespace.
   # Base IRI: http://purl.obolibrary.org/obo/
-  defvocab BFO,
+  defvocab(BFO,
     base_iri: "http://purl.obolibrary.org/obo/",
     terms: ~w[
       BFO_0000001 BFO_0000002 BFO_0000003 BFO_0000004
@@ -140,12 +145,13 @@ defmodule ElixirOntologies.NS do
       BFO_0000027 BFO_0000029 BFO_0000030 BFO_0000031
       BFO_0000034 BFO_0000035 BFO_0000038 BFO_0000040
     ]a
+  )
 
   # Information Artifact Ontology (IAO) namespace.
   # Base IRI: http://purl.obolibrary.org/obo/IAO_
   # Note: IAO uses numeric identifiers which aren't valid Elixir identifiers,
   # so we use aliases with descriptive names.
-  defvocab IAO,
+  defvocab(IAO,
     base_iri: "http://purl.obolibrary.org/obo/IAO_",
     terms: [],
     alias: [
@@ -175,20 +181,22 @@ defmodule ElixirOntologies.NS do
       has_time_stamp: "0000582"
     ],
     strict: false
+  )
 
   # Dublin Core Elements namespace.
   # Base IRI: http://purl.org/dc/elements/1.1/
-  defvocab DC,
+  defvocab(DC,
     base_iri: "http://purl.org/dc/elements/1.1/",
     terms: ~w[
       title creator subject description publisher contributor
       date type format identifier source language relation
       coverage rights
     ]a
+  )
 
   # Dublin Core Terms namespace.
   # Base IRI: http://purl.org/dc/terms/
-  defvocab DCTerms,
+  defvocab(DCTerms,
     base_iri: "http://purl.org/dc/terms/",
     terms: ~w[
       abstract accessRights accrualMethod accrualPeriodicity
@@ -203,6 +211,7 @@ defmodule ElixirOntologies.NS do
       rightsHolder source spatial subject tableOfContents temporal
       title type valid
     ]a
+  )
 
   # ============================================================================
   # Prefix Map
