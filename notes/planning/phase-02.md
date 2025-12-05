@@ -85,17 +85,17 @@ Create pattern matchers for identifying specific AST node types.
 This section implements extraction and tracking of source locations for all code elements, enabling the `hasSourceLocation` property.
 
 ### 2.3.1 Location Extractor
-- [ ] **Task 2.3.1 Complete**
+- [x] **Task 2.3.1 Complete**
 
 Create utilities for extracting source locations from AST metadata.
 
-- [ ] 2.3.1.1 Create `lib/elixir_ontologies/analyzer/location.ex`
-- [ ] 2.3.1.2 Implement `Location.extract/1` getting line/column from AST node
-- [ ] 2.3.1.3 Implement `Location.extract_range/1` getting start and end positions
-- [ ] 2.3.1.4 Handle nodes without location metadata (return nil gracefully)
-- [ ] 2.3.1.5 Implement `Location.span/2` calculating extent from start/end nodes
-- [ ] 2.3.1.6 Create `%SourceLocation{}` struct with start_line, end_line, start_column, end_column
-- [ ] 2.3.1.7 Write location extraction tests (success: 10 tests pass)
+- [x] 2.3.1.1 Create `lib/elixir_ontologies/analyzer/location.ex`
+- [x] 2.3.1.2 Implement `Location.extract/1` getting line/column from AST node
+- [x] 2.3.1.3 Implement `Location.extract_range/1` getting start and end positions
+- [x] 2.3.1.4 Handle nodes without location metadata (return nil gracefully)
+- [x] 2.3.1.5 Implement `Location.span/2` calculating extent from start/end nodes
+- [x] 2.3.1.6 Create `%SourceLocation{}` struct with start_line, end_line, start_column, end_column
+- [x] 2.3.1.7 Write location extraction tests (success: 64 tests - 17 doctests + 47 unit tests)
 
 ### 2.3.2 End Position Estimation
 - [ ] **Task 2.3.2 Complete**
