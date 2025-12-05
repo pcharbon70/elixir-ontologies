@@ -40,6 +40,30 @@ defmodule ElixirOntologies.IRI do
       #=> ~I<https://example.org/code#MyApp.Users/valid%3F/1>
   """
 
+  # ===========================================================================
+  # Module Constants
+  # ===========================================================================
+
+  # Repository hash length (first N characters of SHA256)
+  @repo_hash_length 8
+
+  # Compile-time regex patterns for IRI parsing
+  @regex_parameter ~r/^(.+)\/clause\/(\d+)\/param\/(\d+)$/
+  @regex_clause ~r/^(.+)\/(\d+)\/clause\/(\d+)$/
+  @regex_location ~r/^(.+)\/L(\d+)-(\d+)$/
+  @regex_commit ~r/^(.+#repo\/[a-f0-9]+)\/commit\/([a-f0-9]+)$/
+  @regex_repository ~r/^(.+#)repo\/([a-f0-9]+)$/
+  @regex_file ~r/^(.+#)file\/(.+)$/
+  @regex_function ~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)\/([^\/]+)\/(\d+)$/
+  @regex_module ~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)$/
+  @regex_function_prefix ~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)\/([^\/]+)$/
+  @regex_strip_clause ~r/^(.+)\/clause\/\d+$/
+  @regex_strip_param ~r/^(.+)\/param\/\d+$/
+
+  # ===========================================================================
+  # Name Escaping
+  # ===========================================================================
+
   @doc """
   Escapes special characters in a name for safe IRI inclusion.
 
@@ -64,17 +88,17 @@ defmodule ElixirOntologies.IRI do
   def escape_name(name) when is_atom(name), do: escape_name(Atom.to_string(name))
 
   def escape_name(name) when is_binary(name) do
-    # URI.encode/2 with a custom set of allowed characters
-    # We allow alphanumerics, underscore, and dot (for module names)
-    # Everything else gets percent-encoded
     URI.encode(name, &uri_safe_char?/1)
   end
 
   # Characters that are safe in our IRI paths (don't need encoding)
   defp uri_safe_char?(char) do
-    # alphanumeric, underscore, dot, hyphen
     char in ?a..?z or char in ?A..?Z or char in ?0..?9 or char in [?_, ?., ?-]
   end
+
+  # ===========================================================================
+  # IRI Generation
+  # ===========================================================================
 
   @doc """
   Generates an IRI for a module.
@@ -94,9 +118,8 @@ defmodule ElixirOntologies.IRI do
   """
   @spec for_module(String.t() | RDF.IRI.t(), String.t() | atom()) :: RDF.IRI.t()
   def for_module(base_iri, module_name) do
-    base = to_string(base_iri)
-    name = module_to_string(module_name)
-    RDF.iri(base <> escape_name(name))
+    name = module_name |> module_to_string() |> escape_name()
+    build_iri(base_iri, name)
   end
 
   @doc """
@@ -109,7 +132,7 @@ defmodule ElixirOntologies.IRI do
   - `base_iri` - The base IRI
   - `module` - The module name
   - `function_name` - The function name
-  - `arity` - The function arity
+  - `arity` - The function arity (must be non-negative)
 
   ## Examples
 
@@ -119,12 +142,17 @@ defmodule ElixirOntologies.IRI do
       iex> ElixirOntologies.IRI.for_function("https://example.org/code#", "MyApp", "valid?", 1)
       ~I<https://example.org/code#MyApp/valid%3F/1>
   """
-  @spec for_function(String.t() | RDF.IRI.t(), String.t() | atom(), String.t() | atom(), non_neg_integer()) :: RDF.IRI.t()
-  def for_function(base_iri, module, function_name, arity) do
-    base = to_string(base_iri)
-    mod = module_to_string(module)
+  @spec for_function(
+          String.t() | RDF.IRI.t(),
+          String.t() | atom(),
+          String.t() | atom(),
+          non_neg_integer()
+        ) :: RDF.IRI.t()
+  def for_function(base_iri, module, function_name, arity)
+      when is_integer(arity) and arity >= 0 do
+    mod = module |> module_to_string() |> escape_name()
     func = escape_name(function_name)
-    RDF.iri("#{base}#{escape_name(mod)}/#{func}/#{arity}")
+    build_iri(base_iri, "#{mod}/#{func}/#{arity}")
   end
 
   @doc """
@@ -135,7 +163,7 @@ defmodule ElixirOntologies.IRI do
   ## Parameters
 
   - `function_iri` - The IRI of the function
-  - `clause_order` - The clause position (0-indexed)
+  - `clause_order` - The clause position (0-indexed, must be non-negative)
 
   ## Examples
 
@@ -144,9 +172,9 @@ defmodule ElixirOntologies.IRI do
       ~I<https://example.org/code#MyApp/get/1/clause/0>
   """
   @spec for_clause(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
-  def for_clause(function_iri, clause_order) do
-    base = to_string(function_iri)
-    RDF.iri("#{base}/clause/#{clause_order}")
+  def for_clause(function_iri, clause_order)
+      when is_integer(clause_order) and clause_order >= 0 do
+    append_to_iri(function_iri, "clause/#{clause_order}")
   end
 
   @doc """
@@ -157,7 +185,7 @@ defmodule ElixirOntologies.IRI do
   ## Parameters
 
   - `clause_iri` - The IRI of the function clause
-  - `position` - The parameter position (0-indexed)
+  - `position` - The parameter position (0-indexed, must be non-negative)
 
   ## Examples
 
@@ -166,9 +194,9 @@ defmodule ElixirOntologies.IRI do
       ~I<https://example.org/code#MyApp/get/1/clause/0/param/0>
   """
   @spec for_parameter(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
-  def for_parameter(clause_iri, position) do
-    base = to_string(clause_iri)
-    RDF.iri("#{base}/param/#{position}")
+  def for_parameter(clause_iri, position)
+      when is_integer(position) and position >= 0 do
+    append_to_iri(clause_iri, "param/#{position}")
   end
 
   @doc """
@@ -189,10 +217,8 @@ defmodule ElixirOntologies.IRI do
   """
   @spec for_source_file(String.t() | RDF.IRI.t(), String.t()) :: RDF.IRI.t()
   def for_source_file(base_iri, relative_path) do
-    base = to_string(base_iri)
-    # Normalize path separators and encode special characters
     path = relative_path |> String.replace("\\", "/") |> encode_path()
-    RDF.iri("#{base}file/#{path}")
+    build_iri(base_iri, "file/#{path}")
   end
 
   @doc """
@@ -201,8 +227,8 @@ defmodule ElixirOntologies.IRI do
   ## Parameters
 
   - `file_iri` - The IRI of the source file
-  - `start_line` - The starting line number
-  - `end_line` - The ending line number
+  - `start_line` - The starting line number (must be positive)
+  - `end_line` - The ending line number (must be >= start_line)
 
   ## Examples
 
@@ -215,9 +241,10 @@ defmodule ElixirOntologies.IRI do
       ~I<https://example.org/code#file/lib/users.ex/L5-5>
   """
   @spec for_source_location(String.t() | RDF.IRI.t(), pos_integer(), pos_integer()) :: RDF.IRI.t()
-  def for_source_location(file_iri, start_line, end_line) do
-    base = to_string(file_iri)
-    RDF.iri("#{base}/L#{start_line}-#{end_line}")
+  def for_source_location(file_iri, start_line, end_line)
+      when is_integer(start_line) and start_line > 0 and
+             is_integer(end_line) and end_line >= start_line do
+    append_to_iri(file_iri, "L#{start_line}-#{end_line}")
   end
 
   @doc """
@@ -238,10 +265,12 @@ defmodule ElixirOntologies.IRI do
   """
   @spec for_repository(String.t() | RDF.IRI.t(), String.t()) :: RDF.IRI.t()
   def for_repository(base_iri, repo_url) do
-    base = to_string(base_iri)
-    # Use first 8 characters of SHA256 hash for shorter, stable identifier
-    hash = :crypto.hash(:sha256, repo_url) |> Base.encode16(case: :lower) |> String.slice(0, 8)
-    RDF.iri("#{base}repo/#{hash}")
+    hash =
+      :crypto.hash(:sha256, repo_url)
+      |> Base.encode16(case: :lower)
+      |> String.slice(0, @repo_hash_length)
+
+    build_iri(base_iri, "repo/#{hash}")
   end
 
   @doc """
@@ -260,8 +289,7 @@ defmodule ElixirOntologies.IRI do
   """
   @spec for_commit(String.t() | RDF.IRI.t(), String.t()) :: RDF.IRI.t()
   def for_commit(repo_iri, sha) do
-    base = to_string(repo_iri)
-    RDF.iri("#{base}/commit/#{sha}")
+    append_to_iri(repo_iri, "commit/#{sha}")
   end
 
   # ===========================================================================
@@ -326,49 +354,43 @@ defmodule ElixirOntologies.IRI do
     iri_string = to_string(iri)
 
     cond do
-      # Parameter IRI: .../clause/N/param/N
-      match = Regex.run(~r/^(.+)\/clause\/(\d+)\/param\/(\d+)$/, iri_string) ->
+      match = Regex.run(@regex_parameter, iri_string) ->
         [_, parent, clause, param] = match
         {:ok, parse_parameter(parent, clause, param)}
 
-      # Clause IRI: .../N/clause/N
-      match = Regex.run(~r/^(.+)\/(\d+)\/clause\/(\d+)$/, iri_string) ->
+      match = Regex.run(@regex_clause, iri_string) ->
         [_, parent, arity, clause] = match
         {:ok, parse_clause(parent, arity, clause)}
 
-      # Location IRI: .../L{start}-{end}
-      match = Regex.run(~r/^(.+)\/L(\d+)-(\d+)$/, iri_string) ->
+      match = Regex.run(@regex_location, iri_string) ->
         [_, file_iri, start_line, end_line] = match
         {:ok, parse_location(file_iri, start_line, end_line)}
 
-      # Commit IRI: .../repo/hash/commit/sha
-      match = Regex.run(~r/^(.+#repo\/[a-f0-9]+)\/commit\/([a-f0-9]+)$/, iri_string) ->
+      match = Regex.run(@regex_commit, iri_string) ->
         [_, repo_iri, sha] = match
         {:ok, parse_commit(repo_iri, sha)}
 
-      # Repository IRI: base#repo/hash
-      match = Regex.run(~r/^(.+#)repo\/([a-f0-9]+)$/, iri_string) ->
+      match = Regex.run(@regex_repository, iri_string) ->
         [_, base, hash] = match
         {:ok, %{type: :repository, base_iri: base, repo_hash: hash}}
 
-      # File IRI: base#file/path
-      match = Regex.run(~r/^(.+#)file\/(.+)$/, iri_string) ->
+      match = Regex.run(@regex_file, iri_string) ->
         [_, base, path] = match
         {:ok, %{type: :file, base_iri: base, path: URI.decode(path)}}
 
-      # Function IRI: base#Module/name/arity
-      match = Regex.run(~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)\/([^\/]+)\/(\d+)$/, iri_string) ->
+      match = Regex.run(@regex_function, iri_string) ->
         [_, base, module, func, arity] = match
-        {:ok, %{
-          type: :function,
-          base_iri: base,
-          module: URI.decode(module),
-          function: URI.decode(func),
-          arity: String.to_integer(arity)
-        }}
 
-      # Module IRI: base#ModuleName (must start with uppercase)
-      match = Regex.run(~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)$/, iri_string) ->
+        {:ok,
+         %{
+           type: :function,
+           base_iri: base,
+           module: URI.decode(module),
+           function: URI.decode(func),
+           arity: String.to_integer(arity)
+         }}
+
+      match = Regex.run(@regex_module, iri_string) ->
         [_, base, module] = match
         {:ok, %{type: :module, base_iri: base, module: URI.decode(module)}}
 
@@ -419,17 +441,22 @@ defmodule ElixirOntologies.IRI do
       iex> ElixirOntologies.IRI.function_from_iri(RDF.iri("https://example.org/code#MyApp.Users"))
       {:error, "Not a function IRI"}
   """
-  @spec function_from_iri(String.t() | RDF.IRI.t()) :: {:ok, {String.t(), String.t(), non_neg_integer()}} | {:error, String.t()}
+  @spec function_from_iri(String.t() | RDF.IRI.t()) ::
+          {:ok, {String.t(), String.t(), non_neg_integer()}} | {:error, String.t()}
   def function_from_iri(iri) do
     case parse(iri) do
       {:ok, %{type: :function, module: module, function: func, arity: arity}} ->
         {:ok, {module, func, arity}}
+
       {:ok, %{type: :clause}} ->
         extract_function_from_clause(iri)
+
       {:ok, %{type: :parameter}} ->
         extract_function_from_parameter(iri)
+
       {:ok, _} ->
         {:error, "Not a function IRI"}
+
       {:error, _} = error ->
         error
     end
@@ -457,8 +484,18 @@ defmodule ElixirOntologies.IRI do
   end
 
   # ===========================================================================
-  # Private Helpers
+  # Private Helpers - IRI Building
   # ===========================================================================
+
+  # Build an IRI by appending a suffix to a base IRI
+  defp build_iri(base_iri, suffix) do
+    RDF.iri("#{to_string(base_iri)}#{suffix}")
+  end
+
+  # Append a path segment to an existing IRI
+  defp append_to_iri(parent_iri, suffix) do
+    RDF.iri("#{to_string(parent_iri)}/#{suffix}")
+  end
 
   # Helper to convert module atom to string representation
   defp module_to_string(module) when is_atom(module) do
@@ -477,11 +514,12 @@ defmodule ElixirOntologies.IRI do
     |> Enum.join("/")
   end
 
-  # Parse helpers for complex IRI types
+  # ===========================================================================
+  # Private Helpers - IRI Parsing
+  # ===========================================================================
+
   defp parse_parameter(parent, clause, param) do
-    # parent is the function IRI: base#Module/func/arity
-    # We need to extract module, func, and arity from it
-    case Regex.run(~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)\/([^\/]+)\/(\d+)$/, parent) do
+    case Regex.run(@regex_function, parent) do
       [_, base, module, func, arity] ->
         %{
           type: :parameter,
@@ -492,14 +530,18 @@ defmodule ElixirOntologies.IRI do
           clause: String.to_integer(clause),
           parameter: String.to_integer(param)
         }
+
       _ ->
-        %{type: :parameter, clause: String.to_integer(clause), parameter: String.to_integer(param)}
+        %{
+          type: :parameter,
+          clause: String.to_integer(clause),
+          parameter: String.to_integer(param)
+        }
     end
   end
 
   defp parse_clause(parent, arity, clause) do
-    # parent is base#Module/func, arity is the function arity
-    case Regex.run(~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)\/([^\/]+)$/, parent) do
+    case Regex.run(@regex_function_prefix, parent) do
       [_, base, module, func] ->
         %{
           type: :clause,
@@ -509,13 +551,14 @@ defmodule ElixirOntologies.IRI do
           arity: String.to_integer(arity),
           clause: String.to_integer(clause)
         }
+
       _ ->
         %{type: :clause, arity: String.to_integer(arity), clause: String.to_integer(clause)}
     end
   end
 
   defp parse_location(file_iri, start_line, end_line) do
-    case Regex.run(~r/^(.+#)file\/(.+)$/, file_iri) do
+    case Regex.run(@regex_file, file_iri) do
       [_, base, path] ->
         %{
           type: :location,
@@ -524,6 +567,7 @@ defmodule ElixirOntologies.IRI do
           start_line: String.to_integer(start_line),
           end_line: String.to_integer(end_line)
         }
+
       _ ->
         %{
           type: :location,
@@ -534,47 +578,57 @@ defmodule ElixirOntologies.IRI do
   end
 
   defp parse_commit(repo_iri, sha) do
-    case Regex.run(~r/^(.+#)repo\/([a-f0-9]+)$/, repo_iri) do
+    case Regex.run(@regex_repository, repo_iri) do
       [_, base, hash] ->
         %{type: :commit, base_iri: base, repo_hash: hash, sha: sha}
+
       _ ->
         %{type: :commit, sha: sha}
     end
   end
 
+  # ===========================================================================
+  # Private Helpers - Component Extraction
+  # ===========================================================================
+
   defp extract_module_from_clause(iri) do
-    iri_string = to_string(iri)
-    # Remove /clause/N from the end, then parse as function
-    case Regex.run(~r/^(.+)\/clause\/\d+$/, iri_string) do
-      [_, func_iri] -> module_from_iri(func_iri)
-      _ -> {:error, "Could not extract module from clause IRI"}
+    with {:ok, func_iri} <- strip_suffix(iri, @regex_strip_clause) do
+      module_from_iri(func_iri)
+    else
+      :error -> {:error, "Could not extract module from clause IRI"}
     end
   end
 
   defp extract_module_from_parameter(iri) do
-    iri_string = to_string(iri)
-    # Remove /param/N from the end, then delegate to clause extraction
-    case Regex.run(~r/^(.+)\/param\/\d+$/, iri_string) do
-      [_, clause_iri] -> extract_module_from_clause(clause_iri)
-      _ -> {:error, "Could not extract module from parameter IRI"}
+    with {:ok, clause_iri} <- strip_suffix(iri, @regex_strip_param) do
+      extract_module_from_clause(clause_iri)
+    else
+      :error -> {:error, "Could not extract module from parameter IRI"}
     end
   end
 
   defp extract_function_from_clause(iri) do
-    iri_string = to_string(iri)
-    # Remove /clause/N from the end, then parse as function
-    case Regex.run(~r/^(.+)\/clause\/\d+$/, iri_string) do
-      [_, func_iri] -> function_from_iri(func_iri)
-      _ -> {:error, "Could not extract function from clause IRI"}
+    with {:ok, func_iri} <- strip_suffix(iri, @regex_strip_clause) do
+      function_from_iri(func_iri)
+    else
+      :error -> {:error, "Could not extract function from clause IRI"}
     end
   end
 
   defp extract_function_from_parameter(iri) do
+    with {:ok, clause_iri} <- strip_suffix(iri, @regex_strip_param) do
+      extract_function_from_clause(clause_iri)
+    else
+      :error -> {:error, "Could not extract function from parameter IRI"}
+    end
+  end
+
+  defp strip_suffix(iri, regex) do
     iri_string = to_string(iri)
-    # Remove /param/N from the end, then delegate to clause extraction
-    case Regex.run(~r/^(.+)\/param\/\d+$/, iri_string) do
-      [_, clause_iri] -> extract_function_from_clause(clause_iri)
-      _ -> {:error, "Could not extract function from parameter IRI"}
+
+    case Regex.run(regex, iri_string) do
+      [_, parent] -> {:ok, parent}
+      _ -> :error
     end
   end
 end

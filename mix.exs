@@ -32,7 +32,10 @@ defmodule ElixirOntologies.MixProject do
       {:sparql, "~> 0.3", optional: true},
 
       # Development and documentation
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+
+      # Static analysis
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 

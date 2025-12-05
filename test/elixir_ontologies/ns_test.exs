@@ -20,12 +20,16 @@ defmodule ElixirOntologies.NSTest do
     test "defines CodeElement class" do
       # Uppercase terms are module aliases that work as IRIs via protocol dispatch
       assert RDF.IRI.valid?(Core.CodeElement)
-      assert RDF.iri(Core.CodeElement) |> to_string() == "https://w3id.org/elixir-code/core#CodeElement"
+
+      assert RDF.iri(Core.CodeElement) |> to_string() ==
+               "https://w3id.org/elixir-code/core#CodeElement"
     end
 
     test "defines SourceLocation class" do
       assert RDF.IRI.valid?(Core.SourceLocation)
-      assert RDF.iri(Core.SourceLocation) |> to_string() == "https://w3id.org/elixir-code/core#SourceLocation"
+
+      assert RDF.iri(Core.SourceLocation) |> to_string() ==
+               "https://w3id.org/elixir-code/core#SourceLocation"
     end
 
     test "defines ASTNode class" do
@@ -72,7 +76,9 @@ defmodule ElixirOntologies.NSTest do
 
     test "defines Module class" do
       assert RDF.IRI.valid?(Structure.Module)
-      assert RDF.iri(Structure.Module) |> to_string() == "https://w3id.org/elixir-code/structure#Module"
+
+      assert RDF.iri(Structure.Module) |> to_string() ==
+               "https://w3id.org/elixir-code/structure#Module"
     end
 
     test "defines Function class" do
@@ -156,7 +162,9 @@ defmodule ElixirOntologies.NSTest do
 
     test "defines CodeVersion class" do
       assert RDF.IRI.valid?(Evolution.CodeVersion)
-      assert RDF.iri(Evolution.CodeVersion) |> to_string() == "https://w3id.org/elixir-code/evolution#CodeVersion"
+
+      assert RDF.iri(Evolution.CodeVersion) |> to_string() ==
+               "https://w3id.org/elixir-code/evolution#CodeVersion"
     end
 
     test "defines Commit class" do
@@ -219,7 +227,9 @@ defmodule ElixirOntologies.NSTest do
     test "defines BFO terms" do
       # BFO_0000031 is Generically Dependent Continuant
       assert RDF.IRI.valid?(BFO.BFO_0000031)
-      assert RDF.iri(BFO.BFO_0000031) |> to_string() == "http://purl.obolibrary.org/obo/BFO_0000031"
+
+      assert RDF.iri(BFO.BFO_0000031) |> to_string() ==
+               "http://purl.obolibrary.org/obo/BFO_0000031"
     end
   end
 
