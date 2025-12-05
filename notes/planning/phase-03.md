@@ -43,35 +43,35 @@ Create extractors for each literal type defined in the core ontology.
 This section extracts operator expressions and classifies them according to the ontology's operator hierarchy.
 
 ### 3.2.1 Operator Extractor Module
-- [ ] **Task 3.2.1 Complete**
+- [x] **Task 3.2.1 Complete**
 
 Create extractors for all operator types with operand relationships.
 
-- [ ] 3.2.1.1 Create `lib/elixir_ontologies/extractors/operator.ex`
-- [ ] 3.2.1.2 Define operator classification map (symbol → class)
-- [ ] 3.2.1.3 Implement `Operator.extract/1` dispatching by operator
-- [ ] 3.2.1.4 Extract `ArithmeticOperator` (+, -, *, /, div, rem)
-- [ ] 3.2.1.5 Extract `ComparisonOperator` (==, !=, ===, !==, <, >, <=, >=)
-- [ ] 3.2.1.6 Extract `LogicalOperator` (and, or, not, &&, ||, !)
-- [ ] 3.2.1.7 Extract `PipeOperator` (|>)
-- [ ] 3.2.1.8 Extract `MatchOperator` (=)
-- [ ] 3.2.1.9 Extract `CaptureOperator` (&)
-- [ ] 3.2.1.10 Extract `StringConcatOperator` (<>)
-- [ ] 3.2.1.11 Extract `ListOperator` (++, --)
-- [ ] 3.2.1.12 Extract `InOperator` (in)
-- [ ] 3.2.1.13 Add `hasLeftOperand`, `hasRightOperand` for binary operators
-- [ ] 3.2.1.14 Add `hasOperand` for unary operators
-- [ ] 3.2.1.15 Add `operatorSymbol` data property
-- [ ] 3.2.1.16 Write operator tests (success: 20 tests covering all types)
+- [x] 3.2.1.1 Create `lib/elixir_ontologies/extractors/operator.ex`
+- [x] 3.2.1.2 Define operator classification map (symbol → class)
+- [x] 3.2.1.3 Implement `Operator.extract/1` dispatching by operator
+- [x] 3.2.1.4 Extract `ArithmeticOperator` (+, -, *, /, div, rem)
+- [x] 3.2.1.5 Extract `ComparisonOperator` (==, !=, ===, !==, <, >, <=, >=)
+- [x] 3.2.1.6 Extract `LogicalOperator` (and, or, not, &&, ||, !)
+- [x] 3.2.1.7 Extract `PipeOperator` (|>)
+- [x] 3.2.1.8 Extract `MatchOperator` (=)
+- [x] 3.2.1.9 Extract `CaptureOperator` (&)
+- [x] 3.2.1.10 Extract `StringConcatOperator` (<>)
+- [x] 3.2.1.11 Extract `ListOperator` (++, --)
+- [x] 3.2.1.12 Extract `InOperator` (in)
+- [x] 3.2.1.13 Add `hasLeftOperand`, `hasRightOperand` for binary operators
+- [x] 3.2.1.14 Add `hasOperand` for unary operators
+- [x] 3.2.1.15 Add `operatorSymbol` data property
+- [x] 3.2.1.16 Write operator tests (success: 92 tests - 35 doctests + 57 unit tests)
 
 **Section 3.2 Unit Tests:**
-- [ ] Test arithmetic operator extraction
-- [ ] Test comparison operator extraction
-- [ ] Test logical operator extraction
-- [ ] Test pipe operator with left/right operands
-- [ ] Test match operator extraction
-- [ ] Test capture operator extraction
-- [ ] Test unary operator (not, !) extraction
+- [x] Test arithmetic operator extraction
+- [x] Test comparison operator extraction
+- [x] Test logical operator extraction
+- [x] Test pipe operator with left/right operands
+- [x] Test match operator extraction
+- [x] Test capture operator extraction
+- [x] Test unary operator (not, !) extraction
 
 ## 3.3 Pattern Extractors
 
