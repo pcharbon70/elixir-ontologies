@@ -44,17 +44,17 @@ Create an AST parser wrapping `Code.string_to_quoted` with enhanced error handli
 This section implements the AST traversal system that visits all nodes in the tree, collecting information for RDF generation.
 
 ### 2.2.1 AST Walker Module
-- [ ] **Task 2.2.1 Complete**
+- [x] **Task 2.2.1 Complete**
 
 Create a generic AST walker using Macro.traverse with accumulator pattern.
 
-- [ ] 2.2.1.1 Create `lib/elixir_ontologies/analyzer/ast_walker.ex`
-- [ ] 2.2.1.2 Implement `ASTWalker.walk/3` with AST, initial_acc, and visitor function
-- [ ] 2.2.1.3 Implement pre-order and post-order callbacks
-- [ ] 2.2.1.4 Support selective walking (skip subtrees)
-- [ ] 2.2.1.5 Track depth and parent chain during traversal
-- [ ] 2.2.1.6 Implement `ASTWalker.find_all/2` for pattern-based collection
-- [ ] 2.2.1.7 Write walker tests (success: 12 tests pass)
+- [x] 2.2.1.1 Create `lib/elixir_ontologies/analyzer/ast_walker.ex`
+- [x] 2.2.1.2 Implement `ASTWalker.walk/3` with AST, initial_acc, and visitor function
+- [x] 2.2.1.3 Implement pre-order and post-order callbacks
+- [x] 2.2.1.4 Support selective walking (skip subtrees)
+- [x] 2.2.1.5 Track depth and parent chain during traversal
+- [x] 2.2.1.6 Implement `ASTWalker.find_all/2` for pattern-based collection
+- [x] 2.2.1.7 Write walker tests (success: 42 tests - 33 unit + 9 doctests)
 
 ### 2.2.2 Node Matchers
 - [ ] **Task 2.2.2 Complete**
@@ -73,9 +73,9 @@ Create pattern matchers for identifying specific AST node types.
 - [ ] 2.2.2.10 Write matcher tests (success: 20 tests covering all patterns)
 
 **Section 2.2 Unit Tests:**
-- [ ] Test ASTWalker visits all nodes
-- [ ] Test ASTWalker accumulator updates correctly
-- [ ] Test ASTWalker depth tracking
+- [x] Test ASTWalker visits all nodes
+- [x] Test ASTWalker accumulator updates correctly
+- [x] Test ASTWalker depth tracking
 - [ ] Test each Matcher function with positive cases
 - [ ] Test each Matcher function with negative cases
 - [ ] Test Matchers handle edge cases (empty modules, etc.)
