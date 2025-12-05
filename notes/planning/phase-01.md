@@ -20,22 +20,22 @@ Extend the existing mix.exs to add RDF dependencies and create the analyzer modu
 - [x] 1.1.1.7 Run `mix deps.get` and verify compilation (success: `mix compile` exits 0)
 
 ### 1.1.2 Configuration Structure
-- [ ] **Task 1.1.2 Complete**
+- [x] **Task 1.1.2 Complete**
 
 Establish configuration options for the analyzer including base IRI, output options, and feature flags.
 
-- [ ] 1.1.2.1 Create `lib/elixir_ontologies/config.ex` with configuration schema
-- [ ] 1.1.2.2 Define `%Config{base_iri, include_source_text, include_git_info, output_format}` struct
-- [ ] 1.1.2.3 Implement `Config.default/0` returning sensible defaults
-- [ ] 1.1.2.4 Implement `Config.merge/2` for combining user options with defaults
-- [ ] 1.1.2.5 Add config validation with clear error messages
-- [ ] 1.1.2.6 Write config tests (success: 8 tests pass covering all options)
+- [x] 1.1.2.1 Create `lib/elixir_ontologies/config.ex` with configuration schema
+- [x] 1.1.2.2 Define `%Config{base_iri, include_source_text, include_git_info, output_format}` struct
+- [x] 1.1.2.3 Implement `Config.default/0` returning sensible defaults
+- [x] 1.1.2.4 Implement `Config.merge/2` for combining user options with defaults
+- [x] 1.1.2.5 Add config validation with clear error messages
+- [x] 1.1.2.6 Write config tests (success: 14 tests pass covering all options)
 
 **Section 1.1 Unit Tests:**
-- [ ] Test project compiles with all dependencies
-- [ ] Test Config struct creation and defaults
-- [ ] Test Config.merge/2 with various option combinations
-- [ ] Test Config validation rejects invalid options
+- [x] Test project compiles with all dependencies
+- [x] Test Config struct creation and defaults
+- [x] Test Config.merge/2 with various option combinations
+- [x] Test Config validation rejects invalid options
 
 ## 1.2 RDF Namespace Definitions
 
