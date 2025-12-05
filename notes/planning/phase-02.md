@@ -7,16 +7,16 @@ This phase builds the infrastructure for parsing Elixir source files into AST an
 This section implements file reading with encoding handling and AST parsing using Elixir's built-in capabilities.
 
 ### 2.1.1 File Reader Module
-- [ ] **Task 2.1.1 Complete**
+- [x] **Task 2.1.1 Complete**
 
 Create a file reader that handles encoding and provides source text alongside AST.
 
-- [ ] 2.1.1.1 Create `lib/elixir_ontologies/analyzer/file_reader.ex`
-- [ ] 2.1.1.2 Implement `FileReader.read/1` returning `{:ok, source}` or `{:error, reason}`
-- [ ] 2.1.1.3 Handle UTF-8 encoding with BOM detection
-- [ ] 2.1.1.4 Implement `FileReader.read!/1` raising on error
-- [ ] 2.1.1.5 Track file metadata (path, size, mtime)
-- [ ] 2.1.1.6 Write file reader tests (success: 6 tests pass)
+- [x] 2.1.1.1 Create `lib/elixir_ontologies/analyzer/file_reader.ex`
+- [x] 2.1.1.2 Implement `FileReader.read/1` returning `{:ok, result}` or `{:error, reason}`
+- [x] 2.1.1.3 Handle UTF-8 encoding with BOM detection
+- [x] 2.1.1.4 Implement `FileReader.read!/1` raising on error
+- [x] 2.1.1.5 Track file metadata (path, size, mtime)
+- [x] 2.1.1.6 Write file reader tests (success: 31 tests - 22 unit + 9 doctests)
 
 ### 2.1.2 AST Parser Module
 - [ ] **Task 2.1.2 Complete**
