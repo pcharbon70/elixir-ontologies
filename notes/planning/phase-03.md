@@ -7,36 +7,36 @@ This phase implements extractors for foundational constructs defined in elixir-c
 This section extracts literal values from AST nodes and builds corresponding RDF representations for all 12 literal types.
 
 ### 3.1.1 Literal Extractor Module
-- [ ] **Task 3.1.1 Complete**
+- [x] **Task 3.1.1 Complete**
 
 Create extractors for each literal type defined in the core ontology.
 
-- [ ] 3.1.1.1 Create `lib/elixir_ontologies/extractors/literal.ex`
-- [ ] 3.1.1.2 Implement `Literal.extract/1` dispatching by literal type
-- [ ] 3.1.1.3 Extract `AtomLiteral` with `atomValue` property
-- [ ] 3.1.1.4 Extract `IntegerLiteral` with `integerValue` property
-- [ ] 3.1.1.5 Extract `FloatLiteral` with `floatValue` property
-- [ ] 3.1.1.6 Extract `StringLiteral` with `stringValue` property
-- [ ] 3.1.1.7 Extract `ListLiteral` with child elements
-- [ ] 3.1.1.8 Extract `TupleLiteral` with child elements
-- [ ] 3.1.1.9 Extract `MapLiteral` with key-value pairs
-- [ ] 3.1.1.10 Extract `KeywordListLiteral`
-- [ ] 3.1.1.11 Extract `BinaryLiteral` with `binaryValue`
-- [ ] 3.1.1.12 Extract `CharlistLiteral`
-- [ ] 3.1.1.13 Extract `SigilLiteral` with `sigilChar`, `sigilContent`, `sigilModifiers`
-- [ ] 3.1.1.14 Extract `RangeLiteral` with `rangeStart`, `rangeEnd`, `rangeStep`
-- [ ] 3.1.1.15 Write literal extraction tests (success: 24 tests, 2 per type)
+- [x] 3.1.1.1 Create `lib/elixir_ontologies/extractors/literal.ex`
+- [x] 3.1.1.2 Implement `Literal.extract/1` dispatching by literal type
+- [x] 3.1.1.3 Extract `AtomLiteral` with `atomValue` property
+- [x] 3.1.1.4 Extract `IntegerLiteral` with `integerValue` property
+- [x] 3.1.1.5 Extract `FloatLiteral` with `floatValue` property
+- [x] 3.1.1.6 Extract `StringLiteral` with `stringValue` property
+- [x] 3.1.1.7 Extract `ListLiteral` with child elements
+- [x] 3.1.1.8 Extract `TupleLiteral` with child elements
+- [x] 3.1.1.9 Extract `MapLiteral` with key-value pairs
+- [x] 3.1.1.10 Extract `KeywordListLiteral`
+- [x] 3.1.1.11 Extract `BinaryLiteral` with `binaryValue`
+- [x] 3.1.1.12 Extract `CharlistLiteral`
+- [x] 3.1.1.13 Extract `SigilLiteral` with `sigilChar`, `sigilContent`, `sigilModifiers`
+- [x] 3.1.1.14 Extract `RangeLiteral` with `rangeStart`, `rangeEnd`, `rangeStep`
+- [x] 3.1.1.15 Write literal extraction tests (success: 121 tests - 48 doctests + 73 unit tests)
 
 **Section 3.1 Unit Tests:**
-- [ ] Test atom literal extraction (:ok, :error, true, false, nil)
-- [ ] Test integer literal in various bases (decimal, hex, binary)
-- [ ] Test float literal extraction
-- [ ] Test string literal with interpolation markers
-- [ ] Test list literal with nested elements
-- [ ] Test tuple literal extraction
-- [ ] Test map literal with atom and string keys
-- [ ] Test sigil extraction (~r, ~s, ~w)
-- [ ] Test range literal with and without step
+- [x] Test atom literal extraction (:ok, :error, true, false, nil)
+- [x] Test integer literal in various bases (decimal, hex, binary)
+- [x] Test float literal extraction
+- [x] Test string literal with interpolation markers
+- [x] Test list literal with nested elements
+- [x] Test tuple literal extraction
+- [x] Test map literal with atom and string keys
+- [x] Test sigil extraction (~r, ~s, ~w)
+- [x] Test range literal with and without step
 
 ## 3.2 Operator Extractors
 
