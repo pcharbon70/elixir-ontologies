@@ -27,6 +27,11 @@ defmodule ElixirOntologies.MixProject do
 
   defp deps do
     [
+      # RDF and knowledge graph support
+      {:rdf, "~> 2.0"},
+      {:sparql, "~> 0.3", optional: true},
+
+      # Development and documentation
       {:ex_doc, "~> 0.31", only: :dev, runtime: false}
     ]
   end
