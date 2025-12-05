@@ -457,4 +457,217 @@ defmodule ElixirOntologies.Analyzer.LocationTest do
       assert loc.end_line == 4
     end
   end
+
+  # ============================================================================
+  # estimate_end/1 Tests
+  # ============================================================================
+
+  describe "estimate_end/1" do
+    test "estimates end from single-line def" do
+      ast = parse("def foo, do: :ok")
+      assert {:ok, {1, col}} = Location.estimate_end(ast)
+      # Should find position of :ok at column 14
+      assert col > 1
+    end
+
+    test "estimates end from pipe expression" do
+      ast = parse("x |> foo() |> bar()")
+      assert {:ok, {1, col}} = Location.estimate_end(ast)
+      # Should find position near end of bar()
+      assert col >= 15
+    end
+
+    test "estimates end from binary operation" do
+      ast = parse("a + b")
+      assert {:ok, {1, col}} = Location.estimate_end(ast)
+      # Should find position of b at column 5
+      assert col >= 5
+    end
+
+    test "estimates end from multi-line expression" do
+      code = """
+      a +
+        b +
+        c
+      """
+
+      ast = parse(code)
+      assert {:ok, {line, _col}} = Location.estimate_end(ast)
+      # Should find position on line 3 where c is
+      assert line == 3
+    end
+
+    test "estimates end from attribute" do
+      ast = parse("@attr value")
+      assert {:ok, {1, col}} = Location.estimate_end(ast)
+      # Should find position of value at column 7
+      assert col >= 7
+    end
+
+    test "returns :no_estimate for bare atom" do
+      assert :no_estimate = Location.estimate_end(:atom)
+    end
+
+    test "returns :no_estimate for integer" do
+      assert :no_estimate = Location.estimate_end(42)
+    end
+
+    test "returns :no_estimate for empty tuple without metadata" do
+      assert :no_estimate = Location.estimate_end({:foo, [], []})
+    end
+  end
+
+  # ============================================================================
+  # extract_range_with_estimate/1 Tests
+  # ============================================================================
+
+  describe "extract_range_with_estimate/1" do
+    test "returns actual end for defmodule with block" do
+      code = """
+      defmodule Foo do
+        :ok
+      end
+      """
+
+      ast = parse(code)
+      assert {:ok, loc} = Location.extract_range_with_estimate(ast)
+      assert loc.start_line == 1
+      assert loc.end_line == 3
+      assert loc.end_column == 1
+    end
+
+    test "estimates end for single-line def" do
+      ast = parse("def foo, do: :ok")
+      assert {:ok, loc} = Location.extract_range_with_estimate(ast)
+      assert loc.start_line == 1
+      assert loc.end_line == 1
+      # End position should be estimated (not nil)
+      assert loc.end_column != nil
+    end
+
+    test "estimates end for pipe expression" do
+      ast = parse("x |> foo() |> bar()")
+      assert {:ok, loc} = Location.extract_range_with_estimate(ast)
+      assert loc.start_line == 1
+      assert loc.end_line == 1
+      assert loc.end_column >= 15
+    end
+
+    test "estimates end for binary operation" do
+      ast = parse("a + b + c")
+      assert {:ok, loc} = Location.extract_range_with_estimate(ast)
+      assert loc.start_line == 1
+      assert loc.end_line == 1
+      assert loc.end_column >= 9
+    end
+
+    test "handles multi-line without explicit end" do
+      # Using String.trim_leading to avoid leading newline from heredoc
+      # Note: AST for `a + b + c` is `(a + b) + c` where the outer + is on line 2
+      code =
+        String.trim_leading("""
+        a +
+          b +
+          c
+        """)
+
+      ast = parse(code)
+      assert {:ok, loc} = Location.extract_range_with_estimate(ast)
+      # The outer + operator is on line 2 (where second + appears)
+      assert loc.start_line == 2
+      assert loc.end_line == 3
+    end
+
+    test "returns :no_location for bare atom" do
+      assert :no_location = Location.extract_range_with_estimate(:atom)
+    end
+
+    test "returns :no_location for list" do
+      assert :no_location = Location.extract_range_with_estimate([1, 2, 3])
+    end
+
+    test "returns :no_location for nil" do
+      assert :no_location = Location.extract_range_with_estimate(nil)
+    end
+  end
+
+  # ============================================================================
+  # extract_range_with_estimate!/1 Tests
+  # ============================================================================
+
+  describe "extract_range_with_estimate!/1" do
+    test "returns SourceLocation for valid node" do
+      ast = parse("def foo, do: :ok")
+      assert %SourceLocation{} = Location.extract_range_with_estimate!(ast)
+    end
+
+    test "returns SourceLocation with non-nil end positions" do
+      ast = parse("a + b")
+      loc = Location.extract_range_with_estimate!(ast)
+      assert loc.end_line != nil
+      assert loc.end_column != nil
+    end
+
+    test "raises ArgumentError for node without location" do
+      assert_raise ArgumentError, ~r/no location metadata/, fn ->
+        Location.extract_range_with_estimate!(:atom)
+      end
+    end
+  end
+
+  # ============================================================================
+  # Edge Cases for Estimation
+  # ============================================================================
+
+  describe "estimation edge cases" do
+    test "handles deeply nested expression" do
+      code = "((((a + b))))"
+      ast = parse(code)
+      assert {:ok, loc} = Location.extract_range_with_estimate(ast)
+      assert loc.end_line == 1
+    end
+
+    test "handles function call chain" do
+      code = "foo() |> bar() |> baz() |> qux()"
+      ast = parse(code)
+      assert {:ok, loc} = Location.extract_range_with_estimate(ast)
+      assert loc.end_line == 1
+      assert loc.end_column >= 30
+    end
+
+    test "handles keyword list in function call" do
+      code = "func(a: 1, b: 2, c: 3)"
+      ast = parse(code)
+      assert {:ok, loc} = Location.extract_range_with_estimate(ast)
+      assert loc.end_line == 1
+      # Should find closing paren position
+      assert loc.end_column == 22
+    end
+
+    test "handles anonymous function without end" do
+      code = "fn x -> x * 2 end"
+      ast = parse(code)
+      # Anonymous functions have explicit end metadata
+      assert {:ok, loc} = Location.extract_range(ast)
+      assert loc.end_line == 1
+      assert loc.end_column == 15
+    end
+
+    test "handles multiline pipe without end" do
+      code =
+        String.trim_leading("""
+        data
+        |> transform()
+        |> filter()
+        |> result()
+        """)
+
+      ast = parse(code)
+      assert {:ok, loc} = Location.extract_range_with_estimate(ast)
+      # Note: Elixir parses chained |> as nested left-associative, so the outermost
+      # |> is the last one in source (line 4). The estimation still finds all children.
+      assert loc.start_line == 4
+      assert loc.end_line == 4
+    end
+  end
 end

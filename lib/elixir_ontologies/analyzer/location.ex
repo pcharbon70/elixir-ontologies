@@ -44,6 +44,26 @@ defmodule ElixirOntologies.Analyzer.Location do
       Location.extract(:atom)  # => :no_location
       Location.extract({:ok, [], []})  # => :no_location (no line in meta)
 
+  ## End Position Estimation
+
+  Some constructs lack explicit end position metadata:
+  - Single-line definitions (`def foo, do: :ok`)
+  - Pipe expressions (`x |> foo() |> bar()`)
+  - Binary operations (`a + b`)
+
+  Use `estimate_end/1` or `extract_range_with_estimate/1` to get estimated
+  end positions by walking the AST to find the last child node:
+
+      {:ok, loc} = Location.extract_range_with_estimate(ast)
+      loc.end_line  # => estimated from last child if not in metadata
+
+  ### Estimation Limitations
+
+  - Column estimation may be inaccurate for complex expressions
+  - Estimation finds the *start* of the last token, not its end
+  - Multi-line string literals may not be accurately bounded
+  - Comments are not part of AST and cannot be tracked
+
   """
 
   # ============================================================================
@@ -418,6 +438,152 @@ defmodule ElixirOntologies.Analyzer.Location do
   def column(_), do: nil
 
   # ============================================================================
+  # End Position Estimation
+  # ============================================================================
+
+  @doc """
+  Estimates the end position of an AST node by walking its children.
+
+  When explicit end metadata is not available, this function traverses
+  the AST to find the position of the last (deepest/rightmost) child node.
+
+  ## Parameters
+
+  - `node` - An Elixir AST node
+
+  ## Returns
+
+  - `{:ok, {line, column}}` - Estimated end position
+  - `:no_estimate` - Unable to estimate (no children with position)
+
+  ## Examples
+
+      iex> {:ok, ast} = Code.string_to_quoted("def foo, do: :ok", columns: true)
+      iex> {:ok, {line, _col}} = Location.estimate_end(ast)
+      iex> line
+      1
+
+      iex> Location.estimate_end(:atom)
+      :no_estimate
+
+  ## Limitations
+
+  - Returns the *start* position of the last token, not its end
+  - May be inaccurate for complex nested expressions
+  - Cannot account for trailing syntax like `end` keywords
+
+  """
+  @spec estimate_end(Macro.t()) :: {:ok, {pos_integer(), pos_integer()}} | :no_estimate
+  def estimate_end(node) do
+    case find_last_position(node, nil) do
+      nil -> :no_estimate
+      {line, column} -> {:ok, {line, column}}
+    end
+  end
+
+  @doc """
+  Extracts a source location range with fallback estimation.
+
+  Like `extract_range/1`, but when end position metadata is not available,
+  estimates the end position by walking the AST children. For single-line
+  constructs without children, uses the start position.
+
+  ## Parameters
+
+  - `node` - An Elixir AST node
+
+  ## Returns
+
+  - `{:ok, %SourceLocation{}}` - Location with actual or estimated end
+  - `:no_location` - No start location metadata available
+
+  ## Examples
+
+      iex> {:ok, ast} = Code.string_to_quoted("def foo, do: :ok", columns: true)
+      iex> {:ok, loc} = Location.extract_range_with_estimate(ast)
+      iex> loc.start_line
+      1
+      iex> loc.end_line != nil
+      true
+
+      iex> code = "defmodule Foo do\\n  :ok\\nend"
+      iex> {:ok, ast} = Code.string_to_quoted(code, columns: true, token_metadata: true)
+      iex> {:ok, loc} = Location.extract_range_with_estimate(ast)
+      iex> loc.end_line
+      3
+
+      iex> Location.extract_range_with_estimate(:atom)
+      :no_location
+
+  """
+  @spec extract_range_with_estimate(Macro.t()) :: {:ok, SourceLocation.t()} | :no_location
+  def extract_range_with_estimate({_form, meta, _args} = node) when is_list(meta) do
+    case extract(node) do
+      {:ok, {start_line, start_column}} ->
+        {end_line, end_column} = extract_end_position(meta)
+
+        # If no end position from metadata, try estimation
+        {end_line, end_column} =
+          if is_nil(end_line) do
+            case estimate_end(node) do
+              {:ok, {est_line, est_col}} ->
+                {est_line, est_col}
+
+              :no_estimate ->
+                # Fall back to start position for single-line constructs
+                {start_line, start_column}
+            end
+          else
+            {end_line, end_column}
+          end
+
+        {:ok,
+         %SourceLocation{
+           start_line: start_line,
+           start_column: start_column,
+           end_line: end_line,
+           end_column: end_column
+         }}
+
+      :no_location ->
+        :no_location
+    end
+  end
+
+  def extract_range_with_estimate(_), do: :no_location
+
+  @doc """
+  Extracts a source location range with estimation, raising on error.
+
+  ## Parameters
+
+  - `node` - An Elixir AST node
+
+  ## Returns
+
+  - `%SourceLocation{}` - Location with actual or estimated end
+
+  ## Raises
+
+  - `ArgumentError` - If no location metadata is available
+
+  ## Examples
+
+      iex> {:ok, ast} = Code.string_to_quoted("def foo, do: :ok", columns: true)
+      iex> loc = Location.extract_range_with_estimate!(ast)
+      iex> loc.end_line != nil
+      true
+
+  """
+  @spec extract_range_with_estimate!(Macro.t()) :: SourceLocation.t()
+  def extract_range_with_estimate!(node) do
+    case extract_range_with_estimate(node) do
+      {:ok, location} -> location
+      :no_location -> raise ArgumentError, "AST node has no location metadata"
+    end
+  end
+
+  # ============================================================================
   # Private Helpers
   # ============================================================================
 
@@ -482,4 +648,98 @@ defmodule ElixirOntologies.Analyzer.Location do
   end
 
   defp get_nested_column(_), do: nil
+
+  # ============================================================================
+  # End Position Estimation Helpers
+  # ============================================================================
+
+  # Recursively find the "last" position in an AST tree
+  # "Last" means the position that comes latest in the source (highest line, then column)
+  defp find_last_position(node, current_best)
+
+  # 3-tuple AST node
+  defp find_last_position({_form, meta, args}, current_best) when is_list(meta) do
+    # Check this node's position
+    node_pos = extract_position_from_meta(meta)
+    current_best = compare_positions(current_best, node_pos)
+
+    # Check for end/closing positions in metadata
+    end_pos = extract_end_from_meta(meta)
+    current_best = compare_positions(current_best, end_pos)
+
+    # Recurse into args
+    find_last_position(args, current_best)
+  end
+
+  # List of AST nodes
+  defp find_last_position(list, current_best) when is_list(list) do
+    Enum.reduce(list, current_best, fn item, acc ->
+      find_last_position(item, acc)
+    end)
+  end
+
+  # 2-tuple (often keyword lists or special forms)
+  defp find_last_position({key, value}, current_best) do
+    current_best = find_last_position(key, current_best)
+    find_last_position(value, current_best)
+  end
+
+  # Literals and other non-AST values - no position
+  defp find_last_position(_other, current_best), do: current_best
+
+  # Extract line/column from metadata if present
+  defp extract_position_from_meta(meta) do
+    line = Keyword.get(meta, :line)
+    column = Keyword.get(meta, :column)
+
+    if is_integer(line) and line > 0 and is_integer(column) and column > 0 do
+      {line, column}
+    else
+      nil
+    end
+  end
+
+  # Extract end position from metadata (:end, :closing, :end_of_expression)
+  defp extract_end_from_meta(meta) do
+    cond do
+      end_meta = Keyword.get(meta, :end) ->
+        extract_nested_position(end_meta)
+
+      closing_meta = Keyword.get(meta, :closing) ->
+        extract_nested_position(closing_meta)
+
+      eoe_meta = Keyword.get(meta, :end_of_expression) ->
+        extract_nested_position(eoe_meta)
+
+      true ->
+        nil
+    end
+  end
+
+  # Extract position from nested keyword list [line: n, column: m]
+  defp extract_nested_position(keyword) when is_list(keyword) do
+    line = Keyword.get(keyword, :line)
+    column = Keyword.get(keyword, :column)
+
+    if is_integer(line) and line > 0 and is_integer(column) and column > 0 do
+      {line, column}
+    else
+      nil
+    end
+  end
+
+  defp extract_nested_position(_), do: nil
+
+  # Compare two positions, return the one that comes "later" in source
+  # Later = higher line number, or same line with higher column
+  defp compare_positions(nil, new), do: new
+  defp compare_positions(current, nil), do: current
+
+  defp compare_positions({cur_line, cur_col}, {new_line, new_col}) do
+    cond do
+      new_line > cur_line -> {new_line, new_col}
+      new_line == cur_line and new_col > cur_col -> {new_line, new_col}
+      true -> {cur_line, cur_col}
+    end
+  end
 end

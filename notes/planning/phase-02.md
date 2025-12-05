@@ -98,23 +98,23 @@ Create utilities for extracting source locations from AST metadata.
 - [x] 2.3.1.7 Write location extraction tests (success: 64 tests - 17 doctests + 47 unit tests)
 
 ### 2.3.2 End Position Estimation
-- [ ] **Task 2.3.2 Complete**
+- [x] **Task 2.3.2 Complete**
 
 Implement heuristics for estimating end positions when not available in metadata.
 
-- [ ] 2.3.2.1 Implement end line estimation from last child node
-- [ ] 2.3.2.2 Implement end line estimation from `end` keyword for blocks
-- [ ] 2.3.2.3 Handle single-line constructs (end_line = start_line)
-- [ ] 2.3.2.4 Document estimation limitations
-- [ ] 2.3.2.5 Write estimation tests with various constructs (success: 8 tests pass)
+- [x] 2.3.2.1 Implement end line estimation from last child node
+- [x] 2.3.2.2 Implement end line estimation from `end` keyword for blocks (already done in 2.3.1)
+- [x] 2.3.2.3 Handle single-line constructs (end_line = start_line)
+- [x] 2.3.2.4 Document estimation limitations
+- [x] 2.3.2.5 Write estimation tests with various constructs (success: 30 new tests)
 
 **Section 2.3 Unit Tests:**
-- [ ] Test location extraction from def node
-- [ ] Test location extraction from defmodule node
-- [ ] Test location extraction from literals
-- [ ] Test end position estimation for multi-line functions
-- [ ] Test single-line function locations
-- [ ] Test graceful handling of missing metadata
+- [x] Test location extraction from def node
+- [x] Test location extraction from defmodule node
+- [x] Test location extraction from literals
+- [x] Test end position estimation for multi-line functions
+- [x] Test single-line function locations
+- [x] Test graceful handling of missing metadata
 
 ## Phase 2 Integration Tests
 
