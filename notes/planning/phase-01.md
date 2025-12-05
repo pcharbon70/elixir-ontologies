@@ -80,21 +80,21 @@ Note: Terms are automatically loaded from ontology TTL files using RDF.ex's `fil
 This section implements the path-based IRI generation strategy. IRIs must be stable, readable, and reflect Elixir's identity model (Module, Function/Arity for functions).
 
 ### 1.3.1 IRI Builder Module
-- [ ] **Task 1.3.1 Complete**
+- [x] **Task 1.3.1 Complete**
 
 Create the IRI builder that generates consistent, path-based IRIs for all code elements.
 
-- [ ] 1.3.1.1 Create `lib/elixir_ontologies/iri.ex` module
-- [ ] 1.3.1.2 Implement `IRI.for_module(base_iri, module_name)` → `base:ModuleName`
-- [ ] 1.3.1.3 Implement `IRI.for_function(base_iri, module, name, arity)` → `base:Module/name/arity`
-- [ ] 1.3.1.4 Implement `IRI.for_clause(base_iri, function_iri, clause_order)` → `function_iri/clause/N`
-- [ ] 1.3.1.5 Implement `IRI.for_parameter(base_iri, clause_iri, position)` → `clause_iri/param/N`
-- [ ] 1.3.1.6 Implement `IRI.for_source_file(base_iri, relative_path)` → `base:file/path/to/file.ex`
-- [ ] 1.3.1.7 Implement `IRI.for_source_location(file_iri, start_line, end_line)` → `file_iri/L{start}-{end}`
-- [ ] 1.3.1.8 Implement `IRI.for_repository(base_iri, repo_url)` → `base:repo/hash`
-- [ ] 1.3.1.9 Implement `IRI.for_commit(repo_iri, sha)` → `repo_iri/commit/sha`
-- [ ] 1.3.1.10 Handle special characters in names (escape `!`, `?`, operators)
-- [ ] 1.3.1.11 Write IRI generation tests (success: 20 tests covering all patterns)
+- [x] 1.3.1.1 Create `lib/elixir_ontologies/iri.ex` module
+- [x] 1.3.1.2 Implement `IRI.for_module(base_iri, module_name)` → `base:ModuleName`
+- [x] 1.3.1.3 Implement `IRI.for_function(base_iri, module, name, arity)` → `base:Module/name/arity`
+- [x] 1.3.1.4 Implement `IRI.for_clause(function_iri, clause_order)` → `function_iri/clause/N`
+- [x] 1.3.1.5 Implement `IRI.for_parameter(clause_iri, position)` → `clause_iri/param/N`
+- [x] 1.3.1.6 Implement `IRI.for_source_file(base_iri, relative_path)` → `base:file/path/to/file.ex`
+- [x] 1.3.1.7 Implement `IRI.for_source_location(file_iri, start_line, end_line)` → `file_iri/L{start}-{end}`
+- [x] 1.3.1.8 Implement `IRI.for_repository(base_iri, repo_url)` → `base:repo/hash`
+- [x] 1.3.1.9 Implement `IRI.for_commit(repo_iri, sha)` → `repo_iri/commit/sha`
+- [x] 1.3.1.10 Handle special characters in names (escape `!`, `?`, operators)
+- [x] 1.3.1.11 Write IRI generation tests (success: 45 tests pass)
 
 ### 1.3.2 IRI Utilities
 - [ ] **Task 1.3.2 Complete**
