@@ -97,10 +97,17 @@
 
 :ModuledocAttribute a owl:Class ;
     rdfs:label "Moduledoc Attribute"@en ;
+    rdfs:comment "The @moduledoc attribute for module-level documentation."@en ;
+    rdfs:subClassOf :DocAttribute .
+
+:FunctionDocAttribute a owl:Class ;
+    rdfs:label "Function Doc Attribute"@en ;
+    rdfs:comment "The @doc attribute for function-level documentation."@en ;
     rdfs:subClassOf :DocAttribute .
 
 :TypedocAttribute a owl:Class ;
     rdfs:label "Typedoc Attribute"@en ;
+    rdfs:comment "The @typedoc attribute for type-level documentation."@en ;
     rdfs:subClassOf :DocAttribute .
 
 :DeprecatedAttribute a owl:Class ;
@@ -887,6 +894,8 @@
 # Documentation
 :docstring a owl:DatatypeProperty, owl:FunctionalProperty ;
     rdfs:label "docstring"@en ;
+    rdfs:comment "The documentation text content of a doc attribute."@en ;
+    rdfs:domain :DocAttribute ;
     rdfs:range xsd:string .
 
 :isDocFalse a owl:DatatypeProperty, owl:FunctionalProperty ;
