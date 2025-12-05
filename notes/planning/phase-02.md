@@ -19,25 +19,25 @@ Create a file reader that handles encoding and provides source text alongside AS
 - [x] 2.1.1.6 Write file reader tests (success: 31 tests - 22 unit + 9 doctests)
 
 ### 2.1.2 AST Parser Module
-- [ ] **Task 2.1.2 Complete**
+- [x] **Task 2.1.2 Complete**
 
 Create an AST parser wrapping `Code.string_to_quoted` with enhanced error handling.
 
-- [ ] 2.1.2.1 Create `lib/elixir_ontologies/analyzer/parser.ex`
-- [ ] 2.1.2.2 Implement `Parser.parse/1` accepting source string
-- [ ] 2.1.2.3 Configure parser options: `columns: true`, `token_metadata: true`
-- [ ] 2.1.2.4 Implement `Parser.parse/2` with custom options
-- [ ] 2.1.2.5 Return structured error on parse failure with line/column
-- [ ] 2.1.2.6 Implement `Parser.parse_file/1` combining read + parse
-- [ ] 2.1.2.7 Write parser tests including error cases (success: 10 tests pass)
+- [x] 2.1.2.1 Create `lib/elixir_ontologies/analyzer/parser.ex`
+- [x] 2.1.2.2 Implement `Parser.parse/1` accepting source string
+- [x] 2.1.2.3 Configure parser options: `columns: true`, `token_metadata: true`
+- [x] 2.1.2.4 Implement `Parser.parse/2` with custom options
+- [x] 2.1.2.5 Return structured error on parse failure with line/column
+- [x] 2.1.2.6 Implement `Parser.parse_file/1` combining read + parse
+- [x] 2.1.2.7 Write parser tests including error cases (success: 41 tests - 34 unit + 7 doctests)
 
 **Section 2.1 Unit Tests:**
-- [ ] Test FileReader handles valid Elixir files
-- [ ] Test FileReader reports missing files
-- [ ] Test Parser extracts AST from simple module
-- [ ] Test Parser extracts AST from complex module
-- [ ] Test Parser returns line/column on syntax error
-- [ ] Test Parser options propagate correctly
+- [x] Test FileReader handles valid Elixir files
+- [x] Test FileReader reports missing files
+- [x] Test Parser extracts AST from simple module
+- [x] Test Parser extracts AST from complex module
+- [x] Test Parser returns line/column on syntax error
+- [x] Test Parser options propagate correctly
 
 ## 2.2 AST Walking Infrastructure
 
