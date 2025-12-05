@@ -89,13 +89,13 @@ SHACL constraints for data validation. Provides closed-world validation compleme
 
 ## Namespaces
 
-| Prefix | IRI |
-|--------|-----|
-| core | `https://w3id.org/elixir-code/core#` |
-| struct | `https://w3id.org/elixir-code/structure#` |
-| otp | `https://w3id.org/elixir-code/otp#` |
-| evo | `https://w3id.org/elixir-code/evolution#` |
-| shapes | `https://w3id.org/elixir-code/shapes#` |
+| Prefix | IRI | Guide |
+|--------|-----|-------|
+| core | `https://w3id.org/elixir-code/core#` | [Core Guide](guides/core.md) |
+| struct | `https://w3id.org/elixir-code/structure#` | [Structure Guide](guides/structure.md) |
+| otp | `https://w3id.org/elixir-code/otp#` | [OTP Guide](guides/otp.md) |
+| evo | `https://w3id.org/elixir-code/evolution#` | [Evolution Guide](guides/evolution.md) |
+| shapes | `https://w3id.org/elixir-code/shapes#` | [Shapes Guide](guides/shapes.md) |
 
 ## License
 
