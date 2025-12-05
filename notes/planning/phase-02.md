@@ -57,28 +57,28 @@ Create a generic AST walker using Macro.traverse with accumulator pattern.
 - [x] 2.2.1.7 Write walker tests (success: 42 tests - 33 unit + 9 doctests)
 
 ### 2.2.2 Node Matchers
-- [ ] **Task 2.2.2 Complete**
+- [x] **Task 2.2.2 Complete**
 
 Create pattern matchers for identifying specific AST node types.
 
-- [ ] 2.2.2.1 Create `lib/elixir_ontologies/analyzer/matchers.ex`
-- [ ] 2.2.2.2 Implement `Matchers.module?/1` detecting `defmodule`
-- [ ] 2.2.2.3 Implement `Matchers.function?/1` detecting `def/defp`
-- [ ] 2.2.2.4 Implement `Matchers.macro?/1` detecting `defmacro/defmacrop`
-- [ ] 2.2.2.5 Implement `Matchers.protocol?/1` detecting `defprotocol`
-- [ ] 2.2.2.6 Implement `Matchers.behaviour?/1` detecting `@behaviour`
-- [ ] 2.2.2.7 Implement `Matchers.struct?/1` detecting `defstruct`
-- [ ] 2.2.2.8 Implement `Matchers.type_spec?/1` detecting `@type/@spec/@callback`
-- [ ] 2.2.2.9 Implement `Matchers.use?/1`, `Matchers.import?/1`, `Matchers.alias?/1`
-- [ ] 2.2.2.10 Write matcher tests (success: 20 tests covering all patterns)
+- [x] 2.2.2.1 Create `lib/elixir_ontologies/analyzer/matchers.ex`
+- [x] 2.2.2.2 Implement `Matchers.module?/1` detecting `defmodule`
+- [x] 2.2.2.3 Implement `Matchers.function?/1` detecting `def/defp`
+- [x] 2.2.2.4 Implement `Matchers.macro?/1` detecting `defmacro/defmacrop`
+- [x] 2.2.2.5 Implement `Matchers.protocol?/1` detecting `defprotocol`
+- [x] 2.2.2.6 Implement `Matchers.behaviour?/1` detecting `@behaviour`
+- [x] 2.2.2.7 Implement `Matchers.struct?/1` detecting `defstruct`
+- [x] 2.2.2.8 Implement `Matchers.type_spec?/1` detecting `@type/@spec/@callback`
+- [x] 2.2.2.9 Implement `Matchers.use?/1`, `Matchers.import?/1`, `Matchers.alias?/1`
+- [x] 2.2.2.10 Write matcher tests (success: 155 tests - 86 unit + 69 doctests)
 
 **Section 2.2 Unit Tests:**
 - [x] Test ASTWalker visits all nodes
 - [x] Test ASTWalker accumulator updates correctly
 - [x] Test ASTWalker depth tracking
-- [ ] Test each Matcher function with positive cases
-- [ ] Test each Matcher function with negative cases
-- [ ] Test Matchers handle edge cases (empty modules, etc.)
+- [x] Test each Matcher function with positive cases
+- [x] Test each Matcher function with negative cases
+- [x] Test Matchers handle edge cases (empty modules, etc.)
 
 ## 2.3 Source Location Tracking
 
