@@ -53,23 +53,23 @@ Extract module attributes with their various types.
 This section extracts functions with full detail: clauses, heads, bodies, parameters, guards, and return expressions.
 
 ### 4.2.1 Function Definition Extractor
-- [ ] **Task 4.2.1 Complete**
+- [x] **Task 4.2.1 Complete**
 
 Extract function definitions with identity and classification.
 
-- [ ] 4.2.1.1 Create `lib/elixir_ontologies/extractors/function.ex`
-- [ ] 4.2.1.2 Extract `functionName` from def/defp AST
-- [ ] 4.2.1.3 Calculate `arity` from parameter count
-- [ ] 4.2.1.4 Classify as `PublicFunction` (def) or `PrivateFunction` (defp)
-- [ ] 4.2.1.5 Detect `GuardFunction` (defguard/defguardp)
-- [ ] 4.2.1.6 Detect `DelegatedFunction` (defdelegate) with `delegatesTo`
-- [ ] 4.2.1.7 Generate path-based IRI: `Module/name/arity`
-- [ ] 4.2.1.8 Add `belongsTo` linking to module
-- [ ] 4.2.1.9 Extract `@doc` as `docstring`
-- [ ] 4.2.1.10 Extract `@spec` as `hasSpec` relationship
-- [ ] 4.2.1.11 Handle `@doc false` as `isDocFalse`
-- [ ] 4.2.1.12 Detect default parameters and set `minArity`
-- [ ] 4.2.1.13 Write function definition tests (success: 16 tests)
+- [x] 4.2.1.1 Create `lib/elixir_ontologies/extractors/function.ex`
+- [x] 4.2.1.2 Extract `functionName` from def/defp AST
+- [x] 4.2.1.3 Calculate `arity` from parameter count
+- [x] 4.2.1.4 Classify as `PublicFunction` (def) or `PrivateFunction` (defp)
+- [x] 4.2.1.5 Detect `GuardFunction` (defguard/defguardp)
+- [x] 4.2.1.6 Detect `DelegatedFunction` (defdelegate) with `delegatesTo`
+- [x] 4.2.1.7 Generate path-based IRI: `Module/name/arity`
+- [x] 4.2.1.8 Add `belongsTo` linking to module
+- [x] 4.2.1.9 Extract `@doc` as `docstring`
+- [x] 4.2.1.10 Extract `@spec` as `hasSpec` relationship
+- [x] 4.2.1.11 Handle `@doc false` as `isDocFalse`
+- [x] 4.2.1.12 Detect default parameters and set `minArity`
+- [x] 4.2.1.13 Write function definition tests (success: 80 tests - 28 doctests + 52 unit tests)
 
 ### 4.2.2 Function Clause Extractor
 - [ ] **Task 4.2.2 Complete**
