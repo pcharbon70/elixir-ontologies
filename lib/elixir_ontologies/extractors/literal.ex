@@ -55,7 +55,7 @@ defmodule ElixirOntologies.Extractors.Literal do
   @type t :: %__MODULE__{
           type: literal_type(),
           value: term(),
-          location: Location.SourceLocation.t() | nil,
+          location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
           metadata: map()
         }
 
@@ -200,7 +200,7 @@ defmodule ElixirOntologies.Extractors.Literal do
   @spec extract(Macro.t()) :: {:ok, t()} | {:error, String.t()}
   def extract(node) do
     case literal_type(node) do
-      nil -> {:error, "Not a literal: #{inspect(node)}"}
+      nil -> {:error, Helpers.format_error("Not a literal", node)}
       :atom -> {:ok, extract_atom(node)}
       :integer -> {:ok, extract_integer(node)}
       :float -> {:ok, extract_float(node)}

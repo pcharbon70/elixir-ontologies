@@ -38,64 +38,6 @@ defmodule ElixirOntologies.Extractors.Pattern do
   alias ElixirOntologies.Extractors.Helpers
 
   # ===========================================================================
-  # Constants
-  # ===========================================================================
-
-  # Special forms that are NOT variable patterns even though they look like 3-tuples
-  @special_forms [
-    # Elixir special forms
-    :__block__,
-    :__aliases__,
-    :__MODULE__,
-    :__DIR__,
-    :__ENV__,
-    :__CALLER__,
-    :__STACKTRACE__,
-    :fn,
-    :do,
-    :else,
-    :catch,
-    :rescue,
-    :after,
-    # Definition forms
-    :def,
-    :defp,
-    :defmacro,
-    :defmacrop,
-    :defmodule,
-    :defprotocol,
-    :defimpl,
-    :defstruct,
-    :defdelegate,
-    :defguard,
-    :defguardp,
-    :defexception,
-    :defoverridable,
-    # Import/require/use
-    :import,
-    :require,
-    :use,
-    :alias,
-    # Control flow (when used as expressions, not patterns)
-    :if,
-    :unless,
-    :case,
-    :cond,
-    :with,
-    :for,
-    :try,
-    :receive,
-    :raise,
-    :throw,
-    :quote,
-    :unquote,
-    :unquote_splicing,
-    # Other
-    :super,
-    :&
-  ]
-
-  # ===========================================================================
   # Result Struct
   # ===========================================================================
 
@@ -112,7 +54,7 @@ defmodule ElixirOntologies.Extractors.Pattern do
           type: pattern_type(),
           value: term(),
           bindings: [atom()],
-          location: Location.SourceLocation.t() | nil,
+          location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
           metadata: map()
         }
 
@@ -249,7 +191,7 @@ defmodule ElixirOntologies.Extractors.Pattern do
   @spec extract(Macro.t()) :: {:ok, t()} | {:error, String.t()}
   def extract(node) do
     case pattern_type(node) do
-      nil -> {:error, "Not a pattern: #{inspect(node)}"}
+      nil -> {:error, Helpers.format_error("Not a pattern", node)}
       :variable -> {:ok, extract_variable(node)}
       :wildcard -> {:ok, extract_wildcard(node)}
       :pin -> {:ok, extract_pin(node)}
@@ -473,7 +415,7 @@ defmodule ElixirOntologies.Extractors.Pattern do
   """
   @spec extract_map(Macro.t()) :: t()
   def extract_map({:%{}, meta, pairs}) do
-    bindings = collect_bindings_from_pairs(pairs)
+    bindings = collect_bindings_from_pairs(pairs, 0)
 
     %__MODULE__{
       type: :map,
@@ -507,7 +449,7 @@ defmodule ElixirOntologies.Extractors.Pattern do
   @spec extract_struct(Macro.t()) :: t()
   def extract_struct({:%, meta, [struct_name, {:%{}, _map_meta, pairs}]} = node) do
     {name, is_any_struct} = extract_struct_name(struct_name)
-    bindings = collect_bindings_from_pairs(pairs)
+    bindings = collect_bindings_from_pairs(pairs, 0)
 
     %__MODULE__{
       type: :struct,
@@ -533,7 +475,7 @@ defmodule ElixirOntologies.Extractors.Pattern do
   """
   @spec extract_binary(Macro.t()) :: t()
   def extract_binary({:<<>>, meta, segments}) do
-    bindings = collect_binary_bindings(segments)
+    bindings = collect_binary_bindings(segments, 0)
 
     %__MODULE__{
       type: :binary,
@@ -607,6 +549,8 @@ defmodule ElixirOntologies.Extractors.Pattern do
   # Binding Collection
   # ===========================================================================
 
+  @max_recursion_depth 100
+
   @doc """
   Collects all variable bindings from a pattern or list of patterns.
 
@@ -623,8 +567,14 @@ defmodule ElixirOntologies.Extractors.Pattern do
   """
   @spec collect_bindings([Macro.t()]) :: [atom()]
   def collect_bindings(patterns) when is_list(patterns) do
+    collect_bindings(patterns, 0)
+  end
+
+  defp collect_bindings(_patterns, depth) when depth > @max_recursion_depth, do: []
+
+  defp collect_bindings(patterns, depth) when is_list(patterns) do
     patterns
-    |> Enum.flat_map(&collect_bindings_from_node/1)
+    |> Enum.flat_map(&collect_bindings_from_node(&1, depth))
     |> Enum.uniq()
   end
 
@@ -656,10 +606,9 @@ defmodule ElixirOntologies.Extractors.Pattern do
   defp binary_pattern?({:<<>>, _meta, _segments}), do: true
   defp binary_pattern?(_), do: false
 
-  defp variable?({name, _meta, context})
-       when is_atom(name) and is_atom(context) and name not in @special_forms do
+  defp variable?({name, _meta, context}) when is_atom(name) and is_atom(context) do
     # Exclude operators and special forms
-    not (name in [:^, :%{}, :%, :<<>>, :{}, :=, :when, :|, :"::"])
+    not Helpers.special_form?(name) and not (name in [:^, :%{}, :%, :<<>>, :{}, :=, :when, :|, :"::"])
   end
 
   defp variable?(_), do: false
@@ -691,70 +640,69 @@ defmodule ElixirOntologies.Extractors.Pattern do
   # Private Helpers - Binding Collection
   # ===========================================================================
 
-  defp collect_bindings_from_node({:_, _meta, _context}), do: []
-  defp collect_bindings_from_node({:^, _meta, _}), do: []
+  defp collect_bindings_from_node({:_, _meta, _context}, _depth), do: []
+  defp collect_bindings_from_node({:^, _meta, _}, _depth), do: []
 
-  defp collect_bindings_from_node({name, _meta, context})
-       when is_atom(name) and is_atom(context) and name not in @special_forms do
-    if variable?({name, [], context}), do: [name], else: []
+  defp collect_bindings_from_node({name, _meta, context}, _depth) when is_atom(name) and is_atom(context) do
+    if not Helpers.special_form?(name) and variable?({name, [], context}), do: [name], else: []
   end
 
-  defp collect_bindings_from_node({:{}, _meta, elements}) do
-    collect_bindings(elements)
+  defp collect_bindings_from_node({:{}, _meta, elements}, depth) do
+    collect_bindings(elements, depth + 1)
   end
 
-  defp collect_bindings_from_node({:%, _meta, [_struct, {:%{}, _map_meta, pairs}]}) do
-    collect_bindings_from_pairs(pairs)
+  defp collect_bindings_from_node({:%, _meta, [_struct, {:%{}, _map_meta, pairs}]}, depth) do
+    collect_bindings_from_pairs(pairs, depth + 1)
   end
 
-  defp collect_bindings_from_node({:%{}, _meta, pairs}) do
-    collect_bindings_from_pairs(pairs)
+  defp collect_bindings_from_node({:%{}, _meta, pairs}, depth) do
+    collect_bindings_from_pairs(pairs, depth + 1)
   end
 
-  defp collect_bindings_from_node({:<<>>, _meta, segments}) do
-    collect_binary_bindings(segments)
+  defp collect_bindings_from_node({:<<>>, _meta, segments}, depth) do
+    collect_binary_bindings(segments, depth + 1)
   end
 
-  defp collect_bindings_from_node({:=, _meta, [left, right]}) do
-    collect_bindings([left]) ++ collect_bindings([right])
+  defp collect_bindings_from_node({:=, _meta, [left, right]}, depth) do
+    collect_bindings([left], depth + 1) ++ collect_bindings([right], depth + 1)
   end
 
-  defp collect_bindings_from_node({:when, _meta, [pattern, _guard]}) do
-    collect_bindings([pattern])
+  defp collect_bindings_from_node({:when, _meta, [pattern, _guard]}, depth) do
+    collect_bindings([pattern], depth + 1)
   end
 
-  defp collect_bindings_from_node({:|, _meta, [head, tail]}) do
-    collect_bindings([head]) ++ collect_bindings([tail])
+  defp collect_bindings_from_node({:|, _meta, [head, tail]}, depth) do
+    collect_bindings([head], depth + 1) ++ collect_bindings([tail], depth + 1)
   end
 
-  defp collect_bindings_from_node(tuple) when is_tuple(tuple) and tuple_size(tuple) == 2 do
-    collect_bindings(Tuple.to_list(tuple))
+  defp collect_bindings_from_node(tuple, depth) when is_tuple(tuple) and tuple_size(tuple) == 2 do
+    collect_bindings(Tuple.to_list(tuple), depth + 1)
   end
 
-  defp collect_bindings_from_node(list) when is_list(list) do
-    collect_bindings(list)
+  defp collect_bindings_from_node(list, depth) when is_list(list) do
+    collect_bindings(list, depth + 1)
   end
 
-  defp collect_bindings_from_node(_), do: []
+  defp collect_bindings_from_node(_, _depth), do: []
 
-  defp collect_bindings_from_pairs(pairs) do
+  defp collect_bindings_from_pairs(pairs, depth) do
     pairs
     |> Enum.flat_map(fn
-      {_key, value} -> collect_bindings([value])
-      {key, _sep, value} -> collect_bindings([key, value])
-      other -> collect_bindings([other])
+      {_key, value} -> collect_bindings([value], depth + 1)
+      {key, _sep, value} -> collect_bindings([key, value], depth + 1)
+      other -> collect_bindings([other], depth + 1)
     end)
     |> Enum.uniq()
   end
 
-  defp collect_binary_bindings(segments) do
+  defp collect_binary_bindings(segments, depth) do
     segments
     |> Enum.flat_map(fn
       {:"::", _meta, [pattern, _specifier]} ->
-        collect_bindings([pattern])
+        collect_bindings([pattern], depth + 1)
 
       other ->
-        collect_bindings([other])
+        collect_bindings([other], depth + 1)
     end)
     |> Enum.uniq()
   end

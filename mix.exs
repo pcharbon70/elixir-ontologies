@@ -35,7 +35,13 @@ defmodule ElixirOntologies.MixProject do
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
 
       # Static analysis
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+
+      # Property-based testing
+      {:stream_data, "~> 1.0", only: :test},
+
+      # Benchmarking
+      {:benchee, "~> 1.3", only: :dev}
     ]
   end
 

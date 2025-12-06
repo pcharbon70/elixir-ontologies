@@ -34,17 +34,6 @@ defmodule ElixirOntologies.Extractors.Reference do
 
   alias ElixirOntologies.Extractors.Helpers
 
-  # Special forms that are NOT variable references
-  @special_forms [
-    :__block__, :__aliases__, :__MODULE__, :__DIR__, :__ENV__,
-    :__CALLER__, :__STACKTRACE__, :fn, :do, :else, :catch, :rescue, :after,
-    :def, :defp, :defmacro, :defmacrop, :defmodule, :defprotocol, :defimpl,
-    :defstruct, :defdelegate, :defguard, :defguardp, :defexception, :defoverridable,
-    :import, :require, :use, :alias, :if, :unless, :case, :cond, :with, :for,
-    :try, :receive, :raise, :throw, :quote, :unquote, :unquote_splicing,
-    :super, :&, :^, :=, :|>, :., :|, :"::", :<<>>, :{}, :%{}, :%
-  ]
-
   # ===========================================================================
   # Result Struct
   # ===========================================================================
@@ -99,12 +88,36 @@ defmodule ElixirOntologies.Extractors.Reference do
 
       iex> ElixirOntologies.Extractors.Reference.variable?(:atom)
       false
+
+      # By default, underscore-prefixed variables are excluded
+      iex> ElixirOntologies.Extractors.Reference.variable?({:_reason, [], nil})
+      false
+
+      # Use include_underscored: true to include them
+      iex> ElixirOntologies.Extractors.Reference.variable?({:_reason, [], nil}, include_underscored: true)
+      true
+
+      # The single underscore wildcard is always excluded
+      iex> ElixirOntologies.Extractors.Reference.variable?({:_, [], nil}, include_underscored: true)
+      false
   """
-  @spec variable?(Macro.t()) :: boolean()
-  def variable?({name, _meta, context}) when is_atom(name) and is_atom(context) do
-    name not in @special_forms and not String.starts_with?(Atom.to_string(name), "_")
+  @spec variable?(Macro.t(), keyword()) :: boolean()
+  def variable?(node, opts \\ [])
+
+  def variable?({name, _meta, context}, opts) when is_atom(name) and is_atom(context) do
+    include_underscored = Keyword.get(opts, :include_underscored, false)
+    name_str = Atom.to_string(name)
+
+    cond do
+      Helpers.special_form?(name) -> false
+      # Single underscore is always excluded (true wildcard)
+      name == :_ -> false
+      # Other underscore-prefixed variables depend on option
+      String.starts_with?(name_str, "_") -> include_underscored
+      true -> true
+    end
   end
-  def variable?(_), do: false
+  def variable?(_, _opts), do: false
 
   @doc """
   Checks if an AST node represents a module reference.
@@ -175,9 +188,8 @@ defmodule ElixirOntologies.Extractors.Reference do
       false
   """
   @spec local_call?(Macro.t()) :: boolean()
-  def local_call?({name, _meta, args})
-      when is_atom(name) and is_list(args) and name not in @special_forms do
-    true
+  def local_call?({name, _meta, args}) when is_atom(name) and is_list(args) do
+    not Helpers.special_form?(name)
   end
   def local_call?(_), do: false
 
@@ -214,6 +226,11 @@ defmodule ElixirOntologies.Extractors.Reference do
   @doc """
   Returns the reference type of an AST node, or `nil` if not a reference.
 
+  ## Options
+
+  - `:include_underscored` - If true, treat `_`-prefixed variables (except `_`) as variables.
+    Defaults to `false`.
+
   ## Examples
 
       iex> ElixirOntologies.Extractors.Reference.reference_type({:x, [], Elixir})
@@ -227,9 +244,15 @@ defmodule ElixirOntologies.Extractors.Reference do
 
       iex> ElixirOntologies.Extractors.Reference.reference_type(123)
       nil
+
+      iex> ElixirOntologies.Extractors.Reference.reference_type({:_reason, [], nil})
+      nil
+
+      iex> ElixirOntologies.Extractors.Reference.reference_type({:_reason, [], nil}, include_underscored: true)
+      :variable
   """
-  @spec reference_type(Macro.t()) :: reference_type() | nil
-  def reference_type(node) do
+  @spec reference_type(Macro.t(), keyword()) :: reference_type() | nil
+  def reference_type(node, opts \\ []) do
     cond do
       pin?(node) -> :pin
       binding?(node) -> :binding
@@ -237,7 +260,7 @@ defmodule ElixirOntologies.Extractors.Reference do
       remote_call?(node) -> :remote_call
       module_reference?(node) -> :module
       local_call?(node) -> :local_call
-      variable?(node) -> :variable
+      variable?(node, opts) -> :variable
       true -> nil
     end
   end
@@ -251,6 +274,11 @@ defmodule ElixirOntologies.Extractors.Reference do
 
   Returns `{:ok, %Reference{}}` on success, or `{:error, reason}` if the node
   is not a recognized reference type.
+
+  ## Options
+
+  - `:include_underscored` - If true, treat `_`-prefixed variables (except `_`) as variables.
+    Defaults to `false`.
 
   ## Examples
 
@@ -267,10 +295,17 @@ defmodule ElixirOntologies.Extractors.Reference do
       [:String]
 
       iex> {:error, _} = ElixirOntologies.Extractors.Reference.extract(123)
+
+      # Underscore-prefixed variables with option
+      iex> {:ok, result} = ElixirOntologies.Extractors.Reference.extract({:_reason, [], nil}, include_underscored: true)
+      iex> result.type
+      :variable
+      iex> result.name
+      :_reason
   """
-  @spec extract(Macro.t()) :: {:ok, t()} | {:error, String.t()}
-  def extract(node) do
-    case reference_type(node) do
+  @spec extract(Macro.t(), keyword()) :: {:ok, t()} | {:error, String.t()}
+  def extract(node, opts \\ []) do
+    case reference_type(node, opts) do
       nil -> {:error, Helpers.format_error("Not a reference", node)}
       :variable -> {:ok, extract_variable(node)}
       :module -> {:ok, extract_module(node)}
@@ -285,15 +320,20 @@ defmodule ElixirOntologies.Extractors.Reference do
   @doc """
   Extracts a reference, raising on error.
 
+  ## Options
+
+  - `:include_underscored` - If true, treat `_`-prefixed variables (except `_`) as variables.
+    Defaults to `false`.
+
   ## Examples
 
       iex> result = ElixirOntologies.Extractors.Reference.extract!({:x, [], Elixir})
       iex> result.type
       :variable
   """
-  @spec extract!(Macro.t()) :: t()
-  def extract!(node) do
-    case extract(node) do
+  @spec extract!(Macro.t(), keyword()) :: t()
+  def extract!(node, opts \\ []) do
+    case extract(node, opts) do
       {:ok, result} -> result
       {:error, reason} -> raise ArgumentError, reason
     end
@@ -613,19 +653,25 @@ defmodule ElixirOntologies.Extractors.Reference do
   defp extract_module_from_ast(atom) when is_atom(atom), do: atom
   defp extract_module_from_ast(_), do: nil
 
-  # Extract the bound variable name from a pattern
-  defp extract_bound_name({name, _meta, context}) when is_atom(name) and is_atom(context) do
+  @max_recursion_depth 100
+
+  # Extract the bound variable name from a pattern (with depth limit)
+  defp extract_bound_name(pattern), do: extract_bound_name(pattern, 0)
+
+  defp extract_bound_name(_pattern, depth) when depth > @max_recursion_depth, do: nil
+
+  defp extract_bound_name({name, _meta, context}, _depth) when is_atom(name) and is_atom(context) do
     name
   end
-  defp extract_bound_name({:=, _meta, [left, _right]}) do
+  defp extract_bound_name({:=, _meta, [left, _right]}, depth) do
     # For nested matches like `{:ok, x} = result`, get innermost binding
-    extract_bound_name(left)
+    extract_bound_name(left, depth + 1)
   end
-  defp extract_bound_name(tuple) when is_tuple(tuple) do
+  defp extract_bound_name(tuple, _depth) when is_tuple(tuple) do
     # For tuple patterns, return nil (complex pattern)
     nil
   end
-  defp extract_bound_name(_), do: nil
+  defp extract_bound_name(_, _depth), do: nil
 
   # Format a full call string
   defp format_call(module, function, arity) when is_list(module) do

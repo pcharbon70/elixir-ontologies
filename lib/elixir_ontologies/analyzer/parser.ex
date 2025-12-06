@@ -403,17 +403,14 @@ defmodule ElixirOntologies.Analyzer.Parser do
     }
   end
 
+  # location is always a keyword list from Code.string_to_quoted error tuple
+  # when using our default options (which include columns: true)
+  @spec extract_location(keyword()) :: {pos_integer() | nil, pos_integer() | nil}
   defp extract_location(location) when is_list(location) do
     line = Keyword.get(location, :line)
     column = Keyword.get(location, :column)
     {line, column}
   end
-
-  defp extract_location(line) when is_integer(line) do
-    {line, nil}
-  end
-
-  defp extract_location(_), do: {nil, nil}
 
   defp format_message(message, token) when is_binary(message) and is_binary(token) do
     "#{message}#{token}"

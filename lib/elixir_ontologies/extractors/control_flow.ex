@@ -41,7 +41,6 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
       1
   """
 
-  alias ElixirOntologies.Analyzer.Location
   alias ElixirOntologies.Extractors.Helpers
 
   # ===========================================================================
@@ -69,7 +68,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
           condition: Macro.t() | nil,
           clauses: [clause()],
           branches: branches(),
-          location: Location.SourceLocation.t() | nil,
+          location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
           metadata: map()
         }
 

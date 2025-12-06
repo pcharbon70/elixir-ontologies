@@ -473,9 +473,11 @@ defmodule ElixirOntologies.Analyzer.Location do
   - Cannot account for trailing syntax like `end` keywords
 
   """
+  @max_recursion_depth 100
+
   @spec estimate_end(Macro.t()) :: {:ok, {pos_integer(), pos_integer()}} | :no_estimate
   def estimate_end(node) do
-    case find_last_position(node, nil) do
+    case find_last_position(node, nil, 0) do
       nil -> :no_estimate
       {line, column} -> {:ok, {line, column}}
     end
@@ -655,10 +657,16 @@ defmodule ElixirOntologies.Analyzer.Location do
 
   # Recursively find the "last" position in an AST tree
   # "Last" means the position that comes latest in the source (highest line, then column)
-  defp find_last_position(node, current_best)
+  # Includes depth tracking to prevent stack overflow on deeply nested AST
+  defp find_last_position(node, current_best, depth)
+
+  # Stop recursion if max depth exceeded
+  defp find_last_position(_node, current_best, depth) when depth > @max_recursion_depth do
+    current_best
+  end
 
   # 3-tuple AST node
-  defp find_last_position({_form, meta, args}, current_best) when is_list(meta) do
+  defp find_last_position({_form, meta, args}, current_best, depth) when is_list(meta) do
     # Check this node's position
     node_pos = extract_position_from_meta(meta)
     current_best = compare_positions(current_best, node_pos)
@@ -668,24 +676,24 @@ defmodule ElixirOntologies.Analyzer.Location do
     current_best = compare_positions(current_best, end_pos)
 
     # Recurse into args
-    find_last_position(args, current_best)
+    find_last_position(args, current_best, depth + 1)
   end
 
   # List of AST nodes
-  defp find_last_position(list, current_best) when is_list(list) do
+  defp find_last_position(list, current_best, depth) when is_list(list) do
     Enum.reduce(list, current_best, fn item, acc ->
-      find_last_position(item, acc)
+      find_last_position(item, acc, depth + 1)
     end)
   end
 
   # 2-tuple (often keyword lists or special forms)
-  defp find_last_position({key, value}, current_best) do
-    current_best = find_last_position(key, current_best)
-    find_last_position(value, current_best)
+  defp find_last_position({key, value}, current_best, depth) do
+    current_best = find_last_position(key, current_best, depth + 1)
+    find_last_position(value, current_best, depth + 1)
   end
 
   # Literals and other non-AST values - no position
-  defp find_last_position(_other, current_best), do: current_best
+  defp find_last_position(_other, current_best, _depth), do: current_best
 
   # Extract line/column from metadata if present
   defp extract_position_from_meta(meta) do

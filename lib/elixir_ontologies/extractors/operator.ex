@@ -90,7 +90,7 @@ defmodule ElixirOntologies.Extractors.Operator do
           symbol: atom(),
           arity: 1 | 2,
           operands: operands(),
-          location: Location.SourceLocation.t() | nil,
+          location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
           metadata: map()
         }
 
@@ -283,7 +283,7 @@ defmodule ElixirOntologies.Extractors.Operator do
     if type do
       {:ok, build_unary(op, meta, operand, type)}
     else
-      {:error, "Not an operator: #{inspect(node)}"}
+      {:error, Helpers.format_error("Not an operator", node)}
     end
   end
 
@@ -293,12 +293,12 @@ defmodule ElixirOntologies.Extractors.Operator do
     if type do
       {:ok, build_binary(op, meta, left, right, type)}
     else
-      {:error, "Not an operator: #{inspect(node)}"}
+      {:error, Helpers.format_error("Not an operator", node)}
     end
   end
 
   def extract(node) do
-    {:error, "Not an operator: #{inspect(node)}"}
+    {:error, Helpers.format_error("Not an operator", node)}
   end
 
   @doc """

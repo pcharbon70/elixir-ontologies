@@ -30,6 +30,105 @@ defmodule ElixirOntologies.Extractors.Helpers do
   @default_printable_limit 100
   @max_recursion_depth 100
 
+  # Special forms that are NOT variable references or local calls
+  @special_forms [
+    # Elixir special forms
+    :__block__,
+    :__aliases__,
+    :__MODULE__,
+    :__DIR__,
+    :__ENV__,
+    :__CALLER__,
+    :__STACKTRACE__,
+    :fn,
+    :do,
+    :else,
+    :catch,
+    :rescue,
+    :after,
+    # Definition forms
+    :def,
+    :defp,
+    :defmacro,
+    :defmacrop,
+    :defmodule,
+    :defprotocol,
+    :defimpl,
+    :defstruct,
+    :defdelegate,
+    :defguard,
+    :defguardp,
+    :defexception,
+    :defoverridable,
+    # Import/require/use
+    :import,
+    :require,
+    :use,
+    :alias,
+    # Control flow
+    :if,
+    :unless,
+    :case,
+    :cond,
+    :with,
+    :for,
+    :try,
+    :receive,
+    :raise,
+    :throw,
+    :quote,
+    :unquote,
+    :unquote_splicing,
+    # Other
+    :super,
+    :&,
+    :^,
+    :=,
+    :|>,
+    :.,
+    :|,
+    :"::",
+    :<<>>,
+    :{},
+    :%{},
+    :%
+  ]
+
+  # ===========================================================================
+  # Special Forms
+  # ===========================================================================
+
+  @doc """
+  Returns the list of special forms that are NOT variable references or local calls.
+
+  This includes Elixir special forms, definition macros, control flow constructs,
+  and syntactic operators that have special AST representation.
+
+  ## Examples
+
+      iex> :def in ElixirOntologies.Extractors.Helpers.special_forms()
+      true
+
+      iex> :my_function in ElixirOntologies.Extractors.Helpers.special_forms()
+      false
+  """
+  @spec special_forms() :: [atom()]
+  def special_forms, do: @special_forms
+
+  @doc """
+  Checks if an atom is a special form.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Helpers.special_form?(:def)
+      true
+
+      iex> ElixirOntologies.Extractors.Helpers.special_form?(:my_function)
+      false
+  """
+  @spec special_form?(atom()) :: boolean()
+  def special_form?(name) when is_atom(name), do: name in @special_forms
+
   # ===========================================================================
   # Location Extraction
   # ===========================================================================
