@@ -142,18 +142,18 @@ Extract guard clauses from function heads.
 This section extracts @type, @spec, @callback definitions.
 
 ### 4.3.1 Type Definition Extractor
-- [ ] **Task 4.3.1 Complete**
+- [x] **Task 4.3.1 Complete**
 
 Extract type definitions (@type, @typep, @opaque).
 
-- [ ] 4.3.1.1 Create `lib/elixir_ontologies/extractors/type_spec.ex`
-- [ ] 4.3.1.2 Extract `@type` as `PublicType`
-- [ ] 4.3.1.3 Extract `@typep` as `PrivateType`
-- [ ] 4.3.1.4 Extract `@opaque` as `OpaqueType`
-- [ ] 4.3.1.5 Extract `typeName` and `typeArity`
-- [ ] 4.3.1.6 Extract type parameters as `TypeVariable`
-- [ ] 4.3.1.7 Parse type expression structure
-- [ ] 4.3.1.8 Write type definition tests (success: 10 tests)
+- [x] 4.3.1.1 Create `lib/elixir_ontologies/extractors/type_definition.ex`
+- [x] 4.3.1.2 Extract `@type` as `PublicType`
+- [x] 4.3.1.3 Extract `@typep` as `PrivateType`
+- [x] 4.3.1.4 Extract `@opaque` as `OpaqueType`
+- [x] 4.3.1.5 Extract `typeName` and `typeArity`
+- [x] 4.3.1.6 Extract type parameters as `TypeVariable`
+- [x] 4.3.1.7 Parse type expression structure
+- [x] 4.3.1.8 Write type definition tests (success: 60 tests - 20 doctests + 40 unit tests)
 
 ### 4.3.2 Function Spec Extractor
 - [ ] **Task 4.3.2 Complete**
