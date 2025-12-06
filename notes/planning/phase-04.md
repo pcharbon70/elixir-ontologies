@@ -233,8 +233,10 @@ Extract metaprogramming constructs.
 
 ## Phase 4 Integration Tests
 
-- [ ] Test full module extraction with functions, specs, and attributes
-- [ ] Test extraction of GenServer module with callbacks
-- [ ] Test multi-clause function extraction preserves order
-- [ ] Test parameter-to-type linking via specs
-- [ ] Test macro extraction in metaprogramming-heavy module
+- [x] Test full module extraction with functions, specs, and attributes
+- [x] Test extraction of GenServer module with callbacks
+- [x] Test multi-clause function extraction preserves order
+- [x] Test parameter-to-type linking via specs
+- [x] Test macro extraction in metaprogramming-heavy module
+
+**Integration Tests:** 22 tests passing
