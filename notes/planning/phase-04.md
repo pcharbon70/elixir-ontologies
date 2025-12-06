@@ -197,18 +197,18 @@ Parse type expressions into appropriate TypeExpression subclasses.
 This section extracts macro definitions with their metaprogramming constructs.
 
 ### 4.4.1 Macro Definition Extractor
-- [ ] **Task 4.4.1 Complete**
+- [x] **Task 4.4.1 Complete**
 
 Extract defmacro and defmacrop definitions.
 
-- [ ] 4.4.1.1 Create `lib/elixir_ontologies/extractors/macro.ex`
-- [ ] 4.4.1.2 Extract `defmacro` as `PublicMacro`
-- [ ] 4.4.1.3 Extract `defmacrop` as `PrivateMacro`
-- [ ] 4.4.1.4 Extract `macroName` and `macroArity`
-- [ ] 4.4.1.5 Detect hygiene settings (`Macro.escape`, `var!`)
-- [ ] 4.4.1.6 Set `isHygienic` property
-- [ ] 4.4.1.7 Extract macro clauses similar to functions
-- [ ] 4.4.1.8 Write macro extraction tests (success: 10 tests)
+- [x] 4.4.1.1 Create `lib/elixir_ontologies/extractors/macro.ex`
+- [x] 4.4.1.2 Extract `defmacro` as `PublicMacro`
+- [x] 4.4.1.3 Extract `defmacrop` as `PrivateMacro`
+- [x] 4.4.1.4 Extract `macroName` and `macroArity`
+- [x] 4.4.1.5 Detect hygiene settings (`Macro.escape`, `var!`)
+- [x] 4.4.1.6 Set `isHygienic` property
+- [x] 4.4.1.7 Extract macro clauses similar to functions
+- [x] 4.4.1.8 Write macro extraction tests (success: 58 tests - 18 doctests + 40 unit tests)
 
 ### 4.4.2 Quote/Unquote Extractor
 - [ ] **Task 4.4.2 Complete**
