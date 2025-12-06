@@ -72,19 +72,19 @@ Extract function definitions with identity and classification.
 - [x] 4.2.1.13 Write function definition tests (success: 80 tests - 28 doctests + 52 unit tests)
 
 ### 4.2.2 Function Clause Extractor
-- [ ] **Task 4.2.2 Complete**
+- [x] **Task 4.2.2 Complete**
 
 Extract function clauses with ordering and structure.
 
-- [ ] 4.2.2.1 Group consecutive def/defp with same name/arity as clauses
-- [ ] 4.2.2.2 Create `FunctionClause` for each clause
-- [ ] 4.2.2.3 Set `clauseOrder` (1-indexed)
-- [ ] 4.2.2.4 Link clauses via `hasClauses` as rdf:List (preserving order)
-- [ ] 4.2.2.5 Also link via `hasClause` for simple queries
-- [ ] 4.2.2.6 Extract `FunctionHead` with `hasHead`
-- [ ] 4.2.2.7 Extract `FunctionBody` with `hasBody`
-- [ ] 4.2.2.8 Handle bodyless clauses (protocol functions)
-- [ ] 4.2.2.9 Write clause extraction tests (success: 12 tests)
+- [x] 4.2.2.1 Group consecutive def/defp with same name/arity as clauses
+- [x] 4.2.2.2 Create `FunctionClause` for each clause
+- [x] 4.2.2.3 Set `clauseOrder` (1-indexed)
+- [x] 4.2.2.4 Link clauses via `hasClauses` as rdf:List (preserving order)
+- [x] 4.2.2.5 Also link via `hasClause` for simple queries
+- [x] 4.2.2.6 Extract `FunctionHead` with `hasHead`
+- [x] 4.2.2.7 Extract `FunctionBody` with `hasBody`
+- [x] 4.2.2.8 Handle bodyless clauses (protocol functions)
+- [x] 4.2.2.9 Write clause extraction tests (success: 60 tests - 20 doctests + 40 unit tests)
 
 ### 4.2.3 Parameter Extractor
 - [ ] **Task 4.2.3 Complete**
