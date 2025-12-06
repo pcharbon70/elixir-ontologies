@@ -170,27 +170,27 @@ Extract @spec with parameter types and return type.
 - [x] 4.3.2.8 Write spec extraction tests (success: 62 tests - 19 doctests + 43 unit tests)
 
 ### 4.3.3 Type Expression Parser
-- [ ] **Task 4.3.3 Complete**
+- [x] **Task 4.3.3 Complete**
 
 Parse type expressions into appropriate TypeExpression subclasses.
 
-- [ ] 4.3.3.1 Parse `BasicType` (atom(), integer(), binary(), etc.)
-- [ ] 4.3.3.2 Parse `UnionType` (type1 | type2)
-- [ ] 4.3.3.3 Parse `TupleType` ({type1, type2})
-- [ ] 4.3.3.4 Parse `ListType` ([type])
-- [ ] 4.3.3.5 Parse `MapType` (%{key => value})
-- [ ] 4.3.3.6 Parse `FunctionType` ((args -> return))
-- [ ] 4.3.3.7 Parse `ParameterizedType` (Enumerable.t(element))
-- [ ] 4.3.3.8 Handle remote types (Module.type())
-- [ ] 4.3.3.9 Write type expression tests (success: 16 tests)
+- [x] 4.3.3.1 Parse `BasicType` (atom(), integer(), binary(), etc.)
+- [x] 4.3.3.2 Parse `UnionType` (type1 | type2)
+- [x] 4.3.3.3 Parse `TupleType` ({type1, type2})
+- [x] 4.3.3.4 Parse `ListType` ([type])
+- [x] 4.3.3.5 Parse `MapType` (%{key => value})
+- [x] 4.3.3.6 Parse `FunctionType` ((args -> return))
+- [x] 4.3.3.7 Parse `ParameterizedType` (Enumerable.t(element))
+- [x] 4.3.3.8 Handle remote types (Module.type())
+- [x] 4.3.3.9 Write type expression tests (success: 87 tests - 22 doctests + 65 unit tests)
 
 **Section 4.3 Unit Tests:**
-- [ ] Test @type extraction
-- [ ] Test @typep and @opaque classification
-- [ ] Test @spec extraction with simple types
-- [ ] Test @spec with union types
-- [ ] Test @spec with complex nested types
-- [ ] Test type expression parsing for all TypeExpression subclasses
+- [x] Test @type extraction
+- [x] Test @typep and @opaque classification
+- [x] Test @spec extraction with simple types
+- [x] Test @spec with union types
+- [x] Test @spec with complex nested types
+- [x] Test type expression parsing for all TypeExpression subclasses
 
 ## 4.4 Macro Extractor
 
