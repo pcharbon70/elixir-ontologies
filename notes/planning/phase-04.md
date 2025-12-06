@@ -103,16 +103,16 @@ Extract function parameters with patterns and types.
 - [x] 4.2.3.10 Write parameter tests (success: 73 tests - 22 doctests + 51 unit tests)
 
 ### 4.2.4 Return Expression Extractor
-- [ ] **Task 4.2.4 Complete**
+- [x] **Task 4.2.4 Complete**
 
 Extract the return expression from function bodies.
 
-- [ ] 4.2.4.1 Identify last expression in function body
-- [ ] 4.2.4.2 Create `ReturnExpression` or link to expression type
-- [ ] 4.2.4.3 Link via `returnsExpression` from FunctionBody
-- [ ] 4.2.4.4 Handle single-expression functions (do: expr)
-- [ ] 4.2.4.5 Handle multi-expression bodies (do...end)
-- [ ] 4.2.4.6 Write return expression tests (success: 8 tests)
+- [x] 4.2.4.1 Identify last expression in function body
+- [x] 4.2.4.2 Create `ReturnExpression` or link to expression type
+- [x] 4.2.4.3 Link via `returnsExpression` from FunctionBody
+- [x] 4.2.4.4 Handle single-expression functions (do: expr)
+- [x] 4.2.4.5 Handle multi-expression bodies (do...end)
+- [x] 4.2.4.6 Write return expression tests (success: 60 tests - 16 doctests + 44 unit tests)
 
 ### 4.2.5 Guard Extractor
 - [ ] **Task 4.2.5 Complete**
