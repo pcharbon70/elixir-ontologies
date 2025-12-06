@@ -185,26 +185,26 @@ Extract block structures with ordered expressions.
 This section extracts variables, references, and function calls.
 
 ### 3.6.1 Variable and Reference Extractor
-- [ ] **Task 3.6.1 Complete**
+- [x] **Task 3.6.1 Complete**
 
 Extract variable bindings and various reference types.
 
-- [ ] 3.6.1.1 Create `lib/elixir_ontologies/extractors/reference.ex`
-- [ ] 3.6.1.2 Extract `Variable` with name
-- [ ] 3.6.1.3 Extract `ModuleReference` (alias references)
-- [ ] 3.6.1.4 Extract `FunctionReference` (captured functions)
-- [ ] 3.6.1.5 Extract `RemoteCall` (Module.function(args))
-- [ ] 3.6.1.6 Extract `LocalCall` (function(args))
-- [ ] 3.6.1.7 Add `refersToModule`, `refersToFunction` properties
-- [ ] 3.6.1.8 Track variable scope and rebinding
-- [ ] 3.6.1.9 Write reference tests (success: 12 tests)
+- [x] 3.6.1.1 Create `lib/elixir_ontologies/extractors/reference.ex`
+- [x] 3.6.1.2 Extract `Variable` with name
+- [x] 3.6.1.3 Extract `ModuleReference` (alias references)
+- [x] 3.6.1.4 Extract `FunctionReference` (captured functions)
+- [x] 3.6.1.5 Extract `RemoteCall` (Module.function(args))
+- [x] 3.6.1.6 Extract `LocalCall` (function(args))
+- [x] 3.6.1.7 Add `refersToModule`, `refersToFunction` properties
+- [x] 3.6.1.8 Track variable scope and rebinding
+- [x] 3.6.1.9 Write reference tests (success: 104 tests - 43 doctests + 61 unit tests)
 
 **Section 3.6 Unit Tests:**
-- [ ] Test variable extraction
-- [ ] Test module reference extraction
-- [ ] Test function capture extraction (&Mod.fun/2)
-- [ ] Test remote call extraction
-- [ ] Test local call extraction
+- [x] Test variable extraction
+- [x] Test module reference extraction
+- [x] Test function capture extraction (&Mod.fun/2)
+- [x] Test remote call extraction
+- [x] Test local call extraction
 
 ## Phase 3 Integration Tests
 
