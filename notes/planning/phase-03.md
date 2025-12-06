@@ -160,25 +160,25 @@ Extract for comprehensions with generators, filters, and into clauses.
 - [x] 3.5.1.10 Write comprehension tests (success: 65 tests - 21 doctests + 44 unit tests)
 
 ### 3.5.2 Block Extractor
-- [ ] **Task 3.5.2 Complete**
+- [x] **Task 3.5.2 Complete**
 
 Extract block structures with ordered expressions.
 
-- [ ] 3.5.2.1 Create `lib/elixir_ontologies/extractors/block.ex`
-- [ ] 3.5.2.2 Extract `Block` with contained expressions
-- [ ] 3.5.2.3 Extract `DoBlock` from do...end syntax
-- [ ] 3.5.2.4 Extract `FnBlock` from fn...end syntax
-- [ ] 3.5.2.5 Add `containsExpression` relationships
-- [ ] 3.5.2.6 Add `expressionOrder` for each contained expression
-- [ ] 3.5.2.7 Write block tests (success: 8 tests)
+- [x] 3.5.2.1 Create `lib/elixir_ontologies/extractors/block.ex`
+- [x] 3.5.2.2 Extract `Block` with contained expressions
+- [x] 3.5.2.3 Extract `DoBlock` from do...end syntax
+- [x] 3.5.2.4 Extract `FnBlock` from fn...end syntax
+- [x] 3.5.2.5 Add `containsExpression` relationships
+- [x] 3.5.2.6 Add `expressionOrder` for each contained expression
+- [x] 3.5.2.7 Write block tests (success: 67 tests - 22 doctests + 45 unit tests)
 
 **Section 3.5 Unit Tests:**
 - [x] Test for comprehension with single generator
 - [x] Test for comprehension with multiple generators
 - [x] Test for comprehension with filter
 - [x] Test for comprehension with :into
-- [ ] Test do block extraction
-- [ ] Test expression ordering in blocks
+- [x] Test do block extraction
+- [x] Test expression ordering in blocks
 
 ## 3.6 Variable and Reference Extractors
 
