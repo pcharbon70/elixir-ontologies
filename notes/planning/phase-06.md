@@ -7,15 +7,15 @@ This phase implements extractors for OTP patterns: GenServer, Supervisor, Agent,
 This section detects and extracts GenServer implementations.
 
 ### 6.1.1 GenServer Detection
-- [ ] **Task 6.1.1 Complete**
+- [x] **Task 6.1.1 Complete**
 
 Detect modules implementing GenServer behaviour.
 
-- [ ] 6.1.1.1 Create `lib/elixir_ontologies/extractors/otp/genserver.ex`
-- [ ] 6.1.1.2 Detect `use GenServer` or `@behaviour GenServer`
-- [ ] 6.1.1.3 Create `GenServerImplementation` instance
-- [ ] 6.1.1.4 Link via `implementsOTPBehaviour`
-- [ ] 6.1.1.5 Write GenServer detection tests (success: 6 tests)
+- [x] 6.1.1.1 Create `lib/elixir_ontologies/extractors/otp/genserver.ex`
+- [x] 6.1.1.2 Detect `use GenServer` or `@behaviour GenServer`
+- [x] 6.1.1.3 Create `GenServerImplementation` instance
+- [x] 6.1.1.4 Link via `implementsOTPBehaviour`
+- [x] 6.1.1.5 Write GenServer detection tests (success: 39 tests)
 
 ### 6.1.2 GenServer Callback Extraction
 - [ ] **Task 6.1.2 Complete**
