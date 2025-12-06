@@ -470,7 +470,7 @@ defmodule ElixirOntologies.Extractors.OTP.ETS do
       read_concurrency: extract_keyword_bool(options, :read_concurrency),
       write_concurrency: extract_keyword_bool(options, :write_concurrency),
       compressed: :compressed in options,
-      heir: extract_keyword_value(options, :heir)
+      heir: extract_heir_option(options)
     }
   end
 
@@ -511,8 +511,17 @@ defmodule ElixirOntologies.Extractors.OTP.ETS do
     end
   end
 
-  defp extract_keyword_value(options, key) do
-    Keyword.get(options, key)
+  defp extract_heir_option(options) do
+    # heir is specified as {:heir, pid, data} - a 3-tuple, not keyword format
+    Enum.find_value(options, fn
+      {:heir, pid, data} -> {pid, data}
+      # Handle AST 3-tuple format {:{}, meta, [:heir, pid, data]}
+      {:{}, _, [:heir, pid, data]} -> {pid, data}
+      # Handle {:heir, :none} format
+      {:heir, :none} -> :none
+      {:{}, _, [:heir, :none]} -> :none
+      _ -> nil
+    end)
   end
 
   defp extract_location(meta, opts) do

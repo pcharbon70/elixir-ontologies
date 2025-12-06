@@ -1156,7 +1156,13 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     shutdown = Keyword.get(pairs, :shutdown)
     type = Keyword.get(pairs, :type, :worker)
 
+    # Extract module from start tuple - AST tuple format must be checked first
+    # because {:{}, meta, args} would match {module, _fun, _args} where :{} is an atom
     module = case start do
+      # Handle AST tuple format {:{}, meta, [module, fun, args]}
+      {:{}, _, [{:__aliases__, _, parts}, _fun, _args]} -> Module.concat(parts)
+      {:{}, _, [module, _fun, _args]} when is_atom(module) -> module
+      # Regular evaluated tuples
       {module, _fun, _args} when is_atom(module) -> module
       {{:__aliases__, _, parts}, _fun, _args} -> Module.concat(parts)
       _ -> nil

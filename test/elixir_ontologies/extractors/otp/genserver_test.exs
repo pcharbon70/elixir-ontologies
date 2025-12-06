@@ -692,4 +692,70 @@ defmodule ElixirOntologies.Extractors.OTP.GenServerTest do
       assert hd(callbacks).clauses == 2
     end
   end
+
+  # ===========================================================================
+  # Additional Callback Tests (code_change/3, format_status/1)
+  # ===========================================================================
+
+  describe "code_change/3 callback" do
+    test "extracts code_change/3 callback" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        def code_change(old_vsn, state, extra) do
+          {:ok, state}
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).type == :code_change
+      assert hd(callbacks).arity == 3
+    end
+
+    test "genserver_callback?/1 recognizes code_change/3" do
+      ast = parse_statement("def code_change(old_vsn, state, extra), do: {:ok, state}")
+      assert GenServerExtractor.genserver_callback?(ast)
+    end
+
+    test "callback_type/1 returns :code_change for code_change/3" do
+      ast = parse_statement("def code_change(old_vsn, state, extra), do: {:ok, state}")
+      assert GenServerExtractor.callback_type(ast) == :code_change
+    end
+  end
+
+  describe "format_status/1 callback" do
+    test "extracts format_status/1 callback" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        def format_status(status) do
+          Map.put(status, :state, :redacted)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).type == :format_status
+      assert hd(callbacks).arity == 1
+    end
+
+    test "genserver_callback?/1 recognizes format_status/1" do
+      ast = parse_statement("def format_status(status), do: status")
+      assert GenServerExtractor.genserver_callback?(ast)
+    end
+
+    test "callback_type/1 returns :format_status for format_status/1" do
+      ast = parse_statement("def format_status(status), do: status")
+      assert GenServerExtractor.callback_type(ast) == :format_status
+    end
+  end
 end

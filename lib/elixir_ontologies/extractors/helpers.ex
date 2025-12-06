@@ -613,4 +613,98 @@ defmodule ElixirOntologies.Extractors.Helpers do
   defp normalize_derive_protocol({atom, opts}) when is_atom(atom) and is_list(opts) do
     %{protocol: atom, options: opts}
   end
+
+  # ===========================================================================
+  # Use/Behaviour Detection Helpers
+  # ===========================================================================
+
+  @doc """
+  Checks if a single AST node is a `use Module` invocation for the given module.
+
+  This is a generic helper that reduces duplication in use statement detection.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Helpers
+      iex> code = "use GenServer"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> Helpers.use_module?(ast, :GenServer)
+      true
+
+      iex> alias ElixirOntologies.Extractors.Helpers
+      iex> code = "use Agent"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> Helpers.use_module?(ast, :GenServer)
+      false
+  """
+  @spec use_module?(Macro.t(), atom()) :: boolean()
+  def use_module?({:use, _meta, [{:__aliases__, _, [module_name]} | _opts]}, target)
+      when module_name == target,
+      do: true
+
+  def use_module?({:use, _meta, [module_atom | _opts]}, target)
+      when is_atom(module_atom) and module_atom == target,
+      do: true
+
+  def use_module?(_, _), do: false
+
+  @doc """
+  Checks if a single AST node is a `@behaviour Module` declaration for the given module.
+
+  This is a generic helper that reduces duplication in behaviour detection.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Helpers
+      iex> code = "@behaviour GenServer"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> Helpers.behaviour_module?(ast, :GenServer)
+      true
+
+      iex> alias ElixirOntologies.Extractors.Helpers
+      iex> code = "@behaviour Agent"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> Helpers.behaviour_module?(ast, :GenServer)
+      false
+  """
+  @spec behaviour_module?(Macro.t(), atom()) :: boolean()
+  def behaviour_module?({:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [module_name]}]}]}, target)
+      when module_name == target,
+      do: true
+
+  def behaviour_module?({:@, _meta, [{:behaviour, _attr_meta, [module_atom]}]}, target)
+      when is_atom(module_atom) and module_atom == target,
+      do: true
+
+  def behaviour_module?(_, _), do: false
+
+  @doc """
+  Extracts options from a use statement.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Helpers
+      iex> code = "use GenServer, restart: :temporary"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> Helpers.extract_use_options(ast)
+      [restart: :temporary]
+
+      iex> alias ElixirOntologies.Extractors.Helpers
+      iex> code = "use GenServer"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> Helpers.extract_use_options(ast)
+      []
+  """
+  @spec extract_use_options(Macro.t()) :: keyword()
+  def extract_use_options({:use, _meta, [{:__aliases__, _, [_module]}]}), do: []
+  def extract_use_options({:use, _meta, [module]}) when is_atom(module), do: []
+
+  def extract_use_options({:use, _meta, [{:__aliases__, _, [_module]}, opts]}) when is_list(opts),
+    do: opts
+
+  def extract_use_options({:use, _meta, [module, opts]})
+      when is_atom(module) and is_list(opts),
+      do: opts
+
+  def extract_use_options(_), do: []
 end

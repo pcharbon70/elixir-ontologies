@@ -814,6 +814,108 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
   # Real-World Strategy Patterns
   # ===========================================================================
 
+  # ===========================================================================
+  # Map-Based Child Spec Tests
+  # ===========================================================================
+
+  describe "map-based child spec extraction" do
+    test "extracts child spec from map format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :worker, start: {MyWorker, :start_link, [[]]}}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert length(children) == 1
+      child = hd(children)
+      assert child.id == :worker
+      assert child.module == MyWorker
+      assert child.metadata.format == :map
+    end
+
+    test "extracts restart option from map child spec" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :temp_worker, start: {TempWorker, :start_link, []}, restart: :temporary}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert length(children) == 1
+      child = hd(children)
+      assert child.restart == :temporary
+    end
+
+    test "extracts type from map child spec" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :child_sup, start: {ChildSup, :start_link, []}, type: :supervisor}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert length(children) == 1
+      child = hd(children)
+      assert child.type == :supervisor
+    end
+  end
+
+  # ===========================================================================
+  # extract_children!/2 Tests
+  # ===========================================================================
+
+  describe "extract_children!/2" do
+    test "returns children for valid supervisor" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [{Worker, []}]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      children = SupervisorExtractor.extract_children!(body)
+
+      assert is_list(children)
+      assert length(children) == 1
+    end
+
+    test "returns empty list for supervisor without init" do
+      body = parse_module_body("defmodule S do use Supervisor end")
+      children = SupervisorExtractor.extract_children!(body)
+
+      assert children == []
+    end
+  end
+
   describe "real-world strategy patterns" do
     test "extracts typical Phoenix application supervisor" do
       code = """
