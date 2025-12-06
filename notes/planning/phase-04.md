@@ -211,17 +211,17 @@ Extract defmacro and defmacrop definitions.
 - [x] 4.4.1.8 Write macro extraction tests (success: 58 tests - 18 doctests + 40 unit tests)
 
 ### 4.4.2 Quote/Unquote Extractor
-- [ ] **Task 4.4.2 Complete**
+- [x] **Task 4.4.2 Complete**
 
 Extract metaprogramming constructs.
 
-- [ ] 4.4.2.1 Detect `quote do...end` blocks
-- [ ] 4.4.2.2 Create `QuotedExpression` with `quotesExpression`
-- [ ] 4.4.2.3 Extract `quoteContext` option (:match, :guard)
-- [ ] 4.4.2.4 Detect `unquote()` calls as `UnquoteExpression`
-- [ ] 4.4.2.5 Detect `unquote_splicing()` as `UnquoteSplicingExpression`
-- [ ] 4.4.2.6 Link via `unquotesValue`
-- [ ] 4.4.2.7 Write quote/unquote tests (success: 8 tests)
+- [x] 4.4.2.1 Detect `quote do...end` blocks
+- [x] 4.4.2.2 Create `QuotedExpression` with `quotesExpression`
+- [x] 4.4.2.3 Extract `quoteContext` option (:match, :guard)
+- [x] 4.4.2.4 Detect `unquote()` calls as `UnquoteExpression`
+- [x] 4.4.2.5 Detect `unquote_splicing()` as `UnquoteSplicingExpression`
+- [x] 4.4.2.6 Link via `unquotesValue`
+- [x] 4.4.2.7 Write quote/unquote tests (success: 74 tests - 25 doctests + 49 unit tests)
 
 **Section 4.4 Unit Tests:**
 - [ ] Test defmacro extraction
