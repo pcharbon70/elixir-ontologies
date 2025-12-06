@@ -44,15 +44,15 @@ Extract GenServer callbacks.
 This section extracts Supervisor definitions and child specs.
 
 ### 6.2.1 Supervisor Detection
-- [ ] **Task 6.2.1 Complete**
+- [x] **Task 6.2.1 Complete**
 
 Detect Supervisor implementations.
 
-- [ ] 6.2.1.1 Create `lib/elixir_ontologies/extractors/otp/supervisor.ex`
-- [ ] 6.2.1.2 Detect `use Supervisor` or `@behaviour Supervisor`
-- [ ] 6.2.1.3 Create `Supervisor` instance
-- [ ] 6.2.1.4 Detect `DynamicSupervisor` usage
-- [ ] 6.2.1.5 Write supervisor detection tests (success: 6 tests)
+- [x] 6.2.1.1 Create `lib/elixir_ontologies/extractors/otp/supervisor.ex`
+- [x] 6.2.1.2 Detect `use Supervisor` or `@behaviour Supervisor`
+- [x] 6.2.1.3 Create `Supervisor` instance
+- [x] 6.2.1.4 Detect `DynamicSupervisor` usage
+- [x] 6.2.1.5 Write supervisor detection tests (success: 51 tests)
 
 ### 6.2.2 Supervision Strategy Extraction
 - [ ] **Task 6.2.2 Complete**
