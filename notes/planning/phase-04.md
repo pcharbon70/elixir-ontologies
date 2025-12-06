@@ -87,20 +87,20 @@ Extract function clauses with ordering and structure.
 - [x] 4.2.2.9 Write clause extraction tests (success: 60 tests - 20 doctests + 40 unit tests)
 
 ### 4.2.3 Parameter Extractor
-- [ ] **Task 4.2.3 Complete**
+- [x] **Task 4.2.3 Complete**
 
 Extract function parameters with patterns and types.
 
-- [ ] 4.2.3.1 Create `lib/elixir_ontologies/extractors/parameter.ex`
-- [ ] 4.2.3.2 Extract each parameter as `Parameter` instance
-- [ ] 4.2.3.3 Set `parameterPosition` (0-indexed)
-- [ ] 4.2.3.4 Extract `parameterName` when simple variable
-- [ ] 4.2.3.5 Detect `DefaultParameter` (\\\\) with `hasDefaultValue`
-- [ ] 4.2.3.6 Detect `PatternParameter` for destructuring parameters
-- [ ] 4.2.3.7 Link to pattern via `hasPatternExpression`
-- [ ] 4.2.3.8 Link to type via `hasTypeAnnotation` (from @spec)
-- [ ] 4.2.3.9 Create ordered parameter list via `hasParameters` (rdf:List)
-- [ ] 4.2.3.10 Write parameter tests (success: 14 tests)
+- [x] 4.2.3.1 Create `lib/elixir_ontologies/extractors/parameter.ex`
+- [x] 4.2.3.2 Extract each parameter as `Parameter` instance
+- [x] 4.2.3.3 Set `parameterPosition` (0-indexed)
+- [x] 4.2.3.4 Extract `parameterName` when simple variable
+- [x] 4.2.3.5 Detect `DefaultParameter` (\\\\) with `hasDefaultValue`
+- [x] 4.2.3.6 Detect `PatternParameter` for destructuring parameters
+- [x] 4.2.3.7 Link to pattern via `hasPatternExpression`
+- [x] 4.2.3.8 Link to type via `hasTypeAnnotation` (from @spec) - deferred to TypeSpec extractor
+- [x] 4.2.3.9 Create ordered parameter list via `hasParameters` (rdf:List)
+- [x] 4.2.3.10 Write parameter tests (success: 73 tests - 22 doctests + 51 unit tests)
 
 ### 4.2.4 Return Expression Extractor
 - [ ] **Task 4.2.4 Complete**
