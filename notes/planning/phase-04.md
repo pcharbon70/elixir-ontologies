@@ -7,46 +7,46 @@ This phase implements extractors for Elixir-specific constructs: modules, functi
 This section extracts module definitions including nested modules and module attributes.
 
 ### 4.1.1 Module Extractor Module
-- [ ] **Task 4.1.1 Complete**
+- [x] **Task 4.1.1 Complete**
 
 Create comprehensive module extraction with all properties.
 
-- [ ] 4.1.1.1 Create `lib/elixir_ontologies/extractors/module.ex`
-- [ ] 4.1.1.2 Implement `Module.extract/2` accepting AST and context
-- [ ] 4.1.1.3 Extract `moduleName` from defmodule argument
-- [ ] 4.1.1.4 Detect `NestedModule` when parent module exists
-- [ ] 4.1.1.5 Extract `@moduledoc` as `docstring`
-- [ ] 4.1.1.6 Extract `alias` directives as `ModuleAlias`
-- [ ] 4.1.1.7 Extract `import` directives as `Import` with `:only`/`:except`
-- [ ] 4.1.1.8 Extract `require` directives as `Require`
-- [ ] 4.1.1.9 Extract `use` directives as `Use`
-- [ ] 4.1.1.10 Link via `aliasesModule`, `importsFrom`, `requiresModule`, `usesModule`
-- [ ] 4.1.1.11 Collect contained functions, macros, types via `containsFunction`, `containsMacro`, `containsType`
-- [ ] 4.1.1.12 Write module extraction tests (success: 18 tests)
+- [x] 4.1.1.1 Create `lib/elixir_ontologies/extractors/module.ex`
+- [x] 4.1.1.2 Implement `Module.extract/2` accepting AST and context
+- [x] 4.1.1.3 Extract `moduleName` from defmodule argument
+- [x] 4.1.1.4 Detect `NestedModule` when parent module exists
+- [x] 4.1.1.5 Extract `@moduledoc` as `docstring`
+- [x] 4.1.1.6 Extract `alias` directives as `ModuleAlias`
+- [x] 4.1.1.7 Extract `import` directives as `Import` with `:only`/`:except`
+- [x] 4.1.1.8 Extract `require` directives as `Require`
+- [x] 4.1.1.9 Extract `use` directives as `Use`
+- [x] 4.1.1.10 Link via `aliasesModule`, `importsFrom`, `requiresModule`, `usesModule`
+- [x] 4.1.1.11 Collect contained functions, macros, types via `containsFunction`, `containsMacro`, `containsType`
+- [x] 4.1.1.12 Write module extraction tests (success: 61 tests - 14 doctests + 47 unit tests)
 
 ### 4.1.2 Module Attribute Extractor
-- [ ] **Task 4.1.2 Complete**
+- [x] **Task 4.1.2 Complete**
 
 Extract module attributes with their various types.
 
-- [ ] 4.1.2.1 Create attribute extraction in module.ex or separate file
-- [ ] 4.1.2.2 Extract generic `ModuleAttribute` with `attributeName`, `attributeValue`
-- [ ] 4.1.2.3 Classify `@doc`, `@moduledoc`, `@typedoc` as DocAttribute subtypes
-- [ ] 4.1.2.4 Extract `@deprecated` as `DeprecatedAttribute` with message
-- [ ] 4.1.2.5 Extract `@since` as `SinceAttribute` with version
-- [ ] 4.1.2.6 Extract `@external_resource` as `ExternalResourceAttribute`
-- [ ] 4.1.2.7 Extract `@compile` as `CompileAttribute`
-- [ ] 4.1.2.8 Extract `@behaviour` as `implementsBehaviour` relationship
-- [ ] 4.1.2.9 Write attribute tests (success: 14 tests)
+- [x] 4.1.2.1 Create attribute extraction in module.ex or separate file
+- [x] 4.1.2.2 Extract generic `ModuleAttribute` with `attributeName`, `attributeValue`
+- [x] 4.1.2.3 Classify `@doc`, `@moduledoc`, `@typedoc` as DocAttribute subtypes
+- [x] 4.1.2.4 Extract `@deprecated` as `DeprecatedAttribute` with message
+- [x] 4.1.2.5 Extract `@since` as `SinceAttribute` with version
+- [x] 4.1.2.6 Extract `@external_resource` as `ExternalResourceAttribute`
+- [x] 4.1.2.7 Extract `@compile` as `CompileAttribute`
+- [x] 4.1.2.8 Extract `@behaviour` as `implementsBehaviour` relationship
+- [x] 4.1.2.9 Write attribute tests (success: 72 tests - 20 doctests + 52 unit tests)
 
 **Section 4.1 Unit Tests:**
-- [ ] Test simple module extraction
-- [ ] Test nested module extraction with parentModule link
-- [ ] Test module with @moduledoc
-- [ ] Test module with alias/import/require/use
-- [ ] Test module attribute extraction
-- [ ] Test @behaviour extraction
-- [ ] Test @deprecated extraction
+- [x] Test simple module extraction
+- [x] Test nested module extraction with parentModule link
+- [x] Test module with @moduledoc
+- [x] Test module with alias/import/require/use
+- [x] Test module attribute extraction
+- [x] Test @behaviour extraction
+- [x] Test @deprecated extraction
 
 ## 4.2 Function Extractor
 
