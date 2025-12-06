@@ -115,15 +115,15 @@ Extract the return expression from function bodies.
 - [x] 4.2.4.6 Write return expression tests (success: 60 tests - 16 doctests + 44 unit tests)
 
 ### 4.2.5 Guard Extractor
-- [ ] **Task 4.2.5 Complete**
+- [x] **Task 4.2.5 Complete**
 
 Extract guard clauses from function heads.
 
-- [ ] 4.2.5.1 Detect `when` clause in function head
-- [ ] 4.2.5.2 Create `GuardClause` linking to function head
-- [ ] 4.2.5.3 Extract guard expressions (may be combined with `and`/`or`)
-- [ ] 4.2.5.4 Link via `hasGuard` property
-- [ ] 4.2.5.5 Write guard extraction tests (success: 8 tests)
+- [x] 4.2.5.1 Detect `when` clause in function head
+- [x] 4.2.5.2 Create `GuardClause` linking to function head
+- [x] 4.2.5.3 Extract guard expressions (may be combined with `and`/`or`)
+- [x] 4.2.5.4 Link via `hasGuard` property
+- [x] 4.2.5.5 Write guard extraction tests (success: 66 tests - 22 doctests + 44 unit tests)
 
 **Section 4.2 Unit Tests:**
 - [ ] Test simple public function extraction
