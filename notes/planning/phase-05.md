@@ -7,39 +7,39 @@ This phase implements extractors for protocols, behaviours, and structs.
 This section extracts protocol definitions and implementations.
 
 ### 5.1.1 Protocol Definition Extractor
-- [ ] **Task 5.1.1 Complete**
+- [x] **Task 5.1.1 Complete**
 
 Extract defprotocol definitions.
 
-- [ ] 5.1.1.1 Create `lib/elixir_ontologies/extractors/protocol.ex`
-- [ ] 5.1.1.2 Detect `defprotocol` AST pattern
-- [ ] 5.1.1.3 Extract `protocolName`
-- [ ] 5.1.1.4 Extract protocol functions as `ProtocolFunction`
-- [ ] 5.1.1.5 Link via `definesProtocolFunction`
-- [ ] 5.1.1.6 Detect `@fallback_to_any` as `fallbackToAny`
-- [ ] 5.1.1.7 Write protocol definition tests (success: 8 tests)
+- [x] 5.1.1.1 Create `lib/elixir_ontologies/extractors/protocol.ex`
+- [x] 5.1.1.2 Detect `defprotocol` AST pattern
+- [x] 5.1.1.3 Extract `protocolName`
+- [x] 5.1.1.4 Extract protocol functions as `ProtocolFunction`
+- [x] 5.1.1.5 Link via `definesProtocolFunction`
+- [x] 5.1.1.6 Detect `@fallback_to_any` as `fallbackToAny`
+- [x] 5.1.1.7 Write protocol definition tests (success: 23 doctests + 18 unit tests)
 
 ### 5.1.2 Protocol Implementation Extractor
-- [ ] **Task 5.1.2 Complete**
+- [x] **Task 5.1.2 Complete**
 
 Extract defimpl definitions.
 
-- [ ] 5.1.2.1 Detect `defimpl` AST pattern
-- [ ] 5.1.2.2 Create `ProtocolImplementation` instance
-- [ ] 5.1.2.3 Link protocol via `implementsProtocol`
-- [ ] 5.1.2.4 Extract target type via `forDataType`
-- [ ] 5.1.2.5 Detect `@derive` as `DerivedImplementation`
-- [ ] 5.1.2.6 Detect `for: Any` as `AnyImplementation`
-- [ ] 5.1.2.7 Link struct derivations via `derivesProtocol`
-- [ ] 5.1.2.8 Write implementation tests (success: 10 tests)
+- [x] 5.1.2.1 Detect `defimpl` AST pattern
+- [x] 5.1.2.2 Create `ProtocolImplementation` instance
+- [x] 5.1.2.3 Link protocol via `implementsProtocol`
+- [x] 5.1.2.4 Extract target type via `forDataType`
+- [x] 5.1.2.5 Detect `@derive` as `DerivedImplementation`
+- [x] 5.1.2.6 Detect `for: Any` as `AnyImplementation`
+- [x] 5.1.2.7 Link struct derivations via `derivesProtocol`
+- [x] 5.1.2.8 Write implementation tests (success: 23 doctests + 42 unit tests)
 
 **Section 5.1 Unit Tests:**
-- [ ] Test defprotocol extraction
-- [ ] Test protocol function extraction
-- [ ] Test defimpl extraction
-- [ ] Test forDataType linking
-- [ ] Test @derive detection
-- [ ] Test Any implementation detection
+- [x] Test defprotocol extraction
+- [x] Test protocol function extraction
+- [x] Test defimpl extraction
+- [x] Test forDataType linking
+- [x] Test @derive detection
+- [x] Test Any implementation detection
 
 ## 5.2 Behaviour Extractor
 
