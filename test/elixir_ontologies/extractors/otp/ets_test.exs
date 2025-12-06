@@ -502,4 +502,31 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
       assert table.read_concurrency == true
     end
   end
+
+  # ============================================================================
+  # Heir Option Tests
+  # ============================================================================
+
+  describe "heir option extraction" do
+    test "extracts heir option with pid placeholder" do
+      {:ok, ast} = Code.string_to_quoted(":ets.new(:t, [:set, {:heir, self(), :heir_data}])")
+      {:ok, table} = ETS.extract(ast)
+
+      assert table.heir != nil
+    end
+
+    test "extracts heir option with :none value" do
+      {:ok, ast} = Code.string_to_quoted(":ets.new(:t, [:set, {:heir, :none}])")
+      {:ok, table} = ETS.extract(ast)
+
+      assert table.heir == :none
+    end
+
+    test "heir is nil when not specified" do
+      {:ok, ast} = Code.string_to_quoted(":ets.new(:t, [:set])")
+      {:ok, table} = ETS.extract(ast)
+
+      assert table.heir == nil
+    end
+  end
 end
