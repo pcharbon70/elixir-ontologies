@@ -46,18 +46,18 @@ Extract defimpl definitions.
 This section extracts behaviour definitions and implementations.
 
 ### 5.2.1 Behaviour Definition Extractor
-- [ ] **Task 5.2.1 Complete**
+- [x] **Task 5.2.1 Complete**
 
 Extract modules that define behaviours via @callback.
 
-- [ ] 5.2.1.1 Create `lib/elixir_ontologies/extractors/behaviour.ex`
-- [ ] 5.2.1.2 Detect modules with `@callback` as `Behaviour`
-- [ ] 5.2.1.3 Extract `@callback` as `RequiredCallback`
-- [ ] 5.2.1.4 Extract `@optional_callbacks` items as `OptionalCallback`
-- [ ] 5.2.1.5 Extract `@macrocallback` as `MacroCallback`
-- [ ] 5.2.1.6 Link via `definesCallback`
-- [ ] 5.2.1.7 Create `CallbackSpec` for callback type signatures
-- [ ] 5.2.1.8 Write behaviour definition tests (success: 10 tests)
+- [x] 5.2.1.1 Create `lib/elixir_ontologies/extractors/behaviour.ex`
+- [x] 5.2.1.2 Detect modules with `@callback` as `Behaviour`
+- [x] 5.2.1.3 Extract `@callback` as `RequiredCallback`
+- [x] 5.2.1.4 Extract `@optional_callbacks` items as `OptionalCallback`
+- [x] 5.2.1.5 Extract `@macrocallback` as `MacroCallback`
+- [x] 5.2.1.6 Link via `definesCallback`
+- [x] 5.2.1.7 Create `CallbackSpec` for callback type signatures
+- [x] 5.2.1.8 Write behaviour definition tests (success: 20 doctests + 38 unit tests)
 
 ### 5.2.2 Behaviour Implementation Extractor
 - [ ] **Task 5.2.2 Complete**
