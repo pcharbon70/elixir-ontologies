@@ -35,7 +35,7 @@ defmodule ElixirOntologies.Extractors.Pattern do
       :x
   """
 
-  alias ElixirOntologies.Analyzer.Location
+  alias ElixirOntologies.Extractors.Helpers
 
   # ===========================================================================
   # Constants
@@ -799,12 +799,5 @@ defmodule ElixirOntologies.Extractors.Pattern do
     end)
   end
 
-  defp extract_location({_form, meta, _args} = node) when is_list(meta) do
-    case Location.extract_range(node) do
-      {:ok, location} -> location
-      _ -> nil
-    end
-  end
-
-  defp extract_location(_), do: nil
+  defp extract_location(node), do: Helpers.extract_location(node)
 end

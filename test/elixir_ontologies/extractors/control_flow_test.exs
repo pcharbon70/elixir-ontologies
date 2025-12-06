@@ -1,7 +1,17 @@
 defmodule ElixirOntologies.Extractors.ControlFlowTest do
+  @moduledoc """
+  Tests for the ControlFlow extractor module.
+
+  Covers all 9 control flow types: if, unless, case, cond, with, try,
+  receive, raise, and throw.
+  """
+
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.ControlFlow
+
+  doctest ElixirOntologies.Extractors.ControlFlow
+  doctest ElixirOntologies.Extractors.Helpers
 
   # ===========================================================================
   # Type Detection Tests
@@ -628,6 +638,94 @@ defmodule ElixirOntologies.Extractors.ControlFlowTest do
 
       assert result.type == :with
       assert result.branches.do == :ok
+    end
+
+    test "handles empty with expression args" do
+      ast = {:with, [], []}
+      result = ControlFlow.extract_with(ast)
+
+      assert result.type == :with
+      assert result.metadata.error == :empty_args
+      assert result.metadata.match_clause_count == 0
+    end
+
+    test "handles malformed clause gracefully" do
+      # Malformed clause without proper arrow structure
+      clauses = [:not_a_clause]
+      result = ControlFlow.extract_clauses(clauses)
+
+      assert length(result) == 1
+      assert hd(result).patterns == []
+      assert hd(result).body == :not_a_clause
+    end
+
+    test "handles malformed cond clause gracefully" do
+      clauses = [:not_a_cond_clause]
+      # This should not crash
+      ast = {:cond, [], [[do: clauses]]}
+      result = ControlFlow.extract_cond(ast)
+
+      assert result.type == :cond
+      assert length(result.clauses) == 1
+    end
+  end
+
+  # ===========================================================================
+  # Convenience Function Tests
+  # ===========================================================================
+
+  describe "convenience functions" do
+    test "has_else?/1 returns true when else branch exists" do
+      ast = {:if, [], [true, [do: :ok, else: :error]]}
+      {:ok, result} = ControlFlow.extract(ast)
+
+      assert ControlFlow.has_else?(result) == true
+    end
+
+    test "has_else?/1 returns false when no else branch" do
+      ast = {:if, [], [true, [do: :ok]]}
+      {:ok, result} = ControlFlow.extract(ast)
+
+      assert ControlFlow.has_else?(result) == false
+    end
+
+    test "has_else?/1 returns false for non-struct" do
+      assert ControlFlow.has_else?(:not_a_struct) == false
+    end
+
+    test "has_timeout?/1 returns true when timeout exists" do
+      ast = {:receive, [], [[do: [], after: [{:->, [], [[5000], :timeout]}]]]}
+      {:ok, result} = ControlFlow.extract(ast)
+
+      assert ControlFlow.has_timeout?(result) == true
+    end
+
+    test "has_timeout?/1 returns false when no timeout" do
+      ast = {:receive, [], [[do: []]]}
+      {:ok, result} = ControlFlow.extract(ast)
+
+      assert ControlFlow.has_timeout?(result) == false
+    end
+
+    test "has_rescue?/1 returns true when rescue clause exists" do
+      ast = {:try, [], [[do: :ok, rescue: [{:->, [], [[{:e, [], nil}], :error]}]]]}
+      {:ok, result} = ControlFlow.extract(ast)
+
+      assert ControlFlow.has_rescue?(result) == true
+    end
+
+    test "has_catch?/1 returns true when catch clause exists" do
+      ast = {:try, [], [[do: :ok, catch: [{:->, [], [[:exit, :reason], :caught]}]]]}
+      {:ok, result} = ControlFlow.extract(ast)
+
+      assert ControlFlow.has_catch?(result) == true
+    end
+
+    test "has_after?/1 returns true when after clause exists" do
+      ast = {:try, [], [[do: :ok, after: {:cleanup, [], []}]]}
+      {:ok, result} = ControlFlow.extract(ast)
+
+      assert ControlFlow.has_after?(result) == true
     end
   end
 end

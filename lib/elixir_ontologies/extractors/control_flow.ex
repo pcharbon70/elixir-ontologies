@@ -16,6 +16,12 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
   - Raise: `raise message` or `raise ExceptionModule, opts`
   - Throw: `throw value`
 
+  ## Clause Ordering
+
+  Clauses are extracted in source order, which is semantically significant
+  for pattern matching (case), conditions (cond), and validation (with).
+  The first matching clause wins, so order preservation is critical.
+
   ## Usage
 
       iex> alias ElixirOntologies.Extractors.ControlFlow
@@ -36,6 +42,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
   """
 
   alias ElixirOntologies.Analyzer.Location
+  alias ElixirOntologies.Extractors.Helpers
 
   # ===========================================================================
   # Control Flow Type Constants
@@ -160,6 +167,97 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
   def control_flow_type(_), do: nil
 
   # ===========================================================================
+  # Convenience Validation Functions
+  # ===========================================================================
+
+  @doc """
+  Checks if a control flow result has an else branch.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.ControlFlow
+      iex> ast = {:if, [], [true, [do: :ok, else: :error]]}
+      iex> {:ok, result} = ControlFlow.extract(ast)
+      iex> ControlFlow.has_else?(result)
+      true
+
+      iex> alias ElixirOntologies.Extractors.ControlFlow
+      iex> ast = {:if, [], [true, [do: :ok]]}
+      iex> {:ok, result} = ControlFlow.extract(ast)
+      iex> ControlFlow.has_else?(result)
+      false
+  """
+  @spec has_else?(t()) :: boolean()
+  def has_else?(%__MODULE__{metadata: %{has_else: has_else}}), do: has_else
+  def has_else?(_), do: false
+
+  @doc """
+  Checks if a receive expression has a timeout.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.ControlFlow
+      iex> ast = {:receive, [], [[do: [], after: [{:->, [], [[5000], :timeout]}]]]}
+      iex> {:ok, result} = ControlFlow.extract(ast)
+      iex> ControlFlow.has_timeout?(result)
+      true
+
+      iex> alias ElixirOntologies.Extractors.ControlFlow
+      iex> ast = {:receive, [], [[do: []]]}
+      iex> {:ok, result} = ControlFlow.extract(ast)
+      iex> ControlFlow.has_timeout?(result)
+      false
+  """
+  @spec has_timeout?(t()) :: boolean()
+  def has_timeout?(%__MODULE__{metadata: %{has_timeout: has_timeout}}), do: has_timeout
+  def has_timeout?(_), do: false
+
+  @doc """
+  Checks if a try expression has a rescue clause.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.ControlFlow
+      iex> ast = {:try, [], [[do: :ok, rescue: [{:->, [], [[{:e, [], nil}], :error]}]]]}
+      iex> {:ok, result} = ControlFlow.extract(ast)
+      iex> ControlFlow.has_rescue?(result)
+      true
+  """
+  @spec has_rescue?(t()) :: boolean()
+  def has_rescue?(%__MODULE__{metadata: %{has_rescue: has_rescue}}), do: has_rescue
+  def has_rescue?(_), do: false
+
+  @doc """
+  Checks if a try expression has a catch clause.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.ControlFlow
+      iex> ast = {:try, [], [[do: :ok, catch: [{:->, [], [[:exit, :reason], :caught]}]]]}
+      iex> {:ok, result} = ControlFlow.extract(ast)
+      iex> ControlFlow.has_catch?(result)
+      true
+  """
+  @spec has_catch?(t()) :: boolean()
+  def has_catch?(%__MODULE__{metadata: %{has_catch: has_catch}}), do: has_catch
+  def has_catch?(_), do: false
+
+  @doc """
+  Checks if a try expression has an after clause.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.ControlFlow
+      iex> ast = {:try, [], [[do: :ok, after: {:cleanup, [], []}]]}
+      iex> {:ok, result} = ControlFlow.extract(ast)
+      iex> ControlFlow.has_after?(result)
+      true
+  """
+  @spec has_after?(t()) :: boolean()
+  def has_after?(%__MODULE__{metadata: %{has_after: has_after}}), do: has_after
+  def has_after?(_), do: false
+
+  # ===========================================================================
   # Main Extraction
   # ===========================================================================
 
@@ -181,7 +279,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
   @spec extract(Macro.t()) :: {:ok, t()} | {:error, String.t()}
   def extract(node) do
     case control_flow_type(node) do
-      nil -> {:error, "Not a control flow expression: #{inspect(node)}"}
+      nil -> {:error, Helpers.format_error("Not a control flow expression", node)}
       :if -> {:ok, extract_if(node)}
       :unless -> {:ok, extract_unless(node)}
       :case -> {:ok, extract_case(node)}
@@ -241,22 +339,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
   """
   @spec extract_if(Macro.t()) :: t()
   def extract_if({:if, meta, [condition, opts]}) do
-    then_branch = Keyword.get(opts, :do)
-    else_branch = Keyword.get(opts, :else)
-
-    %__MODULE__{
-      type: :if,
-      condition: condition,
-      clauses: [],
-      branches: %{
-        then: then_branch,
-        else: else_branch
-      },
-      location: extract_location({:if, meta, []}),
-      metadata: %{
-        has_else: else_branch != nil
-      }
-    }
+    build_conditional(:if, meta, condition, opts)
   end
 
   @doc """
@@ -278,22 +361,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
   """
   @spec extract_unless(Macro.t()) :: t()
   def extract_unless({:unless, meta, [condition, opts]}) do
-    then_branch = Keyword.get(opts, :do)
-    else_branch = Keyword.get(opts, :else)
-
-    %__MODULE__{
-      type: :unless,
-      condition: condition,
-      clauses: [],
-      branches: %{
-        then: then_branch,
-        else: else_branch
-      },
-      location: extract_location({:unless, meta, []}),
-      metadata: %{
-        has_else: else_branch != nil
-      }
-    }
+    build_conditional(:unless, meta, condition, opts)
   end
 
   @doc """
@@ -310,7 +378,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
       2
   """
   @spec extract_case(Macro.t()) :: t()
-  def extract_case({:case, meta, [value, opts]}) do
+  def extract_case({:case, _meta, [value, opts]} = node) do
     do_clauses = Keyword.get(opts, :do, [])
     extracted_clauses = extract_clauses(do_clauses)
 
@@ -321,7 +389,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
       branches: %{
         do: do_clauses
       },
-      location: extract_location({:case, meta, []}),
+      location: Helpers.extract_location(node),
       metadata: %{
         clause_count: length(extracted_clauses)
       }
@@ -342,7 +410,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
       1
   """
   @spec extract_cond(Macro.t()) :: t()
-  def extract_cond({:cond, meta, [opts]}) do
+  def extract_cond({:cond, _meta, [opts]} = node) do
     do_clauses = Keyword.get(opts, :do, [])
     extracted_clauses = extract_cond_clauses(do_clauses)
 
@@ -353,7 +421,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
       branches: %{
         do: do_clauses
       },
-      location: extract_location({:cond, meta, []}),
+      location: Helpers.extract_location(node),
       metadata: %{
         clause_count: length(extracted_clauses)
       }
@@ -376,9 +444,31 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
       1
   """
   @spec extract_with(Macro.t()) :: t()
-  def extract_with({:with, meta, args}) do
+  def extract_with({:with, _meta, []} = node) do
+    # Handle empty with expression
+    %__MODULE__{
+      type: :with,
+      condition: nil,
+      clauses: [],
+      branches: %{do: nil, else: []},
+      location: Helpers.extract_location(node),
+      metadata: %{
+        has_else: false,
+        match_clause_count: 0,
+        else_clause_count: 0,
+        error: :empty_args
+      }
+    }
+  end
+
+  def extract_with({:with, _meta, args} = node) when is_list(args) and length(args) >= 1 do
     # Separate match clauses from the final options
-    {match_clauses, [opts]} = Enum.split(args, -1)
+    {match_clauses, opts_list} = Enum.split(args, -1)
+
+    opts = case opts_list do
+      [opts] when is_list(opts) -> opts
+      _ -> []
+    end
 
     do_body = Keyword.get(opts, :do)
     else_clauses = Keyword.get(opts, :else, [])
@@ -394,7 +484,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
         do: do_body,
         else: extracted_else_clauses
       },
-      location: extract_location({:with, meta, []}),
+      location: Helpers.extract_location(node),
       metadata: %{
         has_else: else_clauses != [],
         match_clause_count: length(extracted_match_clauses),
@@ -420,7 +510,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
       false
   """
   @spec extract_try(Macro.t()) :: t()
-  def extract_try({:try, meta, [opts]}) do
+  def extract_try({:try, _meta, [opts]} = node) do
     do_body = Keyword.get(opts, :do)
     rescue_clauses = Keyword.get(opts, :rescue, [])
     catch_clauses = Keyword.get(opts, :catch, [])
@@ -439,7 +529,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
         catch: extracted_catch,
         after: after_body
       },
-      location: extract_location({:try, meta, []}),
+      location: Helpers.extract_location(node),
       metadata: %{
         has_rescue: rescue_clauses != [],
         has_catch: catch_clauses != [],
@@ -473,7 +563,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
       5000
   """
   @spec extract_receive(Macro.t()) :: t()
-  def extract_receive({:receive, meta, [opts]}) do
+  def extract_receive({:receive, _meta, [opts]} = node) do
     do_clauses = Keyword.get(opts, :do, [])
     after_clauses = Keyword.get(opts, :after, [])
 
@@ -488,7 +578,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
         do: do_clauses,
         after: after_body
       },
-      location: extract_location({:receive, meta, []}),
+      location: Helpers.extract_location(node),
       metadata: %{
         has_timeout: after_clauses != [],
         timeout_value: timeout_value,
@@ -519,7 +609,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
       [:RuntimeError]
   """
   @spec extract_raise(Macro.t()) :: t()
-  def extract_raise({:raise, meta, args}) do
+  def extract_raise({:raise, _meta, args} = node) do
     {raise_type, exception_info} = classify_raise(args)
 
     %__MODULE__{
@@ -527,7 +617,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
       condition: nil,
       clauses: [],
       branches: %{},
-      location: extract_location({:raise, meta, []}),
+      location: Helpers.extract_location(node),
       metadata: Map.merge(%{raise_type: raise_type}, exception_info)
     }
   end
@@ -545,13 +635,13 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
       :value
   """
   @spec extract_throw(Macro.t()) :: t()
-  def extract_throw({:throw, meta, [value]}) do
+  def extract_throw({:throw, _meta, [value]} = node) do
     %__MODULE__{
       type: :throw,
       condition: nil,
       clauses: [],
       branches: %{},
-      location: extract_location({:throw, meta, []}),
+      location: Helpers.extract_location(node),
       metadata: %{
         thrown_value: value
       }
@@ -581,6 +671,7 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
     Enum.map(clauses, &extract_single_clause/1)
   end
 
+  # Arrow clause with patterns and body
   defp extract_single_clause({:->, _meta, [patterns, body]}) do
     {actual_patterns, guard} = extract_patterns_and_guard(patterns)
 
@@ -591,11 +682,20 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
     }
   end
 
+  # Fallback for malformed clauses
+  defp extract_single_clause(malformed) do
+    %{
+      patterns: [],
+      guard: nil,
+      body: malformed
+    }
+  end
+
   defp extract_patterns_and_guard(patterns) when is_list(patterns) do
     # Check for guard in patterns (when clause)
     case patterns do
       [{:when, _, [pattern | guards]}] ->
-        guard = combine_guards(guards)
+        guard = Helpers.combine_guards(guards)
         {[pattern], guard}
 
       _ ->
@@ -603,66 +703,117 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
     end
   end
 
-  defp combine_guards([single]), do: single
-  defp combine_guards([first | rest]), do: {:and, [], [first, combine_guards(rest)]}
-  defp combine_guards([]), do: nil
-
   # Cond clauses have conditions as patterns
   defp extract_cond_clauses(clauses) when is_list(clauses) do
-    Enum.map(clauses, fn {:->, _meta, [[condition], body]} ->
-      %{
-        patterns: [condition],
-        guard: nil,
-        body: body
-      }
-    end)
+    Enum.map(clauses, &extract_cond_clause/1)
+  end
+
+  defp extract_cond_clause({:->, _meta, [[condition], body]}) do
+    %{
+      patterns: [condition],
+      guard: nil,
+      body: body
+    }
+  end
+
+  # Fallback for malformed cond clauses
+  defp extract_cond_clause(malformed) do
+    %{
+      patterns: [],
+      guard: nil,
+      body: malformed
+    }
   end
 
   # With match clauses use <- operator
   defp extract_with_match_clauses(clauses) do
-    Enum.map(clauses, fn
-      {:<-, _meta, [pattern, expr]} ->
-        %{
-          patterns: [pattern],
-          guard: nil,
-          body: expr
-        }
+    Enum.map(clauses, &extract_with_clause/1)
+  end
 
-      # Bare expressions in with (used as guards)
-      expr ->
-        %{
-          patterns: [],
-          guard: expr,
-          body: nil
-        }
-    end)
+  defp extract_with_clause({:<-, _meta, [pattern, expr]}) do
+    %{
+      patterns: [pattern],
+      guard: nil,
+      body: expr
+    }
+  end
+
+  # Bare expressions in with (used as validators)
+  defp extract_with_clause(expr) do
+    %{
+      patterns: [],
+      guard: expr,
+      body: nil
+    }
   end
 
   # Rescue clauses handle exception patterns
   defp extract_rescue_clauses(clauses) when is_list(clauses) do
-    Enum.map(clauses, fn {:->, _meta, [patterns, body]} ->
-      %{
-        patterns: patterns,
-        guard: nil,
-        body: body
-      }
-    end)
+    Enum.map(clauses, &extract_rescue_clause/1)
+  end
+
+  defp extract_rescue_clause({:->, _meta, [patterns, body]}) do
+    %{
+      patterns: patterns,
+      guard: nil,
+      body: body
+    }
+  end
+
+  # Fallback for malformed rescue clauses
+  defp extract_rescue_clause(malformed) do
+    %{
+      patterns: [],
+      guard: nil,
+      body: malformed
+    }
   end
 
   # Catch clauses handle kind/value pairs
   defp extract_catch_clauses(clauses) when is_list(clauses) do
-    Enum.map(clauses, fn {:->, _meta, [patterns, body]} ->
-      %{
-        patterns: patterns,
-        guard: nil,
-        body: body
-      }
-    end)
+    Enum.map(clauses, &extract_catch_clause/1)
+  end
+
+  defp extract_catch_clause({:->, _meta, [patterns, body]}) do
+    %{
+      patterns: patterns,
+      guard: nil,
+      body: body
+    }
+  end
+
+  # Fallback for malformed catch clauses
+  defp extract_catch_clause(malformed) do
+    %{
+      patterns: [],
+      guard: nil,
+      body: malformed
+    }
   end
 
   # ===========================================================================
-  # Helper Functions
+  # Private Helper Functions
   # ===========================================================================
+
+  # Shared builder for if/unless expressions
+  defp build_conditional(type, meta, condition, opts) do
+    then_branch = Keyword.get(opts, :do)
+    else_branch = Keyword.get(opts, :else)
+
+    %__MODULE__{
+      type: type,
+      condition: condition,
+      clauses: [],
+      branches: %{
+        then: then_branch,
+        else: else_branch
+      },
+      location: Helpers.extract_location({type, meta, [condition, opts]}),
+      metadata: %{
+        has_else: else_branch != nil
+      }
+    }
+  end
 
   defp extract_timeout([{:->, _meta, [[timeout], body]}]) when is_integer(timeout) do
     {timeout, body}
@@ -673,6 +824,11 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
   end
 
   defp extract_timeout([]) do
+    {nil, nil}
+  end
+
+  # Fallback for malformed timeout
+  defp extract_timeout(_) do
     {nil, nil}
   end
 
@@ -695,13 +851,4 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
   defp classify_raise(args) do
     {:unknown, %{args: args}}
   end
-
-  defp extract_location({_form, meta, _args}) when is_list(meta) do
-    case Location.extract_range({nil, meta, nil}) do
-      {:ok, location} -> location
-      _ -> nil
-    end
-  end
-
-  defp extract_location(_), do: nil
 end

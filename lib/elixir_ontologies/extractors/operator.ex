@@ -39,7 +39,7 @@ defmodule ElixirOntologies.Extractors.Operator do
       :UnaryOperator
   """
 
-  alias ElixirOntologies.Analyzer.Location
+  alias ElixirOntologies.Extractors.Helpers
 
   # ===========================================================================
   # Operator Classification Constants
@@ -435,12 +435,5 @@ defmodule ElixirOntologies.Extractors.Operator do
 
   defp classify_capture_type(:&, _arity), do: :function_capture
 
-  defp extract_location({_op, meta, _args} = node) when is_list(meta) do
-    case Location.extract_range(node) do
-      {:ok, location} -> location
-      _ -> nil
-    end
-  end
-
-  defp extract_location(_), do: nil
+  defp extract_location(node), do: Helpers.extract_location(node)
 end

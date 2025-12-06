@@ -38,7 +38,7 @@ defmodule ElixirOntologies.Extractors.Literal do
       10
   """
 
-  alias ElixirOntologies.Analyzer.Location
+  alias ElixirOntologies.Extractors.Helpers
 
   # ===========================================================================
   # Result Struct
@@ -344,8 +344,8 @@ defmodule ElixirOntologies.Extractors.Literal do
     }
   end
 
-  def extract_string({:<<>>, meta, parts} = ast) do
-    location = extract_location(meta)
+  def extract_string({:<<>>, _meta, parts} = ast) do
+    location = extract_location(ast)
 
     %__MODULE__{
       type: :string,
@@ -413,8 +413,8 @@ defmodule ElixirOntologies.Extractors.Literal do
       4
   """
   @spec extract_tuple(tuple()) :: t()
-  def extract_tuple({:{}, meta, elements}) when is_list(elements) do
-    location = extract_location(meta)
+  def extract_tuple({:{}, _meta, elements} = node) when is_list(elements) do
+    location = extract_location(node)
 
     %__MODULE__{
       type: :tuple,
@@ -447,8 +447,8 @@ defmodule ElixirOntologies.Extractors.Literal do
       [:string]
   """
   @spec extract_map(tuple()) :: t()
-  def extract_map({:%{}, meta, pairs}) do
-    location = extract_location(meta)
+  def extract_map({:%{}, _meta, pairs} = node) do
+    location = extract_location(node)
     key_types = analyze_map_keys(pairs)
 
     %__MODULE__{
@@ -500,8 +500,8 @@ defmodule ElixirOntologies.Extractors.Literal do
       [1, 2, 3]
   """
   @spec extract_binary(tuple()) :: t()
-  def extract_binary({:<<>>, meta, segments}) do
-    location = extract_location(meta)
+  def extract_binary({:<<>>, _meta, segments} = node) do
+    location = extract_location(node)
 
     %__MODULE__{
       type: :binary,
@@ -525,9 +525,9 @@ defmodule ElixirOntologies.Extractors.Literal do
       "hello"
   """
   @spec extract_charlist(tuple()) :: t()
-  def extract_charlist({:sigil_c, meta, [{:<<>>, _, [content]}, modifiers]})
+  def extract_charlist({:sigil_c, meta, [{:<<>>, _, [content]}, modifiers]} = node)
       when is_binary(content) do
-    location = extract_location(meta)
+    location = extract_location(node)
 
     %__MODULE__{
       type: :charlist,
@@ -541,8 +541,8 @@ defmodule ElixirOntologies.Extractors.Literal do
     }
   end
 
-  def extract_charlist({:sigil_c, meta, [{:<<>>, _, parts}, modifiers]}) do
-    location = extract_location(meta)
+  def extract_charlist({:sigil_c, meta, [{:<<>>, _, parts}, modifiers]} = node) do
+    location = extract_location(node)
 
     %__MODULE__{
       type: :charlist,
@@ -579,9 +579,9 @@ defmodule ElixirOntologies.Extractors.Literal do
       ~c"i"
   """
   @spec extract_sigil(tuple()) :: t()
-  def extract_sigil({sigil_name, meta, [{:<<>>, _, [content]}, modifiers]})
+  def extract_sigil({sigil_name, meta, [{:<<>>, _, [content]}, modifiers]} = node)
       when is_atom(sigil_name) and is_binary(content) do
-    location = extract_location(meta)
+    location = extract_location(node)
     sigil_char = extract_sigil_char(sigil_name)
 
     %__MODULE__{
@@ -597,9 +597,9 @@ defmodule ElixirOntologies.Extractors.Literal do
     }
   end
 
-  def extract_sigil({sigil_name, meta, [{:<<>>, _, parts}, modifiers]})
+  def extract_sigil({sigil_name, meta, [{:<<>>, _, parts}, modifiers]} = node)
       when is_atom(sigil_name) do
-    location = extract_location(meta)
+    location = extract_location(node)
     sigil_char = extract_sigil_char(sigil_name)
 
     %__MODULE__{
@@ -638,9 +638,9 @@ defmodule ElixirOntologies.Extractors.Literal do
       2
   """
   @spec extract_range(tuple()) :: t()
-  def extract_range({:.., meta, [range_start, range_end]})
+  def extract_range({:.., _meta, [range_start, range_end]} = node)
       when is_integer(range_start) and is_integer(range_end) do
-    location = extract_location(meta)
+    location = extract_location(node)
     # Determine step based on direction to avoid warning
     step = if range_end >= range_start, do: 1, else: -1
 
@@ -656,9 +656,9 @@ defmodule ElixirOntologies.Extractors.Literal do
     }
   end
 
-  def extract_range({:.., meta, [range_start, range_end]}) do
+  def extract_range({:.., _meta, [range_start, range_end]} = node) do
     # Non-integer range bounds (expressions) - store AST form
-    location = extract_location(meta)
+    location = extract_location(node)
 
     %__MODULE__{
       type: :range,
@@ -672,9 +672,9 @@ defmodule ElixirOntologies.Extractors.Literal do
     }
   end
 
-  def extract_range({:..//, meta, [range_start, range_end, step]})
+  def extract_range({:..//, _meta, [range_start, range_end, step]} = node)
       when is_integer(range_start) and is_integer(range_end) and is_integer(step) do
-    location = extract_location(meta)
+    location = extract_location(node)
 
     %__MODULE__{
       type: :range,
@@ -688,9 +688,9 @@ defmodule ElixirOntologies.Extractors.Literal do
     }
   end
 
-  def extract_range({:..//, meta, [range_start, range_end, step]}) do
+  def extract_range({:..//, _meta, [range_start, range_end, step]} = node) do
     # Non-integer range bounds (expressions) - store AST form
-    location = extract_location(meta)
+    location = extract_location(node)
 
     %__MODULE__{
       type: :range,
@@ -810,12 +810,5 @@ defmodule ElixirOntologies.Extractors.Literal do
     |> String.replace_prefix("sigil_", "")
   end
 
-  defp extract_location(meta) when is_list(meta) do
-    case Location.extract_range(meta) do
-      {:ok, location} -> location
-      _ -> nil
-    end
-  end
-
-  defp extract_location(_), do: nil
+  defp extract_location(node), do: Helpers.extract_location(node)
 end
