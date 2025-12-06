@@ -2,6 +2,8 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+  alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+  alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
 
   # ===========================================================================
   # Helper Functions
@@ -429,6 +431,462 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
 
       # Should detect Supervisor even with other uses
       assert result.supervisor_type == :supervisor
+    end
+  end
+
+  # ===========================================================================
+  # extract_strategy/1 Tests
+  # ===========================================================================
+
+  describe "extract_strategy/1" do
+    test "extracts one_for_one strategy from Supervisor.init" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert strategy.type == :one_for_one
+      assert strategy.metadata.source == :supervisor_init
+    end
+
+    test "extracts one_for_all strategy" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_all)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert strategy.type == :one_for_all
+    end
+
+    test "extracts rest_for_one strategy" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :rest_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert strategy.type == :rest_for_one
+    end
+
+    test "extracts max_restarts and max_seconds" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one, max_restarts: 10, max_seconds: 60)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert strategy.type == :one_for_one
+      assert strategy.max_restarts == 10
+      assert strategy.max_seconds == 60
+    end
+
+    test "extracts strategy from DynamicSupervisor.init" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert strategy.type == :one_for_one
+      assert strategy.metadata.source == :dynamic_supervisor_init
+    end
+
+    test "returns error when no strategy found" do
+      body = parse_module_body("defmodule S do use GenServer end")
+
+      assert {:error, "No supervision strategy found"} = SupervisorExtractor.extract_strategy(body)
+    end
+
+    test "returns error for supervisor without init callback" do
+      body = parse_module_body("defmodule S do use Supervisor end")
+
+      assert {:error, "No supervision strategy found"} = SupervisorExtractor.extract_strategy(body)
+    end
+  end
+
+  # ===========================================================================
+  # extract_strategy!/1 Tests
+  # ===========================================================================
+
+  describe "extract_strategy!/1" do
+    test "returns strategy for valid Supervisor" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      strategy = SupervisorExtractor.extract_strategy!(body)
+
+      assert strategy.type == :one_for_one
+    end
+
+    test "raises when no strategy found" do
+      body = parse_module_body("defmodule S do use GenServer end")
+
+      assert_raise ArgumentError, "No supervision strategy found", fn ->
+        SupervisorExtractor.extract_strategy!(body)
+      end
+    end
+  end
+
+  # ===========================================================================
+  # strategy_type/1 Tests (for init callback)
+  # ===========================================================================
+
+  describe "strategy_type/1 (from init)" do
+    test "returns :one_for_one from init" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      assert SupervisorExtractor.strategy_type(body) == :one_for_one
+    end
+
+    test "returns :one_for_all from init" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_all)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      assert SupervisorExtractor.strategy_type(body) == :one_for_all
+    end
+
+    test "returns nil when no init callback" do
+      body = parse_module_body("defmodule S do use Supervisor end")
+      assert SupervisorExtractor.strategy_type(body) == nil
+    end
+  end
+
+  # ===========================================================================
+  # Strategy Type Checks
+  # ===========================================================================
+
+  describe "one_for_one?/1" do
+    test "returns true for one_for_one strategy" do
+      assert SupervisorExtractor.one_for_one?(%Strategy{type: :one_for_one})
+    end
+
+    test "returns false for other strategies" do
+      refute SupervisorExtractor.one_for_one?(%Strategy{type: :one_for_all})
+      refute SupervisorExtractor.one_for_one?(%Strategy{type: :rest_for_one})
+    end
+  end
+
+  describe "one_for_all?/1" do
+    test "returns true for one_for_all strategy" do
+      assert SupervisorExtractor.one_for_all?(%Strategy{type: :one_for_all})
+    end
+
+    test "returns false for other strategies" do
+      refute SupervisorExtractor.one_for_all?(%Strategy{type: :one_for_one})
+    end
+  end
+
+  describe "rest_for_one?/1" do
+    test "returns true for rest_for_one strategy" do
+      assert SupervisorExtractor.rest_for_one?(%Strategy{type: :rest_for_one})
+    end
+
+    test "returns false for other strategies" do
+      refute SupervisorExtractor.rest_for_one?(%Strategy{type: :one_for_one})
+    end
+  end
+
+  # ===========================================================================
+  # extract_children/1 Tests
+  # ===========================================================================
+
+  describe "extract_children/1" do
+    test "extracts children from children variable assignment" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {MyWorker, []}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert length(children) == 1
+      assert hd(children).module == MyWorker
+    end
+
+    test "extracts multiple children" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {Worker1, []},
+            {Worker2, []},
+            {Worker3, []}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert length(children) == 3
+      assert Enum.map(children, & &1.module) == [Worker1, Worker2, Worker3]
+    end
+
+    test "extracts children from inline list in Supervisor.init" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([{MyWorker, []}], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert length(children) == 1
+      assert hd(children).module == MyWorker
+    end
+
+    test "extracts module-only child spec" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            MyWorker
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert length(children) == 1
+      child = hd(children)
+      assert child.module == MyWorker
+      assert child.metadata.format == :module_only
+    end
+
+    test "returns empty list for non-supervisor" do
+      body = parse_module_body("defmodule S do use GenServer end")
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert children == []
+    end
+
+    test "returns empty list for supervisor without init" do
+      body = parse_module_body("defmodule S do use Supervisor end")
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert children == []
+    end
+  end
+
+  # ===========================================================================
+  # child_count/1 Tests
+  # ===========================================================================
+
+  describe "child_count/1" do
+    test "returns count of children" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {Worker1, []},
+            {Worker2, []}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      assert SupervisorExtractor.child_count(body) == 2
+    end
+
+    test "returns 0 for no children" do
+      body = parse_module_body("defmodule S do use Supervisor end")
+      assert SupervisorExtractor.child_count(body) == 0
+    end
+  end
+
+  # ===========================================================================
+  # Restart Type Checks
+  # ===========================================================================
+
+  describe "permanent?/1" do
+    test "returns true for permanent restart" do
+      assert SupervisorExtractor.permanent?(%ChildSpec{restart: :permanent})
+    end
+
+    test "returns false for other restart types" do
+      refute SupervisorExtractor.permanent?(%ChildSpec{restart: :temporary})
+      refute SupervisorExtractor.permanent?(%ChildSpec{restart: :transient})
+    end
+  end
+
+  describe "temporary?/1" do
+    test "returns true for temporary restart" do
+      assert SupervisorExtractor.temporary?(%ChildSpec{restart: :temporary})
+    end
+
+    test "returns false for other restart types" do
+      refute SupervisorExtractor.temporary?(%ChildSpec{restart: :permanent})
+    end
+  end
+
+  describe "transient?/1" do
+    test "returns true for transient restart" do
+      assert SupervisorExtractor.transient?(%ChildSpec{restart: :transient})
+    end
+
+    test "returns false for other restart types" do
+      refute SupervisorExtractor.transient?(%ChildSpec{restart: :permanent})
+    end
+  end
+
+  # ===========================================================================
+  # Real-World Strategy Patterns
+  # ===========================================================================
+
+  describe "real-world strategy patterns" do
+    test "extracts typical Phoenix application supervisor" do
+      code = """
+      defmodule MyApp.Application do
+        use Application
+
+        def start(_type, _args) do
+          children = [
+            MyApp.Repo,
+            {Phoenix.PubSub, name: MyApp.PubSub},
+            MyAppWeb.Endpoint
+          ]
+
+          opts = [strategy: :one_for_one, name: MyApp.Supervisor]
+          Supervisor.start_link(children, opts)
+        end
+      end
+      """
+
+      # This won't have init callback since it uses start_link directly
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      # No init callback, so no children extracted this way
+      assert children == []
+    end
+
+    test "extracts supervisor with init callback and children" do
+      code = """
+      defmodule MySupervisor do
+        use Supervisor
+
+        def start_link(opts) do
+          Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
+        end
+
+        @impl true
+        def init(_opts) do
+          children = [
+            {Registry, keys: :unique, name: MyRegistry},
+            {DynamicSupervisor, name: MyDynSup, strategy: :one_for_one}
+          ]
+
+          Supervisor.init(children, strategy: :one_for_all)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+      assert strategy.type == :one_for_all
+
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+      assert length(children) == 2
+    end
+
+    test "extracts DynamicSupervisor init pattern" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+
+        def start_link(init_arg) do
+          DynamicSupervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
+        end
+
+        @impl true
+        def init(_init_arg) do
+          DynamicSupervisor.init(strategy: :one_for_one, max_children: 100)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+      assert strategy.type == :one_for_one
+      assert strategy.metadata.source == :dynamic_supervisor_init
     end
   end
 end

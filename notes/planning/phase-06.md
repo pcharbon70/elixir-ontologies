@@ -55,27 +55,27 @@ Detect Supervisor implementations.
 - [x] 6.2.1.5 Write supervisor detection tests (success: 51 tests)
 
 ### 6.2.2 Supervision Strategy Extraction
-- [ ] **Task 6.2.2 Complete**
+- [x] **Task 6.2.2 Complete**
 
 Extract supervision strategies and child specs.
 
-- [ ] 6.2.2.1 Parse `init/1` return value for strategy
-- [ ] 6.2.2.2 Detect `:one_for_one` as `OneForOne`
-- [ ] 6.2.2.3 Detect `:one_for_all` as `OneForAll`
-- [ ] 6.2.2.4 Detect `:rest_for_one` as `RestForOne`
-- [ ] 6.2.2.5 Link via `hasStrategy`
-- [ ] 6.2.2.6 Extract child specs as `ChildSpec` instances
-- [ ] 6.2.2.7 Extract restart strategy (`:permanent`, `:temporary`, `:transient`)
-- [ ] 6.2.2.8 Extract shutdown strategy
-- [ ] 6.2.2.9 Write strategy extraction tests (success: 12 tests)
+- [x] 6.2.2.1 Parse `init/1` return value for strategy
+- [x] 6.2.2.2 Detect `:one_for_one` as `OneForOne`
+- [x] 6.2.2.3 Detect `:one_for_all` as `OneForAll`
+- [x] 6.2.2.4 Detect `:rest_for_one` as `RestForOne`
+- [x] 6.2.2.5 Link via `hasStrategy`
+- [x] 6.2.2.6 Extract child specs as `ChildSpec` instances
+- [x] 6.2.2.7 Extract restart strategy (`:permanent`, `:temporary`, `:transient`)
+- [x] 6.2.2.8 Extract shutdown strategy
+- [x] 6.2.2.9 Write strategy extraction tests (success: 35 tests)
 
 **Section 6.2 Unit Tests:**
-- [ ] Test Supervisor detection
-- [ ] Test DynamicSupervisor detection
-- [ ] Test :one_for_one extraction
-- [ ] Test :one_for_all extraction
-- [ ] Test child spec extraction
-- [ ] Test restart strategy extraction
+- [x] Test Supervisor detection
+- [x] Test DynamicSupervisor detection
+- [x] Test :one_for_one extraction
+- [x] Test :one_for_all extraction
+- [x] Test child spec extraction
+- [x] Test restart strategy extraction
 
 ## 6.3 Agent and Task Extractors
 
