@@ -208,8 +208,11 @@ Extract variable bindings and various reference types.
 
 ## Phase 3 Integration Tests
 
-- [ ] Test extraction of module with all literal types
-- [ ] Test extraction of function with complex patterns
-- [ ] Test extraction of control flow heavy function
-- [ ] Test extraction preserves source locations for all elements
-- [ ] Test all core ontology classes have corresponding extractors
+- [x] Test extraction of module with all literal types (12 tests)
+- [x] Test extraction of function with complex patterns (11 tests)
+- [x] Test extraction of control flow heavy function (10 tests)
+- [x] Test extraction preserves source locations for all elements (5 tests)
+- [x] Test all core ontology classes have corresponding extractors (7 tests)
+- [x] Cross-extractor integration scenarios (5 tests)
+
+**Total: 69 integration tests passing**
