@@ -181,6 +181,58 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   ]
 
   # ===========================================================================
+  # Generic Use/Behaviour Detection Helpers
+  # ===========================================================================
+
+  @doc """
+  Checks if a single AST node is a `use Module` invocation for the given module.
+
+  This is a generic helper that reduces duplication in module detection.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = "use Supervisor"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> SupervisorExtractor.use_module?(ast, :Supervisor)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = "use GenServer"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> SupervisorExtractor.use_module?(ast, :Supervisor)
+      false
+  """
+  @spec use_module?(Macro.t(), atom()) :: boolean()
+  def use_module?({:use, _meta, [{:__aliases__, _, [module_name]} | _opts]}, target) when module_name == target, do: true
+  def use_module?({:use, _meta, [module_atom | _opts]}, target) when is_atom(module_atom) and module_atom == target, do: true
+  def use_module?(_, _), do: false
+
+  @doc """
+  Checks if a single AST node is a `@behaviour Module` declaration for the given module.
+
+  This is a generic helper that reduces duplication in behaviour detection.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = "@behaviour Supervisor"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> SupervisorExtractor.behaviour_module?(ast, :Supervisor)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = "@behaviour GenServer"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> SupervisorExtractor.behaviour_module?(ast, :Supervisor)
+      false
+  """
+  @spec behaviour_module?(Macro.t(), atom()) :: boolean()
+  def behaviour_module?({:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [module_name]}]}]}, target) when module_name == target, do: true
+  def behaviour_module?({:@, _meta, [{:behaviour, _attr_meta, [module_atom]}]}, target) when is_atom(module_atom) and module_atom == target, do: true
+  def behaviour_module?(_, _), do: false
+
+  # ===========================================================================
   # Type Detection
   # ===========================================================================
 
@@ -237,9 +289,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       false
   """
   @spec use_supervisor?(Macro.t()) :: boolean()
-  def use_supervisor?({:use, _meta, [{:__aliases__, _, [:Supervisor]} | _opts]}), do: true
-  def use_supervisor?({:use, _meta, [Supervisor | _opts]}), do: true
-  def use_supervisor?(_), do: false
+  def use_supervisor?(ast), do: use_module?(ast, :Supervisor)
 
   @doc """
   Checks if a single AST node is a `use DynamicSupervisor` invocation.
@@ -259,9 +309,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       false
   """
   @spec use_dynamic_supervisor?(Macro.t()) :: boolean()
-  def use_dynamic_supervisor?({:use, _meta, [{:__aliases__, _, [:DynamicSupervisor]} | _opts]}), do: true
-  def use_dynamic_supervisor?({:use, _meta, [DynamicSupervisor | _opts]}), do: true
-  def use_dynamic_supervisor?(_), do: false
+  def use_dynamic_supervisor?(ast), do: use_module?(ast, :DynamicSupervisor)
 
   @doc """
   Checks if a single AST node is a `@behaviour Supervisor` declaration.
@@ -281,9 +329,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       false
   """
   @spec behaviour_supervisor?(Macro.t()) :: boolean()
-  def behaviour_supervisor?({:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [:Supervisor]}]}]}), do: true
-  def behaviour_supervisor?({:@, _meta, [{:behaviour, _attr_meta, [Supervisor]}]}), do: true
-  def behaviour_supervisor?(_), do: false
+  def behaviour_supervisor?(ast), do: behaviour_module?(ast, :Supervisor)
 
   @doc """
   Checks if a single AST node is a `@behaviour DynamicSupervisor` declaration.
@@ -303,9 +349,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       false
   """
   @spec behaviour_dynamic_supervisor?(Macro.t()) :: boolean()
-  def behaviour_dynamic_supervisor?({:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [:DynamicSupervisor]}]}]}), do: true
-  def behaviour_dynamic_supervisor?({:@, _meta, [{:behaviour, _attr_meta, [DynamicSupervisor]}]}), do: true
-  def behaviour_dynamic_supervisor?(_), do: false
+  def behaviour_dynamic_supervisor?(ast), do: behaviour_module?(ast, :DynamicSupervisor)
 
   # ===========================================================================
   # Extraction
@@ -624,14 +668,11 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
      }}
   end
 
-  defp extract_use_options({:use, _meta, [{:__aliases__, _, [:Supervisor]}]}), do: []
-  defp extract_use_options({:use, _meta, [Supervisor]}), do: []
-  defp extract_use_options({:use, _meta, [{:__aliases__, _, [:Supervisor]}, opts]}) when is_list(opts), do: opts
-  defp extract_use_options({:use, _meta, [Supervisor, opts]}) when is_list(opts), do: opts
-  defp extract_use_options({:use, _meta, [{:__aliases__, _, [:DynamicSupervisor]}]}), do: []
-  defp extract_use_options({:use, _meta, [DynamicSupervisor]}), do: []
-  defp extract_use_options({:use, _meta, [{:__aliases__, _, [:DynamicSupervisor]}, opts]}) when is_list(opts), do: opts
-  defp extract_use_options({:use, _meta, [DynamicSupervisor, opts]}) when is_list(opts), do: opts
+  # Generic helper to extract options from any use statement
+  defp extract_use_options({:use, _meta, [{:__aliases__, _, [_module]}]}), do: []
+  defp extract_use_options({:use, _meta, [module]}) when is_atom(module), do: []
+  defp extract_use_options({:use, _meta, [{:__aliases__, _, [_module]}, opts]}) when is_list(opts), do: opts
+  defp extract_use_options({:use, _meta, [module, opts]}) when is_atom(module) and is_list(opts), do: opts
   defp extract_use_options(_), do: []
 
   defp find_use_options(statements, finder) do
@@ -964,22 +1005,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
          {{:., _, [{:__aliases__, _, [:Supervisor]}, :init]}, meta, [_children, options]},
          opts
        ) do
-    strategy = Keyword.get(options, :strategy, :one_for_one)
-    max_restarts = Keyword.get(options, :max_restarts)
-    max_seconds = Keyword.get(options, :max_seconds)
-    location = Helpers.extract_location_if({:call, meta, []}, opts)
-
-    %Strategy{
-      type: strategy,
-      max_restarts: max_restarts,
-      max_seconds: max_seconds,
-      location: location,
-      metadata: %{
-        source: :supervisor_init,
-        has_max_restarts: max_restarts != nil,
-        has_max_seconds: max_seconds != nil
-      }
-    }
+    build_strategy_from_options(options, meta, :supervisor_init, opts)
   end
 
   # DynamicSupervisor.init(strategy: :one_for_one)
@@ -987,22 +1013,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
          {{:., _, [{:__aliases__, _, [:DynamicSupervisor]}, :init]}, meta, [options]},
          opts
        ) when is_list(options) do
-    strategy = Keyword.get(options, :strategy, :one_for_one)
-    max_restarts = Keyword.get(options, :max_restarts)
-    max_seconds = Keyword.get(options, :max_seconds)
-    location = Helpers.extract_location_if({:call, meta, []}, opts)
-
-    %Strategy{
-      type: strategy,
-      max_restarts: max_restarts,
-      max_seconds: max_seconds,
-      location: location,
-      metadata: %{
-        source: :dynamic_supervisor_init,
-        has_max_restarts: max_restarts != nil,
-        has_max_seconds: max_seconds != nil
-      }
-    }
+    build_strategy_from_options(options, meta, :dynamic_supervisor_init, opts)
   end
 
   # {:ok, {spec, children}} return format
@@ -1026,6 +1037,26 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   end
 
   defp extract_strategy_from_statement(_, _opts), do: nil
+
+  # Common helper to build Strategy from keyword options
+  defp build_strategy_from_options(options, meta, source, opts) do
+    strategy = Keyword.get(options, :strategy, :one_for_one)
+    max_restarts = Keyword.get(options, :max_restarts)
+    max_seconds = Keyword.get(options, :max_seconds)
+    location = Helpers.extract_location_if({:call, meta, []}, opts)
+
+    %Strategy{
+      type: strategy,
+      max_restarts: max_restarts,
+      max_seconds: max_seconds,
+      location: location,
+      metadata: %{
+        source: source,
+        has_max_restarts: max_restarts != nil,
+        has_max_seconds: max_seconds != nil
+      }
+    }
+  end
 
   # ===========================================================================
   # Child Spec Extraction Helpers

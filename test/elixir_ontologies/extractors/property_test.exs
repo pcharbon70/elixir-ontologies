@@ -19,6 +19,8 @@ defmodule ElixirOntologies.Extractors.PropertyTest do
     Reference
   }
 
+  alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+
   # ============================================================================
   # AST Generators
   # ============================================================================
@@ -413,6 +415,119 @@ defmodule ElixirOntologies.Extractors.PropertyTest do
       check all(lit <- simple_literal_gen()) do
         result = Block.extract(lit)
         assert match?({:error, _}, result)
+      end
+    end
+  end
+
+  # ============================================================================
+  # Supervisor Extractor Properties
+  # ============================================================================
+
+  describe "Supervisor extractor properties" do
+    # Generator for supervisor module body AST
+    defp supervisor_module_gen do
+      gen all(
+            sup_type <- StreamData.member_of([:Supervisor, :DynamicSupervisor]),
+            detection <- StreamData.member_of([:use, :behaviour])
+          ) do
+        case detection do
+          :use -> {:use, [], [{:__aliases__, [], [sup_type]}]}
+          :behaviour -> {:@, [], [{:behaviour, [], [{:__aliases__, [], [sup_type]}]}]}
+        end
+      end
+    end
+
+    defp strategy_gen do
+      StreamData.member_of([:one_for_one, :one_for_all, :rest_for_one])
+    end
+
+    defp supervisor_with_init_gen do
+      gen all(
+            sup_type <- StreamData.member_of([:Supervisor, :DynamicSupervisor]),
+            strategy <- strategy_gen()
+          ) do
+        use_stmt = {:use, [], [{:__aliases__, [], [sup_type]}]}
+
+        init_body =
+          if sup_type == :Supervisor do
+            {{:., [], [{:__aliases__, [], [:Supervisor]}, :init]}, [],
+             [[], [strategy: strategy]]}
+          else
+            {{:., [], [{:__aliases__, [], [:DynamicSupervisor]}, :init]}, [],
+             [[strategy: strategy]]}
+          end
+
+        init_def = {:def, [], [{:init, [], [{:_, [], Elixir}]}, [do: init_body]]}
+
+        {:__block__, [], [use_stmt, init_def]}
+      end
+    end
+
+    property "detects all supervisor AST variants correctly" do
+      check all(sup_ast <- supervisor_module_gen()) do
+        body = {:__block__, [], [sup_ast]}
+        assert SupervisorExtractor.supervisor?(body)
+      end
+    end
+
+    property "supervisor_type matches extract result" do
+      check all(sup_ast <- supervisor_module_gen()) do
+        body = {:__block__, [], [sup_ast]}
+        type = SupervisorExtractor.supervisor_type(body)
+
+        case SupervisorExtractor.extract(body) do
+          {:ok, result} -> assert result.supervisor_type == type
+          {:error, _} -> assert type == nil
+        end
+      end
+    end
+
+    property "detection_method is consistent with extract" do
+      check all(sup_ast <- supervisor_module_gen()) do
+        body = {:__block__, [], [sup_ast]}
+        method = SupervisorExtractor.detection_method(body)
+
+        case SupervisorExtractor.extract(body) do
+          {:ok, result} -> assert result.detection_method == method
+          {:error, _} -> assert method == nil
+        end
+      end
+    end
+
+    property "strategy extraction returns valid strategy types" do
+      check all(body <- supervisor_with_init_gen()) do
+        case SupervisorExtractor.extract_strategy(body) do
+          {:ok, strategy} ->
+            assert strategy.type in [:one_for_one, :one_for_all, :rest_for_one]
+
+          {:error, _} ->
+            # Valid case when no strategy found
+            :ok
+        end
+      end
+    end
+
+    property "child_count equals length of extract_children" do
+      check all(body <- supervisor_with_init_gen()) do
+        count = SupervisorExtractor.child_count(body)
+        {:ok, children} = SupervisorExtractor.extract_children(body)
+        assert count == length(children)
+      end
+    end
+
+    property "non-supervisor modules return error" do
+      check all(
+              other_behaviour <-
+                StreamData.member_of([:GenServer, :Agent, :Task, :GenEvent, :Application])
+            ) do
+        body =
+          {:__block__, [],
+           [
+             {:use, [], [{:__aliases__, [], [other_behaviour]}]}
+           ]}
+
+        refute SupervisorExtractor.supervisor?(body)
+        assert {:error, _} = SupervisorExtractor.extract(body)
       end
     end
   end

@@ -5,6 +5,11 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
   alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
   alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
 
+  # Run doctests from the Supervisor module
+  doctest ElixirOntologies.Extractors.OTP.Supervisor
+  doctest ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+  doctest ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+
   # ===========================================================================
   # Helper Functions
   # ===========================================================================
