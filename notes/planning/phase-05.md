@@ -85,20 +85,20 @@ Extract @behaviour declarations and callback implementations.
 This section extracts struct and exception definitions.
 
 ### 5.3.1 Struct Definition Extractor
-- [ ] **Task 5.3.1 Complete**
+- [x] **Task 5.3.1 Complete**
 
 Extract defstruct definitions.
 
-- [ ] 5.3.1.1 Create `lib/elixir_ontologies/extractors/struct.ex`
-- [ ] 5.3.1.2 Detect `defstruct` AST pattern
-- [ ] 5.3.1.3 Create `Struct` linked to containing module
-- [ ] 5.3.1.4 Extract fields as `StructField` instances
-- [ ] 5.3.1.5 Set `fieldName` for each field
-- [ ] 5.3.1.6 Detect fields with defaults (`hasDefaultFieldValue: true`)
-- [ ] 5.3.1.7 Extract `@enforce_keys` as `EnforcedKey` subclass
-- [ ] 5.3.1.8 Link via `hasField` and `hasEnforcedKey`
-- [ ] 5.3.1.9 Extract `@derive` protocols via `derivesProtocol`
-- [ ] 5.3.1.10 Write struct tests (success: 12 tests)
+- [x] 5.3.1.1 Create `lib/elixir_ontologies/extractors/struct.ex`
+- [x] 5.3.1.2 Detect `defstruct` AST pattern
+- [x] 5.3.1.3 Create `Struct` linked to containing module
+- [x] 5.3.1.4 Extract fields as `StructField` instances
+- [x] 5.3.1.5 Set `fieldName` for each field
+- [x] 5.3.1.6 Detect fields with defaults (`hasDefaultFieldValue: true`)
+- [x] 5.3.1.7 Extract `@enforce_keys` as `EnforcedKey` subclass
+- [x] 5.3.1.8 Link via `hasField` and `hasEnforcedKey`
+- [x] 5.3.1.9 Extract `@derive` protocols via `derivesProtocol`
+- [x] 5.3.1.10 Write struct tests (success: 26 doctests + 41 unit tests)
 
 ### 5.3.2 Exception Extractor
 - [ ] **Task 5.3.2 Complete**
