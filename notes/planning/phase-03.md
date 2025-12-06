@@ -144,20 +144,20 @@ Create extractors for all control flow expression types.
 This section extracts for comprehensions and block structures.
 
 ### 3.5.1 Comprehension Extractor
-- [ ] **Task 3.5.1 Complete**
+- [x] **Task 3.5.1 Complete**
 
 Extract for comprehensions with generators, filters, and into clauses.
 
-- [ ] 3.5.1.1 Create `lib/elixir_ontologies/extractors/comprehension.ex`
-- [ ] 3.5.1.2 Extract `ForComprehension` with body expression
-- [ ] 3.5.1.3 Extract `Generator` (pattern <- enumerable)
-- [ ] 3.5.1.4 Extract `BitstringGenerator` (pattern <<- bitstring)
-- [ ] 3.5.1.5 Extract `Filter` (boolean expressions)
-- [ ] 3.5.1.6 Link generators via `hasGenerator`
-- [ ] 3.5.1.7 Link filters via `hasFilter`
-- [ ] 3.5.1.8 Extract `:into` option as `hasIntoCollector`
-- [ ] 3.5.1.9 Extract `:reduce` option
-- [ ] 3.5.1.10 Write comprehension tests (success: 10 tests)
+- [x] 3.5.1.1 Create `lib/elixir_ontologies/extractors/comprehension.ex`
+- [x] 3.5.1.2 Extract `ForComprehension` with body expression
+- [x] 3.5.1.3 Extract `Generator` (pattern <- enumerable)
+- [x] 3.5.1.4 Extract `BitstringGenerator` (pattern <<- bitstring)
+- [x] 3.5.1.5 Extract `Filter` (boolean expressions)
+- [x] 3.5.1.6 Link generators via `hasGenerator`
+- [x] 3.5.1.7 Link filters via `hasFilter`
+- [x] 3.5.1.8 Extract `:into` option as `hasIntoCollector`
+- [x] 3.5.1.9 Extract `:reduce` option
+- [x] 3.5.1.10 Write comprehension tests (success: 65 tests - 21 doctests + 44 unit tests)
 
 ### 3.5.2 Block Extractor
 - [ ] **Task 3.5.2 Complete**
@@ -173,10 +173,10 @@ Extract block structures with ordered expressions.
 - [ ] 3.5.2.7 Write block tests (success: 8 tests)
 
 **Section 3.5 Unit Tests:**
-- [ ] Test for comprehension with single generator
-- [ ] Test for comprehension with multiple generators
-- [ ] Test for comprehension with filter
-- [ ] Test for comprehension with :into
+- [x] Test for comprehension with single generator
+- [x] Test for comprehension with multiple generators
+- [x] Test for comprehension with filter
+- [x] Test for comprehension with :into
 - [ ] Test do block extraction
 - [ ] Test expression ordering in blocks
 
