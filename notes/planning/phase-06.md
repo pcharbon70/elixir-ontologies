@@ -82,20 +82,20 @@ Extract supervision strategies and child specs.
 This section extracts Agent and Task usage patterns.
 
 ### 6.3.1 Agent/Task Extractor
-- [ ] **Task 6.3.1 Complete**
+- [x] **Task 6.3.1 Complete**
 
 Detect Agent and Task usage.
 
-- [ ] 6.3.1.1 Create `lib/elixir_ontologies/extractors/otp/agent_task.ex`
-- [ ] 6.3.1.2 Detect `use Agent` as `Agent`
-- [ ] 6.3.1.3 Detect `Task.async`, `Task.start` calls
-- [ ] 6.3.1.4 Detect `Task.Supervisor` usage
-- [ ] 6.3.1.5 Write agent/task tests (success: 8 tests)
+- [x] 6.3.1.1 Create `lib/elixir_ontologies/extractors/otp/agent_task.ex`
+- [x] 6.3.1.2 Detect `use Agent` as `Agent`
+- [x] 6.3.1.3 Detect `Task.async`, `Task.start` calls
+- [x] 6.3.1.4 Detect `Task.Supervisor` usage
+- [x] 6.3.1.5 Write agent/task tests (success: 72 tests - 54 unit + 18 doctests)
 
 **Section 6.3 Unit Tests:**
-- [ ] Test Agent module detection
-- [ ] Test Task.async detection
-- [ ] Test Task.Supervisor detection
+- [x] Test Agent module detection
+- [x] Test Task.async detection
+- [x] Test Task.Supervisor detection
 
 ## 6.4 ETS Extractor
 
