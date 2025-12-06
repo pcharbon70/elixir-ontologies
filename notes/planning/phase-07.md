@@ -7,18 +7,18 @@ This phase implements repository detection, commit information extraction, and s
 This section detects git repositories and extracts metadata.
 
 ### 7.1.1 Git Repository Extractor
-- [ ] **Task 7.1.1 Complete**
+- [x] **Task 7.1.1 Complete**
 
 Detect and extract git repository information.
 
-- [ ] 7.1.1.1 Create `lib/elixir_ontologies/analyzer/git.ex`
-- [ ] 7.1.1.2 Implement `Git.detect_repo/1` finding .git directory
-- [ ] 7.1.1.3 Implement `Git.remote_url/1` extracting origin URL
-- [ ] 7.1.1.4 Create `Repository` instance with `repositoryUrl`, `repositoryName`
-- [ ] 7.1.1.5 Handle various remote URL formats (https, ssh, git@)
-- [ ] 7.1.1.6 Implement `Git.current_branch/1` for `branchName`
-- [ ] 7.1.1.7 Implement `Git.default_branch/1` for `defaultBranch`
-- [ ] 7.1.1.8 Write repository detection tests (success: 10 tests)
+- [x] 7.1.1.1 Create `lib/elixir_ontologies/analyzer/git.ex`
+- [x] 7.1.1.2 Implement `Git.detect_repo/1` finding .git directory
+- [x] 7.1.1.3 Implement `Git.remote_url/1` extracting origin URL
+- [x] 7.1.1.4 Create `Repository` instance with `repositoryUrl`, `repositoryName`
+- [x] 7.1.1.5 Handle various remote URL formats (https, ssh, git@)
+- [x] 7.1.1.6 Implement `Git.current_branch/1` for `branchName`
+- [x] 7.1.1.7 Implement `Git.default_branch/1` for `defaultBranch`
+- [x] 7.1.1.8 Write repository detection tests (success: 40 tests)
 
 ### 7.1.2 Commit Information Extractor
 - [ ] **Task 7.1.2 Complete**
@@ -33,12 +33,12 @@ Extract current commit information.
 - [ ] 7.1.2.6 Write commit extraction tests (success: 8 tests)
 
 **Section 7.1 Unit Tests:**
-- [ ] Test repository detection in git repo
-- [ ] Test repository detection returns nil outside repo
-- [ ] Test remote URL parsing (https format)
-- [ ] Test remote URL parsing (ssh format)
+- [x] Test repository detection in git repo
+- [x] Test repository detection returns error outside repo
+- [x] Test remote URL parsing (https format)
+- [x] Test remote URL parsing (ssh format)
 - [ ] Test current commit extraction
-- [ ] Test branch detection
+- [x] Test branch detection
 
 ## 7.2 Source URL Generation
 
