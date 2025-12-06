@@ -99,6 +99,51 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   ]
 
   # ===========================================================================
+  # Implementation Structs
+  # ===========================================================================
+
+  @typedoc """
+  A behaviour implementation extracted from a module.
+
+  - `:behaviour` - The behaviour module being implemented
+  - `:behaviour_alias` - The alias AST for the behaviour
+  - `:location` - Source location of @behaviour declaration
+  """
+  @type implementation :: %{
+          behaviour: module() | atom(),
+          behaviour_alias: Macro.t(),
+          location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
+        }
+
+  @typedoc """
+  An overridable function declaration.
+
+  - `:name` - Function name
+  - `:arity` - Function arity
+  - `:source` - :list (keyword list) or :module (behaviour module reference)
+  - `:location` - Source location
+  """
+  @type overridable :: %{
+          name: atom(),
+          arity: non_neg_integer(),
+          source: :list | :module,
+          location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
+        }
+
+  @typedoc """
+  Result of extracting behaviour implementations from a module.
+
+  - `:behaviours` - List of @behaviour declarations
+  - `:overridables` - List of defoverridable entries
+  - `:functions` - List of {name, arity} defined in module
+  """
+  @type implementation_result :: %{
+          behaviours: [implementation()],
+          overridables: [overridable()],
+          functions: [{atom(), non_neg_integer()}]
+        }
+
+  # ===========================================================================
   # Type Detection
   # ===========================================================================
 
@@ -146,6 +191,39 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   @spec optional_callbacks?(Macro.t()) :: boolean()
   def optional_callbacks?({:@, _meta, [{:optional_callbacks, _attr_meta, [_list]}]}), do: true
   def optional_callbacks?(_), do: false
+
+  @doc """
+  Checks if an AST node is a @behaviour attribute.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Behaviour.behaviour_declaration?({:@, [], [{:behaviour, [], [{:__aliases__, [], [:GenServer]}]}]})
+      true
+
+      iex> ElixirOntologies.Extractors.Behaviour.behaviour_declaration?({:@, [], [{:callback, [], [{:"::", [], [:foo, :ok]}]}]})
+      false
+  """
+  @spec behaviour_declaration?(Macro.t()) :: boolean()
+  def behaviour_declaration?({:@, _meta, [{:behaviour, _attr_meta, [_module]}]}), do: true
+  def behaviour_declaration?(_), do: false
+
+  @doc """
+  Checks if an AST node is a defoverridable declaration.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Behaviour.defoverridable?({:defoverridable, [], [[foo: 1, bar: 2]]})
+      true
+
+      iex> ElixirOntologies.Extractors.Behaviour.defoverridable?({:defoverridable, [], [{:__aliases__, [], [:MyBehaviour]}]})
+      true
+
+      iex> ElixirOntologies.Extractors.Behaviour.defoverridable?({:def, [], [{:foo, [], nil}]})
+      false
+  """
+  @spec defoverridable?(Macro.t()) :: boolean()
+  def defoverridable?({:defoverridable, _meta, [_args]}), do: true
+  def defoverridable?(_), do: false
 
   # ===========================================================================
   # Module Body Extraction
@@ -235,6 +313,252 @@ defmodule ElixirOntologies.Extractors.Behaviour do
       _ -> false
     end)
   end
+
+  @doc """
+  Checks if a module body implements any behaviours (has @behaviour declarations).
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defmodule M do @behaviour GenServer; def init(a), do: {:ok, a} end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> Behaviour.implements_behaviour?(body)
+      true
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defmodule M do def foo, do: :ok end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> Behaviour.implements_behaviour?(body)
+      false
+  """
+  @spec implements_behaviour?(Macro.t()) :: boolean()
+  def implements_behaviour?(body) do
+    statements = extract_statements(body)
+
+    Enum.any?(statements, fn
+      {:@, _meta, [{:behaviour, _attr_meta, _}]} -> true
+      _ -> false
+    end)
+  end
+
+  @doc """
+  Extracts behaviour implementations from a module body.
+
+  Returns a map containing:
+  - `:behaviours` - List of @behaviour declarations
+  - `:overridables` - List of defoverridable entries
+  - `:functions` - List of {name, arity} defined in module
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defmodule M do @behaviour GenServer; def init(a), do: {:ok, a} end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> result = Behaviour.extract_implementations(body)
+      iex> length(result.behaviours)
+      1
+      iex> hd(result.behaviours).behaviour
+      GenServer
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defmodule M do @behaviour Plug; @behaviour GenServer; def init(a), do: {:ok, a}; def call(c,o), do: c end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> result = Behaviour.extract_implementations(body)
+      iex> length(result.behaviours)
+      2
+      iex> result.functions
+      [{:init, 1}, {:call, 2}]
+  """
+  @spec extract_implementations(Macro.t()) :: implementation_result()
+  def extract_implementations(body) do
+    statements = extract_statements(body)
+
+    behaviours = extract_behaviour_declarations(statements)
+    overridables = extract_overridables(statements)
+    functions = extract_function_signatures(statements)
+
+    %{
+      behaviours: behaviours,
+      overridables: overridables,
+      functions: functions
+    }
+  end
+
+  @doc """
+  Extracts a single @behaviour declaration.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "@behaviour GenServer"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> {:ok, impl} = Behaviour.extract_behaviour_declaration(ast)
+      iex> impl.behaviour
+      GenServer
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "@behaviour MyApp.CustomBehaviour"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> {:ok, impl} = Behaviour.extract_behaviour_declaration(ast)
+      iex> impl.behaviour
+      MyApp.CustomBehaviour
+  """
+  @spec extract_behaviour_declaration(Macro.t()) :: {:ok, implementation()} | {:error, String.t()}
+  def extract_behaviour_declaration({:@, meta, [{:behaviour, _attr_meta, [module_ast]}]}) do
+    location = Helpers.extract_location({:@, meta, []})
+    module = module_ast_to_module(module_ast)
+
+    {:ok,
+     %{
+       behaviour: module,
+       behaviour_alias: module_ast,
+       location: location
+     }}
+  end
+
+  def extract_behaviour_declaration(other) do
+    {:error, Helpers.format_error("Not a @behaviour declaration", other)}
+  end
+
+  @doc """
+  Extracts a single @behaviour declaration, raising on error.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "@behaviour GenServer"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> impl = Behaviour.extract_behaviour_declaration!(ast)
+      iex> impl.behaviour
+      GenServer
+  """
+  @spec extract_behaviour_declaration!(Macro.t()) :: implementation()
+  @dialyzer {:nowarn_function, extract_behaviour_declaration!: 1}
+  def extract_behaviour_declaration!(node) do
+    case extract_behaviour_declaration(node) do
+      {:ok, impl} -> impl
+      {:error, reason} -> raise ArgumentError, reason
+    end
+  end
+
+  @doc """
+  Extracts a defoverridable declaration.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defoverridable [init: 1, call: 2]"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> overridables = Behaviour.extract_defoverridable(ast)
+      iex> length(overridables)
+      2
+      iex> hd(overridables).name
+      :init
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defoverridable MyBehaviour"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> overridables = Behaviour.extract_defoverridable(ast)
+      iex> length(overridables)
+      1
+      iex> hd(overridables).source
+      :module
+  """
+  @spec extract_defoverridable(Macro.t()) :: [overridable()]
+  def extract_defoverridable({:defoverridable, meta, [args]}) do
+    location = Helpers.extract_location({:defoverridable, meta, []})
+
+    case args do
+      # Keyword list: [init: 1, call: 2]
+      list when is_list(list) ->
+        Enum.map(list, fn {name, arity} ->
+          %{
+            name: name,
+            arity: arity,
+            source: :list,
+            location: location
+          }
+        end)
+
+      # Module reference: MyBehaviour
+      {:__aliases__, _, _} = module_ast ->
+        module = module_ast_to_module(module_ast)
+
+        [
+          %{
+            name: module,
+            arity: 0,
+            source: :module,
+            location: location
+          }
+        ]
+
+      # Atom module: :some_behaviour (unlikely but handle)
+      atom when is_atom(atom) ->
+        [
+          %{
+            name: atom,
+            arity: 0,
+            source: :module,
+            location: location
+          }
+        ]
+
+      _ ->
+        []
+    end
+  end
+
+  def extract_defoverridable(_), do: []
+
+  # ===========================================================================
+  # Implementation Extraction Helpers
+  # ===========================================================================
+
+  defp extract_behaviour_declarations(statements) do
+    statements
+    |> Enum.filter(&behaviour_declaration?/1)
+    |> Enum.map(fn node ->
+      {:ok, impl} = extract_behaviour_declaration(node)
+      impl
+    end)
+  end
+
+  defp extract_overridables(statements) do
+    statements
+    |> Enum.filter(&defoverridable?/1)
+    |> Enum.flat_map(&extract_defoverridable/1)
+  end
+
+  defp extract_function_signatures(statements) do
+    statements
+    |> Enum.flat_map(&extract_def_signature/1)
+    |> Enum.uniq()
+  end
+
+  # Extract {name, arity} from def/defp
+  defp extract_def_signature({def_type, _meta, [{name, _fn_meta, args} | _]})
+       when def_type in [:def, :defp] and is_atom(name) do
+    arity = if is_list(args), do: length(args), else: 0
+    [{name, arity}]
+  end
+
+  # def with when clause
+  defp extract_def_signature({def_type, _meta, [{:when, _, [{name, _fn_meta, args} | _]} | _]})
+       when def_type in [:def, :defp] and is_atom(name) do
+    arity = if is_list(args), do: length(args), else: 0
+    [{name, arity}]
+  end
+
+  defp extract_def_signature(_), do: []
+
+  # Convert module AST to atom
+  defp module_ast_to_module({:__aliases__, _, parts}) do
+    Module.concat(parts)
+  end
+
+  defp module_ast_to_module(atom) when is_atom(atom), do: atom
+  defp module_ast_to_module(_), do: nil
 
   # ===========================================================================
   # Single Callback Extraction
@@ -496,5 +820,134 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   @spec optional?(t(), atom(), non_neg_integer()) :: boolean()
   def optional?(%__MODULE__{optional_callbacks: optional_list}, name, arity) do
     {name, arity} in optional_list
+  end
+
+  # ===========================================================================
+  # Implementation Utility Functions
+  # ===========================================================================
+
+  @doc """
+  Returns the list of behaviour modules implemented.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defmodule M do @behaviour GenServer; @behaviour Plug end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> result = Behaviour.extract_implementations(body)
+      iex> Behaviour.implemented_behaviours(result)
+      [GenServer, Plug]
+  """
+  @spec implemented_behaviours(implementation_result()) :: [module()]
+  def implemented_behaviours(%{behaviours: behaviours}) do
+    Enum.map(behaviours, & &1.behaviour)
+  end
+
+  @doc """
+  Returns list of {name, arity} for overridable functions.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defmodule M do defoverridable [init: 1, call: 2] end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> result = Behaviour.extract_implementations(body)
+      iex> Behaviour.overridable_functions(result)
+      [{:init, 1}, {:call, 2}]
+  """
+  @spec overridable_functions(implementation_result()) :: [{atom(), non_neg_integer()}]
+  def overridable_functions(%{overridables: overridables}) do
+    overridables
+    |> Enum.filter(&(&1.source == :list))
+    |> Enum.map(&{&1.name, &1.arity})
+  end
+
+  @doc """
+  Checks if a function is marked as overridable.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defmodule M do defoverridable [init: 1] end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> result = Behaviour.extract_implementations(body)
+      iex> Behaviour.overridable?(result, :init, 1)
+      true
+      iex> Behaviour.overridable?(result, :other, 1)
+      false
+  """
+  @spec overridable?(implementation_result(), atom(), non_neg_integer()) :: boolean()
+  def overridable?(%{overridables: overridables}, name, arity) do
+    Enum.any?(overridables, fn
+      %{name: ^name, arity: ^arity, source: :list} -> true
+      _ -> false
+    end)
+  end
+
+  @doc """
+  Checks if a module implements a specific behaviour.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defmodule M do @behaviour GenServer end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> result = Behaviour.extract_implementations(body)
+      iex> Behaviour.implements?(result, GenServer)
+      true
+      iex> Behaviour.implements?(result, Plug)
+      false
+  """
+  @spec implements?(implementation_result(), module()) :: boolean()
+  def implements?(%{behaviours: behaviours}, module) do
+    Enum.any?(behaviours, &(&1.behaviour == module))
+  end
+
+  @doc """
+  Returns functions that match callback signatures (by name/arity).
+
+  This is useful for verifying callback implementations.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defmodule M do @behaviour GenServer; def init(a), do: {:ok, a}; def handle_call(r,f,s), do: {:reply,:ok,s} end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> result = Behaviour.extract_implementations(body)
+      iex> callbacks = [{:init, 1}, {:handle_call, 3}, {:handle_cast, 2}]
+      iex> Behaviour.matching_callbacks(result, callbacks)
+      [{:init, 1}, {:handle_call, 3}]
+  """
+  @spec matching_callbacks(implementation_result(), [{atom(), non_neg_integer()}]) :: [
+          {atom(), non_neg_integer()}
+        ]
+  def matching_callbacks(%{functions: functions}, callback_signatures) do
+    callback_set = MapSet.new(callback_signatures)
+
+    functions
+    |> Enum.filter(&MapSet.member?(callback_set, &1))
+  end
+
+  @doc """
+  Returns callbacks that are NOT implemented in the module.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code = "defmodule M do def init(a), do: {:ok, a} end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> result = Behaviour.extract_implementations(body)
+      iex> callbacks = [{:init, 1}, {:handle_call, 3}]
+      iex> Behaviour.missing_callbacks(result, callbacks)
+      [{:handle_call, 3}]
+  """
+  @spec missing_callbacks(implementation_result(), [{atom(), non_neg_integer()}]) :: [
+          {atom(), non_neg_integer()}
+        ]
+  def missing_callbacks(%{functions: functions}, callback_signatures) do
+    function_set = MapSet.new(functions)
+
+    callback_signatures
+    |> Enum.reject(&MapSet.member?(function_set, &1))
   end
 end

@@ -512,4 +512,410 @@ defmodule ElixirOntologies.Extractors.BehaviourTest do
       assert define.is_optional == true
     end
   end
+
+  # ===========================================================================
+  # Behaviour Implementation Tests (Task 5.2.2)
+  # ===========================================================================
+
+  describe "behaviour_declaration?/1" do
+    test "returns true for @behaviour attribute" do
+      code = "@behaviour GenServer"
+      {:ok, ast} = Code.string_to_quoted(code)
+      assert Behaviour.behaviour_declaration?(ast)
+    end
+
+    test "returns false for @callback" do
+      code = "@callback foo(t) :: t"
+      {:ok, ast} = Code.string_to_quoted(code)
+      refute Behaviour.behaviour_declaration?(ast)
+    end
+
+    test "returns false for other attributes" do
+      refute Behaviour.behaviour_declaration?({:@, [], [{:doc, [], ["text"]}]})
+    end
+  end
+
+  describe "defoverridable?/1" do
+    test "returns true for defoverridable with list" do
+      code = "defoverridable [init: 1, call: 2]"
+      {:ok, ast} = Code.string_to_quoted(code)
+      assert Behaviour.defoverridable?(ast)
+    end
+
+    test "returns true for defoverridable with module" do
+      code = "defoverridable MyBehaviour"
+      {:ok, ast} = Code.string_to_quoted(code)
+      assert Behaviour.defoverridable?(ast)
+    end
+
+    test "returns false for def" do
+      code = "def foo, do: :ok"
+      {:ok, ast} = Code.string_to_quoted(code)
+      refute Behaviour.defoverridable?(ast)
+    end
+  end
+
+  describe "implements_behaviour?/1" do
+    test "returns true for module with @behaviour" do
+      code = "defmodule M do @behaviour GenServer; def init(a), do: {:ok, a} end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      assert Behaviour.implements_behaviour?(body)
+    end
+
+    test "returns false for regular module" do
+      code = "defmodule M do def foo, do: :ok end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      refute Behaviour.implements_behaviour?(body)
+    end
+
+    test "returns true for multiple behaviours" do
+      code = "defmodule M do @behaviour Plug; @behaviour GenServer end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      assert Behaviour.implements_behaviour?(body)
+    end
+  end
+
+  describe "extract_behaviour_declaration/1" do
+    test "extracts simple behaviour" do
+      code = "@behaviour GenServer"
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      assert {:ok, impl} = Behaviour.extract_behaviour_declaration(ast)
+      assert impl.behaviour == GenServer
+    end
+
+    test "extracts nested module behaviour" do
+      code = "@behaviour MyApp.CustomBehaviour"
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      assert {:ok, impl} = Behaviour.extract_behaviour_declaration(ast)
+      assert impl.behaviour == MyApp.CustomBehaviour
+    end
+
+    test "returns error for non-behaviour" do
+      code = "@doc \"text\""
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      assert {:error, msg} = Behaviour.extract_behaviour_declaration(ast)
+      assert msg =~ "Not a @behaviour"
+    end
+  end
+
+  describe "extract_defoverridable/1" do
+    test "extracts keyword list overridables" do
+      code = "defoverridable [init: 1, call: 2]"
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      overridables = Behaviour.extract_defoverridable(ast)
+      assert length(overridables) == 2
+
+      init = hd(overridables)
+      assert init.name == :init
+      assert init.arity == 1
+      assert init.source == :list
+    end
+
+    test "extracts module reference overridable" do
+      code = "defoverridable MyBehaviour"
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      overridables = Behaviour.extract_defoverridable(ast)
+      assert length(overridables) == 1
+
+      ref = hd(overridables)
+      assert ref.name == MyBehaviour
+      assert ref.source == :module
+    end
+
+    test "returns empty for non-overridable" do
+      code = "def foo, do: :ok"
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      assert Behaviour.extract_defoverridable(ast) == []
+    end
+  end
+
+  describe "extract_implementations/1" do
+    test "extracts single behaviour" do
+      code = "defmodule M do @behaviour GenServer; def init(a), do: {:ok, a} end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      assert length(result.behaviours) == 1
+      assert hd(result.behaviours).behaviour == GenServer
+    end
+
+    test "extracts multiple behaviours" do
+      code = """
+      defmodule M do
+        @behaviour Plug
+        @behaviour GenServer
+
+        def init(a), do: {:ok, a}
+        def call(c, _o), do: c
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      assert length(result.behaviours) == 2
+
+      behaviours = Behaviour.implemented_behaviours(result)
+      assert Plug in behaviours
+      assert GenServer in behaviours
+    end
+
+    test "extracts functions" do
+      code = """
+      defmodule M do
+        @behaviour GenServer
+
+        def init(args), do: {:ok, args}
+        def handle_call(req, from, state), do: {:reply, :ok, state}
+        defp helper, do: :ok
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      assert {:init, 1} in result.functions
+      assert {:handle_call, 3} in result.functions
+      assert {:helper, 0} in result.functions
+    end
+
+    test "extracts defoverridable" do
+      code = """
+      defmodule M do
+        @behaviour GenServer
+
+        def init(args), do: {:ok, args}
+        defoverridable [init: 1]
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      assert length(result.overridables) == 1
+      assert hd(result.overridables).name == :init
+    end
+
+    test "handles empty module" do
+      code = "defmodule M do end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      assert result.behaviours == []
+      assert result.overridables == []
+      assert result.functions == []
+    end
+  end
+
+  describe "implemented_behaviours/1" do
+    test "returns list of behaviour modules" do
+      code = "defmodule M do @behaviour GenServer; @behaviour Plug end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      behaviours = Behaviour.implemented_behaviours(result)
+
+      assert behaviours == [GenServer, Plug]
+    end
+  end
+
+  describe "overridable_functions/1" do
+    test "returns list of overridable name/arity tuples" do
+      code = "defmodule M do defoverridable [init: 1, call: 2] end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      overridables = Behaviour.overridable_functions(result)
+
+      assert {:init, 1} in overridables
+      assert {:call, 2} in overridables
+    end
+
+    test "excludes module references" do
+      code = "defmodule M do defoverridable MyBehaviour end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      overridables = Behaviour.overridable_functions(result)
+
+      assert overridables == []
+    end
+  end
+
+  describe "overridable?/3" do
+    test "returns true for overridable function" do
+      code = "defmodule M do defoverridable [init: 1] end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      assert Behaviour.overridable?(result, :init, 1)
+    end
+
+    test "returns false for non-overridable function" do
+      code = "defmodule M do defoverridable [init: 1] end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      refute Behaviour.overridable?(result, :call, 2)
+    end
+  end
+
+  describe "implements?/2" do
+    test "returns true when behaviour is implemented" do
+      code = "defmodule M do @behaviour GenServer end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      assert Behaviour.implements?(result, GenServer)
+    end
+
+    test "returns false when behaviour is not implemented" do
+      code = "defmodule M do @behaviour GenServer end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      refute Behaviour.implements?(result, Plug)
+    end
+  end
+
+  describe "matching_callbacks/2" do
+    test "finds functions matching callback signatures" do
+      code = """
+      defmodule M do
+        @behaviour GenServer
+
+        def init(a), do: {:ok, a}
+        def handle_call(r, f, s), do: {:reply, :ok, s}
+        def custom_function, do: :ok
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      callbacks = [{:init, 1}, {:handle_call, 3}, {:handle_cast, 2}]
+
+      matching = Behaviour.matching_callbacks(result, callbacks)
+      assert {:init, 1} in matching
+      assert {:handle_call, 3} in matching
+      refute {:handle_cast, 2} in matching
+    end
+  end
+
+  describe "missing_callbacks/2" do
+    test "finds callbacks not implemented" do
+      code = """
+      defmodule M do
+        def init(a), do: {:ok, a}
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+      callbacks = [{:init, 1}, {:handle_call, 3}]
+
+      missing = Behaviour.missing_callbacks(result, callbacks)
+      assert missing == [{:handle_call, 3}]
+    end
+  end
+
+  # ===========================================================================
+  # Real World Implementation Tests
+  # ===========================================================================
+
+  describe "real world implementations" do
+    test "GenServer implementation" do
+      code = """
+      defmodule MyServer do
+        @behaviour GenServer
+
+        def init(args), do: {:ok, args}
+        def handle_call(:get, _from, state), do: {:reply, state, state}
+        def handle_cast({:set, val}, _state), do: {:noreply, val}
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+
+      assert Behaviour.implements?(result, GenServer)
+      assert {:init, 1} in result.functions
+      assert {:handle_call, 3} in result.functions
+      assert {:handle_cast, 2} in result.functions
+    end
+
+    test "Plug implementation" do
+      code = """
+      defmodule MyPlug do
+        @behaviour Plug
+
+        def init(opts), do: opts
+        def call(conn, opts), do: conn
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+
+      assert Behaviour.implements?(result, Plug)
+      assert {:init, 1} in result.functions
+      assert {:call, 2} in result.functions
+    end
+
+    test "module with use and defoverridable" do
+      code = """
+      defmodule MyModule do
+        @behaviour MyBehaviour
+
+        def callback_impl(arg), do: arg
+        def default_impl, do: :default
+        defoverridable [default_impl: 0]
+
+        def default_impl, do: :overridden
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+
+      assert Behaviour.implements?(result, MyBehaviour)
+      assert Behaviour.overridable?(result, :default_impl, 0)
+      assert {:callback_impl, 1} in result.functions
+      assert {:default_impl, 0} in result.functions
+    end
+
+    test "module implementing multiple behaviours" do
+      code = """
+      defmodule ComplexModule do
+        @behaviour GenServer
+        @behaviour Supervisor
+        @behaviour Application
+
+        def init(args), do: {:ok, args}
+        def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
+        def start(_type, _args), do: {:ok, self()}
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_implementations(body)
+
+      behaviours = Behaviour.implemented_behaviours(result)
+      assert GenServer in behaviours
+      assert Supervisor in behaviours
+      assert Application in behaviours
+      assert length(behaviours) == 3
+    end
+  end
 end

@@ -60,25 +60,25 @@ Extract modules that define behaviours via @callback.
 - [x] 5.2.1.8 Write behaviour definition tests (success: 20 doctests + 38 unit tests)
 
 ### 5.2.2 Behaviour Implementation Extractor
-- [ ] **Task 5.2.2 Complete**
+- [x] **Task 5.2.2 Complete**
 
 Extract @behaviour declarations and callback implementations.
 
-- [ ] 5.2.2.1 Detect `@behaviour ModuleName` in module
-- [ ] 5.2.2.2 Create `BehaviourImplementation` relationship
-- [ ] 5.2.2.3 Link via `implementsBehaviour`
-- [ ] 5.2.2.4 Match implemented functions to callbacks via `implementsCallback`
-- [ ] 5.2.2.5 Detect `defoverridable` for default implementations
-- [ ] 5.2.2.6 Link overrides via `overridesDefault`
-- [ ] 5.2.2.7 Write implementation tests (success: 8 tests)
+- [x] 5.2.2.1 Detect `@behaviour ModuleName` in module
+- [x] 5.2.2.2 Create `BehaviourImplementation` relationship
+- [x] 5.2.2.3 Link via `implementsBehaviour`
+- [x] 5.2.2.4 Match implemented functions to callbacks via `implementsCallback`
+- [x] 5.2.2.5 Detect `defoverridable` for default implementations
+- [x] 5.2.2.6 Link overrides via `overridesDefault`
+- [x] 5.2.2.7 Write implementation tests (success: 40 doctests + 71 unit tests)
 
 **Section 5.2 Unit Tests:**
-- [ ] Test behaviour definition extraction
-- [ ] Test @callback extraction
-- [ ] Test @optional_callbacks handling
-- [ ] Test @behaviour declaration extraction
-- [ ] Test callback implementation matching
-- [ ] Test defoverridable detection
+- [x] Test behaviour definition extraction
+- [x] Test @callback extraction
+- [x] Test @optional_callbacks handling
+- [x] Test @behaviour declaration extraction
+- [x] Test callback implementation matching
+- [x] Test defoverridable detection
 
 ## 5.3 Struct Extractor
 
