@@ -278,13 +278,20 @@ defmodule ElixirOntologies.Extractors.Behaviour do
       end)
 
     doc = Helpers.extract_moduledoc(statements)
+    all_callbacks = Enum.reverse(callbacks)
+    all_macrocallbacks = Enum.reverse(macrocallbacks)
 
     %__MODULE__{
-      callbacks: Enum.reverse(callbacks),
-      macrocallbacks: Enum.reverse(macrocallbacks),
+      callbacks: all_callbacks,
+      macrocallbacks: all_macrocallbacks,
       optional_callbacks: optional_list,
       doc: doc,
-      metadata: %{}
+      metadata: %{
+        callback_count: length(all_callbacks),
+        macrocallback_count: length(all_macrocallbacks),
+        optional_callback_count: length(optional_list),
+        has_doc: not is_nil(doc) and doc != false
+      }
     }
   end
 
@@ -568,21 +575,13 @@ defmodule ElixirOntologies.Extractors.Behaviour do
     |> Enum.uniq()
   end
 
-  # Extract {name, arity} from def/defp
-  defp extract_def_signature({def_type, _meta, [{name, _fn_meta, args} | _]})
-       when def_type in [:def, :defp] and is_atom(name) do
-    arity = if is_list(args), do: length(args), else: 0
-    [{name, arity}]
+  # Extract {name, arity} from def/defp using shared helper
+  defp extract_def_signature(node) do
+    case Helpers.extract_function_signature(node) do
+      {name, arity} -> [{name, arity}]
+      nil -> []
+    end
   end
-
-  # def with when clause
-  defp extract_def_signature({def_type, _meta, [{:when, _, [{name, _fn_meta, args} | _]} | _]})
-       when def_type in [:def, :defp] and is_atom(name) do
-    arity = if is_list(args), do: length(args), else: 0
-    [{name, arity}]
-  end
-
-  defp extract_def_signature(_), do: []
 
   # ===========================================================================
   # Single Callback Extraction
@@ -705,16 +704,16 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   # ===========================================================================
 
   defp extract_optional_callbacks_list(statements) do
-    Enum.reduce(statements, [], fn
-      {:@, _meta, [{:optional_callbacks, _attr_meta, [list]}]}, acc when is_list(list) ->
+    Enum.flat_map(statements, fn
+      {:@, _meta, [{:optional_callbacks, _attr_meta, [list]}]} when is_list(list) ->
         # list is like [foo: 1, bar: 2]
-        acc ++ list
+        list
 
-      {:@, _meta, [{:optional_callbacks, _attr_meta, [[_ | _] = list]}]}, acc ->
-        acc ++ list
+      {:@, _meta, [{:optional_callbacks, _attr_meta, [[_ | _] = list]}]} ->
+        list
 
-      _, acc ->
-        acc
+      _ ->
+        []
     end)
   end
 

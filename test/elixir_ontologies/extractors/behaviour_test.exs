@@ -936,5 +936,32 @@ defmodule ElixirOntologies.Extractors.BehaviourTest do
       assert Application in behaviours
       assert length(behaviours) == 3
     end
+
+    test "callback with complex union return type" do
+      code = """
+      defmodule ComplexBehaviour do
+        @callback process(data :: term()) :: {:ok, result :: term()} | {:error, reason :: atom()} | :ignore
+
+        @callback fetch(key :: atom()) :: {:ok, value :: term()} | {:error, :not_found | {:invalid, String.t()}}
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Behaviour.extract_from_body(body)
+
+      assert length(result.callbacks) == 2
+
+      # Find process callback
+      process_cb = Enum.find(result.callbacks, &(&1.name == :process))
+      assert process_cb.arity == 1
+      # The return type is complex union, we just verify it was captured
+      assert process_cb.return_type != nil
+
+      # Find fetch callback
+      fetch_cb = Enum.find(result.callbacks, &(&1.name == :fetch))
+      assert fetch_cb.arity == 1
+      assert fetch_cb.return_type != nil
+    end
   end
 end

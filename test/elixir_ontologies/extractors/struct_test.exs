@@ -712,4 +712,35 @@ defmodule ElixirOntologies.Extractors.StructTest do
       assert result.has_custom_message == true
     end
   end
+
+  describe "edge cases" do
+    test "@enforce_keys with non-existent field" do
+      # In Elixir, @enforce_keys can reference fields that don't exist in defstruct.
+      # This is a compile-time error in real code, but we should extract what's declared.
+      code = """
+      defmodule BadStruct do
+        @enforce_keys [:name, :non_existent]
+        defstruct [:name, :email]
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      {:ok, result} = Struct.extract_from_body(body)
+
+      # We extract enforce_keys as declared, even if they don't match fields
+      assert result.enforce_keys == [:name, :non_existent]
+      assert Struct.field_names(result) == [:name, :email]
+
+      # :non_existent is in enforce_keys but not in fields
+      assert Struct.enforced?(result, :name) == true
+      assert Struct.enforced?(result, :non_existent) == true
+      assert Struct.enforced?(result, :email) == false
+
+      # required_fields only includes fields that exist AND are enforced
+      required = Struct.required_fields(result)
+      required_names = Enum.map(required, & &1.name)
+      assert :name in required_names
+      refute :non_existent in required_names  # Not a field, so not required
+    end
+  end
 end

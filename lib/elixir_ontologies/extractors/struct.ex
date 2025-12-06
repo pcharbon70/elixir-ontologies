@@ -41,7 +41,6 @@ defmodule ElixirOntologies.Extractors.Struct do
   """
 
   alias ElixirOntologies.Extractors.Helpers
-  alias ElixirOntologies.Extractors.Protocol
 
   # ===========================================================================
   # Result Struct
@@ -52,14 +51,14 @@ defmodule ElixirOntologies.Extractors.Struct do
 
   - `:fields` - List of struct field definitions
   - `:enforce_keys` - List of field names from @enforce_keys
-  - `:derives` - List of @derive directives (from Protocol.DeriveInfo)
+  - `:derives` - List of @derive directives (from Helpers.DeriveInfo)
   - `:location` - Source location if available
   - `:metadata` - Additional information
   """
   @type t :: %__MODULE__{
           fields: [field()],
           enforce_keys: [atom()],
-          derives: [Protocol.DeriveInfo.t()],
+          derives: [Helpers.DeriveInfo.t()],
           location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
           metadata: map()
         }
@@ -114,7 +113,7 @@ defmodule ElixirOntologies.Extractors.Struct do
     @type t :: %__MODULE__{
             fields: [ElixirOntologies.Extractors.Struct.field()],
             enforce_keys: [atom()],
-            derives: [ElixirOntologies.Extractors.Protocol.DeriveInfo.t()],
+            derives: [ElixirOntologies.Extractors.Helpers.DeriveInfo.t()],
             has_custom_message: boolean(),
             default_message: String.t() | nil,
             location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
@@ -211,16 +210,9 @@ defmodule ElixirOntologies.Extractors.Struct do
   def extract(node, opts \\ [])
 
   def extract({:defstruct, meta, [fields_ast]}, opts) do
-    include_location = Keyword.get(opts, :include_location, true)
-
-    location =
-      if include_location do
-        Helpers.extract_location({:defstruct, meta, []})
-      else
-        nil
-      end
-
+    location = Helpers.extract_location_if({:defstruct, meta, []}, opts)
     fields = extract_fields(fields_ast)
+    fields_with_defaults = Enum.count(fields, & &1.has_default)
 
     {:ok,
      %__MODULE__{
@@ -228,7 +220,11 @@ defmodule ElixirOntologies.Extractors.Struct do
        enforce_keys: [],
        derives: [],
        location: location,
-       metadata: %{}
+       metadata: %{
+         field_count: length(fields),
+         fields_with_defaults: fields_with_defaults,
+         line: Keyword.get(meta, :line)
+       }
      }}
   end
 
@@ -299,7 +295,7 @@ defmodule ElixirOntologies.Extractors.Struct do
         case extract(defstruct_node, opts) do
           {:ok, struct} ->
             enforce_keys = extract_enforce_keys(body)
-            derives = Protocol.extract_derives(body)
+            derives = Helpers.extract_derives(body)
 
             {:ok, %{struct | enforce_keys: enforce_keys, derives: derives}}
 
@@ -390,15 +386,7 @@ defmodule ElixirOntologies.Extractors.Struct do
   def extract_exception(node, opts \\ [])
 
   def extract_exception({:defexception, meta, [fields_ast]}, opts) do
-    include_location = Keyword.get(opts, :include_location, true)
-
-    location =
-      if include_location do
-        Helpers.extract_location({:defexception, meta, []})
-      else
-        nil
-      end
-
+    location = Helpers.extract_location_if({:defexception, meta, []}, opts)
     fields = extract_fields(fields_ast)
     default_message = extract_default_message(fields)
 
@@ -410,7 +398,11 @@ defmodule ElixirOntologies.Extractors.Struct do
        has_custom_message: false,
        default_message: default_message,
        location: location,
-       metadata: %{}
+       metadata: %{
+         field_count: length(fields),
+         has_default_message: not is_nil(default_message),
+         line: Keyword.get(meta, :line)
+       }
      }}
   end
 
@@ -482,7 +474,7 @@ defmodule ElixirOntologies.Extractors.Struct do
         case extract_exception(defexception_node, opts) do
           {:ok, exception} ->
             enforce_keys = extract_enforce_keys(body)
-            derives = Protocol.extract_derives(body)
+            derives = Helpers.extract_derives(body)
             has_custom_message = has_custom_message?(statements)
 
             {:ok,

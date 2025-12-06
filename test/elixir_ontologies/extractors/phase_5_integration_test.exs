@@ -567,5 +567,51 @@ defmodule ElixirOntologies.Extractors.Phase5IntegrationTest do
       assert Struct.has_derives?(struct_result)
       assert length(struct_result.fields) == 3
     end
+
+    test "exception implementing behaviour" do
+      exception_code = """
+      defmodule Formattable do
+        @callback format() :: String.t()
+      end
+
+      defmodule MyError do
+        @behaviour Formattable
+        defexception [:type, :reason, message: "An error occurred"]
+
+        @impl Formattable
+        def format do
+          "Error"
+        end
+
+        @impl true
+        def message(%{type: type, reason: reason}) do
+          "[\#{type}] \#{reason}"
+        end
+      end
+      """
+
+      {:ok, {:__block__, _, [behaviour_module, exception_module]}} = Code.string_to_quoted(exception_code)
+
+      # Extract behaviour
+      {:ok, {:defmodule, _, [_, [do: behaviour_body]]}} = {:ok, behaviour_module}
+      behaviour = Behaviour.extract_from_body(behaviour_body)
+      assert length(behaviour.callbacks) == 1
+      assert hd(behaviour.callbacks).name == :format
+
+      # Extract exception module body
+      {:ok, {:defmodule, _, [_, [do: exception_body]]}} = {:ok, exception_module}
+
+      # Verify exception extraction
+      {:ok, exception} = Struct.extract_exception_from_body(exception_body)
+      assert exception.has_custom_message == true
+      assert exception.default_message == "An error occurred"
+      assert length(exception.fields) == 3
+
+      # Verify behaviour implementation
+      impl_result = Behaviour.extract_implementations(exception_body)
+      assert Behaviour.implements?(impl_result, Formattable)
+      assert {:format, 0} in impl_result.functions
+      assert {:message, 1} in impl_result.functions
+    end
   end
 end

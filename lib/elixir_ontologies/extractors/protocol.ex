@@ -140,38 +140,12 @@ defmodule ElixirOntologies.Extractors.Protocol do
   end
 
   # ===========================================================================
-  # Derive Info Struct
+  # Derive Info Struct (Alias for backward compatibility)
   # ===========================================================================
 
-  defmodule DeriveInfo do
-    @moduledoc """
-    Represents a `@derive` directive.
-    """
-
-    @typedoc """
-    Information about a @derive directive.
-
-    - `:protocols` - List of derived protocols (with options)
-    - `:location` - Source location
-    """
-    @type t :: %__MODULE__{
-            protocols: [derive_protocol()],
-            location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
-          }
-
-    @typedoc """
-    A protocol in a @derive directive.
-    """
-    @type derive_protocol :: %{
-            protocol: [atom()] | atom(),
-            options: keyword() | nil
-          }
-
-    defstruct [
-      protocols: [],
-      location: nil
-    ]
-  end
+  # DeriveInfo is now defined in Helpers, but we keep an alias here for
+  # backward compatibility with code that uses Protocol.DeriveInfo
+  alias Helpers.DeriveInfo
 
   # ===========================================================================
   # Type Detection
@@ -243,15 +217,8 @@ defmodule ElixirOntologies.Extractors.Protocol do
   def extract(node, opts \\ [])
 
   def extract({:defprotocol, meta, [{:__aliases__, _alias_meta, name_parts}, body_opts]}, opts) do
-    include_location = Keyword.get(opts, :include_location, true)
     body = Helpers.extract_do_body(body_opts)
-
-    location =
-      if include_location do
-        Helpers.extract_location({:defprotocol, meta, []})
-      else
-        nil
-      end
+    location = Helpers.extract_location_if({:defprotocol, meta, []}, opts)
 
     {functions, _pending_doc, _pending_spec} = extract_protocol_functions(body)
     fallback_to_any = extract_fallback_to_any(body)
@@ -266,7 +233,12 @@ defmodule ElixirOntologies.Extractors.Protocol do
        doc: doc,
        typedoc: typedoc,
        location: location,
-       metadata: %{}
+       metadata: %{
+         function_count: length(functions),
+         has_doc: not is_nil(doc) and doc != false,
+         has_typedoc: not is_nil(typedoc),
+         line: Keyword.get(meta, :line)
+       }
      }}
   end
 
@@ -366,15 +338,8 @@ defmodule ElixirOntologies.Extractors.Protocol do
         {:defimpl, meta, [{:__aliases__, _, protocol_parts}, [for: for_type_ast], body_opts]},
         opts
       ) do
-    include_location = Keyword.get(opts, :include_location, true)
     body = Helpers.extract_do_body(body_opts)
-
-    location =
-      if include_location do
-        Helpers.extract_location({:defimpl, meta, []})
-      else
-        nil
-      end
+    location = Helpers.extract_location_if({:defimpl, meta, []}, opts)
 
     for_type = extract_type_name(for_type_ast)
     is_any = for_type == [:Any] or for_type == :Any
@@ -387,7 +352,11 @@ defmodule ElixirOntologies.Extractors.Protocol do
        functions: functions,
        is_any: is_any,
        location: location,
-       metadata: %{}
+       metadata: %{
+         function_count: length(functions),
+         inline: false,
+         line: Keyword.get(meta, :line)
+       }
      }}
   end
 
@@ -397,15 +366,8 @@ defmodule ElixirOntologies.Extractors.Protocol do
         opts
       )
       when is_list(body_opts) do
-    include_location = Keyword.get(opts, :include_location, true)
     body = Helpers.extract_do_body(body_opts)
-
-    location =
-      if include_location do
-        Helpers.extract_location({:defimpl, meta, []})
-      else
-        nil
-      end
+    location = Helpers.extract_location_if({:defimpl, meta, []}, opts)
 
     functions = extract_impl_functions(body)
 
@@ -416,7 +378,11 @@ defmodule ElixirOntologies.Extractors.Protocol do
        functions: functions,
        is_any: false,
        location: location,
-       metadata: %{inline: true}
+       metadata: %{
+         function_count: length(functions),
+         inline: true,
+         line: Keyword.get(meta, :line)
+       }
      }}
   end
 
@@ -478,6 +444,8 @@ defmodule ElixirOntologies.Extractors.Protocol do
   @doc """
   Extracts @derive directives from a module body.
 
+  Delegates to `Helpers.extract_derives/1`.
+
   ## Examples
 
       iex> alias ElixirOntologies.Extractors.Protocol
@@ -490,49 +458,7 @@ defmodule ElixirOntologies.Extractors.Protocol do
       [[:Inspect], [:Enumerable]]
   """
   @spec extract_derives(Macro.t()) :: [DeriveInfo.t()]
-  def extract_derives(body) do
-    body
-    |> Helpers.normalize_body()
-    |> Enum.filter(&derive_attribute?/1)
-    |> Enum.map(&extract_single_derive/1)
-  end
-
-  defp derive_attribute?({:@, _meta, [{:derive, _attr_meta, _args}]}), do: true
-  defp derive_attribute?(_), do: false
-
-  defp extract_single_derive({:@, meta, [{:derive, _attr_meta, [protocols]}]}) do
-    location = Helpers.extract_location({:@, meta, []})
-    protocol_list = normalize_derive_protocols(protocols)
-
-    %DeriveInfo{
-      protocols: protocol_list,
-      location: location
-    }
-  end
-
-  defp normalize_derive_protocols(protocols) when is_list(protocols) do
-    Enum.map(protocols, &normalize_derive_protocol/1)
-  end
-
-  defp normalize_derive_protocols(single) do
-    [normalize_derive_protocol(single)]
-  end
-
-  defp normalize_derive_protocol({:__aliases__, _, parts}) do
-    %{protocol: parts, options: nil}
-  end
-
-  defp normalize_derive_protocol({{:__aliases__, _, parts}, opts}) when is_list(opts) do
-    %{protocol: parts, options: opts}
-  end
-
-  defp normalize_derive_protocol(atom) when is_atom(atom) do
-    %{protocol: atom, options: nil}
-  end
-
-  defp normalize_derive_protocol({atom, opts}) when is_atom(atom) and is_list(opts) do
-    %{protocol: atom, options: opts}
-  end
+  defdelegate extract_derives(body), to: Helpers
 
   # ===========================================================================
   # Protocol Function Extraction
@@ -549,9 +475,10 @@ defmodule ElixirOntologies.Extractors.Protocol do
         {:@, _meta, [{:spec, _spec_meta, [spec_value]}]}, {fns, doc, _spec} ->
           {fns, doc, spec_value}
 
-        # Protocol function (def without body)
-        {:def, meta, [{name, _call_meta, args}]}, {fns, doc, spec} when is_atom(name) ->
-          params = extract_parameter_names(args)
+        # Protocol function with when clause (must come before regular def)
+        {:def, meta, [{:when, _, [{name, _call_meta, args} | _guards]}]}, {fns, doc, spec}
+        when is_atom(name) ->
+          params = Helpers.extract_parameter_names(args)
           arity = length(params)
 
           location = Helpers.extract_location({:def, meta, []})
@@ -567,10 +494,9 @@ defmodule ElixirOntologies.Extractors.Protocol do
 
           {[fn_info | fns], nil, nil}
 
-        # Protocol function with when clause
-        {:def, meta, [{:when, _, [{name, _call_meta, args} | _guards]}]}, {fns, doc, spec}
-        when is_atom(name) ->
-          params = extract_parameter_names(args)
+        # Protocol function (def without body, no guard)
+        {:def, meta, [{name, _call_meta, args}]}, {fns, doc, spec} when is_atom(name) and name != :when ->
+          params = Helpers.extract_parameter_names(args)
           arity = length(params)
 
           location = Helpers.extract_location({:def, meta, []})
@@ -594,16 +520,6 @@ defmodule ElixirOntologies.Extractors.Protocol do
     {Enum.reverse(functions), pending_doc, pending_spec}
   end
 
-  defp extract_parameter_names(nil), do: []
-
-  defp extract_parameter_names(args) when is_list(args) do
-    Enum.map(args, fn
-      {name, _meta, context} when is_atom(name) and is_atom(context) -> name
-      {name, _meta, _args} when is_atom(name) -> name
-      _ -> :_
-    end)
-  end
-
   # ===========================================================================
   # Implementation Function Extraction
   # ===========================================================================
@@ -619,7 +535,7 @@ defmodule ElixirOntologies.Extractors.Protocol do
   end
 
   defp extract_impl_function({def_type, meta, [{name, _call_meta, args} | rest]}) when is_atom(name) do
-    arity = if is_list(args), do: length(args), else: 0
+    arity = Helpers.compute_arity(args)
     has_body = has_function_body?(rest)
     location = Helpers.extract_location({def_type, meta, []})
 
@@ -633,7 +549,7 @@ defmodule ElixirOntologies.Extractors.Protocol do
 
   defp extract_impl_function({def_type, meta, [{:when, _, [{name, _call_meta, args} | _]} | rest]})
        when is_atom(name) do
-    arity = if is_list(args), do: length(args), else: 0
+    arity = Helpers.compute_arity(args)
     has_body = has_function_body?(rest)
     location = Helpers.extract_location({def_type, meta, []})
 

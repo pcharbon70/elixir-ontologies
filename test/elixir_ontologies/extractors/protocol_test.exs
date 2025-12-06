@@ -498,5 +498,26 @@ defmodule ElixirOntologies.Extractors.ProtocolTest do
       jason_proto = Enum.find(derive.protocols, &(&1.protocol == [:Jason, :Encoder]))
       assert jason_proto.options == [only: [:id, :name]]
     end
+
+    test "protocol function with guard clause" do
+      code = """
+      defprotocol Guarded do
+        @doc "Validates and converts data"
+        def validate(data) when is_map(data)
+      end
+      """
+
+      {:ok, ast} = Code.string_to_quoted(code)
+      {:ok, proto} = Protocol.extract(ast)
+
+      assert proto.name == [:Guarded]
+      assert length(proto.functions) == 1
+
+      [func] = proto.functions
+      assert func.name == :validate
+      assert func.arity == 1
+      assert func.parameters == [:data]
+      assert func.doc == "Validates and converts data"
+    end
   end
 end
