@@ -73,6 +73,72 @@ defmodule ElixirOntologies.Extractors.OTP.GenServer do
   ]
 
   # ===========================================================================
+  # Callback Struct
+  # ===========================================================================
+
+  defmodule Callback do
+    @moduledoc """
+    Represents an extracted GenServer callback function.
+    """
+
+    @typedoc """
+    The type of GenServer callback.
+    """
+    @type callback_type ::
+            :init
+            | :handle_call
+            | :handle_cast
+            | :handle_info
+            | :handle_continue
+            | :terminate
+            | :code_change
+            | :format_status
+
+    @typedoc """
+    An extracted GenServer callback.
+
+    - `:type` - The callback type (init, handle_call, etc.)
+    - `:name` - Function name (always matches type)
+    - `:arity` - Function arity
+    - `:clauses` - Number of function clauses
+    - `:has_impl` - Whether @impl annotation is present
+    - `:location` - Source location of first clause
+    - `:metadata` - Additional information
+    """
+    @type t :: %__MODULE__{
+            type: callback_type(),
+            name: atom(),
+            arity: non_neg_integer(),
+            clauses: non_neg_integer(),
+            has_impl: boolean(),
+            location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
+            metadata: map()
+          }
+
+    defstruct [
+      type: :init,
+      name: :init,
+      arity: 1,
+      clauses: 1,
+      has_impl: false,
+      location: nil,
+      metadata: %{}
+    ]
+  end
+
+  # GenServer callback specifications: {name, arity, type}
+  @genserver_callbacks [
+    {:init, 1, :init},
+    {:handle_call, 3, :handle_call},
+    {:handle_cast, 2, :handle_cast},
+    {:handle_info, 2, :handle_info},
+    {:handle_continue, 2, :handle_continue},
+    {:terminate, 2, :terminate},
+    {:code_change, 3, :code_change},
+    {:format_status, 1, :format_status}
+  ]
+
+  # ===========================================================================
   # Type Detection
   # ===========================================================================
 
@@ -323,6 +389,181 @@ defmodule ElixirOntologies.Extractors.OTP.GenServer do
   def otp_behaviour, do: :genserver
 
   # ===========================================================================
+  # Callback Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts all GenServer callbacks from a module body.
+
+  Returns a list of `Callback` structs for each detected callback.
+
+  ## Options
+
+  - `:include_location` - Whether to extract source location (default: true)
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
+      iex> code = "defmodule C do use GenServer; def init(s), do: {:ok, s} end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> callbacks = GenServerExtractor.extract_callbacks(body)
+      iex> length(callbacks)
+      1
+      iex> hd(callbacks).type
+      :init
+
+      iex> alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
+      iex> code = "defmodule C do use GenServer; def init(s), do: {:ok, s}; def handle_call(r,f,s), do: {:reply,:ok,s} end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> callbacks = GenServerExtractor.extract_callbacks(body)
+      iex> length(callbacks)
+      2
+      iex> Enum.map(callbacks, & &1.type)
+      [:init, :handle_call]
+  """
+  @spec extract_callbacks(Macro.t(), keyword()) :: [Callback.t()]
+  def extract_callbacks(body, opts \\ []) do
+    statements = Helpers.normalize_body(body)
+
+    # Find all @impl annotations
+    impl_positions = find_impl_positions(statements)
+
+    # Extract callbacks for each known GenServer callback type
+    @genserver_callbacks
+    |> Enum.flat_map(fn {name, arity, type} ->
+      extract_callback_type(statements, name, arity, type, impl_positions, opts)
+    end)
+    |> Enum.sort_by(fn cb -> {cb.location && cb.location.start_line, cb.name} end)
+  end
+
+  @doc """
+  Checks if a function definition is a GenServer callback.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
+      iex> code = "def init(state), do: {:ok, state}"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> GenServerExtractor.genserver_callback?(ast)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
+      iex> code = "def handle_call(request, from, state), do: {:reply, :ok, state}"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> GenServerExtractor.genserver_callback?(ast)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
+      iex> code = "def my_function(arg), do: arg"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> GenServerExtractor.genserver_callback?(ast)
+      false
+  """
+  @spec genserver_callback?(Macro.t()) :: boolean()
+  def genserver_callback?(node) do
+    case extract_def_signature(node) do
+      {name, arity} ->
+        Enum.any?(@genserver_callbacks, fn {cb_name, cb_arity, _type} ->
+          name == cb_name and arity == cb_arity
+        end)
+
+      nil ->
+        false
+    end
+  end
+
+  @doc """
+  Returns the callback type for a function definition.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
+      iex> code = "def init(state), do: {:ok, state}"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> GenServerExtractor.callback_type(ast)
+      :init
+
+      iex> alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
+      iex> code = "def handle_cast(msg, state), do: {:noreply, state}"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> GenServerExtractor.callback_type(ast)
+      :handle_cast
+
+      iex> alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
+      iex> code = "def my_function(arg), do: arg"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> GenServerExtractor.callback_type(ast)
+      nil
+  """
+  @spec callback_type(Macro.t()) :: Callback.callback_type() | nil
+  def callback_type(node) do
+    case extract_def_signature(node) do
+      {name, arity} ->
+        case Enum.find(@genserver_callbacks, fn {cb_name, cb_arity, _type} ->
+               name == cb_name and arity == cb_arity
+             end) do
+          {_name, _arity, type} -> type
+          nil -> nil
+        end
+
+      nil ->
+        nil
+    end
+  end
+
+  @doc """
+  Extracts a specific callback type from module body.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
+      iex> code = "defmodule C do def init(s), do: {:ok, s}; def init(s, o), do: {:ok, {s,o}} end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> callbacks = GenServerExtractor.extract_callback(body, :init)
+      iex> length(callbacks)
+      1
+      iex> hd(callbacks).clauses
+      1
+
+      iex> alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
+      iex> code = "defmodule C do def handle_call(:get, _from, s), do: {:reply, s, s}; def handle_call(:put, _from, s), do: {:reply, :ok, s} end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> callbacks = GenServerExtractor.extract_callback(body, :handle_call)
+      iex> hd(callbacks).clauses
+      2
+  """
+  @spec extract_callback(Macro.t(), Callback.callback_type(), keyword()) :: [Callback.t()]
+  def extract_callback(body, type, opts \\ []) do
+    statements = Helpers.normalize_body(body)
+    impl_positions = find_impl_positions(statements)
+
+    case Enum.find(@genserver_callbacks, fn {_name, _arity, cb_type} -> cb_type == type end) do
+      {name, arity, cb_type} ->
+        extract_callback_type(statements, name, arity, cb_type, impl_positions, opts)
+
+      nil ->
+        []
+    end
+  end
+
+  @doc """
+  Returns the list of known GenServer callback specifications.
+
+  Each tuple contains `{name, arity, type}`.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
+      iex> specs = GenServerExtractor.callback_specs()
+      iex> {:init, 1, :init} in specs
+      true
+      iex> {:handle_call, 3, :handle_call} in specs
+      true
+  """
+  @spec callback_specs() :: [{atom(), non_neg_integer(), Callback.callback_type()}]
+  def callback_specs, do: @genserver_callbacks
+
+  # ===========================================================================
   # Private Helpers
   # ===========================================================================
 
@@ -376,6 +617,92 @@ defmodule ElixirOntologies.Extractors.OTP.GenServer do
     case Enum.find(statements, &use_genserver?/1) do
       nil -> nil
       node -> extract_use_options(node)
+    end
+  end
+
+  # ===========================================================================
+  # Callback Extraction Helpers
+  # ===========================================================================
+
+  # Extract signature {name, arity} from a def node
+  defp extract_def_signature({:def, _meta, [{:when, _, [{name, _call_meta, args} | _]} | _]})
+       when is_atom(name) and name != :when do
+    {name, length(args || [])}
+  end
+
+  defp extract_def_signature({:def, _meta, [{name, _call_meta, args} | _]})
+       when is_atom(name) and name != :when do
+    {name, length(args || [])}
+  end
+
+  defp extract_def_signature(_), do: nil
+
+  # Find positions (line numbers) of @impl annotations
+  defp find_impl_positions(statements) do
+    statements
+    |> Enum.with_index()
+    |> Enum.reduce(%{}, fn {statement, index}, acc ->
+      case statement do
+        {:@, meta, [{:impl, _attr_meta, [true]}]} ->
+          line = Keyword.get(meta, :line)
+          Map.put(acc, index, line)
+
+        {:@, meta, [{:impl, _attr_meta, [{:__aliases__, _, _}]}]} ->
+          # @impl SomeBehaviour
+          line = Keyword.get(meta, :line)
+          Map.put(acc, index, line)
+
+        {:@, meta, [{:impl, _attr_meta, [atom]}]} when is_atom(atom) and atom != false ->
+          # @impl GenServer
+          line = Keyword.get(meta, :line)
+          Map.put(acc, index, line)
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  # Check if a def at position has @impl before it
+  defp has_impl_annotation?(_statements, def_index, impl_positions) do
+    # Check if there's an @impl immediately before this def
+    Map.has_key?(impl_positions, def_index - 1)
+  end
+
+  # Extract a specific callback type from statements
+  defp extract_callback_type(statements, name, arity, type, impl_positions, opts) do
+    # Find all clauses matching this callback signature
+    clauses_with_index =
+      statements
+      |> Enum.with_index()
+      |> Enum.filter(fn {statement, _index} ->
+        case extract_def_signature(statement) do
+          {^name, ^arity} -> true
+          _ -> false
+        end
+      end)
+
+    case clauses_with_index do
+      [] ->
+        []
+
+      [{first_clause, first_index} | _rest] ->
+        location = Helpers.extract_location_if(first_clause, opts)
+        has_impl = has_impl_annotation?(statements, first_index, impl_positions)
+
+        [
+          %Callback{
+            type: type,
+            name: name,
+            arity: arity,
+            clauses: length(clauses_with_index),
+            has_impl: has_impl,
+            location: location,
+            metadata: %{
+              clause_count: length(clauses_with_index)
+            }
+          }
+        ]
     end
   end
 end

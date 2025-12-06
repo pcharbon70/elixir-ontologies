@@ -18,26 +18,26 @@ Detect modules implementing GenServer behaviour.
 - [x] 6.1.1.5 Write GenServer detection tests (success: 39 tests)
 
 ### 6.1.2 GenServer Callback Extraction
-- [ ] **Task 6.1.2 Complete**
+- [x] **Task 6.1.2 Complete**
 
 Extract GenServer callbacks.
 
-- [ ] 6.1.2.1 Detect `init/1` as `InitCallback`
-- [ ] 6.1.2.2 Detect `handle_call/3` as `HandleCallCallback`
-- [ ] 6.1.2.3 Detect `handle_cast/2` as `HandleCastCallback`
-- [ ] 6.1.2.4 Detect `handle_info/2` as `HandleInfoCallback`
-- [ ] 6.1.2.5 Detect `handle_continue/2` as `HandleContinueCallback`
-- [ ] 6.1.2.6 Detect `terminate/2` as `TerminateCallback`
-- [ ] 6.1.2.7 Link via `hasGenServerCallback`
-- [ ] 6.1.2.8 Write callback extraction tests (success: 10 tests)
+- [x] 6.1.2.1 Detect `init/1` as `InitCallback`
+- [x] 6.1.2.2 Detect `handle_call/3` as `HandleCallCallback`
+- [x] 6.1.2.3 Detect `handle_cast/2` as `HandleCastCallback`
+- [x] 6.1.2.4 Detect `handle_info/2` as `HandleInfoCallback`
+- [x] 6.1.2.5 Detect `handle_continue/2` as `HandleContinueCallback`
+- [x] 6.1.2.6 Detect `terminate/2` as `TerminateCallback`
+- [x] 6.1.2.7 Link via `hasGenServerCallback`
+- [x] 6.1.2.8 Write callback extraction tests (success: 30 tests)
 
 **Section 6.1 Unit Tests:**
-- [ ] Test GenServer detection via use
-- [ ] Test GenServer detection via @behaviour
-- [ ] Test init/1 extraction
-- [ ] Test handle_call/3 extraction
-- [ ] Test handle_cast/2 extraction
-- [ ] Test handle_info/2 extraction
+- [x] Test GenServer detection via use
+- [x] Test GenServer detection via @behaviour
+- [x] Test init/1 extraction
+- [x] Test handle_call/3 extraction
+- [x] Test handle_cast/2 extraction
+- [x] Test handle_info/2 extraction
 
 ## 6.2 Supervisor Extractor
 

@@ -329,4 +329,367 @@ defmodule ElixirOntologies.Extractors.OTP.GenServerTest do
       assert result.detection_method == :use
     end
   end
+
+  # ===========================================================================
+  # Callback Extraction Tests
+  # ===========================================================================
+
+  describe "extract_callbacks/2" do
+    test "extracts init/1 callback" do
+      body = parse_module_body("defmodule C do use GenServer; def init(s), do: {:ok, s} end")
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).type == :init
+      assert hd(callbacks).name == :init
+      assert hd(callbacks).arity == 1
+    end
+
+    test "extracts handle_call/3 callback" do
+      body = parse_module_body("defmodule C do use GenServer; def handle_call(r,f,s), do: {:reply,:ok,s} end")
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).type == :handle_call
+      assert hd(callbacks).arity == 3
+    end
+
+    test "extracts handle_cast/2 callback" do
+      body = parse_module_body("defmodule C do use GenServer; def handle_cast(m,s), do: {:noreply,s} end")
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).type == :handle_cast
+      assert hd(callbacks).arity == 2
+    end
+
+    test "extracts handle_info/2 callback" do
+      body = parse_module_body("defmodule C do use GenServer; def handle_info(m,s), do: {:noreply,s} end")
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).type == :handle_info
+      assert hd(callbacks).arity == 2
+    end
+
+    test "extracts handle_continue/2 callback" do
+      body = parse_module_body("defmodule C do use GenServer; def handle_continue(c,s), do: {:noreply,s} end")
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).type == :handle_continue
+      assert hd(callbacks).arity == 2
+    end
+
+    test "extracts terminate/2 callback" do
+      body = parse_module_body("defmodule C do use GenServer; def terminate(r,s), do: :ok end")
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).type == :terminate
+      assert hd(callbacks).arity == 2
+    end
+
+    test "extracts multiple callbacks" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        def init(state), do: {:ok, state}
+        def handle_call(:get, _from, state), do: {:reply, state, state}
+        def handle_cast({:put, val}, _state), do: {:noreply, val}
+      end
+      """
+
+      body = parse_module_body(code)
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 3
+      types = Enum.map(callbacks, & &1.type)
+      assert :init in types
+      assert :handle_call in types
+      assert :handle_cast in types
+    end
+
+    test "counts multiple clauses for same callback" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        def handle_call(:get, _from, state), do: {:reply, state, state}
+        def handle_call(:inc, _from, state), do: {:reply, :ok, state + 1}
+        def handle_call(:dec, _from, state), do: {:reply, :ok, state - 1}
+      end
+      """
+
+      body = parse_module_body(code)
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).clauses == 3
+    end
+
+    test "returns empty list for module without callbacks" do
+      body = parse_module_body("defmodule C do use GenServer end")
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert callbacks == []
+    end
+
+    test "ignores non-callback functions" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
+        def init(state), do: {:ok, state}
+        def get(pid), do: GenServer.call(pid, :get)
+      end
+      """
+
+      body = parse_module_body(code)
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      # Only init/1 is a GenServer callback
+      assert length(callbacks) == 1
+      assert hd(callbacks).type == :init
+    end
+  end
+
+  # ===========================================================================
+  # @impl Detection Tests
+  # ===========================================================================
+
+  describe "@impl annotation detection" do
+    test "detects @impl true before callback" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        @impl true
+        def init(state), do: {:ok, state}
+      end
+      """
+
+      body = parse_module_body(code)
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).has_impl == true
+    end
+
+    test "detects @impl GenServer before callback" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        @impl GenServer
+        def init(state), do: {:ok, state}
+      end
+      """
+
+      body = parse_module_body(code)
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).has_impl == true
+    end
+
+    test "has_impl is false when no @impl annotation" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        def init(state), do: {:ok, state}
+      end
+      """
+
+      body = parse_module_body(code)
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).has_impl == false
+    end
+
+    test "@impl only applies to immediately following function" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        @impl true
+        def init(state), do: {:ok, state}
+
+        def handle_call(:get, _from, state), do: {:reply, state, state}
+      end
+      """
+
+      body = parse_module_body(code)
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      init_cb = Enum.find(callbacks, & &1.type == :init)
+      call_cb = Enum.find(callbacks, & &1.type == :handle_call)
+
+      assert init_cb.has_impl == true
+      assert call_cb.has_impl == false
+    end
+  end
+
+  # ===========================================================================
+  # genserver_callback?/1 Tests
+  # ===========================================================================
+
+  describe "genserver_callback?/1" do
+    test "returns true for init/1" do
+      ast = parse_statement("def init(state), do: {:ok, state}")
+      assert GenServerExtractor.genserver_callback?(ast)
+    end
+
+    test "returns true for handle_call/3" do
+      ast = parse_statement("def handle_call(req, from, state), do: {:reply, :ok, state}")
+      assert GenServerExtractor.genserver_callback?(ast)
+    end
+
+    test "returns true for handle_cast/2" do
+      ast = parse_statement("def handle_cast(msg, state), do: {:noreply, state}")
+      assert GenServerExtractor.genserver_callback?(ast)
+    end
+
+    test "returns true for handle_info/2" do
+      ast = parse_statement("def handle_info(msg, state), do: {:noreply, state}")
+      assert GenServerExtractor.genserver_callback?(ast)
+    end
+
+    test "returns true for terminate/2" do
+      ast = parse_statement("def terminate(reason, state), do: :ok")
+      assert GenServerExtractor.genserver_callback?(ast)
+    end
+
+    test "returns false for non-callback functions" do
+      ast = parse_statement("def my_function(arg), do: arg")
+      refute GenServerExtractor.genserver_callback?(ast)
+    end
+
+    test "returns false for wrong arity" do
+      ast = parse_statement("def init(a, b), do: {:ok, a}")
+      refute GenServerExtractor.genserver_callback?(ast)
+    end
+  end
+
+  # ===========================================================================
+  # callback_type/1 Tests
+  # ===========================================================================
+
+  describe "callback_type/1" do
+    test "returns :init for init/1" do
+      ast = parse_statement("def init(state), do: {:ok, state}")
+      assert GenServerExtractor.callback_type(ast) == :init
+    end
+
+    test "returns :handle_call for handle_call/3" do
+      ast = parse_statement("def handle_call(req, from, state), do: {:reply, :ok, state}")
+      assert GenServerExtractor.callback_type(ast) == :handle_call
+    end
+
+    test "returns :handle_cast for handle_cast/2" do
+      ast = parse_statement("def handle_cast(msg, state), do: {:noreply, state}")
+      assert GenServerExtractor.callback_type(ast) == :handle_cast
+    end
+
+    test "returns nil for non-callback" do
+      ast = parse_statement("def my_function(arg), do: arg")
+      assert GenServerExtractor.callback_type(ast) == nil
+    end
+  end
+
+  # ===========================================================================
+  # extract_callback/3 Tests
+  # ===========================================================================
+
+  describe "extract_callback/3" do
+    test "extracts specific callback type" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        def init(state), do: {:ok, state}
+        def handle_call(:get, _from, state), do: {:reply, state, state}
+      end
+      """
+
+      body = parse_module_body(code)
+
+      init_cbs = GenServerExtractor.extract_callback(body, :init)
+      assert length(init_cbs) == 1
+      assert hd(init_cbs).type == :init
+
+      call_cbs = GenServerExtractor.extract_callback(body, :handle_call)
+      assert length(call_cbs) == 1
+      assert hd(call_cbs).type == :handle_call
+    end
+
+    test "returns empty for missing callback type" do
+      body = parse_module_body("defmodule C do use GenServer; def init(s), do: {:ok, s} end")
+
+      result = GenServerExtractor.extract_callback(body, :handle_cast)
+      assert result == []
+    end
+  end
+
+  # ===========================================================================
+  # callback_specs/0 Tests
+  # ===========================================================================
+
+  describe "callback_specs/0" do
+    test "includes all standard GenServer callbacks" do
+      specs = GenServerExtractor.callback_specs()
+
+      assert {:init, 1, :init} in specs
+      assert {:handle_call, 3, :handle_call} in specs
+      assert {:handle_cast, 2, :handle_cast} in specs
+      assert {:handle_info, 2, :handle_info} in specs
+      assert {:handle_continue, 2, :handle_continue} in specs
+      assert {:terminate, 2, :terminate} in specs
+      assert {:code_change, 3, :code_change} in specs
+      assert {:format_status, 1, :format_status} in specs
+    end
+  end
+
+  # ===========================================================================
+  # Callback with Guards Tests
+  # ===========================================================================
+
+  describe "callbacks with guards" do
+    test "extracts callback with when guard" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        def handle_info(msg, state) when is_atom(msg), do: {:noreply, state}
+      end
+      """
+
+      body = parse_module_body(code)
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).type == :handle_info
+    end
+
+    test "counts guarded clauses correctly" do
+      code = """
+      defmodule Counter do
+        use GenServer
+
+        def handle_info(msg, state) when is_atom(msg), do: {:noreply, state}
+        def handle_info(msg, state) when is_binary(msg), do: {:noreply, state}
+      end
+      """
+
+      body = parse_module_body(code)
+      callbacks = GenServerExtractor.extract_callbacks(body)
+
+      assert length(callbacks) == 1
+      assert hd(callbacks).clauses == 2
+    end
+  end
 end
