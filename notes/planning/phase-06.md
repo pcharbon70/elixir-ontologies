@@ -102,28 +102,28 @@ Detect Agent and Task usage.
 This section extracts ETS table definitions and usage.
 
 ### 6.4.1 ETS Table Extractor
-- [ ] **Task 6.4.1 Complete**
+- [x] **Task 6.4.1 Complete**
 
 Detect ETS table creation and configuration.
 
-- [ ] 6.4.1.1 Create `lib/elixir_ontologies/extractors/otp/ets.ex`
-- [ ] 6.4.1.2 Detect `:ets.new/2` calls
-- [ ] 6.4.1.3 Create `ETSTable` instance
-- [ ] 6.4.1.4 Extract table name via `tableName`
-- [ ] 6.4.1.5 Detect table type (`:set`, `:ordered_set`, `:bag`, `:duplicate_bag`)
-- [ ] 6.4.1.6 Classify as `SetTable`, `OrderedSetTable`, `BagTable`, `DuplicateBagTable`
-- [ ] 6.4.1.7 Detect access type (`:public`, `:protected`, `:private`)
-- [ ] 6.4.1.8 Classify as `PublicTable`, `ProtectedTable`, `PrivateTable`
-- [ ] 6.4.1.9 Extract `:read_concurrency`, `:write_concurrency` options
-- [ ] 6.4.1.10 Link owner via `ownedByProcess`
-- [ ] 6.4.1.11 Write ETS extraction tests (success: 12 tests)
+- [x] 6.4.1.1 Create `lib/elixir_ontologies/extractors/otp/ets.ex`
+- [x] 6.4.1.2 Detect `:ets.new/2` calls
+- [x] 6.4.1.3 Create `ETSTable` instance
+- [x] 6.4.1.4 Extract table name via `tableName`
+- [x] 6.4.1.5 Detect table type (`:set`, `:ordered_set`, `:bag`, `:duplicate_bag`)
+- [x] 6.4.1.6 Classify as `SetTable`, `OrderedSetTable`, `BagTable`, `DuplicateBagTable`
+- [x] 6.4.1.7 Detect access type (`:public`, `:protected`, `:private`)
+- [x] 6.4.1.8 Classify as `PublicTable`, `ProtectedTable`, `PrivateTable`
+- [x] 6.4.1.9 Extract `:read_concurrency`, `:write_concurrency` options
+- [x] 6.4.1.10 Link owner via `ownedByProcess`
+- [x] 6.4.1.11 Write ETS extraction tests (success: 77 tests - 55 unit + 22 doctests)
 
 **Section 6.4 Unit Tests:**
-- [ ] Test ETS table detection
-- [ ] Test table type classification
-- [ ] Test access type classification
-- [ ] Test concurrency options extraction
-- [ ] Test named table detection
+- [x] Test ETS table detection
+- [x] Test table type classification
+- [x] Test access type classification
+- [x] Test concurrency options extraction
+- [x] Test named table detection
 
 ## Phase 6 Integration Tests
 
