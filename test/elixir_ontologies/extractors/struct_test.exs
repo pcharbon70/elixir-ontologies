@@ -461,4 +461,255 @@ defmodule ElixirOntologies.Extractors.StructTest do
       assert Struct.required_fields(result) == []
     end
   end
+
+  # ===========================================================================
+  # Exception Type Detection Tests
+  # ===========================================================================
+
+  describe "exception?/1" do
+    test "returns true for defexception node" do
+      ast = {:defexception, [], [[:message]]}
+      assert Struct.exception?(ast)
+    end
+
+    test "returns false for defstruct node" do
+      ast = {:defstruct, [], [[:name]]}
+      refute Struct.exception?(ast)
+    end
+
+    test "returns false for atoms" do
+      refute Struct.exception?(:not_exception)
+    end
+  end
+
+  # ===========================================================================
+  # Exception Direct Extraction Tests
+  # ===========================================================================
+
+  describe "extract_exception/2" do
+    test "extracts simple exception" do
+      code = "defexception [:message]"
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      assert {:ok, result} = Struct.extract_exception(ast)
+      assert length(result.fields) == 1
+      assert hd(result.fields).name == :message
+    end
+
+    test "extracts exception with default message" do
+      code = "defexception message: \"not found\""
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      assert {:ok, result} = Struct.extract_exception(ast)
+      assert result.default_message == "not found"
+    end
+
+    test "extracts exception with multiple fields" do
+      code = "defexception [:field, :reason, message: \"error\"]"
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      assert {:ok, result} = Struct.extract_exception(ast)
+      assert length(result.fields) == 3
+      assert result.default_message == "error"
+    end
+
+    test "returns nil default_message when no message field" do
+      code = "defexception [:field, :reason]"
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      assert {:ok, result} = Struct.extract_exception(ast)
+      assert result.default_message == nil
+    end
+
+    test "returns nil default_message when message has no default" do
+      code = "defexception [:message]"
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      assert {:ok, result} = Struct.extract_exception(ast)
+      assert result.default_message == nil
+    end
+
+    test "returns error for non-exception" do
+      assert {:error, message} = Struct.extract_exception({:defstruct, [], []})
+      assert message =~ "Not a defexception"
+    end
+  end
+
+  describe "extract_exception!/2" do
+    test "returns result on success" do
+      code = "defexception [:message]"
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      result = Struct.extract_exception!(ast)
+      assert hd(result.fields).name == :message
+    end
+
+    test "raises on error" do
+      assert_raise ArgumentError, ~r/Not a defexception/, fn ->
+        Struct.extract_exception!(:not_exception)
+      end
+    end
+  end
+
+  # ===========================================================================
+  # Exception Body Extraction Tests
+  # ===========================================================================
+
+  describe "extract_exception_from_body/2" do
+    test "extracts exception from module body" do
+      code = "defmodule MyError do defexception [:message] end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      assert {:ok, result} = Struct.extract_exception_from_body(body)
+      assert length(result.fields) == 1
+    end
+
+    test "detects custom message/1 function" do
+      code = """
+      defmodule MyError do
+        defexception [:field]
+
+        def message(%{field: f}), do: "error: \#{f}"
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      assert {:ok, result} = Struct.extract_exception_from_body(body)
+      assert result.has_custom_message == true
+    end
+
+    test "detects no custom message when not present" do
+      code = "defmodule MyError do defexception message: \"oops\" end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      assert {:ok, result} = Struct.extract_exception_from_body(body)
+      assert result.has_custom_message == false
+    end
+
+    test "extracts @enforce_keys for exception" do
+      code = """
+      defmodule MyError do
+        @enforce_keys [:reason]
+        defexception [:reason, :message]
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      assert {:ok, result} = Struct.extract_exception_from_body(body)
+      assert result.enforce_keys == [:reason]
+    end
+
+    test "returns error when no defexception" do
+      code = "defmodule Plain do def foo, do: :ok end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      assert {:error, "No defexception found in module body"} =
+               Struct.extract_exception_from_body(body)
+    end
+  end
+
+  describe "extract_exception_from_body!/2" do
+    test "returns result on success" do
+      code = "defmodule E do defexception [:a] end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      result = Struct.extract_exception_from_body!(body)
+      assert hd(result.fields).name == :a
+    end
+
+    test "raises on error" do
+      code = "defmodule Plain do end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      assert_raise ArgumentError, ~r/No defexception/, fn ->
+        Struct.extract_exception_from_body!(body)
+      end
+    end
+  end
+
+  describe "defines_exception?/1" do
+    test "returns true when module has defexception" do
+      code = "defmodule MyError do defexception [:message] end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      assert Struct.defines_exception?(body)
+    end
+
+    test "returns false when module has defstruct" do
+      code = "defmodule Plain do defstruct [:name] end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      refute Struct.defines_exception?(body)
+    end
+
+    test "returns false when module has neither" do
+      code = "defmodule Plain do def foo, do: :ok end"
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+
+      refute Struct.defines_exception?(body)
+    end
+  end
+
+  # ===========================================================================
+  # Real World Exception Tests
+  # ===========================================================================
+
+  describe "real world exception scenarios" do
+    test "ArgumentError-like exception" do
+      code = """
+      defmodule MyArgumentError do
+        defexception message: "argument error"
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      {:ok, result} = Struct.extract_exception_from_body(body)
+
+      assert result.default_message == "argument error"
+      assert result.has_custom_message == false
+    end
+
+    test "KeyError-like exception with custom message" do
+      code = """
+      defmodule MyKeyError do
+        defexception [:key, :term]
+
+        @impl true
+        def message(%{key: key, term: term}) do
+          "key \#{inspect(key)} not found in: \#{inspect(term)}"
+        end
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      {:ok, result} = Struct.extract_exception_from_body(body)
+
+      assert result.has_custom_message == true
+      assert result.default_message == nil
+      assert length(result.fields) == 2
+    end
+
+    test "custom validation exception" do
+      code = """
+      defmodule ValidationError do
+        @enforce_keys [:errors]
+        defexception [:errors, message: "validation failed"]
+
+        @impl true
+        def message(%{errors: errors}) do
+          "Validation failed: \#{inspect(errors)}"
+        end
+      end
+      """
+
+      {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      {:ok, result} = Struct.extract_exception_from_body(body)
+
+      assert result.enforce_keys == [:errors]
+      assert result.default_message == "validation failed"
+      assert result.has_custom_message == true
+    end
+  end
 end

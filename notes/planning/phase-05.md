@@ -101,23 +101,23 @@ Extract defstruct definitions.
 - [x] 5.3.1.10 Write struct tests (success: 26 doctests + 41 unit tests)
 
 ### 5.3.2 Exception Extractor
-- [ ] **Task 5.3.2 Complete**
+- [x] **Task 5.3.2 Complete**
 
 Extract defexception definitions.
 
-- [ ] 5.3.2.1 Detect `defexception` AST pattern
-- [ ] 5.3.2.2 Create `Exception` (subclass of Struct)
-- [ ] 5.3.2.3 Extract exception message field
-- [ ] 5.3.2.4 Extract custom `message/1` implementation if present
-- [ ] 5.3.2.5 Write exception tests (success: 6 tests)
+- [x] 5.3.2.1 Detect `defexception` AST pattern
+- [x] 5.3.2.2 Create `Exception` (subclass of Struct)
+- [x] 5.3.2.3 Extract exception message field
+- [x] 5.3.2.4 Extract custom `message/1` implementation if present
+- [x] 5.3.2.5 Write exception tests (success: 14 doctests + 24 unit tests)
 
 **Section 5.3 Unit Tests:**
-- [ ] Test defstruct extraction
-- [ ] Test struct field extraction
-- [ ] Test default value detection
-- [ ] Test @enforce_keys extraction
-- [ ] Test @derive extraction
-- [ ] Test defexception extraction
+- [x] Test defstruct extraction
+- [x] Test struct field extraction
+- [x] Test default value detection
+- [x] Test @enforce_keys extraction
+- [x] Test @derive extraction
+- [x] Test defexception extraction
 
 ## Phase 5 Integration Tests
 

@@ -1,15 +1,16 @@
 defmodule ElixirOntologies.Extractors.Struct do
   @moduledoc """
-  Extracts struct definitions from AST nodes.
+  Extracts struct and exception definitions from AST nodes.
 
-  This module analyzes Elixir AST nodes representing `defstruct` constructs.
-  Supports the struct-related classes from elixir-structure.ttl:
+  This module analyzes Elixir AST nodes representing `defstruct` and `defexception`
+  constructs. Supports the struct-related classes from elixir-structure.ttl:
 
   - Struct: A module with defstruct
   - StructField: A field in the struct
   - EnforcedKey: A field marked in @enforce_keys
+  - Exception: A module with defexception (subtype of Struct)
 
-  ## Usage
+  ## Struct Usage
 
       iex> alias ElixirOntologies.Extractors.Struct
       iex> code = "defstruct [:name, :email, age: 0]"
@@ -28,6 +29,15 @@ defmodule ElixirOntologies.Extractors.Struct do
       iex> {:ok, result} = Struct.extract_from_body(body)
       iex> result.enforce_keys
       [:name]
+
+  ## Exception Usage
+
+      iex> alias ElixirOntologies.Extractors.Struct
+      iex> code = "defexception message: \\"not found\\""
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> {:ok, result} = Struct.extract_exception(ast)
+      iex> result.default_message
+      "not found"
   """
 
   alias ElixirOntologies.Extractors.Helpers
@@ -78,6 +88,51 @@ defmodule ElixirOntologies.Extractors.Struct do
   ]
 
   # ===========================================================================
+  # Exception Result Struct
+  # ===========================================================================
+
+  defmodule Exception do
+    @moduledoc """
+    Represents an extracted exception definition.
+
+    Exceptions are a special form of struct with additional properties:
+    - `has_custom_message` - Whether a custom `message/1` is defined
+    - `default_message` - The default message value if present
+    """
+
+    @typedoc """
+    The result of exception extraction.
+
+    - `:fields` - List of exception field definitions
+    - `:enforce_keys` - List of field names from @enforce_keys
+    - `:derives` - List of @derive directives
+    - `:has_custom_message` - Whether module defines custom message/1
+    - `:default_message` - Default message string if present
+    - `:location` - Source location if available
+    - `:metadata` - Additional information
+    """
+    @type t :: %__MODULE__{
+            fields: [ElixirOntologies.Extractors.Struct.field()],
+            enforce_keys: [atom()],
+            derives: [ElixirOntologies.Extractors.Protocol.DeriveInfo.t()],
+            has_custom_message: boolean(),
+            default_message: String.t() | nil,
+            location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
+            metadata: map()
+          }
+
+    defstruct [
+      fields: [],
+      enforce_keys: [],
+      derives: [],
+      has_custom_message: false,
+      default_message: nil,
+      location: nil,
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
   # Type Detection
   # ===========================================================================
 
@@ -98,6 +153,24 @@ defmodule ElixirOntologies.Extractors.Struct do
   @spec struct?(Macro.t()) :: boolean()
   def struct?({:defstruct, _meta, _args}), do: true
   def struct?(_), do: false
+
+  @doc """
+  Checks if an AST node represents a defexception definition.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Struct.exception?({:defexception, [], [[:message]]})
+      true
+
+      iex> ElixirOntologies.Extractors.Struct.exception?({:defstruct, [], [[:name]]})
+      false
+
+      iex> ElixirOntologies.Extractors.Struct.exception?(:not_exception)
+      false
+  """
+  @spec exception?(Macro.t()) :: boolean()
+  def exception?({:defexception, _meta, _args}), do: true
+  def exception?(_), do: false
 
   # ===========================================================================
   # Direct Extraction (from defstruct node)
@@ -280,6 +353,195 @@ defmodule ElixirOntologies.Extractors.Struct do
   end
 
   # ===========================================================================
+  # Exception Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts exception information from a defexception AST node.
+
+  Returns `{:ok, result}` with an `Exception` struct containing the fields
+  and default message if present.
+
+  ## Options
+
+  - `:include_location` - Whether to extract source location (default: true)
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Struct
+      iex> code = "defexception [:message]"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> {:ok, result} = Struct.extract_exception(ast)
+      iex> length(result.fields)
+      1
+
+      iex> alias ElixirOntologies.Extractors.Struct
+      iex> code = "defexception message: \\"not found\\""
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> {:ok, result} = Struct.extract_exception(ast)
+      iex> result.default_message
+      "not found"
+
+      iex> alias ElixirOntologies.Extractors.Struct
+      iex> Struct.extract_exception({:defstruct, [], [[:name]]})
+      {:error, "Not a defexception: {:defstruct, [], [[:name]]}"}
+  """
+  @spec extract_exception(Macro.t(), keyword()) :: {:ok, Exception.t()} | {:error, String.t()}
+  def extract_exception(node, opts \\ [])
+
+  def extract_exception({:defexception, meta, [fields_ast]}, opts) do
+    include_location = Keyword.get(opts, :include_location, true)
+
+    location =
+      if include_location do
+        Helpers.extract_location({:defexception, meta, []})
+      else
+        nil
+      end
+
+    fields = extract_fields(fields_ast)
+    default_message = extract_default_message(fields)
+
+    {:ok,
+     %Exception{
+       fields: fields,
+       enforce_keys: [],
+       derives: [],
+       has_custom_message: false,
+       default_message: default_message,
+       location: location,
+       metadata: %{}
+     }}
+  end
+
+  def extract_exception(node, _opts) do
+    {:error, Helpers.format_error("Not a defexception", node)}
+  end
+
+  @doc """
+  Extracts exception information, raising on error.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Struct
+      iex> code = "defexception [:message]"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> result = Struct.extract_exception!(ast)
+      iex> hd(result.fields).name
+      :message
+  """
+  @spec extract_exception!(Macro.t(), keyword()) :: Exception.t()
+  def extract_exception!(node, opts \\ []) do
+    case extract_exception(node, opts) do
+      {:ok, result} -> result
+      {:error, reason} -> raise ArgumentError, reason
+    end
+  end
+
+  @doc """
+  Extracts exception information from a module body.
+
+  This extracts the defexception along with @enforce_keys, @derive, and
+  detects custom message/1 implementations.
+
+  ## Options
+
+  - `:include_location` - Whether to extract source location (default: true)
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Struct
+      iex> code = "defmodule MyError do defexception [:message] end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> {:ok, result} = Struct.extract_exception_from_body(body)
+      iex> result.has_custom_message
+      false
+
+      iex> alias ElixirOntologies.Extractors.Struct
+      iex> code = "defmodule MyError do defexception [:field]; def message(%{field: f}), do: f end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> {:ok, result} = Struct.extract_exception_from_body(body)
+      iex> result.has_custom_message
+      true
+
+      iex> alias ElixirOntologies.Extractors.Struct
+      iex> code = "defmodule Plain do def foo, do: :ok end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> Struct.extract_exception_from_body(body)
+      {:error, "No defexception found in module body"}
+  """
+  @spec extract_exception_from_body(Macro.t(), keyword()) :: {:ok, Exception.t()} | {:error, String.t()}
+  def extract_exception_from_body(body, opts \\ []) do
+    statements = Helpers.normalize_body(body)
+
+    case find_defexception(statements) do
+      nil ->
+        {:error, "No defexception found in module body"}
+
+      defexception_node ->
+        case extract_exception(defexception_node, opts) do
+          {:ok, exception} ->
+            enforce_keys = extract_enforce_keys(body)
+            derives = Protocol.extract_derives(body)
+            has_custom_message = has_custom_message?(statements)
+
+            {:ok,
+             %{exception |
+               enforce_keys: enforce_keys,
+               derives: derives,
+               has_custom_message: has_custom_message
+             }}
+
+          error ->
+            error
+        end
+    end
+  end
+
+  @doc """
+  Extracts exception from module body, raising on error.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Struct
+      iex> code = "defmodule E do defexception [:a] end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> result = Struct.extract_exception_from_body!(body)
+      iex> hd(result.fields).name
+      :a
+  """
+  @spec extract_exception_from_body!(Macro.t(), keyword()) :: Exception.t()
+  def extract_exception_from_body!(body, opts \\ []) do
+    case extract_exception_from_body(body, opts) do
+      {:ok, result} -> result
+      {:error, reason} -> raise ArgumentError, reason
+    end
+  end
+
+  @doc """
+  Checks if a module body defines an exception.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Struct
+      iex> code = "defmodule MyError do defexception [:message] end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> Struct.defines_exception?(body)
+      true
+
+      iex> alias ElixirOntologies.Extractors.Struct
+      iex> code = "defmodule Plain do defstruct [:name] end"
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> Struct.defines_exception?(body)
+      false
+  """
+  @spec defines_exception?(Macro.t()) :: boolean()
+  def defines_exception?(body) do
+    statements = Helpers.normalize_body(body)
+    find_defexception(statements) != nil
+  end
+
+  # ===========================================================================
   # Field Extraction
   # ===========================================================================
 
@@ -360,6 +622,35 @@ defmodule ElixirOntologies.Extractors.Struct do
 
   defp find_defstruct(statements) do
     Enum.find(statements, &struct?/1)
+  end
+
+  defp find_defexception(statements) do
+    Enum.find(statements, &exception?/1)
+  end
+
+  # Extract default message from fields (if :message field has a string default)
+  defp extract_default_message(fields) do
+    case Enum.find(fields, fn f -> f.name == :message end) do
+      %{has_default: true, default_value: msg} when is_binary(msg) -> msg
+      _ -> nil
+    end
+  end
+
+  # Check if module has a custom message/1 function
+  defp has_custom_message?(statements) do
+    Enum.any?(statements, fn
+      # def message(...)
+      {:def, _meta, [{:message, _fn_meta, args} | _]} when is_list(args) and length(args) == 1 ->
+        true
+
+      # def message(...) when ...
+      {:def, _meta, [{:when, _, [{:message, _fn_meta, args} | _]} | _]}
+      when is_list(args) and length(args) == 1 ->
+        true
+
+      _ ->
+        false
+    end)
   end
 
   # ===========================================================================
