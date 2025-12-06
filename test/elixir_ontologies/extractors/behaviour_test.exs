@@ -601,6 +601,25 @@ defmodule ElixirOntologies.Extractors.BehaviourTest do
     end
   end
 
+  describe "extract_behaviour_declaration!/1" do
+    test "returns implementation on success" do
+      code = "@behaviour GenServer"
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      impl = Behaviour.extract_behaviour_declaration!(ast)
+      assert impl.behaviour == GenServer
+    end
+
+    test "raises on invalid input" do
+      code = "@doc \"text\""
+      {:ok, ast} = Code.string_to_quoted(code)
+
+      assert_raise ArgumentError, ~r/Not a @behaviour/, fn ->
+        Behaviour.extract_behaviour_declaration!(ast)
+      end
+    end
+  end
+
   describe "extract_defoverridable/1" do
     test "extracts keyword list overridables" do
       code = "defoverridable [init: 1, call: 2]"

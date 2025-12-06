@@ -2,7 +2,6 @@ defmodule ElixirOntologies.Extractors.ProtocolTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.Protocol
-  alias ElixirOntologies.Extractors.Protocol.{Implementation, DeriveInfo}
 
   doctest Protocol
 

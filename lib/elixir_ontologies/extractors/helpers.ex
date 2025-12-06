@@ -245,4 +245,126 @@ defmodule ElixirOntologies.Extractors.Helpers do
   """
   @spec depth_exceeded?(non_neg_integer()) :: boolean()
   def depth_exceeded?(depth), do: depth > @max_recursion_depth
+
+  # ===========================================================================
+  # AST Body Normalization
+  # ===========================================================================
+
+  @doc """
+  Normalizes an AST body to a list of statements.
+
+  Handles the three common forms of module/function bodies:
+  - `{:__block__, _, statements}` - Multiple statements
+  - `nil` - Empty body
+  - `single` - Single statement
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Helpers.normalize_body({:__block__, [], [:a, :b]})
+      [:a, :b]
+
+      iex> ElixirOntologies.Extractors.Helpers.normalize_body(nil)
+      []
+
+      iex> ElixirOntologies.Extractors.Helpers.normalize_body(:single)
+      [:single]
+  """
+  @spec normalize_body(Macro.t()) :: [Macro.t()]
+  def normalize_body({:__block__, _, statements}), do: statements
+  def normalize_body(nil), do: []
+  def normalize_body(single), do: [single]
+
+  @doc """
+  Extracts the body from a keyword list with `:do` key and normalizes it.
+
+  This is commonly used for extracting bodies from `defmodule`, `def`, etc.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Helpers.extract_do_body([do: {:__block__, [], [:a, :b]}])
+      [:a, :b]
+
+      iex> ElixirOntologies.Extractors.Helpers.extract_do_body([do: :single])
+      [:single]
+
+      iex> ElixirOntologies.Extractors.Helpers.extract_do_body([do: nil])
+      []
+
+      iex> ElixirOntologies.Extractors.Helpers.extract_do_body([])
+      []
+  """
+  @spec extract_do_body(keyword()) :: [Macro.t()]
+  def extract_do_body(opts) when is_list(opts) do
+    opts |> Keyword.get(:do) |> normalize_body()
+  end
+
+  def extract_do_body(_), do: []
+
+  # ===========================================================================
+  # Moduledoc Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts @moduledoc value from a list of statements.
+
+  Returns the documentation string if present, `false` if moduledoc is
+  explicitly disabled, or `nil` if not present.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Helpers
+      iex> statements = [{:@, [], [{:moduledoc, [], ["My documentation"]}]}]
+      iex> Helpers.extract_moduledoc(statements)
+      "My documentation"
+
+      iex> alias ElixirOntologies.Extractors.Helpers
+      iex> statements = [{:@, [], [{:moduledoc, [], [false]}]}]
+      iex> Helpers.extract_moduledoc(statements)
+      false
+
+      iex> alias ElixirOntologies.Extractors.Helpers
+      iex> Helpers.extract_moduledoc([])
+      nil
+  """
+  @spec extract_moduledoc([Macro.t()]) :: String.t() | false | nil
+  def extract_moduledoc(statements) when is_list(statements) do
+    Enum.reduce_while(statements, nil, fn
+      {:@, _meta, [{:moduledoc, _doc_meta, [doc]}]}, _acc when is_binary(doc) ->
+        {:halt, doc}
+
+      {:@, _meta, [{:moduledoc, _doc_meta, [false]}]}, _acc ->
+        {:halt, false}
+
+      _, acc ->
+        {:cont, acc}
+    end)
+  end
+
+  # ===========================================================================
+  # Module AST Conversion
+  # ===========================================================================
+
+  @doc """
+  Converts a module AST node to a module atom.
+
+  Handles both `{:__aliases__, _, parts}` and bare atom forms.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Helpers.module_ast_to_atom({:__aliases__, [], [:Foo, :Bar]})
+      Foo.Bar
+
+      iex> ElixirOntologies.Extractors.Helpers.module_ast_to_atom(MyModule)
+      MyModule
+
+      iex> ElixirOntologies.Extractors.Helpers.module_ast_to_atom("not_a_module")
+      nil
+  """
+  @spec module_ast_to_atom(Macro.t()) :: module() | nil
+  def module_ast_to_atom({:__aliases__, _, parts}) do
+    Module.concat(parts)
+  end
+
+  def module_ast_to_atom(atom) when is_atom(atom), do: atom
+  def module_ast_to_atom(_), do: nil
 end

@@ -244,7 +244,7 @@ defmodule ElixirOntologies.Extractors.Protocol do
 
   def extract({:defprotocol, meta, [{:__aliases__, _alias_meta, name_parts}, body_opts]}, opts) do
     include_location = Keyword.get(opts, :include_location, true)
-    body = extract_body(body_opts)
+    body = Helpers.extract_do_body(body_opts)
 
     location =
       if include_location do
@@ -255,7 +255,7 @@ defmodule ElixirOntologies.Extractors.Protocol do
 
     {functions, _pending_doc, _pending_spec} = extract_protocol_functions(body)
     fallback_to_any = extract_fallback_to_any(body)
-    doc = extract_moduledoc(body)
+    doc = Helpers.extract_moduledoc(body)
     typedoc = extract_typedoc(body)
 
     {:ok,
@@ -367,7 +367,7 @@ defmodule ElixirOntologies.Extractors.Protocol do
         opts
       ) do
     include_location = Keyword.get(opts, :include_location, true)
-    body = extract_body(body_opts)
+    body = Helpers.extract_do_body(body_opts)
 
     location =
       if include_location do
@@ -398,7 +398,7 @@ defmodule ElixirOntologies.Extractors.Protocol do
       )
       when is_list(body_opts) do
     include_location = Keyword.get(opts, :include_location, true)
-    body = extract_body(body_opts)
+    body = Helpers.extract_do_body(body_opts)
 
     location =
       if include_location do
@@ -492,7 +492,7 @@ defmodule ElixirOntologies.Extractors.Protocol do
   @spec extract_derives(Macro.t()) :: [DeriveInfo.t()]
   def extract_derives(body) do
     body
-    |> extract_body_list()
+    |> Helpers.normalize_body()
     |> Enum.filter(&derive_attribute?/1)
     |> Enum.map(&extract_single_derive/1)
   end
@@ -533,19 +533,6 @@ defmodule ElixirOntologies.Extractors.Protocol do
   defp normalize_derive_protocol({atom, opts}) when is_atom(atom) and is_list(opts) do
     %{protocol: atom, options: opts}
   end
-
-  # ===========================================================================
-  # Body Extraction Helpers
-  # ===========================================================================
-
-  defp extract_body([do: {:__block__, _, statements}]), do: statements
-  defp extract_body([do: single]) when not is_nil(single), do: [single]
-  defp extract_body([do: nil]), do: []
-  defp extract_body(_), do: []
-
-  defp extract_body_list({:__block__, _, statements}), do: statements
-  defp extract_body_list(nil), do: []
-  defp extract_body_list(single), do: [single]
 
   # ===========================================================================
   # Protocol Function Extraction
@@ -678,19 +665,6 @@ defmodule ElixirOntologies.Extractors.Protocol do
     Enum.any?(body, fn
       {:@, _meta, [{:fallback_to_any, _attr_meta, [true]}]} -> true
       _ -> false
-    end)
-  end
-
-  defp extract_moduledoc(body) do
-    Enum.reduce_while(body, nil, fn
-      {:@, _meta, [{:moduledoc, _doc_meta, [doc]}]}, _acc when is_binary(doc) ->
-        {:halt, doc}
-
-      {:@, _meta, [{:moduledoc, _doc_meta, [false]}]}, _acc ->
-        {:halt, false}
-
-      _, acc ->
-        {:cont, acc}
     end)
   end
 

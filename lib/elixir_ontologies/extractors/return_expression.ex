@@ -250,7 +250,7 @@ defmodule ElixirOntologies.Extractors.ReturnExpression do
   end
 
   # 2-tuple: {a, b} (special AST form)
-  def extract({left, right} = expr, _opts) when not is_list(right) do
+  def extract({_left, right} = expr, _opts) when not is_list(right) do
     {:ok,
      %__MODULE__{
        expression: expr,

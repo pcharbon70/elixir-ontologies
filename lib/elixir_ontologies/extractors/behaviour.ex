@@ -76,6 +76,7 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   - `:return_type` - Return type AST
   - `:parameters` - List of parameter type specs
   - `:is_optional` - Whether marked in @optional_callbacks
+  - `:type` - Either :callback or :macrocallback
   - `:doc` - @doc content if present
   - `:location` - Source location
   """
@@ -86,6 +87,7 @@ defmodule ElixirOntologies.Extractors.Behaviour do
           return_type: Macro.t() | nil,
           parameters: [Macro.t()],
           is_optional: boolean(),
+          type: :callback | :macrocallback,
           doc: String.t() | nil,
           location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
         }
@@ -248,7 +250,7 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   """
   @spec extract_from_body(Macro.t()) :: t()
   def extract_from_body(body) do
-    statements = extract_statements(body)
+    statements = Helpers.normalize_body(body)
 
     # First pass: extract optional_callbacks list
     optional_list = extract_optional_callbacks_list(statements)
@@ -275,7 +277,7 @@ defmodule ElixirOntologies.Extractors.Behaviour do
           {cbs, mcbs, doc}
       end)
 
-    doc = extract_moduledoc(statements)
+    doc = Helpers.extract_moduledoc(statements)
 
     %__MODULE__{
       callbacks: Enum.reverse(callbacks),
@@ -284,6 +286,33 @@ defmodule ElixirOntologies.Extractors.Behaviour do
       doc: doc,
       metadata: %{}
     }
+  end
+
+  @doc """
+  Extracts behaviour definitions from a list of AST nodes.
+
+  Filters nodes that define behaviours (have @callback or @macrocallback)
+  and extracts their definitions. Non-matching nodes are silently skipped.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Behaviour
+      iex> code1 = "defmodule B1 do @callback foo(t) :: t end"
+      iex> code2 = "defmodule B2 do @callback bar(t) :: t end"
+      iex> code3 = "defmodule M do def foo, do: :ok end"
+      iex> {:ok, {:defmodule, _, [_, [do: body1]]}} = Code.string_to_quoted(code1)
+      iex> {:ok, {:defmodule, _, [_, [do: body2]]}} = Code.string_to_quoted(code2)
+      iex> {:ok, {:defmodule, _, [_, [do: body3]]}} = Code.string_to_quoted(code3)
+      iex> results = Behaviour.extract_all([body1, body2, body3])
+      iex> length(results)
+      2
+  """
+  @spec extract_all([Macro.t()]) :: [t()]
+  def extract_all(bodies) when is_list(bodies) do
+    for body <- bodies,
+        defines_behaviour?(body) do
+      extract_from_body(body)
+    end
   end
 
   @doc """
@@ -305,7 +334,7 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   """
   @spec defines_behaviour?(Macro.t()) :: boolean()
   def defines_behaviour?(body) do
-    statements = extract_statements(body)
+    statements = Helpers.normalize_body(body)
 
     Enum.any?(statements, fn
       {:@, _meta, [{:callback, _attr_meta, _}]} -> true
@@ -333,7 +362,7 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   """
   @spec implements_behaviour?(Macro.t()) :: boolean()
   def implements_behaviour?(body) do
-    statements = extract_statements(body)
+    statements = Helpers.normalize_body(body)
 
     Enum.any?(statements, fn
       {:@, _meta, [{:behaviour, _attr_meta, _}]} -> true
@@ -347,7 +376,11 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   Returns a map containing:
   - `:behaviours` - List of @behaviour declarations
   - `:overridables` - List of defoverridable entries
-  - `:functions` - List of {name, arity} defined in module
+  - `:functions` - List of {name, arity} defined in module (includes both `def` and `defp`)
+
+  Note: The `:functions` list includes both public (`def`) and private (`defp`)
+  functions. This is intentional as callback implementations can technically be
+  private, and including all functions allows for complete callback matching.
 
   ## Examples
 
@@ -371,7 +404,7 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   """
   @spec extract_implementations(Macro.t()) :: implementation_result()
   def extract_implementations(body) do
-    statements = extract_statements(body)
+    statements = Helpers.normalize_body(body)
 
     behaviours = extract_behaviour_declarations(statements)
     overridables = extract_overridables(statements)
@@ -406,7 +439,7 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   @spec extract_behaviour_declaration(Macro.t()) :: {:ok, implementation()} | {:error, String.t()}
   def extract_behaviour_declaration({:@, meta, [{:behaviour, _attr_meta, [module_ast]}]}) do
     location = Helpers.extract_location({:@, meta, []})
-    module = module_ast_to_module(module_ast)
+    module = Helpers.module_ast_to_atom(module_ast)
 
     {:ok,
      %{
@@ -482,7 +515,7 @@ defmodule ElixirOntologies.Extractors.Behaviour do
 
       # Module reference: MyBehaviour
       {:__aliases__, _, _} = module_ast ->
-        module = module_ast_to_module(module_ast)
+        module = Helpers.module_ast_to_atom(module_ast)
 
         [
           %{
@@ -516,12 +549,11 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   # ===========================================================================
 
   defp extract_behaviour_declarations(statements) do
-    statements
-    |> Enum.filter(&behaviour_declaration?/1)
-    |> Enum.map(fn node ->
-      {:ok, impl} = extract_behaviour_declaration(node)
+    for node <- statements,
+        behaviour_declaration?(node),
+        {:ok, impl} <- [extract_behaviour_declaration(node)] do
       impl
-    end)
+    end
   end
 
   defp extract_overridables(statements) do
@@ -551,14 +583,6 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   end
 
   defp extract_def_signature(_), do: []
-
-  # Convert module AST to atom
-  defp module_ast_to_module({:__aliases__, _, parts}) do
-    Module.concat(parts)
-  end
-
-  defp module_ast_to_module(atom) when is_atom(atom), do: atom
-  defp module_ast_to_module(_), do: nil
 
   # ===========================================================================
   # Single Callback Extraction
@@ -693,31 +717,6 @@ defmodule ElixirOntologies.Extractors.Behaviour do
         acc
     end)
   end
-
-  # ===========================================================================
-  # Moduledoc Extraction
-  # ===========================================================================
-
-  defp extract_moduledoc(statements) do
-    Enum.reduce_while(statements, nil, fn
-      {:@, _meta, [{:moduledoc, _doc_meta, [doc]}]}, _acc when is_binary(doc) ->
-        {:halt, doc}
-
-      {:@, _meta, [{:moduledoc, _doc_meta, [false]}]}, _acc ->
-        {:halt, false}
-
-      _, acc ->
-        {:cont, acc}
-    end)
-  end
-
-  # ===========================================================================
-  # Statement Extraction
-  # ===========================================================================
-
-  defp extract_statements({:__block__, _, statements}), do: statements
-  defp extract_statements(nil), do: []
-  defp extract_statements(single), do: [single]
 
   # ===========================================================================
   # Utility Functions
