@@ -156,18 +156,18 @@ Extract type definitions (@type, @typep, @opaque).
 - [x] 4.3.1.8 Write type definition tests (success: 60 tests - 20 doctests + 40 unit tests)
 
 ### 4.3.2 Function Spec Extractor
-- [ ] **Task 4.3.2 Complete**
+- [x] **Task 4.3.2 Complete**
 
 Extract @spec with parameter types and return type.
 
-- [ ] 4.3.2.1 Extract `@spec` as `FunctionSpec`
-- [ ] 4.3.2.2 Link to function via `hasSpec`
-- [ ] 4.3.2.3 Extract parameter types as `hasParameterTypes` (rdf:List)
-- [ ] 4.3.2.4 Extract return type as `hasReturnType`
-- [ ] 4.3.2.5 Parse type expressions into TypeExpression subclasses
-- [ ] 4.3.2.6 Handle union types (|)
-- [ ] 4.3.2.7 Handle `when` clauses in specs
-- [ ] 4.3.2.8 Write spec extraction tests (success: 12 tests)
+- [x] 4.3.2.1 Extract `@spec` as `FunctionSpec`
+- [x] 4.3.2.2 Link to function via `hasSpec`
+- [x] 4.3.2.3 Extract parameter types as `hasParameterTypes` (rdf:List)
+- [x] 4.3.2.4 Extract return type as `hasReturnType`
+- [x] 4.3.2.5 Parse type expressions into TypeExpression subclasses
+- [x] 4.3.2.6 Handle union types (|)
+- [x] 4.3.2.7 Handle `when` clauses in specs
+- [x] 4.3.2.8 Write spec extraction tests (success: 62 tests - 19 doctests + 43 unit tests)
 
 ### 4.3.3 Type Expression Parser
 - [ ] **Task 4.3.3 Complete**
