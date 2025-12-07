@@ -256,11 +256,13 @@ defmodule ElixirOntologies.Extractors.ComprehensionTest do
 
   describe "extract/1 with :reduce option" do
     test "extracts reduce with initial value" do
-      ast = quote do
-        for x <- [1, 2, 3], reduce: 0 do
-          acc -> acc + x
+      ast =
+        quote do
+          for x <- [1, 2, 3], reduce: 0 do
+            acc -> acc + x
+          end
         end
-      end
+
       assert {:ok, result} = Comprehension.extract(ast)
 
       assert result.options.reduce == 0
@@ -269,11 +271,13 @@ defmodule ElixirOntologies.Extractors.ComprehensionTest do
     end
 
     test "extracts reduce with complex initial value" do
-      ast = quote do
-        for x <- [1, 2], reduce: %{sum: 0, count: 0} do
-          acc -> %{acc | sum: acc.sum + x, count: acc.count + 1}
+      ast =
+        quote do
+          for x <- [1, 2], reduce: %{sum: 0, count: 0} do
+            acc -> %{acc | sum: acc.sum + x, count: acc.count + 1}
+          end
         end
-      end
+
       assert {:ok, result} = Comprehension.extract(ast)
 
       assert {:%{}, [], [sum: 0, count: 0]} = result.options.reduce
@@ -281,11 +285,13 @@ defmodule ElixirOntologies.Extractors.ComprehensionTest do
     end
 
     test "reduce body contains clauses" do
-      ast = quote do
-        for x <- [1, 2, 3], reduce: 0 do
-          acc -> acc + x
+      ast =
+        quote do
+          for x <- [1, 2, 3], reduce: 0 do
+            acc -> acc + x
+          end
         end
-      end
+
       assert {:ok, result} = Comprehension.extract(ast)
 
       # Body should be the list of arrow clauses
@@ -422,14 +428,15 @@ defmodule ElixirOntologies.Extractors.ComprehensionTest do
 
   describe "extract/1 with complex comprehensions" do
     test "extracts comprehension with all features" do
-      ast = quote do
-        for x <- [1, 2, 3, 4],
-            x > 1,
-            y <- [10, 20],
-            x + y < 25,
-            into: %{},
-            do: {x, y}
-      end
+      ast =
+        quote do
+          for x <- [1, 2, 3, 4],
+              x > 1,
+              y <- [10, 20],
+              x + y < 25,
+              into: %{},
+              do: {x, y}
+        end
 
       assert {:ok, result} = Comprehension.extract(ast)
 
@@ -440,12 +447,13 @@ defmodule ElixirOntologies.Extractors.ComprehensionTest do
 
     test "extracts comprehension from real-world example" do
       # Typical map transformation pattern
-      ast = quote do
-        for {key, value} <- map,
-            is_atom(key),
-            into: %{},
-            do: {key, String.upcase(value)}
-      end
+      ast =
+        quote do
+          for {key, value} <- map,
+              is_atom(key),
+              into: %{},
+              do: {key, String.upcase(value)}
+        end
 
       assert {:ok, result} = Comprehension.extract(ast)
 

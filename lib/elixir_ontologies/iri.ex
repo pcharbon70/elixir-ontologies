@@ -510,8 +510,7 @@ defmodule ElixirOntologies.IRI do
   defp encode_path(path) do
     path
     |> String.split("/")
-    |> Enum.map(&escape_name/1)
-    |> Enum.join("/")
+    |> Enum.map_join("/", &escape_name/1)
   end
 
   # ===========================================================================

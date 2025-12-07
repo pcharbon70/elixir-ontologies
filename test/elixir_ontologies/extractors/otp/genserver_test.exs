@@ -139,7 +139,9 @@ defmodule ElixirOntologies.Extractors.OTP.GenServerTest do
     end
 
     test "extracts use GenServer with multiple options" do
-      body = parse_module_body("defmodule C do use GenServer, restart: :transient, shutdown: 5000 end")
+      body =
+        parse_module_body("defmodule C do use GenServer, restart: :transient, shutdown: 5000 end")
+
       {:ok, result} = GenServerExtractor.extract(body)
 
       assert result.use_options == [restart: :transient, shutdown: 5000]
@@ -161,7 +163,9 @@ defmodule ElixirOntologies.Extractors.OTP.GenServerTest do
 
     test "extracts location when AST has column info" do
       # Build AST with both line and column metadata
-      use_node = {:use, [line: 2, column: 5], [{:__aliases__, [line: 2, column: 9], [:GenServer]}]}
+      use_node =
+        {:use, [line: 2, column: 5], [{:__aliases__, [line: 2, column: 9], [:GenServer]}]}
+
       body = {:__block__, [], [use_node]}
 
       {:ok, result} = GenServerExtractor.extract(body)
@@ -346,7 +350,11 @@ defmodule ElixirOntologies.Extractors.OTP.GenServerTest do
     end
 
     test "extracts handle_call/3 callback" do
-      body = parse_module_body("defmodule C do use GenServer; def handle_call(r,f,s), do: {:reply,:ok,s} end")
+      body =
+        parse_module_body(
+          "defmodule C do use GenServer; def handle_call(r,f,s), do: {:reply,:ok,s} end"
+        )
+
       callbacks = GenServerExtractor.extract_callbacks(body)
 
       assert length(callbacks) == 1
@@ -355,7 +363,11 @@ defmodule ElixirOntologies.Extractors.OTP.GenServerTest do
     end
 
     test "extracts handle_cast/2 callback" do
-      body = parse_module_body("defmodule C do use GenServer; def handle_cast(m,s), do: {:noreply,s} end")
+      body =
+        parse_module_body(
+          "defmodule C do use GenServer; def handle_cast(m,s), do: {:noreply,s} end"
+        )
+
       callbacks = GenServerExtractor.extract_callbacks(body)
 
       assert length(callbacks) == 1
@@ -364,7 +376,11 @@ defmodule ElixirOntologies.Extractors.OTP.GenServerTest do
     end
 
     test "extracts handle_info/2 callback" do
-      body = parse_module_body("defmodule C do use GenServer; def handle_info(m,s), do: {:noreply,s} end")
+      body =
+        parse_module_body(
+          "defmodule C do use GenServer; def handle_info(m,s), do: {:noreply,s} end"
+        )
+
       callbacks = GenServerExtractor.extract_callbacks(body)
 
       assert length(callbacks) == 1
@@ -373,7 +389,11 @@ defmodule ElixirOntologies.Extractors.OTP.GenServerTest do
     end
 
     test "extracts handle_continue/2 callback" do
-      body = parse_module_body("defmodule C do use GenServer; def handle_continue(c,s), do: {:noreply,s} end")
+      body =
+        parse_module_body(
+          "defmodule C do use GenServer; def handle_continue(c,s), do: {:noreply,s} end"
+        )
+
       callbacks = GenServerExtractor.extract_callbacks(body)
 
       assert length(callbacks) == 1
@@ -526,8 +546,8 @@ defmodule ElixirOntologies.Extractors.OTP.GenServerTest do
       body = parse_module_body(code)
       callbacks = GenServerExtractor.extract_callbacks(body)
 
-      init_cb = Enum.find(callbacks, & &1.type == :init)
-      call_cb = Enum.find(callbacks, & &1.type == :handle_call)
+      init_cb = Enum.find(callbacks, &(&1.type == :init))
+      call_cb = Enum.find(callbacks, &(&1.type == :handle_call))
 
       assert init_cb.has_impl == true
       assert call_cb.has_impl == false

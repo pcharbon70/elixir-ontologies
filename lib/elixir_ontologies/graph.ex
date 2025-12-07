@@ -296,12 +296,10 @@ defmodule ElixirOntologies.Graph do
   end
 
   defp build_prefix_declarations(prefixes) do
-    prefixes
-    |> Enum.map(fn {prefix, iri} ->
+    Enum.map_join(prefixes, "", fn {prefix, iri} ->
       iri_str = if is_binary(iri), do: iri, else: to_string(iri)
       "PREFIX #{prefix}: <#{iri_str}>\n"
     end)
-    |> Enum.join()
   end
 
   # ===========================================================================

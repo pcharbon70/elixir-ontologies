@@ -36,6 +36,7 @@ defmodule ElixirOntologies.MixProject do
 
       # Static analysis
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
 
       # Property-based testing
       {:stream_data, "~> 1.0", only: :test},

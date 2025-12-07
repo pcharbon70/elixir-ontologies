@@ -40,13 +40,11 @@ defmodule ElixirOntologies.Extractors.OTP.Agent do
           metadata: map()
         }
 
-  defstruct [
-    detection_method: nil,
-    use_options: nil,
-    function_calls: [],
-    location: nil,
-    metadata: %{}
-  ]
+  defstruct detection_method: nil,
+            use_options: nil,
+            function_calls: [],
+            location: nil,
+            metadata: %{}
 
   # ===========================================================================
   # Agent Call Struct
@@ -65,11 +63,9 @@ defmodule ElixirOntologies.Extractors.OTP.Agent do
             metadata: map()
           }
 
-    defstruct [
-      function: nil,
-      location: nil,
-      metadata: %{}
-    ]
+    defstruct function: nil,
+              location: nil,
+              metadata: %{}
   end
 
   # ===========================================================================
@@ -257,7 +253,7 @@ defmodule ElixirOntologies.Extractors.OTP.Agent do
 
   defp find_agent_calls_in_statement(_), do: []
 
-  defp find_agent_calls_in_body([do: body]), do: find_agent_calls_in_statement(body)
+  defp find_agent_calls_in_body(do: body), do: find_agent_calls_in_statement(body)
 
   defp find_agent_calls_in_body({:__block__, _, statements}) do
     Enum.flat_map(statements, &find_agent_calls_in_statement/1)

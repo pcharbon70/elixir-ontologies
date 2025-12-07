@@ -460,14 +460,15 @@ defmodule ElixirOntologies.Extractors.ControlFlow do
     }
   end
 
-  def extract_with({:with, _meta, args} = node) when is_list(args) and length(args) >= 1 do
+  def extract_with({:with, _meta, [_ | _] = args} = node) do
     # Separate match clauses from the final options
     {match_clauses, opts_list} = Enum.split(args, -1)
 
-    opts = case opts_list do
-      [opts] when is_list(opts) -> opts
-      _ -> []
-    end
+    opts =
+      case opts_list do
+        [opts] when is_list(opts) -> opts
+        _ -> []
+      end
 
     do_body = Keyword.get(opts, :do)
     else_clauses = Keyword.get(opts, :else, [])

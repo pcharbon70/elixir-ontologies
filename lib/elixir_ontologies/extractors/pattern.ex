@@ -608,7 +608,8 @@ defmodule ElixirOntologies.Extractors.Pattern do
 
   defp variable?({name, _meta, context}) when is_atom(name) and is_atom(context) do
     # Exclude operators and special forms
-    not Helpers.special_form?(name) and not (name in [:^, :%{}, :%, :<<>>, :{}, :=, :when, :|, :"::"])
+    not Helpers.special_form?(name) and
+      name not in [:^, :%{}, :%, :<<>>, :{}, :=, :when, :|, :"::"]
   end
 
   defp variable?(_), do: false
@@ -624,7 +625,7 @@ defmodule ElixirOntologies.Extractors.Pattern do
     case tuple do
       {atom, _} when is_atom(atom) ->
         # Check if first element could be a pattern
-        not (atom in [:%, :%{}, :<<>>, :^, :=, :when, :|, :"::", :__aliases__])
+        atom not in [:%, :%{}, :<<>>, :^, :=, :when, :|, :"::", :__aliases__]
 
       _ ->
         true
@@ -643,7 +644,8 @@ defmodule ElixirOntologies.Extractors.Pattern do
   defp collect_bindings_from_node({:_, _meta, _context}, _depth), do: []
   defp collect_bindings_from_node({:^, _meta, _}, _depth), do: []
 
-  defp collect_bindings_from_node({name, _meta, context}, _depth) when is_atom(name) and is_atom(context) do
+  defp collect_bindings_from_node({name, _meta, context}, _depth)
+       when is_atom(name) and is_atom(context) do
     if not Helpers.special_form?(name) and variable?({name, [], context}), do: [name], else: []
   end
 
@@ -720,7 +722,7 @@ defmodule ElixirOntologies.Extractors.Pattern do
   defp classify_literal(atom) when is_atom(atom) do
     cond do
       atom in [true, false] -> :boolean
-      atom == nil -> :nil
+      atom == nil -> nil
       true -> :atom
     end
   end

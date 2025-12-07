@@ -76,7 +76,8 @@ defmodule ElixirOntologies.Extractors.TypeDefinitionTest do
 
     test "extracts parameterized type" do
       # @type my_list(a) :: [a]
-      ast = {:@, [], [{:type, [], [{:"::", [], [{:my_list, [], [{:a, [], nil}]}, [{:a, [], nil}]]}]}]}
+      ast =
+        {:@, [], [{:type, [], [{:"::", [], [{:my_list, [], [{:a, [], nil}]}, [{:a, [], nil}]]}]}]}
 
       assert {:ok, result} = TypeDefinition.extract(ast)
       assert result.name == :my_list
@@ -143,8 +144,7 @@ defmodule ElixirOntologies.Extractors.TypeDefinitionTest do
 
     test "extracts parameterized private type" do
       ast =
-        {:@, [],
-         [{:typep, [], [{:"::", [], [{:state, [], [{:a, [], nil}]}, {:a, [], nil}]}]}]}
+        {:@, [], [{:typep, [], [{:"::", [], [{:state, [], [{:a, [], nil}]}, {:a, [], nil}]}]}]}
 
       assert {:ok, result} = TypeDefinition.extract(ast)
       assert result.name == :state
@@ -170,7 +170,10 @@ defmodule ElixirOntologies.Extractors.TypeDefinitionTest do
     test "extracts parameterized opaque type" do
       ast =
         {:@, [],
-         [{:opaque, [], [{:"::", [], [{:box, [], [{:a, [], nil}]}, {:%{}, [], [value: {:a, [], nil}]}]}]}]}
+         [
+           {:opaque, [],
+            [{:"::", [], [{:box, [], [{:a, [], nil}]}, {:%{}, [], [value: {:a, [], nil}]}]}]}
+         ]}
 
       assert {:ok, result} = TypeDefinition.extract(ast)
       assert result.name == :box
@@ -224,7 +227,9 @@ defmodule ElixirOntologies.Extractors.TypeDefinitionTest do
 
   describe "parameterized?/1" do
     test "returns true for parameterized type" do
-      ast = {:@, [], [{:type, [], [{:"::", [], [{:my_list, [], [{:a, [], nil}]}, [{:a, [], nil}]]}]}]}
+      ast =
+        {:@, [], [{:type, [], [{:"::", [], [{:my_list, [], [{:a, [], nil}]}, [{:a, [], nil}]]}]}]}
+
       {:ok, result} = TypeDefinition.extract(ast)
       assert TypeDefinition.parameterized?(result)
     end
@@ -286,7 +291,9 @@ defmodule ElixirOntologies.Extractors.TypeDefinitionTest do
     end
 
     test "returns name/arity for parameterized type" do
-      ast = {:@, [], [{:type, [], [{:"::", [], [{:my_list, [], [{:a, [], nil}]}, [{:a, [], nil}]]}]}]}
+      ast =
+        {:@, [], [{:type, [], [{:"::", [], [{:my_list, [], [{:a, [], nil}]}, [{:a, [], nil}]]}]}]}
+
       {:ok, result} = TypeDefinition.extract(ast)
       assert TypeDefinition.type_id(result) == "my_list/1"
     end

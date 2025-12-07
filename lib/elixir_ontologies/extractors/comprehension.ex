@@ -85,7 +85,15 @@ defmodule ElixirOntologies.Extractors.Comprehension do
           uniq: boolean()
         }
 
-  defstruct [:type, generators: [], filters: [], body: nil, options: %{}, location: nil, metadata: %{}]
+  defstruct [
+    :type,
+    generators: [],
+    filters: [],
+    body: nil,
+    options: %{},
+    location: nil,
+    metadata: %{}
+  ]
 
   # ===========================================================================
   # Type Detection
@@ -393,7 +401,7 @@ defmodule ElixirOntologies.Extractors.Comprehension do
   defp extract_body(opts) do
     case Keyword.get(opts, :do) do
       # Reduce comprehension has clauses in :do
-      clauses when is_list(clauses) and length(clauses) > 0 ->
+      [_ | _] = clauses ->
         # Check if it's arrow clauses (reduce) or just a list body
         case hd(clauses) do
           {:->, _, _} -> clauses

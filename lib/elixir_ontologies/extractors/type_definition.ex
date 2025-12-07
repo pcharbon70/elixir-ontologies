@@ -205,7 +205,7 @@ defmodule ElixirOntologies.Extractors.TypeDefinition do
        location: location,
        metadata: %{
          attribute: attr,
-         is_parameterized: length(param_names) > 0
+         is_parameterized: param_names != []
        }
      }}
   end

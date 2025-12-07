@@ -412,7 +412,7 @@ defmodule ElixirOntologies.Extractors.Clause do
   defp normalize_params(_), do: []
 
   defp extract_body(nil), do: nil
-  defp extract_body([do: body]), do: body
+  defp extract_body(do: body), do: body
   defp extract_body([{:do, body} | _rest]), do: body
   defp extract_body(body_opts) when is_list(body_opts), do: Keyword.get(body_opts, :do)
   defp extract_body(_), do: nil

@@ -139,7 +139,9 @@ defmodule ElixirOntologies.Extractors.Function do
       false
   """
   @spec guard?(Macro.t()) :: boolean()
-  def guard?({type, _meta, _args}) when type in @public_guards or type in @private_guards, do: true
+  def guard?({type, _meta, _args}) when type in @public_guards or type in @private_guards,
+    do: true
+
   def guard?(_), do: false
 
   @doc """

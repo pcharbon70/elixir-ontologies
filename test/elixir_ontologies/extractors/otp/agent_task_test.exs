@@ -41,6 +41,7 @@ defmodule ElixirOntologies.Extractors.OTP.AgentTaskTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       assert AgentTask.agent?(body)
     end
@@ -159,6 +160,7 @@ defmodule ElixirOntologies.Extractors.OTP.AgentTaskTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, result} = AgentTask.extract_agent(body)
 
@@ -193,6 +195,7 @@ defmodule ElixirOntologies.Extractors.OTP.AgentTaskTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       assert AgentTask.task?(body)
     end
@@ -264,6 +267,7 @@ defmodule ElixirOntologies.Extractors.OTP.AgentTaskTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, result} = AgentTask.extract_task(body)
 
@@ -436,6 +440,7 @@ defmodule ElixirOntologies.Extractors.OTP.AgentTaskTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, result} = AgentTask.extract_agent(body)
 
@@ -455,6 +460,7 @@ defmodule ElixirOntologies.Extractors.OTP.AgentTaskTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, result} = AgentTask.extract_task(body)
 
@@ -472,6 +478,7 @@ defmodule ElixirOntologies.Extractors.OTP.AgentTaskTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, result} = AgentTask.extract_task(body)
 

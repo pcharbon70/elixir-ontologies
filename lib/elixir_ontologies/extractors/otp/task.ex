@@ -35,13 +35,11 @@ defmodule ElixirOntologies.Extractors.OTP.Task do
           metadata: map()
         }
 
-  defstruct [
-    type: :task,
-    detection_method: nil,
-    function_calls: [],
-    location: nil,
-    metadata: %{}
-  ]
+  defstruct type: :task,
+            detection_method: nil,
+            function_calls: [],
+            location: nil,
+            metadata: %{}
 
   # ===========================================================================
   # Task Call Struct
@@ -53,8 +51,14 @@ defmodule ElixirOntologies.Extractors.OTP.Task do
     """
 
     @type function_name ::
-            :async | :start | :start_link | :await | :yield | :yield_many | :async_stream |
-            :async_nolink
+            :async
+            | :start
+            | :start_link
+            | :await
+            | :yield
+            | :yield_many
+            | :async_stream
+            | :async_nolink
 
     @type t :: %__MODULE__{
             function: function_name(),
@@ -63,12 +67,10 @@ defmodule ElixirOntologies.Extractors.OTP.Task do
             metadata: map()
           }
 
-    defstruct [
-      function: nil,
-      supervised: false,
-      location: nil,
-      metadata: %{}
-    ]
+    defstruct function: nil,
+              supervised: false,
+              location: nil,
+              metadata: %{}
   end
 
   # ===========================================================================
@@ -287,7 +289,7 @@ defmodule ElixirOntologies.Extractors.OTP.Task do
 
   defp find_task_calls_in_statement(_), do: []
 
-  defp find_task_calls_in_body([do: body]), do: find_task_calls_in_statement(body)
+  defp find_task_calls_in_body(do: body), do: find_task_calls_in_statement(body)
 
   defp find_task_calls_in_body({:__block__, _, statements}) do
     Enum.flat_map(statements, &find_task_calls_in_statement/1)
@@ -329,7 +331,7 @@ defmodule ElixirOntologies.Extractors.OTP.Task do
 
   defp find_task_supervisor_calls_in_statement(_), do: []
 
-  defp find_task_supervisor_calls_in_body([do: body]),
+  defp find_task_supervisor_calls_in_body(do: body),
     do: find_task_supervisor_calls_in_statement(body)
 
   defp find_task_supervisor_calls_in_body({:__block__, _, statements}) do

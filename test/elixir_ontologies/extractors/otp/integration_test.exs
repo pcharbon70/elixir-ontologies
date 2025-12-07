@@ -251,6 +251,7 @@ defmodule ElixirOntologies.Extractors.OTP.IntegrationTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
       assert strategy.type == :one_for_all
@@ -265,6 +266,7 @@ defmodule ElixirOntologies.Extractors.OTP.IntegrationTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
       assert strategy.type == :rest_for_one
@@ -540,15 +542,18 @@ defmodule ElixirOntologies.Extractors.OTP.IntegrationTest do
         use Application
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
 
       # We can check for use Application pattern
       statements = body |> normalize_body()
-      has_use_application = Enum.any?(statements, fn
-        {:use, _, [{:__aliases__, _, [:Application]} | _]} -> true
-        {:use, _, [Application | _]} -> true
-        _ -> false
-      end)
+
+      has_use_application =
+        Enum.any?(statements, fn
+          {:use, _, [{:__aliases__, _, [:Application]} | _]} -> true
+          {:use, _, [Application | _]} -> true
+          _ -> false
+        end)
 
       assert has_use_application
     end
@@ -559,10 +564,11 @@ defmodule ElixirOntologies.Extractors.OTP.IntegrationTest do
       statements = body |> normalize_body()
 
       # Find the start function
-      start_fn = Enum.find(statements, fn
-        {:def, _, [{:start, _, _} | _]} -> true
-        _ -> false
-      end)
+      start_fn =
+        Enum.find(statements, fn
+          {:def, _, [{:start, _, _} | _]} -> true
+          _ -> false
+        end)
 
       assert start_fn != nil
     end

@@ -156,7 +156,9 @@ defmodule ElixirOntologies.Extractors.ProtocolTest do
 
   describe "extract_implementation/2" do
     test "extracts basic implementation" do
-      code = "defimpl String.Chars, for: Integer do def to_string(i), do: Integer.to_string(i) end"
+      code =
+        "defimpl String.Chars, for: Integer do def to_string(i), do: Integer.to_string(i) end"
+
       {:ok, ast} = Code.string_to_quoted(code)
 
       assert {:ok, impl} = Protocol.extract_implementation(ast)

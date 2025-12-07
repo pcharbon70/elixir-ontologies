@@ -765,7 +765,7 @@ defmodule ElixirOntologies.Extractors.Literal do
 
   defp atom_metadata(true), do: %{special_atom: true, atom_kind: :boolean}
   defp atom_metadata(false), do: %{special_atom: true, atom_kind: :boolean}
-  defp atom_metadata(nil), do: %{special_atom: true, atom_kind: :nil}
+  defp atom_metadata(nil), do: %{special_atom: true, atom_kind: nil}
   defp atom_metadata(_), do: %{special_atom: false}
 
   defp has_interpolation?(parts) when is_list(parts) do

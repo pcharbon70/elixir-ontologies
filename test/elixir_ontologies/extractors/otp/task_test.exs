@@ -24,6 +24,7 @@ defmodule ElixirOntologies.Extractors.OTP.TaskTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       assert TaskExtractor.task?(body)
     end
@@ -95,6 +96,7 @@ defmodule ElixirOntologies.Extractors.OTP.TaskTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, result} = TaskExtractor.extract(body)
 
@@ -237,6 +239,7 @@ defmodule ElixirOntologies.Extractors.OTP.TaskTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, result} = TaskExtractor.extract(body)
 
@@ -254,6 +257,7 @@ defmodule ElixirOntologies.Extractors.OTP.TaskTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, result} = TaskExtractor.extract(body)
 

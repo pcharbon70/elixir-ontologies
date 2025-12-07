@@ -48,7 +48,7 @@ defmodule ElixirOntologies.Extractors.LiteralTest do
       assert result.type == :atom
       assert result.value == nil
       assert result.metadata.special_atom == true
-      assert result.metadata.atom_kind == :nil
+      assert result.metadata.atom_kind == nil
     end
 
     test "extracts atom with special characters" do

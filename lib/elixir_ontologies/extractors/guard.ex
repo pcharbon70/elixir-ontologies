@@ -451,11 +451,17 @@ defmodule ElixirOntologies.Extractors.Guard do
   defp determine_combinator(_), do: :none
 
   defp has_and_combinator?({:and, _, _}), do: true
-  defp has_and_combinator?({:or, _, [left, right]}), do: has_and_combinator?(left) or has_and_combinator?(right)
+
+  defp has_and_combinator?({:or, _, [left, right]}),
+    do: has_and_combinator?(left) or has_and_combinator?(right)
+
   defp has_and_combinator?(_), do: false
 
   defp has_or_combinator?({:or, _, _}), do: true
-  defp has_or_combinator?({:and, _, [left, right]}), do: has_or_combinator?(left) or has_or_combinator?(right)
+
+  defp has_or_combinator?({:and, _, [left, right]}),
+    do: has_or_combinator?(left) or has_or_combinator?(right)
+
   defp has_or_combinator?(_), do: false
 
   defp extract_guard_functions(expressions) do

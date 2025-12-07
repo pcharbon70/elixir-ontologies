@@ -119,7 +119,7 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
     :mfa,
     :module,
     :neg_integer,
-    :nil,
+    nil,
     :no_return,
     :node,
     :non_neg_integer,
@@ -385,7 +385,8 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   end
 
   # Parameterized basic type: list(element), keyword(value)
-  defp do_parse({name, _, args} = ast) when name in @basic_types and is_list(args) and args != [] do
+  defp do_parse({name, _, args} = ast)
+       when name in @basic_types and is_list(args) and args != [] do
     %__MODULE__{
       kind: :basic,
       name: name,

@@ -208,7 +208,9 @@ defmodule ElixirOntologies.Extractors.Helpers do
   """
   @spec format_error(String.t(), term()) :: String.t()
   def format_error(message, node) do
-    inspected = inspect(node, limit: @default_inspect_limit, printable_limit: @default_printable_limit)
+    inspected =
+      inspect(node, limit: @default_inspect_limit, printable_limit: @default_printable_limit)
+
     "#{message}: #{inspected}"
   end
 
@@ -486,7 +488,9 @@ defmodule ElixirOntologies.Extractors.Helpers do
   """
   @spec extract_function_signature(Macro.t()) :: {atom(), non_neg_integer()} | nil
   # Handle function with when clause first (to avoid matching :when as function name)
-  def extract_function_signature({def_type, _meta, [{:when, _, [{name, _fn_meta, args} | _]} | _]})
+  def extract_function_signature(
+        {def_type, _meta, [{:when, _, [{name, _fn_meta, args} | _]} | _]}
+      )
       when def_type in [:def, :defp, :defmacro, :defmacrop] and is_atom(name) do
     {name, compute_arity(args)}
   end
@@ -530,10 +534,8 @@ defmodule ElixirOntologies.Extractors.Helpers do
             options: keyword() | nil
           }
 
-    defstruct [
-      protocols: [],
-      location: nil
-    ]
+    defstruct protocols: [],
+              location: nil
   end
 
   @doc """
@@ -668,7 +670,10 @@ defmodule ElixirOntologies.Extractors.Helpers do
       false
   """
   @spec behaviour_module?(Macro.t(), atom()) :: boolean()
-  def behaviour_module?({:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [module_name]}]}]}, target)
+  def behaviour_module?(
+        {:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [module_name]}]}]},
+        target
+      )
       when module_name == target,
       do: true
 

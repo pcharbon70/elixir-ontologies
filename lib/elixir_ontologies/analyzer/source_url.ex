@@ -487,8 +487,7 @@ defmodule ElixirOntologies.Analyzer.SourceUrl do
   defp encode_path_segments(path) do
     path
     |> String.split("/")
-    |> Enum.map(&URI.encode_www_form/1)
-    |> Enum.join("/")
+    |> Enum.map_join("/", &URI.encode_www_form/1)
   end
 
   defp get_platform(%Repository{host: host}) when is_binary(host) do

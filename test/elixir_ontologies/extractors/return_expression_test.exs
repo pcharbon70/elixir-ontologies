@@ -160,7 +160,9 @@ defmodule ElixirOntologies.Extractors.ReturnExpressionTest do
     end
 
     test "extracts with expression" do
-      expr = {:with, [], [{:<-, [], [{:ok, {:x, [], nil}}, {:call, [], []}]}, [do: {:x, [], nil}]]}
+      expr =
+        {:with, [], [{:<-, [], [{:ok, {:x, [], nil}}, {:call, [], []}]}, [do: {:x, [], nil}]]}
+
       assert {:ok, result} = ReturnExpression.extract(expr)
       assert result.type == :control_flow
       assert result.metadata.control_type == :with

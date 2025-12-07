@@ -184,10 +184,13 @@ defmodule ElixirOntologies.Integration.Phase3Test do
 
     test "extracts binary pattern" do
       # <<x::8, rest::binary>>
-      ast = {:<<>>, [], [
-        {:"::", [], [{:x, [], nil}, 8]},
-        {:"::", [], [{:rest, [], nil}, {:binary, [], nil}]}
-      ]}
+      ast =
+        {:<<>>, [],
+         [
+           {:"::", [], [{:x, [], nil}, 8]},
+           {:"::", [], [{:rest, [], nil}, {:binary, [], nil}]}
+         ]}
+
       assert {:ok, result} = Pattern.extract(ast)
       assert result.type == :binary
     end
@@ -201,13 +204,17 @@ defmodule ElixirOntologies.Integration.Phase3Test do
 
     test "extracts guard clause" do
       # when is_integer(x) and x > 0
-      guard_ast = {:when, [], [
-        {:x, [], nil},
-        {:and, [], [
-          {:is_integer, [], [{:x, [], nil}]},
-          {:>, [], [{:x, [], nil}, 0]}
-        ]}
-      ]}
+      guard_ast =
+        {:when, [],
+         [
+           {:x, [], nil},
+           {:and, [],
+            [
+              {:is_integer, [], [{:x, [], nil}]},
+              {:>, [], [{:x, [], nil}, 0]}
+            ]}
+         ]}
+
       result = Pattern.extract_guard(guard_ast)
       assert result.type == :guard
       assert result.metadata.guard_expression != nil
@@ -216,10 +223,13 @@ defmodule ElixirOntologies.Integration.Phase3Test do
     test "patterns in function head work together" do
       # def process({:ok, %User{name: name} = user}) when is_binary(name)
       # This tests nested patterns: tuple containing struct with as pattern
-      struct_pattern = {:%, [], [
-        {:__aliases__, [], [:User]},
-        {:%{}, [], [name: {:name, [], nil}]}
-      ]}
+      struct_pattern =
+        {:%, [],
+         [
+           {:__aliases__, [], [:User]},
+           {:%{}, [], [name: {:name, [], nil}]}
+         ]}
+
       as_pattern = {:=, [], [struct_pattern, {:user, [], nil}]}
       tuple_pattern = {:{}, [], [:ok, as_pattern]}
 
@@ -234,10 +244,13 @@ defmodule ElixirOntologies.Integration.Phase3Test do
 
   describe "integration: control flow expressions" do
     test "extracts if expression" do
-      ast = {:if, [], [
-        {:x, [], nil},
-        [do: 1, else: 2]
-      ]}
+      ast =
+        {:if, [],
+         [
+           {:x, [], nil},
+           [do: 1, else: 2]
+         ]}
+
       assert {:ok, result} = ControlFlow.extract(ast)
       assert result.type == :if
       assert result.branches.then == 1
@@ -245,55 +258,78 @@ defmodule ElixirOntologies.Integration.Phase3Test do
     end
 
     test "extracts unless expression" do
-      ast = {:unless, [], [
-        {:error, [], nil},
-        [do: :ok]
-      ]}
+      ast =
+        {:unless, [],
+         [
+           {:error, [], nil},
+           [do: :ok]
+         ]}
+
       assert {:ok, result} = ControlFlow.extract(ast)
       assert result.type == :unless
     end
 
     test "extracts case expression with multiple clauses" do
-      ast = {:case, [], [
-        {:x, [], nil},
-        [do: [
-          {:->, [], [[:ok], 1]},
-          {:->, [], [[:error], 2]},
-          {:->, [], [[{:_, [], nil}], 3]}
-        ]]
-      ]}
+      ast =
+        {:case, [],
+         [
+           {:x, [], nil},
+           [
+             do: [
+               {:->, [], [[:ok], 1]},
+               {:->, [], [[:error], 2]},
+               {:->, [], [[{:_, [], nil}], 3]}
+             ]
+           ]
+         ]}
+
       assert {:ok, result} = ControlFlow.extract(ast)
       assert result.type == :case
       assert length(result.clauses) == 3
     end
 
     test "extracts cond expression" do
-      ast = {:cond, [], [[do: [
-        {:->, [], [[true], 1]},
-        {:->, [], [[false], 2]}
-      ]]]}
+      ast =
+        {:cond, [],
+         [
+           [
+             do: [
+               {:->, [], [[true], 1]},
+               {:->, [], [[false], 2]}
+             ]
+           ]
+         ]}
+
       assert {:ok, result} = ControlFlow.extract(ast)
       assert result.type == :cond
       assert length(result.clauses) == 2
     end
 
     test "extracts with expression" do
-      ast = {:with, [], [
-        {:<-, [], [{:ok, {:x, [], nil}}, {:get_x, [], []}]},
-        {:<-, [], [{:ok, {:y, [], nil}}, {:get_y, [], []}]},
-        [do: {:+, [], [{:x, [], nil}, {:y, [], nil}]}]
-      ]}
+      ast =
+        {:with, [],
+         [
+           {:<-, [], [{:ok, {:x, [], nil}}, {:get_x, [], []}]},
+           {:<-, [], [{:ok, {:y, [], nil}}, {:get_y, [], []}]},
+           [do: {:+, [], [{:x, [], nil}, {:y, [], nil}]}]
+         ]}
+
       assert {:ok, result} = ControlFlow.extract(ast)
       assert result.type == :with
       assert result.metadata.match_clause_count == 2
     end
 
     test "extracts try/rescue/after expression" do
-      ast = {:try, [], [[
-        do: {:dangerous_operation, [], []},
-        rescue: [{:->, [], [[{:e, [], nil}], {:handle_error, [], [{:e, [], nil}]}]}],
-        after: {:cleanup, [], []}
-      ]]}
+      ast =
+        {:try, [],
+         [
+           [
+             do: {:dangerous_operation, [], []},
+             rescue: [{:->, [], [[{:e, [], nil}], {:handle_error, [], [{:e, [], nil}]}]}],
+             after: {:cleanup, [], []}
+           ]
+         ]}
+
       assert {:ok, result} = ControlFlow.extract(ast)
       assert result.type == :try
       assert result.branches.rescue != nil
@@ -313,20 +349,28 @@ defmodule ElixirOntologies.Integration.Phase3Test do
     end
 
     test "extracts receive expression with timeout" do
-      ast = {:receive, [], [[
-        do: [{:->, [], [[{:msg, [], nil}], {:process, [], [{:msg, [], nil}]}]}],
-        after: [{:->, [], [[5000], :timeout]}]
-      ]]}
+      ast =
+        {:receive, [],
+         [
+           [
+             do: [{:->, [], [[{:msg, [], nil}], {:process, [], [{:msg, [], nil}]}]}],
+             after: [{:->, [], [[5000], :timeout]}]
+           ]
+         ]}
+
       assert {:ok, result} = ControlFlow.extract(ast)
       assert result.type == :receive
       assert result.metadata.has_timeout == true
     end
 
     test "nested control flow: case inside if" do
-      inner_case = {:case, [], [
-        {:y, [], nil},
-        [do: [{:->, [], [[:a], 1]}, {:->, [], [[:b], 2]}]]
-      ]}
+      inner_case =
+        {:case, [],
+         [
+           {:y, [], nil},
+           [do: [{:->, [], [[:a], 1]}, {:->, [], [[:b], 2]}]]
+         ]}
+
       outer_if = {:if, [], [{:x, [], nil}, [do: inner_case, else: 0]]}
 
       assert {:ok, if_result} = ControlFlow.extract(outer_if)
@@ -344,40 +388,52 @@ defmodule ElixirOntologies.Integration.Phase3Test do
 
   describe "integration: comprehensions and blocks" do
     test "extracts for comprehension with generator" do
-      ast = {:for, [], [
-        {:<-, [], [{:x, [], nil}, [1, 2, 3]]},
-        [do: {:*, [], [{:x, [], nil}, 2]}]
-      ]}
+      ast =
+        {:for, [],
+         [
+           {:<-, [], [{:x, [], nil}, [1, 2, 3]]},
+           [do: {:*, [], [{:x, [], nil}, 2]}]
+         ]}
+
       assert {:ok, result} = Comprehension.extract(ast)
       assert result.type == :for
       assert length(result.generators) == 1
     end
 
     test "extracts for comprehension with filter" do
-      ast = {:for, [], [
-        {:<-, [], [{:x, [], nil}, [1, 2, 3, 4, 5]]},
-        {:>, [], [{:x, [], nil}, 2]},
-        [do: {:x, [], nil}]
-      ]}
+      ast =
+        {:for, [],
+         [
+           {:<-, [], [{:x, [], nil}, [1, 2, 3, 4, 5]]},
+           {:>, [], [{:x, [], nil}, 2]},
+           [do: {:x, [], nil}]
+         ]}
+
       assert {:ok, result} = Comprehension.extract(ast)
       assert length(result.filters) == 1
     end
 
     test "extracts for comprehension with into" do
-      ast = {:for, [], [
-        {:<-, [], [{:x, [], nil}, [1, 2, 3]]},
-        [into: {:%{}, [], []}, do: {{:x, [], nil}, {:x, [], nil}}]
-      ]}
+      ast =
+        {:for, [],
+         [
+           {:<-, [], [{:x, [], nil}, [1, 2, 3]]},
+           [into: {:%{}, [], []}, do: {{:x, [], nil}, {:x, [], nil}}]
+         ]}
+
       assert {:ok, result} = Comprehension.extract(ast)
       assert result.options.into != nil
     end
 
     test "extracts block with multiple expressions" do
-      ast = {:__block__, [], [
-        {:x, [], nil},
-        {:y, [], nil},
-        {:+, [], [{:x, [], nil}, {:y, [], nil}]}
-      ]}
+      ast =
+        {:__block__, [],
+         [
+           {:x, [], nil},
+           {:y, [], nil},
+           {:+, [], [{:x, [], nil}, {:y, [], nil}]}
+         ]}
+
       assert {:ok, result} = Block.extract(ast)
       assert result.type == :block
       assert length(result.expressions) == 3
@@ -385,19 +441,25 @@ defmodule ElixirOntologies.Integration.Phase3Test do
     end
 
     test "extracts anonymous function with single clause" do
-      ast = {:fn, [], [
-        {:->, [], [[{:x, [], nil}], {:*, [], [{:x, [], nil}, 2]}]}
-      ]}
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{:x, [], nil}], {:*, [], [{:x, [], nil}, 2]}]}
+         ]}
+
       assert {:ok, result} = Block.extract(ast)
       assert result.type == :fn
       assert length(result.clauses) == 1
     end
 
     test "extracts anonymous function with multiple clauses" do
-      ast = {:fn, [], [
-        {:->, [], [[:ok], 1]},
-        {:->, [], [[:error], 0]}
-      ]}
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[:ok], 1]},
+           {:->, [], [[:error], 0]}
+         ]}
+
       assert {:ok, result} = Block.extract(ast)
       assert result.type == :fn
       assert length(result.clauses) == 2
@@ -464,7 +526,12 @@ defmodule ElixirOntologies.Integration.Phase3Test do
     end
 
     test "extracts arithmetic operators" do
-      for {op, _} <- [{:+, "addition"}, {:-, "subtraction"}, {:*, "multiplication"}, {:/, "division"}] do
+      for {op, _} <- [
+            {:+, "addition"},
+            {:-, "subtraction"},
+            {:*, "multiplication"},
+            {:/, "division"}
+          ] do
         ast = {op, [], [1, 2]}
         assert {:ok, result} = Operator.extract(ast)
         assert result.symbol == op
@@ -527,6 +594,7 @@ defmodule ElixirOntologies.Integration.Phase3Test do
         2
       end
       """
+
       {:ok, ast} = Code.string_to_quoted(code, columns: true)
       assert {:ok, result} = ControlFlow.extract(ast)
       assert result.location != nil
@@ -549,6 +617,7 @@ defmodule ElixirOntologies.Integration.Phase3Test do
         x + y
       )
       """
+
       {:ok, ast} = Code.string_to_quoted(code, columns: true)
       assert {:ok, result} = Block.extract(ast)
       assert result.location != nil
@@ -600,13 +669,18 @@ defmodule ElixirOntologies.Integration.Phase3Test do
       ]
 
       for {op, expected_category} <- samples do
-        ast = case op do
-          :& -> {:&, [], [1]}  # Unary
-          _ -> {op, [], [1, 2]}  # Binary
-        end
+        ast =
+          case op do
+            # Unary
+            :& -> {:&, [], [1]}
+            # Binary
+            _ -> {op, [], [1, 2]}
+          end
+
         assert {:ok, result} = Operator.extract(ast)
+
         assert result.type == expected_category,
-          "Operator #{op} should be category #{expected_category}, got #{result.type}"
+               "Operator #{op} should be category #{expected_category}, got #{result.type}"
       end
     end
 
@@ -646,9 +720,10 @@ defmodule ElixirOntologies.Integration.Phase3Test do
 
     @tag :ontology
     test "Comprehension extractor covers comprehension ontology class" do
-      assert {:ok, %{type: :for}} = Comprehension.extract(
-        {:for, [], [{:<-, [], [{:x, [], nil}, []]}, [do: {:x, [], nil}]]}
-      )
+      assert {:ok, %{type: :for}} =
+               Comprehension.extract(
+                 {:for, [], [{:<-, [], [{:x, [], nil}, []]}, [do: {:x, [], nil}]]}
+               )
     end
 
     @tag :ontology
@@ -674,10 +749,12 @@ defmodule ElixirOntologies.Integration.Phase3Test do
 
     test "reference inside comprehension" do
       # for x <- list, do: x * 2
-      ast = {:for, [], [
-        {:<-, [], [{:x, [], nil}, {:list, [], nil}]},
-        [do: {:*, [], [{:x, [], nil}, 2]}]
-      ]}
+      ast =
+        {:for, [],
+         [
+           {:<-, [], [{:x, [], nil}, {:list, [], nil}]},
+           [do: {:*, [], [{:x, [], nil}, 2]}]
+         ]}
 
       assert {:ok, comp} = Comprehension.extract(ast)
       # The body contains an operator
@@ -687,10 +764,12 @@ defmodule ElixirOntologies.Integration.Phase3Test do
 
     test "pattern inside control flow" do
       # case value do {:ok, x} -> x end
-      ast = {:case, [], [
-        {:value, [], nil},
-        [do: [{:->, [], [[{:{}, [], [:ok, {:x, [], nil}]}], {:x, [], nil}]}]]
-      ]}
+      ast =
+        {:case, [],
+         [
+           {:value, [], nil},
+           [do: [{:->, [], [[{:{}, [], [:ok, {:x, [], nil}]}], {:x, [], nil}]}]]
+         ]}
 
       assert {:ok, cf} = ControlFlow.extract(ast)
       [clause] = cf.clauses
@@ -700,11 +779,14 @@ defmodule ElixirOntologies.Integration.Phase3Test do
 
     test "block inside control flow" do
       # if cond do x = 1; y = 2; x + y end
-      block = {:__block__, [], [
-        {:=, [], [{:x, [], nil}, 1]},
-        {:=, [], [{:y, [], nil}, 2]},
-        {:+, [], [{:x, [], nil}, {:y, [], nil}]}
-      ]}
+      block =
+        {:__block__, [],
+         [
+           {:=, [], [{:x, [], nil}, 1]},
+           {:=, [], [{:y, [], nil}, 2]},
+           {:+, [], [{:x, [], nil}, {:y, [], nil}]}
+         ]}
+
       ast = {:if, [], [{:cond, [], nil}, [do: block]]}
 
       assert {:ok, cf} = ControlFlow.extract(ast)

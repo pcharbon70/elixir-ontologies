@@ -66,7 +66,9 @@ defmodule ElixirOntologies.Extractors.MacroTest do
     end
 
     test "extracts macro with multiple parameters" do
-      ast = {:defmacro, [], [{:my_macro, [], [{:a, [], nil}, {:b, [], nil}, {:c, [], nil}]}, [do: :ok]]}
+      ast =
+        {:defmacro, [],
+         [{:my_macro, [], [{:a, [], nil}, {:b, [], nil}, {:c, [], nil}]}, [do: :ok]]}
 
       assert {:ok, result} = MacroExtractor.extract(ast)
       assert result.name == :my_macro
@@ -124,7 +126,8 @@ defmodule ElixirOntologies.Extractors.MacroTest do
       ast =
         {:defmacrop, [],
          [
-           {:when, [], [{:guarded_private, [], [{:x, [], nil}]}, {:is_atom, [], [{:x, [], nil}]}]},
+           {:when, [],
+            [{:guarded_private, [], [{:x, [], nil}]}, {:is_atom, [], [{:x, [], nil}]}]},
            [do: :ok]
          ]}
 
@@ -159,10 +162,13 @@ defmodule ElixirOntologies.Extractors.MacroTest do
     end
 
     test "detects Macro.escape usage" do
+      escape_call =
+        {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:value, [], nil}]}
+
       body =
         {:__block__, [],
          [
-           {:=, [], [{:escaped, [], nil}, {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:value, [], nil}]}]},
+           {:=, [], [{:escaped, [], nil}, escape_call]},
            {:quote, [], [[do: {:unquote, [], [{:escaped, [], nil}]}]]}
          ]}
 

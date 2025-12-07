@@ -205,6 +205,7 @@ defmodule ElixirOntologies.Extractors.ControlFlowTest do
         {:->, [], [[:error], :failure]},
         {:->, [], [[{:_, [], nil}], :unknown]}
       ]
+
       ast = {:case, [], [{:value, [], nil}, [do: clauses]]}
       result = ControlFlow.extract_case(ast)
 
@@ -258,6 +259,7 @@ defmodule ElixirOntologies.Extractors.ControlFlowTest do
         {:->, [], [[{:<, [], [{:x, [], nil}, 0]}], :negative]},
         {:->, [], [[true], :zero]}
       ]
+
       ast = {:cond, [], [[do: clauses]]}
       result = ControlFlow.extract_cond(ast)
 
@@ -271,6 +273,7 @@ defmodule ElixirOntologies.Extractors.ControlFlowTest do
         {:->, [], [[{:>, [], [{:x, [], nil}, 0]}], :positive]},
         {:->, [], [[true], :default]}
       ]
+
       ast = {:cond, [], [[do: clauses]]}
       result = ControlFlow.extract_cond(ast)
 
@@ -375,12 +378,18 @@ defmodule ElixirOntologies.Extractors.ControlFlowTest do
     test "extracts try with all clauses" do
       rescue_clause = {:->, [], [[{:e, [], nil}], :error]}
       catch_clause = {:->, [], [[:exit, {:reason, [], nil}], :caught]}
-      ast = {:try, [], [[
-        do: {:risky, [], []},
-        rescue: [rescue_clause],
-        catch: [catch_clause],
-        after: {:cleanup, [], []}
-      ]]}
+
+      ast =
+        {:try, [],
+         [
+           [
+             do: {:risky, [], []},
+             rescue: [rescue_clause],
+             catch: [catch_clause],
+             after: {:cleanup, [], []}
+           ]
+         ]}
+
       result = ControlFlow.extract_try(ast)
 
       assert result.type == :try
@@ -390,8 +399,12 @@ defmodule ElixirOntologies.Extractors.ControlFlowTest do
     end
 
     test "extracts try with multiple rescue clauses" do
-      rescue1 = {:->, [], [[{:in, [], [{:e, [], nil}, {:__aliases__, [], [:RuntimeError]}]}], :runtime]}
-      rescue2 = {:->, [], [[{:in, [], [{:e, [], nil}, {:__aliases__, [], [:ArgumentError]}]}], :argument]}
+      rescue1 =
+        {:->, [], [[{:in, [], [{:e, [], nil}, {:__aliases__, [], [:RuntimeError]}]}], :runtime]}
+
+      rescue2 =
+        {:->, [], [[{:in, [], [{:e, [], nil}, {:__aliases__, [], [:ArgumentError]}]}], :argument]}
+
       ast = {:try, [], [[do: :ok, rescue: [rescue1, rescue2]]]}
       result = ControlFlow.extract_try(ast)
 
@@ -432,6 +445,7 @@ defmodule ElixirOntologies.Extractors.ControlFlowTest do
         {:->, [], [[{:ok, {:msg, [], nil}}], {:msg, [], nil}]},
         {:->, [], [[{:error, {:reason, [], nil}}], {:error, {:reason, [], nil}}]}
       ]
+
       ast = {:receive, [], [[do: clauses]]}
       result = ControlFlow.extract_receive(ast)
 
@@ -537,7 +551,10 @@ defmodule ElixirOntologies.Extractors.ControlFlowTest do
   describe "extract/1" do
     test "returns {:ok, result} for valid control flow" do
       assert {:ok, %ControlFlow{type: :if}} = ControlFlow.extract({:if, [], [true, [do: :ok]]})
-      assert {:ok, %ControlFlow{type: :case}} = ControlFlow.extract({:case, [], [{:x, [], nil}, [do: []]]})
+
+      assert {:ok, %ControlFlow{type: :case}} =
+               ControlFlow.extract({:case, [], [{:x, [], nil}, [do: []]]})
+
       assert {:ok, %ControlFlow{type: :raise}} = ControlFlow.extract({:raise, [], ["error"]})
     end
 
@@ -570,6 +587,7 @@ defmodule ElixirOntologies.Extractors.ControlFlowTest do
         {:->, [], [[:a], :body_a]},
         {:->, [], [[:b], :body_b]}
       ]
+
       result = ControlFlow.extract_clauses(clauses)
 
       assert length(result) == 2

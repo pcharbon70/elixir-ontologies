@@ -179,7 +179,11 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
     end
 
     test "extracts use DynamicSupervisor with options" do
-      body = parse_module_body("defmodule S do use DynamicSupervisor, strategy: :one_for_one, max_children: 100 end")
+      body =
+        parse_module_body(
+          "defmodule S do use DynamicSupervisor, strategy: :one_for_one, max_children: 100 end"
+        )
+
       {:ok, result} = SupervisorExtractor.extract(body)
 
       assert result.supervisor_type == :dynamic_supervisor
@@ -531,13 +535,15 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
     test "returns error when no strategy found" do
       body = parse_module_body("defmodule S do use GenServer end")
 
-      assert {:error, "No supervision strategy found"} = SupervisorExtractor.extract_strategy(body)
+      assert {:error, "No supervision strategy found"} =
+               SupervisorExtractor.extract_strategy(body)
     end
 
     test "returns error for supervisor without init callback" do
       body = parse_module_body("defmodule S do use Supervisor end")
 
-      assert {:error, "No supervision strategy found"} = SupervisorExtractor.extract_strategy(body)
+      assert {:error, "No supervision strategy found"} =
+               SupervisorExtractor.extract_strategy(body)
     end
   end
 

@@ -398,7 +398,10 @@ defmodule ElixirOntologies.Extractors.Attribute do
   end
 
   defp classify_attribute(@callback_attribute, _value), do: :callback_attribute
-  defp classify_attribute(@optional_callbacks_attribute, _value), do: :optional_callbacks_attribute
+
+  defp classify_attribute(@optional_callbacks_attribute, _value),
+    do: :optional_callbacks_attribute
+
   defp classify_attribute(@derive_attribute, _value), do: :derive_attribute
   defp classify_attribute(@enforce_keys_attribute, _value), do: :enforce_keys_attribute
   defp classify_attribute(@impl_attribute, _value), do: :impl_attribute
@@ -414,7 +417,8 @@ defmodule ElixirOntologies.Extractors.Attribute do
   # Private Helpers - Metadata Building
   # ===========================================================================
 
-  defp build_metadata(type, _name, value) when type in [:doc_attribute, :moduledoc_attribute, :typedoc_attribute] do
+  defp build_metadata(type, _name, value)
+       when type in [:doc_attribute, :moduledoc_attribute, :typedoc_attribute] do
     %{hidden: value == false}
   end
 

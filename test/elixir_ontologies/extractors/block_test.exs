@@ -84,11 +84,12 @@ defmodule ElixirOntologies.Extractors.BlockTest do
 
   describe "extract/1 with blocks" do
     test "extracts simple block with multiple expressions" do
-      ast = quote do
-        x = 1
-        y = 2
-        x + y
-      end
+      ast =
+        quote do
+          x = 1
+          y = 2
+          x + y
+        end
 
       assert {:ok, result} = Block.extract(ast)
       assert result.type == :block
@@ -134,13 +135,15 @@ defmodule ElixirOntologies.Extractors.BlockTest do
     end
 
     test "extracts nested blocks" do
-      ast = quote do
-        x = 1
-        if true do
-          y = 2
-          y
+      ast =
+        quote do
+          x = 1
+
+          if true do
+            y = 2
+            y
+          end
         end
-      end
 
       assert {:ok, result} = Block.extract(ast)
       assert result.type == :block
@@ -164,12 +167,13 @@ defmodule ElixirOntologies.Extractors.BlockTest do
     end
 
     test "extracts multi-clause fn" do
-      ast = quote do
-        fn
-          0 -> :zero
-          n -> n
+      ast =
+        quote do
+          fn
+            0 -> :zero
+            n -> n
+          end
         end
-      end
 
       assert {:ok, result} = Block.extract(ast)
       assert result.type == :fn
@@ -196,12 +200,13 @@ defmodule ElixirOntologies.Extractors.BlockTest do
     end
 
     test "extracts fn with guards" do
-      ast = quote do
-        fn
-          x when x > 0 -> :positive
-          x -> :other
+      ast =
+        quote do
+          fn
+            x when x > 0 -> :positive
+            x -> :other
+          end
         end
-      end
 
       assert {:ok, result} = Block.extract(ast)
       assert length(result.clauses) == 2
@@ -219,12 +224,13 @@ defmodule ElixirOntologies.Extractors.BlockTest do
     end
 
     test "extracts fn with pattern matching" do
-      ast = quote do
-        fn
-          {:ok, value} -> value
-          {:error, _} -> nil
+      ast =
+        quote do
+          fn
+            {:ok, value} -> value
+            {:error, _} -> nil
+          end
         end
-      end
 
       assert {:ok, result} = Block.extract(ast)
       assert length(result.clauses) == 2
@@ -327,12 +333,13 @@ defmodule ElixirOntologies.Extractors.BlockTest do
 
   describe "has_guards?/1" do
     test "returns true when fn has guarded clause" do
-      ast = quote do
-        fn
-          x when x > 0 -> :positive
-          _ -> :other
+      ast =
+        quote do
+          fn
+            x when x > 0 -> :positive
+            _ -> :other
+          end
         end
-      end
 
       {:ok, fn_block} = Block.extract(ast)
       assert Block.has_guards?(fn_block) == true
@@ -389,13 +396,14 @@ defmodule ElixirOntologies.Extractors.BlockTest do
     end
 
     test "handles fn with complex body" do
-      ast = quote do
-        fn x ->
-          y = x * 2
-          z = y + 1
-          z
+      ast =
+        quote do
+          fn x ->
+            y = x * 2
+            z = y + 1
+            z
+          end
         end
-      end
 
       assert {:ok, result} = Block.extract(ast)
       [clause] = result.clauses

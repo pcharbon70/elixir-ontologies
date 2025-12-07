@@ -65,12 +65,10 @@ defmodule ElixirOntologies.Extractors.OTP.GenServer do
           metadata: map()
         }
 
-  defstruct [
-    detection_method: :use,
-    use_options: nil,
-    location: nil,
-    metadata: %{}
-  ]
+  defstruct detection_method: :use,
+            use_options: nil,
+            location: nil,
+            metadata: %{}
 
   # ===========================================================================
   # Callback Struct
@@ -115,15 +113,13 @@ defmodule ElixirOntologies.Extractors.OTP.GenServer do
             metadata: map()
           }
 
-    defstruct [
-      type: :init,
-      name: :init,
-      arity: 1,
-      clauses: 1,
-      has_impl: false,
-      location: nil,
-      metadata: %{}
-    ]
+    defstruct type: :init,
+              name: :init,
+              arity: 1,
+              clauses: 1,
+              has_impl: false,
+              location: nil,
+              metadata: %{}
   end
 
   # GenServer callback specifications: {name, arity, type}
@@ -217,7 +213,11 @@ defmodule ElixirOntologies.Extractors.OTP.GenServer do
       false
   """
   @spec behaviour_genserver?(Macro.t()) :: boolean()
-  def behaviour_genserver?({:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [:GenServer]}]}]}), do: true
+  def behaviour_genserver?(
+        {:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [:GenServer]}]}]}
+      ),
+      do: true
+
   def behaviour_genserver?({:@, _meta, [{:behaviour, _attr_meta, [GenServer]}]}), do: true
   def behaviour_genserver?(_), do: false
 
@@ -609,7 +609,11 @@ defmodule ElixirOntologies.Extractors.OTP.GenServer do
 
   defp extract_use_options({:use, _meta, [{:__aliases__, _, [:GenServer]}]}), do: []
   defp extract_use_options({:use, _meta, [GenServer]}), do: []
-  defp extract_use_options({:use, _meta, [{:__aliases__, _, [:GenServer]}, opts]}) when is_list(opts), do: opts
+
+  defp extract_use_options({:use, _meta, [{:__aliases__, _, [:GenServer]}, opts]})
+       when is_list(opts),
+       do: opts
+
   defp extract_use_options({:use, _meta, [GenServer, opts]}) when is_list(opts), do: opts
   defp extract_use_options(_), do: []
 

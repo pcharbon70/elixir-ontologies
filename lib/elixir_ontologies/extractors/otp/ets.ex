@@ -91,18 +91,16 @@ defmodule ElixirOntologies.Extractors.OTP.ETS do
             metadata: map()
           }
 
-    defstruct [
-      name: nil,
-      table_type: :set,
-      access_type: :protected,
-      named_table: false,
-      read_concurrency: false,
-      write_concurrency: false,
-      compressed: false,
-      heir: nil,
-      location: nil,
-      metadata: %{}
-    ]
+    defstruct name: nil,
+              table_type: :set,
+              access_type: :protected,
+              named_table: false,
+              read_concurrency: false,
+              write_concurrency: false,
+              compressed: false,
+              heir: nil,
+              location: nil,
+              metadata: %{}
   end
 
   # ===========================================================================
@@ -207,7 +205,8 @@ defmodule ElixirOntologies.Extractors.OTP.ETS do
       iex> table.named_table
       true
   """
-  @spec extract(Macro.t(), keyword()) :: {:ok, ETSTable.t()} | {:ok, [ETSTable.t()]} | {:error, String.t()}
+  @spec extract(Macro.t(), keyword()) ::
+          {:ok, ETSTable.t()} | {:ok, [ETSTable.t()]} | {:error, String.t()}
   def extract(body, opts \\ []) do
     statements = Helpers.normalize_body(body)
     tables = find_ets_tables(statements, opts)
@@ -431,9 +430,11 @@ defmodule ElixirOntologies.Extractors.OTP.ETS do
   defp find_ets_in_statement(_, _opts), do: []
 
   defp find_ets_in_body([do: body], opts), do: find_ets_in_statement(body, opts)
+
   defp find_ets_in_body({:__block__, _, statements}, opts) do
     Enum.flat_map(statements, &find_ets_in_statement(&1, opts))
   end
+
   defp find_ets_in_body(body, opts), do: find_ets_in_statement(body, opts)
 
   defp parse_ets_new(name, options, meta, opts) do
@@ -474,15 +475,16 @@ defmodule ElixirOntologies.Extractors.OTP.ETS do
     }
   end
 
-  defp parse_options(_), do: %{
-    table_type: :set,
-    access_type: :protected,
-    named_table: false,
-    read_concurrency: false,
-    write_concurrency: false,
-    compressed: false,
-    heir: nil
-  }
+  defp parse_options(_),
+    do: %{
+      table_type: :set,
+      access_type: :protected,
+      named_table: false,
+      read_concurrency: false,
+      write_concurrency: false,
+      compressed: false,
+      heir: nil
+    }
 
   defp extract_table_type(options) do
     cond do
@@ -490,7 +492,8 @@ defmodule ElixirOntologies.Extractors.OTP.ETS do
       :duplicate_bag in options -> :duplicate_bag
       :bag in options -> :bag
       :set in options -> :set
-      true -> :set  # default
+      # default
+      true -> :set
     end
   end
 
@@ -499,7 +502,8 @@ defmodule ElixirOntologies.Extractors.OTP.ETS do
       :public in options -> :public
       :private in options -> :private
       :protected in options -> :protected
-      true -> :protected  # default
+      # default
+      true -> :protected
     end
   end
 
@@ -526,7 +530,9 @@ defmodule ElixirOntologies.Extractors.OTP.ETS do
 
   defp extract_location(meta, opts) do
     case {Keyword.get(meta, :line), Keyword.get(meta, :column)} do
-      {nil, _} -> Helpers.extract_location_if(nil, opts)
+      {nil, _} ->
+        Helpers.extract_location_if(nil, opts)
+
       {line, column} ->
         %ElixirOntologies.Analyzer.Location.SourceLocation{
           start_line: line,

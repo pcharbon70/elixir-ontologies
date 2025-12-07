@@ -49,11 +49,11 @@ defmodule ElixirOntologies.Extractors.StructTest do
       assert {:ok, result} = Struct.extract(ast)
       assert length(result.fields) == 3
 
-      age_field = Enum.find(result.fields, & &1.name == :age)
+      age_field = Enum.find(result.fields, &(&1.name == :age))
       assert age_field.has_default == true
       assert age_field.default_value == 0
 
-      active_field = Enum.find(result.fields, & &1.name == :active)
+      active_field = Enum.find(result.fields, &(&1.name == :active))
       assert active_field.has_default == true
       assert active_field.default_value == true
     end
@@ -65,10 +65,10 @@ defmodule ElixirOntologies.Extractors.StructTest do
       assert {:ok, result} = Struct.extract(ast)
       assert length(result.fields) == 3
 
-      name_field = Enum.find(result.fields, & &1.name == :name)
+      name_field = Enum.find(result.fields, &(&1.name == :name))
       assert name_field.has_default == false
 
-      age_field = Enum.find(result.fields, & &1.name == :age)
+      age_field = Enum.find(result.fields, &(&1.name == :age))
       assert age_field.has_default == true
     end
 
@@ -438,7 +438,8 @@ defmodule ElixirOntologies.Extractors.StructTest do
 
       assert :title in required_names
       assert :user_id in required_names
-      refute :id in required_names  # not enforced
+      # not enforced
+      refute :id in required_names
     end
 
     test "config struct with all defaults" do
@@ -740,7 +741,8 @@ defmodule ElixirOntologies.Extractors.StructTest do
       required = Struct.required_fields(result)
       required_names = Enum.map(required, & &1.name)
       assert :name in required_names
-      refute :non_existent in required_names  # Not a field, so not required
+      # Not a field, so not required
+      refute :non_existent in required_names
     end
   end
 end

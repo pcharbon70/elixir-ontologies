@@ -87,7 +87,10 @@ defmodule ElixirOntologies.Extractors.ClauseTest do
     test "extracts clause with guard" do
       ast =
         {:def, [],
-         [{:when, [], [{:process, [], [{:x, [], nil}]}, {:is_integer, [], [{:x, [], nil}]}]}, [do: :ok]]}
+         [
+           {:when, [], [{:process, [], [{:x, [], nil}]}, {:is_integer, [], [{:x, [], nil}]}]},
+           [do: :ok]
+         ]}
 
       assert {:ok, result} = Clause.extract(ast)
       assert result.name == :process
@@ -136,7 +139,8 @@ defmodule ElixirOntologies.Extractors.ClauseTest do
     end
 
     test "extracts bodyless clause with guard" do
-      ast = {:def, [], [{:when, [], [{:foo, [], [{:x, [], nil}]}, {:is_atom, [], [{:x, [], nil}]}]}]}
+      ast =
+        {:def, [], [{:when, [], [{:foo, [], [{:x, [], nil}]}, {:is_atom, [], [{:x, [], nil}]}]}]}
 
       assert {:ok, result} = Clause.extract(ast)
       assert result.name == :foo
@@ -292,10 +296,17 @@ defmodule ElixirOntologies.Extractors.ClauseTest do
 
   describe "assign_order/1" do
     test "assigns sequential order to clauses" do
-      clauses = [
-        %Clause{name: :foo, arity: 1, order: 1, visibility: :public, head: %{parameters: [], guard: nil}, body: nil, metadata: %{}},
-        %Clause{name: :foo, arity: 1, order: 1, visibility: :public, head: %{parameters: [], guard: nil}, body: nil, metadata: %{}}
-      ]
+      clause_base = %Clause{
+        name: :foo,
+        arity: 1,
+        order: 1,
+        visibility: :public,
+        head: %{parameters: [], guard: nil},
+        body: nil,
+        metadata: %{}
+      }
+
+      clauses = [clause_base, clause_base]
 
       ordered = Clause.assign_order(clauses)
       assert Enum.map(ordered, & &1.order) == [1, 2]

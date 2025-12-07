@@ -20,7 +20,13 @@ defmodule ElixirOntologies.Extractors.FunctionSpecTest do
         {:@, [],
          [
            {:spec, [],
-            [{:when, [], [{:"::", [], [{:identity, [], [{:a, [], nil}]}, {:a, [], nil}]}, [a: {:var, [], nil}]]}]}
+            [
+              {:when, [],
+               [
+                 {:"::", [], [{:identity, [], [{:a, [], nil}]}, {:a, [], nil}]},
+                 [a: {:var, [], nil}]
+               ]}
+            ]}
          ]}
 
       assert FunctionSpec.spec?(ast)
@@ -62,7 +68,9 @@ defmodule ElixirOntologies.Extractors.FunctionSpecTest do
     end
 
     test "extracts spec with one parameter" do
-      ast = {:@, [], [{:spec, [], [{:"::", [], [{:double, [], [{:integer, [], []}]}, {:integer, [], []}]}]}]}
+      ast =
+        {:@, [],
+         [{:spec, [], [{:"::", [], [{:double, [], [{:integer, [], []}]}, {:integer, [], []}]}]}]}
 
       assert {:ok, result} = FunctionSpec.extract(ast)
       assert result.name == :double
@@ -74,7 +82,13 @@ defmodule ElixirOntologies.Extractors.FunctionSpecTest do
     test "extracts spec with multiple parameters" do
       ast =
         {:@, [],
-         [{:spec, [], [{:"::", [], [{:add, [], [{:integer, [], []}, {:integer, [], []}]}, {:integer, [], []}]}]}]}
+         [
+           {:spec, [],
+            [
+              {:"::", [],
+               [{:add, [], [{:integer, [], []}, {:integer, [], []}]}, {:integer, [], []}]}
+            ]}
+         ]}
 
       assert {:ok, result} = FunctionSpec.extract(ast)
       assert result.name == :add
@@ -141,7 +155,13 @@ defmodule ElixirOntologies.Extractors.FunctionSpecTest do
         {:@, [],
          [
            {:spec, [],
-            [{:when, [], [{:"::", [], [{:identity, [], [{:a, [], nil}]}, {:a, [], nil}]}, [a: {:var, [], nil}]]}]}
+            [
+              {:when, [],
+               [
+                 {:"::", [], [{:identity, [], [{:a, [], nil}]}, {:a, [], nil}]},
+                 [a: {:var, [], nil}]
+               ]}
+            ]}
          ]}
 
       assert {:ok, result} = FunctionSpec.extract(ast)
@@ -194,10 +214,13 @@ defmodule ElixirOntologies.Extractors.FunctionSpecTest do
       body =
         {:__block__, [],
          [
-           {:@, [], [{:spec, [], [{:"::", [], [{:add, [], [{:integer, [], []}]}, {:integer, [], []}]}]}]},
-           {:@, [], [{:spec, [], [{:"::", [], [{:sub, [], [{:integer, [], []}]}, {:integer, [], []}]}]}]},
+           {:@, [],
+            [{:spec, [], [{:"::", [], [{:add, [], [{:integer, [], []}]}, {:integer, [], []}]}]}]},
+           {:@, [],
+            [{:spec, [], [{:"::", [], [{:sub, [], [{:integer, [], []}]}, {:integer, [], []}]}]}]},
            {:@, [], [{:doc, [], ["docs"]}]},
-           {:@, [], [{:spec, [], [{:"::", [], [{:mul, [], [{:integer, [], []}]}, {:integer, [], []}]}]}]}
+           {:@, [],
+            [{:spec, [], [{:"::", [], [{:mul, [], [{:integer, [], []}]}, {:integer, [], []}]}]}]}
          ]}
 
       results = FunctionSpec.extract_all(body)
@@ -238,7 +261,13 @@ defmodule ElixirOntologies.Extractors.FunctionSpecTest do
         {:@, [],
          [
            {:spec, [],
-            [{:when, [], [{:"::", [], [{:identity, [], [{:a, [], nil}]}, {:a, [], nil}]}, [a: {:var, [], nil}]]}]}
+            [
+              {:when, [],
+               [
+                 {:"::", [], [{:identity, [], [{:a, [], nil}]}, {:a, [], nil}]},
+                 [a: {:var, [], nil}]
+               ]}
+            ]}
          ]}
 
       {:ok, result} = FunctionSpec.extract(ast)
@@ -262,7 +291,13 @@ defmodule ElixirOntologies.Extractors.FunctionSpecTest do
     test "returns name/arity for multi-arg spec" do
       ast =
         {:@, [],
-         [{:spec, [], [{:"::", [], [{:add, [], [{:integer, [], []}, {:integer, [], []}]}, {:integer, [], []}]}]}]}
+         [
+           {:spec, [],
+            [
+              {:"::", [],
+               [{:add, [], [{:integer, [], []}, {:integer, [], []}]}, {:integer, [], []}]}
+            ]}
+         ]}
 
       {:ok, result} = FunctionSpec.extract(ast)
       assert FunctionSpec.spec_id(result) == "add/2"

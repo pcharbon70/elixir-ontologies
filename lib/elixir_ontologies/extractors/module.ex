@@ -342,7 +342,7 @@ defmodule ElixirOntologies.Extractors.Module do
   # Private Helpers - Body Extraction
   # ===========================================================================
 
-  defp extract_body([do: body]), do: body
+  defp extract_body(do: body), do: body
   defp extract_body([{:do, body} | _rest]), do: body
   defp extract_body(body_opts) when is_list(body_opts), do: Keyword.get(body_opts, :do)
   defp extract_body(_), do: nil
@@ -382,7 +382,8 @@ defmodule ElixirOntologies.Extractors.Module do
   defp has_moduledoc?(body) do
     case extract_moduledoc(body) do
       nil -> false
-      false -> true  # @moduledoc false still counts as having a moduledoc
+      # @moduledoc false still counts as having a moduledoc
+      false -> true
       _ -> true
     end
   end
@@ -395,12 +396,10 @@ defmodule ElixirOntologies.Extractors.Module do
   defp extract_doc_content(_), do: nil
 
   defp extract_binary_parts(parts) when is_list(parts) do
-    parts
-    |> Enum.map(fn
+    Enum.map_join(parts, "", fn
       part when is_binary(part) -> part
       _ -> ""
     end)
-    |> Enum.join()
   end
 
   # ===========================================================================
@@ -684,12 +683,15 @@ defmodule ElixirOntologies.Extractors.Module do
     extract_macro_from_statement(statement)
   end
 
-  defp extract_macro_from_statement({:defmacro, _, [{:when, _, [{name, _, args}, _guard]}, _body]})
+  defp extract_macro_from_statement(
+         {:defmacro, _, [{:when, _, [{name, _, args}, _guard]}, _body]}
+       )
        when is_atom(name) do
     [%{name: name, arity: args_length(args), visibility: :public}]
   end
 
-  defp extract_macro_from_statement({:defmacro, _, [{name, _, args}, _body]}) when is_atom(name) do
+  defp extract_macro_from_statement({:defmacro, _, [{name, _, args}, _body]})
+       when is_atom(name) do
     [%{name: name, arity: args_length(args), visibility: :public}]
   end
 
@@ -697,7 +699,9 @@ defmodule ElixirOntologies.Extractors.Module do
     [%{name: name, arity: args_length(args), visibility: :public}]
   end
 
-  defp extract_macro_from_statement({:defmacrop, _, [{:when, _, [{name, _, args}, _guard]}, _body]})
+  defp extract_macro_from_statement(
+         {:defmacrop, _, [{:when, _, [{name, _, args}, _guard]}, _body]}
+       )
        when is_atom(name) do
     [%{name: name, arity: args_length(args), visibility: :private}]
   end

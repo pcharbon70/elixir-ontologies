@@ -230,8 +230,8 @@ defmodule ElixirOntologies.Extractors.Block do
       clauses: nil,
       location: Helpers.extract_location(node),
       metadata: %{
-        expression_count: length(exprs),
-        has_return_value: length(exprs) > 0
+        expression_count: Enum.count(exprs),
+        has_return_value: exprs != []
       }
     }
   end

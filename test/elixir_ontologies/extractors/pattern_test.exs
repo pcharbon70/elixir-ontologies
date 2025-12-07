@@ -91,7 +91,9 @@ defmodule ElixirOntologies.Extractors.PatternTest do
 
     test "returns :tuple for tuple patterns" do
       assert Pattern.pattern_type({{:a, [], nil}, {:b, [], nil}}) == :tuple
-      assert Pattern.pattern_type({:{}, [], [{:a, [], nil}, {:b, [], nil}, {:c, [], nil}]}) == :tuple
+
+      assert Pattern.pattern_type({:{}, [], [{:a, [], nil}, {:b, [], nil}, {:c, [], nil}]}) ==
+               :tuple
     end
 
     test "returns :list for list patterns" do
@@ -224,7 +226,7 @@ defmodule ElixirOntologies.Extractors.PatternTest do
       result = Pattern.extract_literal(nil)
 
       assert result.value == nil
-      assert result.metadata.literal_type == :nil
+      assert result.metadata.literal_type == nil
     end
 
     test "extracts integer literal" do

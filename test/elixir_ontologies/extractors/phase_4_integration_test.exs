@@ -442,7 +442,7 @@ defmodule ElixirOntologies.Extractors.Phase4IntegrationTest do
             defmacro define_getter(name) do
               quote do
                 def unquote(name)() do
-                  @unquote(name)
+                  @unquote name
                 end
               end
             end
@@ -539,7 +539,7 @@ defmodule ElixirOntologies.Extractors.Phase4IntegrationTest do
         quote do
           defmacro log_value(value) do
             quote bind_quoted: [value: value] do
-              IO.inspect(value, label: "Value")
+              Logger.debug("Value: #{inspect(value)}")
             end
           end
         end
@@ -560,13 +560,13 @@ defmodule ElixirOntologies.Extractors.Phase4IntegrationTest do
         quote do
           defmacro define_functions(names) do
             quote do
-              unquote_splicing(
-                for name <- names do
-                  quote do
-                    def unquote(name)(), do: unquote(name)
-                  end
-                end
-              )
+              (unquote_splicing(
+                 for name <- names do
+                   quote do
+                     def unquote(name)(), do: unquote(name)
+                   end
+                 end
+               ))
             end
           end
         end

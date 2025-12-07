@@ -110,7 +110,10 @@ defmodule ElixirOntologies.Extractors.FunctionTest do
     test "extracts public function with guard" do
       ast =
         {:def, [],
-         [{:when, [], [{:process, [], [{:x, [], nil}]}, {:is_integer, [], [{:x, [], nil}]}]}, [do: :ok]]}
+         [
+           {:when, [], [{:process, [], [{:x, [], nil}]}, {:is_integer, [], [{:x, [], nil}]}]},
+           [do: :ok]
+         ]}
 
       assert {:ok, result} = Function.extract(ast)
       assert result.name == :process
@@ -141,7 +144,10 @@ defmodule ElixirOntologies.Extractors.FunctionTest do
     test "extracts private function with guard" do
       ast =
         {:defp, [],
-         [{:when, [], [{:validate, [], [{:x, [], nil}]}, {:is_binary, [], [{:x, [], nil}]}]}, [do: :ok]]}
+         [
+           {:when, [], [{:validate, [], [{:x, [], nil}]}, {:is_binary, [], [{:x, [], nil}]}]},
+           [do: :ok]
+         ]}
 
       assert {:ok, result} = Function.extract(ast)
       assert result.name == :validate
@@ -156,7 +162,9 @@ defmodule ElixirOntologies.Extractors.FunctionTest do
 
   describe "extract/2 guard functions" do
     test "extracts public guard" do
-      ast = {:defguard, [], [{:when, [], [{:is_valid, [], [{:x, [], nil}]}, {:>, [], [{:x, [], nil}, 0]}]}]}
+      ast =
+        {:defguard, [],
+         [{:when, [], [{:is_valid, [], [{:x, [], nil}]}, {:>, [], [{:x, [], nil}, 0]}]}]}
 
       assert {:ok, result} = Function.extract(ast)
       assert result.type == :guard
@@ -167,7 +175,9 @@ defmodule ElixirOntologies.Extractors.FunctionTest do
     end
 
     test "extracts private guard" do
-      ast = {:defguardp, [], [{:when, [], [{:is_ok, [], [{:x, [], nil}]}, {:==, [], [{:x, [], nil}, :ok]}]}]}
+      ast =
+        {:defguardp, [],
+         [{:when, [], [{:is_ok, [], [{:x, [], nil}]}, {:==, [], [{:x, [], nil}, :ok]}]}]}
 
       assert {:ok, result} = Function.extract(ast)
       assert result.type == :guard
@@ -392,7 +402,8 @@ defmodule ElixirOntologies.Extractors.FunctionTest do
     end
 
     test "extracts bodyless function with guard" do
-      ast = {:def, [], [{:when, [], [{:foo, [], [{:x, [], nil}]}, {:is_atom, [], [{:x, [], nil}]}]}]}
+      ast =
+        {:def, [], [{:when, [], [{:foo, [], [{:x, [], nil}]}, {:is_atom, [], [{:x, [], nil}]}]}]}
 
       assert {:ok, result} = Function.extract(ast)
       assert result.name == :foo

@@ -81,13 +81,11 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
             metadata: map()
           }
 
-    defstruct [
-      type: :one_for_one,
-      max_restarts: nil,
-      max_seconds: nil,
-      location: nil,
-      metadata: %{}
-    ]
+    defstruct type: :one_for_one,
+              max_restarts: nil,
+              max_seconds: nil,
+              location: nil,
+              metadata: %{}
   end
 
   # ===========================================================================
@@ -135,15 +133,13 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
             metadata: map()
           }
 
-    defstruct [
-      id: nil,
-      module: nil,
-      restart: :permanent,
-      shutdown: nil,
-      type: :worker,
-      location: nil,
-      metadata: %{}
-    ]
+    defstruct id: nil,
+              module: nil,
+              restart: :permanent,
+              shutdown: nil,
+              type: :worker,
+              location: nil,
+              metadata: %{}
   end
 
   # ===========================================================================
@@ -172,13 +168,11 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
           metadata: map()
         }
 
-  defstruct [
-    supervisor_type: :supervisor,
-    detection_method: :use,
-    use_options: nil,
-    location: nil,
-    metadata: %{}
-  ]
+  defstruct supervisor_type: :supervisor,
+            detection_method: :use,
+            use_options: nil,
+            location: nil,
+            metadata: %{}
 
   # ===========================================================================
   # Generic Use/Behaviour Detection Helpers
@@ -204,8 +198,14 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       false
   """
   @spec use_module?(Macro.t(), atom()) :: boolean()
-  def use_module?({:use, _meta, [{:__aliases__, _, [module_name]} | _opts]}, target) when module_name == target, do: true
-  def use_module?({:use, _meta, [module_atom | _opts]}, target) when is_atom(module_atom) and module_atom == target, do: true
+  def use_module?({:use, _meta, [{:__aliases__, _, [module_name]} | _opts]}, target)
+      when module_name == target,
+      do: true
+
+  def use_module?({:use, _meta, [module_atom | _opts]}, target)
+      when is_atom(module_atom) and module_atom == target,
+      do: true
+
   def use_module?(_, _), do: false
 
   @doc """
@@ -228,8 +228,17 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       false
   """
   @spec behaviour_module?(Macro.t(), atom()) :: boolean()
-  def behaviour_module?({:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [module_name]}]}]}, target) when module_name == target, do: true
-  def behaviour_module?({:@, _meta, [{:behaviour, _attr_meta, [module_atom]}]}, target) when is_atom(module_atom) and module_atom == target, do: true
+  def behaviour_module?(
+        {:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [module_name]}]}]},
+        target
+      )
+      when module_name == target,
+      do: true
+
+  def behaviour_module?({:@, _meta, [{:behaviour, _attr_meta, [module_atom]}]}, target)
+      when is_atom(module_atom) and module_atom == target,
+      do: true
+
   def behaviour_module?(_, _), do: false
 
   # ===========================================================================
@@ -520,7 +529,8 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       uses_supervisor?(statements) or uses_dynamic_supervisor?(statements) ->
         :use
 
-      declares_supervisor_behaviour?(statements) or declares_dynamic_supervisor_behaviour?(statements) ->
+      declares_supervisor_behaviour?(statements) or
+          declares_dynamic_supervisor_behaviour?(statements) ->
         :behaviour
 
       true ->
@@ -671,8 +681,14 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   # Generic helper to extract options from any use statement
   defp extract_use_options({:use, _meta, [{:__aliases__, _, [_module]}]}), do: []
   defp extract_use_options({:use, _meta, [module]}) when is_atom(module), do: []
-  defp extract_use_options({:use, _meta, [{:__aliases__, _, [_module]}, opts]}) when is_list(opts), do: opts
-  defp extract_use_options({:use, _meta, [module, opts]}) when is_atom(module) and is_list(opts), do: opts
+
+  defp extract_use_options({:use, _meta, [{:__aliases__, _, [_module]}, opts]})
+       when is_list(opts),
+       do: opts
+
+  defp extract_use_options({:use, _meta, [module, opts]}) when is_atom(module) and is_list(opts),
+    do: opts
+
   defp extract_use_options(_), do: []
 
   defp find_use_options(statements, finder) do
@@ -981,7 +997,10 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     extract_strategy_from_body(body_clause, opts)
   end
 
-  defp extract_strategy_from_init({:def, _meta, [{:when, _, [{:init, _, _} | _]}, body_clause]}, opts) do
+  defp extract_strategy_from_init(
+         {:def, _meta, [{:when, _, [{:init, _, _} | _]}, body_clause]},
+         opts
+       ) do
     extract_strategy_from_body(body_clause, opts)
   end
 
@@ -1012,7 +1031,8 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   defp extract_strategy_from_statement(
          {{:., _, [{:__aliases__, _, [:DynamicSupervisor]}, :init]}, meta, [options]},
          opts
-       ) when is_list(options) do
+       )
+       when is_list(options) do
     build_strategy_from_options(options, meta, :dynamic_supervisor_init, opts)
   end
 
@@ -1020,7 +1040,8 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   defp extract_strategy_from_statement(
          {:ok, {{strategy, max_restarts, max_seconds}, _children}},
          opts
-       ) when strategy in [:one_for_one, :one_for_all, :rest_for_one] do
+       )
+       when strategy in [:one_for_one, :one_for_all, :rest_for_one] do
     location = Helpers.extract_location_if(nil, opts)
 
     %Strategy{
@@ -1066,7 +1087,10 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     extract_children_from_body(body_clause, opts)
   end
 
-  defp extract_children_from_init({:def, _meta, [{:when, _, [{:init, _, _} | _]}, body_clause]}, opts) do
+  defp extract_children_from_init(
+         {:def, _meta, [{:when, _, [{:init, _, _} | _]}, body_clause]},
+         opts
+       ) do
     extract_children_from_body(body_clause, opts)
   end
 
@@ -1079,7 +1103,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     children_from_assignment = find_children_assignment(statements, opts)
     children_from_init = find_children_in_supervisor_init(statements, opts)
 
-    children_from_assignment ++ children_from_init
+    (children_from_assignment ++ children_from_init)
     |> Enum.uniq_by(fn spec -> spec.id || spec.module end)
   end
 
@@ -1118,7 +1142,8 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
 
       # Supervisor.init(children_var, opts) where children_var is a variable
       {{:., _, [{:__aliases__, _, [:Supervisor]}, :init]}, _, [{:children, _, _}, _opts]} ->
-        nil  # Already handled by find_children_assignment
+        # Already handled by find_children_assignment
+        nil
 
       _ ->
         nil
@@ -1158,15 +1183,16 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
 
     # Extract module from start tuple - AST tuple format must be checked first
     # because {:{}, meta, args} would match {module, _fun, _args} where :{} is an atom
-    module = case start do
-      # Handle AST tuple format {:{}, meta, [module, fun, args]}
-      {:{}, _, [{:__aliases__, _, parts}, _fun, _args]} -> Module.concat(parts)
-      {:{}, _, [module, _fun, _args]} when is_atom(module) -> module
-      # Regular evaluated tuples
-      {module, _fun, _args} when is_atom(module) -> module
-      {{:__aliases__, _, parts}, _fun, _args} -> Module.concat(parts)
-      _ -> nil
-    end
+    module =
+      case start do
+        # Handle AST tuple format {:{}, meta, [module, fun, args]}
+        {:{}, _, [{:__aliases__, _, parts}, _fun, _args]} -> Module.concat(parts)
+        {:{}, _, [module, _fun, _args]} when is_atom(module) -> module
+        # Regular evaluated tuples
+        {module, _fun, _args} when is_atom(module) -> module
+        {{:__aliases__, _, parts}, _fun, _args} -> Module.concat(parts)
+        _ -> nil
+      end
 
     %ChildSpec{
       id: id,

@@ -330,7 +330,8 @@ defmodule ElixirOntologies.Extractors.Protocol do
       iex> Protocol.extract_implementation({:defmodule, [], []})
       {:error, "Not a protocol implementation: {:defmodule, [], []}"}
   """
-  @spec extract_implementation(Macro.t(), keyword()) :: {:ok, Implementation.t()} | {:error, String.t()}
+  @spec extract_implementation(Macro.t(), keyword()) ::
+          {:ok, Implementation.t()} | {:error, String.t()}
   def extract_implementation(node, opts \\ [])
 
   # Standard defimpl with for: option
@@ -495,7 +496,8 @@ defmodule ElixirOntologies.Extractors.Protocol do
           {[fn_info | fns], nil, nil}
 
         # Protocol function (def without body, no guard)
-        {:def, meta, [{name, _call_meta, args}]}, {fns, doc, spec} when is_atom(name) and name != :when ->
+        {:def, meta, [{name, _call_meta, args}]}, {fns, doc, spec}
+        when is_atom(name) and name != :when ->
           params = Helpers.extract_parameter_names(args)
           arity = length(params)
 
@@ -534,7 +536,8 @@ defmodule ElixirOntologies.Extractors.Protocol do
     |> Enum.map(&extract_impl_function/1)
   end
 
-  defp extract_impl_function({def_type, meta, [{name, _call_meta, args} | rest]}) when is_atom(name) do
+  defp extract_impl_function({def_type, meta, [{name, _call_meta, args} | rest]})
+       when is_atom(name) do
     arity = Helpers.compute_arity(args)
     has_body = has_function_body?(rest)
     location = Helpers.extract_location({def_type, meta, []})
@@ -547,7 +550,9 @@ defmodule ElixirOntologies.Extractors.Protocol do
     }
   end
 
-  defp extract_impl_function({def_type, meta, [{:when, _, [{name, _call_meta, args} | _]} | rest]})
+  defp extract_impl_function(
+         {def_type, meta, [{:when, _, [{name, _call_meta, args} | _]} | rest]}
+       )
        when is_atom(name) do
     arity = Helpers.compute_arity(args)
     has_body = has_function_body?(rest)

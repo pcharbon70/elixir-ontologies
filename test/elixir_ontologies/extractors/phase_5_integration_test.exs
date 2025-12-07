@@ -260,7 +260,9 @@ defmodule ElixirOntologies.Extractors.Phase5IntegrationTest do
       {:ok, {:defmodule, _, [_, [do: beh_body]]}} = Code.string_to_quoted(@behaviour_code)
       behaviour = Behaviour.extract_from_body(beh_body)
 
-      {:ok, {:defmodule, _, [_, [do: impl_body]]}} = Code.string_to_quoted(@implementation_with_optional)
+      {:ok, {:defmodule, _, [_, [do: impl_body]]}} =
+        Code.string_to_quoted(@implementation_with_optional)
+
       impl_result = Behaviour.extract_implementations(impl_body)
 
       all_callbacks = Enum.map(behaviour.callbacks, &{&1.name, &1.arity})
@@ -373,9 +375,10 @@ defmodule ElixirOntologies.Extractors.Phase5IntegrationTest do
 
       [derive_info] = result.derives
 
-      jason_derive = Enum.find(derive_info.protocols, fn p ->
-        p.protocol == [:Jason, :Encoder]
-      end)
+      jason_derive =
+        Enum.find(derive_info.protocols, fn p ->
+          p.protocol == [:Jason, :Encoder]
+        end)
 
       assert jason_derive.options == [only: [:id, :email, :name]]
     end
@@ -463,11 +466,13 @@ defmodule ElixirOntologies.Extractors.Phase5IntegrationTest do
 
     test "exception is identified correctly vs struct" do
       {:ok, {:defmodule, _, [_, [do: exc_body]]}} = Code.string_to_quoted(@exception_code)
-      {:ok, {:defmodule, _, [_, [do: struct_body]]}} = Code.string_to_quoted("""
-        defmodule MyStruct do
-          defstruct [:field]
-        end
-      """)
+
+      {:ok, {:defmodule, _, [_, [do: struct_body]]}} =
+        Code.string_to_quoted("""
+          defmodule MyStruct do
+            defstruct [:field]
+          end
+        """)
 
       assert Struct.defines_exception?(exc_body)
       refute Struct.defines_struct?(exc_body)
@@ -499,7 +504,9 @@ defmodule ElixirOntologies.Extractors.Phase5IntegrationTest do
 
     test "struct with @derive and separate protocol implementation" do
       # Extract struct with derive
-      {:ok, {:defmodule, _, [_, [do: struct_body]]}} = Code.string_to_quoted(@struct_with_protocol_impl)
+      {:ok, {:defmodule, _, [_, [do: struct_body]]}} =
+        Code.string_to_quoted(@struct_with_protocol_impl)
+
       {:ok, struct_result} = Struct.extract_from_body(struct_body)
 
       assert Struct.has_derives?(struct_result)
@@ -590,7 +597,8 @@ defmodule ElixirOntologies.Extractors.Phase5IntegrationTest do
       end
       """
 
-      {:ok, {:__block__, _, [behaviour_module, exception_module]}} = Code.string_to_quoted(exception_code)
+      {:ok, {:__block__, _, [behaviour_module, exception_module]}} =
+        Code.string_to_quoted(exception_code)
 
       # Extract behaviour
       {:ok, {:defmodule, _, [_, [do: behaviour_body]]}} = {:ok, behaviour_module}

@@ -304,7 +304,9 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
 
   describe "extract/2 other attribute types" do
     test "extracts @callback" do
-      ast = {:@, [], [{:callback, [], [{:"::", [], [{:my_callback, [], [{:t, [], nil}]}, {:atom, [], nil}]}]}]}
+      ast =
+        {:@, [],
+         [{:callback, [], [{:"::", [], [{:my_callback, [], [{:t, [], nil}]}, {:atom, [], nil}]}]}]}
 
       assert {:ok, result} = Attribute.extract(ast)
       assert result.type == :callback_attribute

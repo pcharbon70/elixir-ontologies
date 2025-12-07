@@ -173,7 +173,9 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
     end
 
     test "parses 3-tuple" do
-      {:ok, result} = TypeExpression.parse({:{}, [], [{:atom, [], []}, {:integer, [], []}, {:binary, [], []}]})
+      {:ok, result} =
+        TypeExpression.parse({:{}, [], [{:atom, [], []}, {:integer, [], []}, {:binary, [], []}]})
+
       assert result.kind == :tuple
       assert length(result.elements) == 3
       assert result.metadata.arity == 3
@@ -233,14 +235,18 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
     end
 
     test "parses required key" do
-      {:ok, result} = TypeExpression.parse({:%{}, [], [{{:required, [], [{:atom, [], []}]}, {:term, [], []}}]})
+      {:ok, result} =
+        TypeExpression.parse({:%{}, [], [{{:required, [], [{:atom, [], []}]}, {:term, [], []}}]})
+
       assert result.kind == :map
       pair = hd(result.elements)
       assert pair.required == true
     end
 
     test "parses optional key" do
-      {:ok, result} = TypeExpression.parse({:%{}, [], [{{:optional, [], [{:atom, [], []}]}, {:term, [], []}}]})
+      {:ok, result} =
+        TypeExpression.parse({:%{}, [], [{{:optional, [], [{:atom, [], []}]}, {:term, [], []}}]})
+
       assert result.kind == :map
       pair = hd(result.elements)
       assert pair.required == false
@@ -267,7 +273,11 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
     end
 
     test "parses multi-param function" do
-      {:ok, result} = TypeExpression.parse([{:->, [], [[{:integer, [], []}, {:atom, [], []}], {:binary, [], []}]}])
+      {:ok, result} =
+        TypeExpression.parse([
+          {:->, [], [[{:integer, [], []}, {:atom, [], []}], {:binary, [], []}]}
+        ])
+
       assert result.kind == :function
       assert length(result.param_types) == 2
       assert result.metadata.arity == 2

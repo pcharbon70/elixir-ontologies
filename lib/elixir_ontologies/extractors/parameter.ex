@@ -75,12 +75,18 @@ defmodule ElixirOntologies.Extractors.Parameter do
   # ===========================================================================
 
   @pattern_forms [
-    :{},      # tuple pattern
-    :%{},     # map pattern
-    :%,       # struct pattern
-    :|,       # cons pattern (list)
-    :<<>>,    # binary pattern
-    :=        # match pattern (pin in pattern)
+    # tuple pattern
+    :{},
+    # map pattern
+    :%{},
+    # struct pattern
+    :%,
+    # cons pattern (list)
+    :|,
+    # binary pattern
+    :<<>>,
+    # match pattern (pin in pattern)
+    :=
   ]
 
   # ===========================================================================
@@ -113,8 +119,10 @@ defmodule ElixirOntologies.Extractors.Parameter do
   def parameter?({:\\, _, [_param, _default]}), do: true
   def parameter?({:^, _, [_var]}), do: true
   def parameter?({form, _, _}) when form in @pattern_forms, do: true
-  def parameter?([_ | _]), do: true  # list literal pattern
-  def parameter?({tag, _value}) when is_atom(tag), do: true  # tagged tuple {:ok, val}
+  # list literal pattern
+  def parameter?([_ | _]), do: true
+  # tagged tuple {:ok, val}
+  def parameter?({tag, _value}) when is_atom(tag), do: true
   def parameter?(_), do: false
 
   # ===========================================================================
@@ -430,11 +438,13 @@ defmodule ElixirOntologies.Extractors.Parameter do
   def is_ignored?(%__MODULE__{metadata: %{is_ignored: ignored}}), do: ignored
   def is_ignored?(%__MODULE__{name: name}), do: is_ignored?(name)
   def is_ignored?(:_), do: true
+
   def is_ignored?(name) when is_atom(name) do
     name
     |> Atom.to_string()
     |> String.starts_with?("_")
   end
+
   def is_ignored?(_), do: false
 
   @doc """
@@ -485,6 +495,7 @@ defmodule ElixirOntologies.Extractors.Parameter do
   defp extract_pattern_location({_form, meta, _args}) when is_list(meta) do
     Helpers.extract_location({nil, meta, nil})
   end
+
   defp extract_pattern_location(_), do: nil
 
   # Extract name from various parameter forms

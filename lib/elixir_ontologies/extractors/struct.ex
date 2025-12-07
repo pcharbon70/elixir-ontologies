@@ -78,13 +78,11 @@ defmodule ElixirOntologies.Extractors.Struct do
           location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
         }
 
-  defstruct [
-    fields: [],
-    enforce_keys: [],
-    derives: [],
-    location: nil,
-    metadata: %{}
-  ]
+  defstruct fields: [],
+            enforce_keys: [],
+            derives: [],
+            location: nil,
+            metadata: %{}
 
   # ===========================================================================
   # Exception Result Struct
@@ -120,15 +118,13 @@ defmodule ElixirOntologies.Extractors.Struct do
             metadata: map()
           }
 
-    defstruct [
-      fields: [],
-      enforce_keys: [],
-      derives: [],
-      has_custom_message: false,
-      default_message: nil,
-      location: nil,
-      metadata: %{}
-    ]
+    defstruct fields: [],
+              enforce_keys: [],
+              derives: [],
+              has_custom_message: false,
+              default_message: nil,
+              location: nil,
+              metadata: %{}
   end
 
   # ===========================================================================
@@ -462,7 +458,8 @@ defmodule ElixirOntologies.Extractors.Struct do
       iex> Struct.extract_exception_from_body(body)
       {:error, "No defexception found in module body"}
   """
-  @spec extract_exception_from_body(Macro.t(), keyword()) :: {:ok, Exception.t()} | {:error, String.t()}
+  @spec extract_exception_from_body(Macro.t(), keyword()) ::
+          {:ok, Exception.t()} | {:error, String.t()}
   def extract_exception_from_body(body, opts \\ []) do
     statements = Helpers.normalize_body(body)
 
@@ -478,10 +475,11 @@ defmodule ElixirOntologies.Extractors.Struct do
             has_custom_message = has_custom_message?(statements)
 
             {:ok,
-             %{exception |
-               enforce_keys: enforce_keys,
-               derives: derives,
-               has_custom_message: has_custom_message
+             %{
+               exception
+               | enforce_keys: enforce_keys,
+                 derives: derives,
+                 has_custom_message: has_custom_message
              }}
 
           error ->

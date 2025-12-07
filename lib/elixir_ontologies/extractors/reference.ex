@@ -66,7 +66,17 @@ defmodule ElixirOntologies.Extractors.Reference do
   @type reference_type ::
           :variable | :module | :function_capture | :remote_call | :local_call | :binding | :pin
 
-  defstruct [:type, :name, :module, :function, :arity, :arguments, :value, :location, metadata: %{}]
+  defstruct [
+    :type,
+    :name,
+    :module,
+    :function,
+    :arity,
+    :arguments,
+    :value,
+    :location,
+    metadata: %{}
+  ]
 
   # ===========================================================================
   # Type Detection
@@ -117,6 +127,7 @@ defmodule ElixirOntologies.Extractors.Reference do
       true -> true
     end
   end
+
   def variable?(_, _opts), do: false
 
   @doc """
@@ -170,7 +181,9 @@ defmodule ElixirOntologies.Extractors.Reference do
       false
   """
   @spec remote_call?(Macro.t()) :: boolean()
-  def remote_call?({{:., _meta1, [_module, _function]}, _meta2, args}) when is_list(args), do: true
+  def remote_call?({{:., _meta1, [_module, _function]}, _meta2, args}) when is_list(args),
+    do: true
+
   def remote_call?(_), do: false
 
   @doc """
@@ -191,6 +204,7 @@ defmodule ElixirOntologies.Extractors.Reference do
   def local_call?({name, _meta, args}) when is_atom(name) and is_list(args) do
     not Helpers.special_form?(name)
   end
+
   def local_call?(_), do: false
 
   @doc """
@@ -513,7 +527,8 @@ defmodule ElixirOntologies.Extractors.Reference do
       location: Helpers.extract_location(node),
       metadata: %{
         pattern: pattern,
-        is_rebinding: false  # Would require scope analysis
+        # Would require scope analysis
+        is_rebinding: false
       }
     }
   end
@@ -603,9 +618,11 @@ defmodule ElixirOntologies.Extractors.Reference do
   def module_string(%__MODULE__{module: module}) when is_list(module) do
     Enum.join(module, ".")
   end
+
   def module_string(%__MODULE__{module: module}) when is_atom(module) and module != nil do
     inspect(module)
   end
+
   def module_string(_), do: nil
 
   # ===========================================================================
@@ -660,25 +677,31 @@ defmodule ElixirOntologies.Extractors.Reference do
 
   defp extract_bound_name(_pattern, depth) when depth > @max_recursion_depth, do: nil
 
-  defp extract_bound_name({name, _meta, context}, _depth) when is_atom(name) and is_atom(context) do
+  defp extract_bound_name({name, _meta, context}, _depth)
+       when is_atom(name) and is_atom(context) do
     name
   end
+
   defp extract_bound_name({:=, _meta, [left, _right]}, depth) do
     # For nested matches like `{:ok, x} = result`, get innermost binding
     extract_bound_name(left, depth + 1)
   end
+
   defp extract_bound_name(tuple, _depth) when is_tuple(tuple) do
     # For tuple patterns, return nil (complex pattern)
     nil
   end
+
   defp extract_bound_name(_, _depth), do: nil
 
   # Format a full call string
   defp format_call(module, function, arity) when is_list(module) do
     "#{Enum.join(module, ".")}.#{function}/#{arity}"
   end
+
   defp format_call(module, function, arity) when is_atom(module) do
     "#{inspect(module)}.#{function}/#{arity}"
   end
+
   defp format_call(nil, function, arity), do: "#{function}/#{arity}"
 end

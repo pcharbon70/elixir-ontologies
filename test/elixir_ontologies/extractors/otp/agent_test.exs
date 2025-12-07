@@ -31,6 +31,7 @@ defmodule ElixirOntologies.Extractors.OTP.AgentTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       assert AgentExtractor.agent?(body)
     end
@@ -149,6 +150,7 @@ defmodule ElixirOntologies.Extractors.OTP.AgentTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, result} = AgentExtractor.extract(body)
 
@@ -222,6 +224,7 @@ defmodule ElixirOntologies.Extractors.OTP.AgentTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, result} = AgentExtractor.extract(body)
 

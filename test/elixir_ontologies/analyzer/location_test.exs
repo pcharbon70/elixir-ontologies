@@ -418,10 +418,11 @@ defmodule ElixirOntologies.Analyzer.LocationTest do
       {:defmodule, _, [_alias, [do: {:__block__, [], items}]]} = ast
 
       # Find the def add node
-      def_node = Enum.find(items, fn
-        {:def, _, _} -> true
-        _ -> false
-      end)
+      def_node =
+        Enum.find(items, fn
+          {:def, _, _} -> true
+          _ -> false
+        end)
 
       assert {:ok, {5, 3}} = Location.extract(def_node)
       assert {:ok, def_loc} = Location.extract_range(def_node)

@@ -20,6 +20,7 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       assert ETS.has_ets?(body)
     end
@@ -30,6 +31,7 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
         def foo, do: :ok
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       refute ETS.has_ets?(body)
     end
@@ -123,6 +125,7 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, table} = ETS.extract(body)
 
@@ -139,6 +142,7 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, tables} = ETS.extract(body)
 
@@ -158,6 +162,7 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       tables = ETS.extract_all(body)
 
@@ -314,7 +319,11 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
     end
 
     test "extracts both concurrency options" do
-      {:ok, ast} = Code.string_to_quoted(":ets.new(:t, [:set, read_concurrency: true, write_concurrency: true])")
+      {:ok, ast} =
+        Code.string_to_quoted(
+          ":ets.new(:t, [:set, read_concurrency: true, write_concurrency: true])"
+        )
+
       {:ok, table} = ETS.extract(ast)
       assert table.read_concurrency == true
       assert table.write_concurrency == true
@@ -422,6 +431,7 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, table} = ETS.extract(body)
 
@@ -440,6 +450,7 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, table} = ETS.extract(body)
 
@@ -455,6 +466,7 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, table} = ETS.extract(body)
 
@@ -471,6 +483,7 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
         end
       end
       """
+
       {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
       {:ok, table} = ETS.extract(body)
 
@@ -492,7 +505,11 @@ defmodule ElixirOntologies.Extractors.OTP.ETSTest do
     end
 
     test "handles combined options" do
-      {:ok, ast} = Code.string_to_quoted(":ets.new(:t, [:ordered_set, :public, :named_table, :compressed, read_concurrency: true])")
+      {:ok, ast} =
+        Code.string_to_quoted(
+          ":ets.new(:t, [:ordered_set, :public, :named_table, :compressed, read_concurrency: true])"
+        )
+
       {:ok, table} = ETS.extract(ast)
 
       assert table.table_type == :ordered_set

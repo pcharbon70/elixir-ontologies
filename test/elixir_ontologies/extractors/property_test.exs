@@ -450,8 +450,7 @@ defmodule ElixirOntologies.Extractors.PropertyTest do
 
         init_body =
           if sup_type == :Supervisor do
-            {{:., [], [{:__aliases__, [], [:Supervisor]}, :init]}, [],
-             [[], [strategy: strategy]]}
+            {{:., [], [{:__aliases__, [], [:Supervisor]}, :init]}, [], [[], [strategy: strategy]]}
           else
             {{:., [], [{:__aliases__, [], [:DynamicSupervisor]}, :init]}, [],
              [[strategy: strategy]]}

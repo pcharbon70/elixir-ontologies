@@ -348,12 +348,16 @@ defmodule ElixirOntologies.Extractors.Quote do
   end
 
   defp do_find_unquotes({_form, _meta, args} = _node, acc) when is_list(args) do
-    {_, new_acc} = Enum.reduce(args, {nil, acc}, fn arg, {_, acc} -> do_find_unquotes(arg, acc) end)
+    {_, new_acc} =
+      Enum.reduce(args, {nil, acc}, fn arg, {_, acc} -> do_find_unquotes(arg, acc) end)
+
     {nil, new_acc}
   end
 
   defp do_find_unquotes(list, acc) when is_list(list) do
-    {_, new_acc} = Enum.reduce(list, {nil, acc}, fn item, {_, acc} -> do_find_unquotes(item, acc) end)
+    {_, new_acc} =
+      Enum.reduce(list, {nil, acc}, fn item, {_, acc} -> do_find_unquotes(item, acc) end)
+
     {nil, new_acc}
   end
 
@@ -407,7 +411,9 @@ defmodule ElixirOntologies.Extractors.Quote do
   end
 
   defp do_extract_all(list, acc) when is_list(list) do
-    {_, new_acc} = Enum.reduce(list, {nil, acc}, fn item, {_, acc} -> do_extract_all(item, acc) end)
+    {_, new_acc} =
+      Enum.reduce(list, {nil, acc}, fn item, {_, acc} -> do_extract_all(item, acc) end)
+
     {nil, new_acc}
   end
 
@@ -478,7 +484,7 @@ defmodule ElixirOntologies.Extractors.Quote do
       false
   """
   @spec has_unquotes?(QuotedExpression.t()) :: boolean()
-  def has_unquotes?(%QuotedExpression{unquotes: unquotes}) when length(unquotes) > 0, do: true
+  def has_unquotes?(%QuotedExpression{unquotes: [_ | _]}), do: true
   def has_unquotes?(_), do: false
 
   # ===========================================================================

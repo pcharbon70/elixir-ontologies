@@ -195,10 +195,21 @@ defmodule ElixirOntologies.IntegrationTest do
       assert RDF.IRI.valid?(Evolution.Commit)
 
       # Verify they resolve to the expected base IRIs (need RDF.iri to convert)
-      assert RDF.iri(Structure.Module) |> to_string() |> String.starts_with?("https://w3id.org/elixir-code/structure#")
-      assert RDF.iri(Core.SourceFile) |> to_string() |> String.starts_with?("https://w3id.org/elixir-code/core#")
-      assert RDF.iri(OTP.GenServer) |> to_string() |> String.starts_with?("https://w3id.org/elixir-code/otp#")
-      assert RDF.iri(Evolution.Commit) |> to_string() |> String.starts_with?("https://w3id.org/elixir-code/evolution#")
+      assert RDF.iri(Structure.Module)
+             |> to_string()
+             |> String.starts_with?("https://w3id.org/elixir-code/structure#")
+
+      assert RDF.iri(Core.SourceFile)
+             |> to_string()
+             |> String.starts_with?("https://w3id.org/elixir-code/core#")
+
+      assert RDF.iri(OTP.GenServer)
+             |> to_string()
+             |> String.starts_with?("https://w3id.org/elixir-code/otp#")
+
+      assert RDF.iri(Evolution.Commit)
+             |> to_string()
+             |> String.starts_with?("https://w3id.org/elixir-code/evolution#")
     end
 
     test "properties resolve correctly in triples" do

@@ -92,13 +92,11 @@ defmodule ElixirOntologies.Extractors.Behaviour do
           location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
         }
 
-  defstruct [
-    callbacks: [],
-    macrocallbacks: [],
-    optional_callbacks: [],
-    doc: nil,
-    metadata: %{}
-  ]
+  defstruct callbacks: [],
+            macrocallbacks: [],
+            optional_callbacks: [],
+            doc: nil,
+            metadata: %{}
 
   # ===========================================================================
   # Implementation Structs
@@ -690,7 +688,8 @@ defmodule ElixirOntologies.Extractors.Behaviour do
   end
 
   # Parse function head with when clause: fun(args) when guards
-  defp parse_function_head({:when, _meta, [{name, _fn_meta, args} | _guards]}) when is_atom(name) do
+  defp parse_function_head({:when, _meta, [{name, _fn_meta, args} | _guards]})
+       when is_atom(name) do
     params = if is_list(args), do: args, else: []
     {name, params}
   end

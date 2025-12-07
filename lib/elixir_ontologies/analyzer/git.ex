@@ -537,52 +537,36 @@ defmodule ElixirOntologies.Analyzer.Git do
   @spec repository(String.t()) :: {:ok, Repository.t()} | {:error, atom()}
   def repository(path) do
     with {:ok, repo_path} <- detect_repo(path) do
-      remote = case remote_url(repo_path) do
-        {:ok, url} -> url
-        {:error, _} -> nil
-      end
-
-      parsed = case remote do
-        nil -> nil
-        url ->
-          case parse_remote_url(url) do
-            {:ok, p} -> p
-            {:error, _} -> nil
-          end
-      end
-
-      current = case current_branch(repo_path) do
-        {:ok, branch} -> branch
-        {:error, _} -> nil
-      end
-
-      default = case default_branch(repo_path) do
-        {:ok, branch} -> branch
-        {:error, _} -> nil
-      end
-
-      commit = case current_commit(repo_path) do
-        {:ok, sha} -> sha
-        {:error, _} -> nil
-      end
-
-      name = extract_repo_name(parsed, repo_path)
+      remote = ok_or_nil(remote_url(repo_path))
+      parsed = parse_remote_or_nil(remote)
 
       {:ok,
        %Repository{
          path: repo_path,
-         name: name,
+         name: extract_repo_name(parsed, repo_path),
          remote_url: remote,
          host: if(parsed, do: parsed.host),
          owner: if(parsed, do: parsed.owner),
-         current_branch: current,
-         default_branch: default,
-         current_commit: commit,
+         current_branch: ok_or_nil(current_branch(repo_path)),
+         default_branch: ok_or_nil(default_branch(repo_path)),
+         current_commit: ok_or_nil(current_commit(repo_path)),
          metadata: %{
            has_remote: remote != nil,
            protocol: if(parsed, do: parsed.protocol)
          }
        }}
+    end
+  end
+
+  defp ok_or_nil({:ok, value}), do: value
+  defp ok_or_nil({:error, _}), do: nil
+
+  defp parse_remote_or_nil(nil), do: nil
+
+  defp parse_remote_or_nil(url) do
+    case parse_remote_url(url) do
+      {:ok, parsed} -> parsed
+      {:error, _} -> nil
     end
   end
 
