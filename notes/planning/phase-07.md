@@ -91,8 +91,13 @@ Implement path utilities for source file management.
 - [x] Test SourceFile creation and auto-detection (7 tests)
 
 ## Phase 7 Integration Tests
+- [x] **Phase 7 Integration Tests Complete**
 
-- [ ] Test full git info extraction in actual repo
-- [ ] Test source URLs generated for functions
-- [ ] Test repository linking for all source files
-- [ ] Test graceful degradation without git
+- [x] Test full git info extraction in actual repo (6 tests)
+- [x] Test source URLs generated for functions (7 tests)
+- [x] Test repository linking for all source files (7 tests)
+- [x] Test full pipeline: repository → file → URL (2 tests)
+- [x] Test graceful degradation without git (11 tests)
+- [x] Test edge cases and special scenarios (5 tests)
+
+**Total: 38 integration tests**
