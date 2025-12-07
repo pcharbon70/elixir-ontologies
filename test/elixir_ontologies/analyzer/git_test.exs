@@ -4,6 +4,7 @@ defmodule ElixirOntologies.Analyzer.GitTest do
   alias ElixirOntologies.Analyzer.Git
   alias ElixirOntologies.Analyzer.Git.Repository
   alias ElixirOntologies.Analyzer.Git.ParsedUrl
+  alias ElixirOntologies.Analyzer.Git.CommitRef
 
   doctest ElixirOntologies.Analyzer.Git
 
@@ -153,6 +154,120 @@ defmodule ElixirOntologies.Analyzer.GitTest do
   end
 
   # ============================================================================
+  # Commit Information Tests
+  # ============================================================================
+
+  describe "current_commit/1" do
+    test "returns full SHA (40 characters)" do
+      {:ok, sha} = Git.current_commit(".")
+      assert is_binary(sha)
+      assert String.length(sha) == 40
+      assert String.match?(sha, ~r/^[0-9a-f]{40}$/)
+    end
+
+    test "returns error for non-git directory" do
+      assert {:error, :not_found} = Git.current_commit("/tmp")
+    end
+  end
+
+  describe "current_commit_short/1" do
+    test "returns short SHA (7 characters)" do
+      {:ok, sha} = Git.current_commit_short(".")
+      assert is_binary(sha)
+      assert String.length(sha) == 7
+      assert String.match?(sha, ~r/^[0-9a-f]{7}$/)
+    end
+
+    test "short SHA is prefix of full SHA" do
+      {:ok, short} = Git.current_commit_short(".")
+      {:ok, full} = Git.current_commit(".")
+      assert String.starts_with?(full, short)
+    end
+  end
+
+  describe "commit_tags/1" do
+    test "returns list of tags" do
+      {:ok, tags} = Git.commit_tags(".")
+      assert is_list(tags)
+      # Tags may or may not exist for current commit
+      assert Enum.all?(tags, &is_binary/1)
+    end
+
+    test "returns empty list when no tags point at HEAD" do
+      # Most commits won't have tags
+      {:ok, tags} = Git.commit_tags(".")
+      assert is_list(tags)
+    end
+  end
+
+  describe "commit_message/1" do
+    test "returns commit message subject" do
+      {:ok, message} = Git.commit_message(".")
+      assert is_binary(message)
+      assert String.length(message) > 0
+      # Subject line shouldn't have newlines
+      refute String.contains?(message, "\n")
+    end
+  end
+
+  describe "commit_message_full/1" do
+    test "returns full commit message" do
+      {:ok, message} = Git.commit_message_full(".")
+      assert is_binary(message)
+      assert String.length(message) > 0
+    end
+
+    test "full message contains subject" do
+      {:ok, subject} = Git.commit_message(".")
+      {:ok, full} = Git.commit_message_full(".")
+      assert String.starts_with?(full, subject)
+    end
+  end
+
+  describe "commit_ref/1" do
+    test "creates CommitRef struct with full metadata" do
+      {:ok, commit} = Git.commit_ref(".")
+
+      assert %CommitRef{} = commit
+      assert String.length(commit.sha) == 40
+      assert String.length(commit.short_sha) == 7
+      assert is_binary(commit.message)
+      assert is_list(commit.tags)
+      # timestamp and author should be present
+      assert is_nil(commit.timestamp) or match?(%DateTime{}, commit.timestamp)
+      assert is_nil(commit.author) or is_binary(commit.author)
+    end
+
+    test "returns error for non-git directory" do
+      assert {:error, :not_found} = Git.commit_ref("/tmp")
+    end
+  end
+
+  describe "file_commit/2" do
+    test "returns SHA of last commit affecting a file" do
+      {:ok, sha} = Git.file_commit(".", "mix.exs")
+      assert is_binary(sha)
+      assert String.length(sha) == 40
+      assert String.match?(sha, ~r/^[0-9a-f]{40}$/)
+    end
+
+    test "returns error for non-existent file" do
+      assert {:error, :file_not_tracked} = Git.file_commit(".", "nonexistent_file.txt")
+    end
+
+    test "returns error for untracked file" do
+      # Create a temp file that's not tracked
+      temp_path = Path.join(System.tmp_dir!(), "untracked_test_file_#{:rand.uniform(10000)}.txt")
+      File.write!(temp_path, "test")
+
+      result = Git.file_commit(".", temp_path)
+      File.rm!(temp_path)
+
+      assert {:error, :file_not_tracked} = result
+    end
+  end
+
+  # ============================================================================
   # Full Repository Info Tests
   # ============================================================================
 
@@ -218,7 +333,31 @@ defmodule ElixirOntologies.Analyzer.GitTest do
       assert Map.has_key?(repo, :owner)
       assert Map.has_key?(repo, :current_branch)
       assert Map.has_key?(repo, :default_branch)
+      assert Map.has_key?(repo, :current_commit)
       assert Map.has_key?(repo, :metadata)
+    end
+
+    test "includes current_commit when created via repository/1" do
+      {:ok, repo} = Git.repository(".")
+      assert is_binary(repo.current_commit)
+      assert String.length(repo.current_commit) == 40
+    end
+  end
+
+  describe "CommitRef struct" do
+    test "has expected fields" do
+      commit = %CommitRef{}
+      assert Map.has_key?(commit, :sha)
+      assert Map.has_key?(commit, :short_sha)
+      assert Map.has_key?(commit, :message)
+      assert Map.has_key?(commit, :tags)
+      assert Map.has_key?(commit, :timestamp)
+      assert Map.has_key?(commit, :author)
+    end
+
+    test "tags defaults to empty list" do
+      commit = %CommitRef{}
+      assert commit.tags == []
     end
   end
 

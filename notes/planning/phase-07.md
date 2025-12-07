@@ -21,23 +21,23 @@ Detect and extract git repository information.
 - [x] 7.1.1.8 Write repository detection tests (success: 40 tests)
 
 ### 7.1.2 Commit Information Extractor
-- [ ] **Task 7.1.2 Complete**
+- [x] **Task 7.1.2 Complete**
 
 Extract current commit information.
 
-- [ ] 7.1.2.1 Implement `Git.current_commit/1` returning SHA
-- [ ] 7.1.2.2 Create `CommitRef` with `commitSha`
-- [ ] 7.1.2.3 Implement `Git.commit_tags/1` for `commitTag`
-- [ ] 7.1.2.4 Extract commit message if needed
-- [ ] 7.1.2.5 Link source files via `atCommit`
-- [ ] 7.1.2.6 Write commit extraction tests (success: 8 tests)
+- [x] 7.1.2.1 Implement `Git.current_commit/1` returning SHA
+- [x] 7.1.2.2 Create `CommitRef` with `commitSha`
+- [x] 7.1.2.3 Implement `Git.commit_tags/1` for `commitTag`
+- [x] 7.1.2.4 Extract commit message if needed
+- [x] 7.1.2.5 Link source files via `atCommit` (via `file_commit/2`)
+- [x] 7.1.2.6 Write commit extraction tests (success: 17 new tests, 64 total)
 
 **Section 7.1 Unit Tests:**
 - [x] Test repository detection in git repo
 - [x] Test repository detection returns error outside repo
 - [x] Test remote URL parsing (https format)
 - [x] Test remote URL parsing (ssh format)
-- [ ] Test current commit extraction
+- [x] Test current commit extraction
 - [x] Test branch detection
 
 ## 7.2 Source URL Generation

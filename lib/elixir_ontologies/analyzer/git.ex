@@ -44,6 +44,7 @@ defmodule ElixirOntologies.Analyzer.Git do
             owner: String.t() | nil,
             current_branch: String.t() | nil,
             default_branch: String.t() | nil,
+            current_commit: String.t() | nil,
             metadata: map()
           }
 
@@ -55,7 +56,36 @@ defmodule ElixirOntologies.Analyzer.Git do
       :owner,
       :current_branch,
       :default_branch,
+      :current_commit,
       metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
+  # Commit Reference Struct
+  # ===========================================================================
+
+  defmodule CommitRef do
+    @moduledoc """
+    Represents a git commit reference with its metadata.
+    """
+
+    @type t :: %__MODULE__{
+            sha: String.t(),
+            short_sha: String.t(),
+            message: String.t() | nil,
+            tags: [String.t()],
+            timestamp: DateTime.t() | nil,
+            author: String.t() | nil
+          }
+
+    defstruct [
+      :sha,
+      :short_sha,
+      :message,
+      :timestamp,
+      :author,
+      tags: []
     ]
   end
 
@@ -269,6 +299,191 @@ defmodule ElixirOntologies.Analyzer.Git do
   end
 
   # ===========================================================================
+  # Commit Information
+  # ===========================================================================
+
+  @doc """
+  Gets the current commit SHA (full 40-character hash).
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, sha} = Git.current_commit(".")
+      iex> String.length(sha)
+      40
+  """
+  @spec current_commit(String.t()) :: {:ok, String.t()} | {:error, atom()}
+  def current_commit(path) do
+    with {:ok, repo_path} <- detect_repo(path) do
+      case run_git_command(repo_path, ["rev-parse", "HEAD"]) do
+        {:ok, sha} -> {:ok, String.trim(sha)}
+        {:error, _} -> {:error, :no_commit}
+      end
+    end
+  end
+
+  @doc """
+  Gets the current commit short SHA (7 characters).
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, sha} = Git.current_commit_short(".")
+      iex> String.length(sha)
+      7
+  """
+  @spec current_commit_short(String.t()) :: {:ok, String.t()} | {:error, atom()}
+  def current_commit_short(path) do
+    with {:ok, repo_path} <- detect_repo(path) do
+      case run_git_command(repo_path, ["rev-parse", "--short", "HEAD"]) do
+        {:ok, sha} -> {:ok, String.trim(sha)}
+        {:error, _} -> {:error, :no_commit}
+      end
+    end
+  end
+
+  @doc """
+  Gets tags pointing at the current commit (HEAD).
+
+  Returns an empty list if no tags point at HEAD.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, tags} = Git.commit_tags(".")
+      iex> is_list(tags)
+      true
+  """
+  @spec commit_tags(String.t()) :: {:ok, [String.t()]} | {:error, atom()}
+  def commit_tags(path) do
+    with {:ok, repo_path} <- detect_repo(path) do
+      case run_git_command(repo_path, ["tag", "--points-at", "HEAD"]) do
+        {:ok, output} ->
+          tags =
+            output
+            |> String.trim()
+            |> String.split("\n", trim: true)
+
+          {:ok, tags}
+
+        {:error, _} ->
+          {:ok, []}
+      end
+    end
+  end
+
+  @doc """
+  Gets the current commit message (subject line only).
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, message} = Git.commit_message(".")
+      iex> is_binary(message)
+      true
+  """
+  @spec commit_message(String.t()) :: {:ok, String.t()} | {:error, atom()}
+  def commit_message(path) do
+    with {:ok, repo_path} <- detect_repo(path) do
+      case run_git_command(repo_path, ["log", "-1", "--format=%s", "HEAD"]) do
+        {:ok, message} -> {:ok, String.trim(message)}
+        {:error, _} -> {:error, :no_commit}
+      end
+    end
+  end
+
+  @doc """
+  Gets the full commit message (subject + body).
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, message} = Git.commit_message_full(".")
+      iex> is_binary(message)
+      true
+  """
+  @spec commit_message_full(String.t()) :: {:ok, String.t()} | {:error, atom()}
+  def commit_message_full(path) do
+    with {:ok, repo_path} <- detect_repo(path) do
+      case run_git_command(repo_path, ["log", "-1", "--format=%B", "HEAD"]) do
+        {:ok, message} -> {:ok, String.trim(message)}
+        {:error, _} -> {:error, :no_commit}
+      end
+    end
+  end
+
+  @doc """
+  Creates a CommitRef struct with full commit metadata.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, commit} = Git.commit_ref(".")
+      iex> %ElixirOntologies.Analyzer.Git.CommitRef{} = commit
+      iex> String.length(commit.sha)
+      40
+  """
+  @spec commit_ref(String.t()) :: {:ok, CommitRef.t()} | {:error, atom()}
+  def commit_ref(path) do
+    with {:ok, repo_path} <- detect_repo(path),
+         {:ok, sha} <- current_commit(repo_path),
+         {:ok, short_sha} <- current_commit_short(repo_path) do
+      message =
+        case commit_message(repo_path) do
+          {:ok, msg} -> msg
+          {:error, _} -> nil
+        end
+
+      tags =
+        case commit_tags(repo_path) do
+          {:ok, t} -> t
+          {:error, _} -> []
+        end
+
+      {timestamp, author} = get_commit_metadata(repo_path)
+
+      {:ok,
+       %CommitRef{
+         sha: sha,
+         short_sha: short_sha,
+         message: message,
+         tags: tags,
+         timestamp: timestamp,
+         author: author
+       }}
+    end
+  end
+
+  @doc """
+  Gets the last commit SHA that modified a specific file.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, sha} = Git.file_commit(".", "mix.exs")
+      iex> String.length(sha)
+      40
+  """
+  @spec file_commit(String.t(), String.t()) :: {:ok, String.t()} | {:error, atom()}
+  def file_commit(path, file_path) do
+    with {:ok, repo_path} <- detect_repo(path) do
+      case run_git_command(repo_path, ["log", "-1", "--format=%H", "--", file_path]) do
+        {:ok, sha} ->
+          trimmed = String.trim(sha)
+
+          if trimmed == "" do
+            {:error, :file_not_tracked}
+          else
+            {:ok, trimmed}
+          end
+
+        {:error, _} ->
+          {:error, :file_not_tracked}
+      end
+    end
+  end
+
+  # ===========================================================================
   # Full Repository Info
   # ===========================================================================
 
@@ -310,6 +525,11 @@ defmodule ElixirOntologies.Analyzer.Git do
         {:error, _} -> nil
       end
 
+      commit = case current_commit(repo_path) do
+        {:ok, sha} -> sha
+        {:error, _} -> nil
+      end
+
       name = extract_repo_name(parsed, repo_path)
 
       {:ok,
@@ -321,6 +541,7 @@ defmodule ElixirOntologies.Analyzer.Git do
          owner: if(parsed, do: parsed.owner),
          current_branch: current,
          default_branch: default,
+         current_commit: commit,
          metadata: %{
            has_remote: remote != nil,
            protocol: if(parsed, do: parsed.protocol)
@@ -461,5 +682,30 @@ defmodule ElixirOntologies.Analyzer.Git do
 
   defp extract_repo_name(%ParsedUrl{repo: repo}, _repo_path) do
     repo
+  end
+
+  defp get_commit_metadata(repo_path) do
+    timestamp =
+      case run_git_command(repo_path, ["log", "-1", "--format=%aI", "HEAD"]) do
+        {:ok, date_str} ->
+          date_str
+          |> String.trim()
+          |> DateTime.from_iso8601()
+          |> case do
+            {:ok, dt, _offset} -> dt
+            _ -> nil
+          end
+
+        {:error, _} ->
+          nil
+      end
+
+    author =
+      case run_git_command(repo_path, ["log", "-1", "--format=%an", "HEAD"]) do
+        {:ok, name} -> String.trim(name)
+        {:error, _} -> nil
+      end
+
+    {timestamp, author}
   end
 end
