@@ -45,27 +45,27 @@ Extract current commit information.
 This section generates source URLs for code elements (e.g., GitHub permalinks).
 
 ### 7.2.1 Source URL Builder
-- [ ] **Task 7.2.1 Complete**
+- [x] **Task 7.2.1 Complete**
 
 Generate source URLs for various hosting platforms.
 
-- [ ] 7.2.1.1 Create `lib/elixir_ontologies/analyzer/source_url.ex`
-- [ ] 7.2.1.2 Implement `SourceUrl.for_file/3` (repo, file, commit)
-- [ ] 7.2.1.3 Implement `SourceUrl.for_line/4` (repo, file, line, commit)
-- [ ] 7.2.1.4 Implement `SourceUrl.for_range/5` (repo, file, start, end, commit)
-- [ ] 7.2.1.5 Support GitHub URL format: `https://github.com/org/repo/blob/sha/path#L10-L20`
-- [ ] 7.2.1.6 Support GitLab URL format
-- [ ] 7.2.1.7 Support Bitbucket URL format
-- [ ] 7.2.1.8 Auto-detect platform from remote URL
-- [ ] 7.2.1.9 Set `sourceUrl` property on code elements
-- [ ] 7.2.1.10 Write source URL tests (success: 12 tests)
+- [x] 7.2.1.1 Create `lib/elixir_ontologies/analyzer/source_url.ex`
+- [x] 7.2.1.2 Implement `SourceUrl.for_file/5` (platform, owner, repo, commit, path)
+- [x] 7.2.1.3 Implement `SourceUrl.for_line/6` (platform, owner, repo, commit, path, line)
+- [x] 7.2.1.4 Implement `SourceUrl.for_range/7` (platform, owner, repo, commit, path, start, end)
+- [x] 7.2.1.5 Support GitHub URL format: `https://github.com/org/repo/blob/sha/path#L10-L20`
+- [x] 7.2.1.6 Support GitLab URL format: `https://gitlab.com/org/repo/-/blob/sha/path#L10-15`
+- [x] 7.2.1.7 Support Bitbucket URL format: `https://bitbucket.org/org/repo/src/sha/path#lines-10:20`
+- [x] 7.2.1.8 Auto-detect platform from remote URL
+- [x] 7.2.1.9 Repository struct integration via `for_file/2`, `for_line/3`, `for_range/4`
+- [x] 7.2.1.10 Write source URL tests (success: 53 tests - 20 doctests + 33 unit tests)
 
 **Section 7.2 Unit Tests:**
-- [ ] Test GitHub URL generation
-- [ ] Test GitLab URL generation
-- [ ] Test URL with line range
-- [ ] Test platform auto-detection
-- [ ] Test URL generation without git info (returns nil)
+- [x] Test GitHub URL generation
+- [x] Test GitLab URL generation
+- [x] Test URL with line range
+- [x] Test platform auto-detection
+- [x] Test URL generation without git info (returns nil)
 
 ## 7.3 File Path Handling
 
