@@ -26,6 +26,10 @@ defmodule ElixirOntologies.Analyzer.SourceUrl do
   # Maximum allowed line number to prevent absurd values
   @max_line_number 1_000_000
 
+  # Valid characters for URL segments (owner, repo, commit)
+  # Allows alphanumeric, dash, underscore, dot (common in git hosting)
+  @valid_segment_regex ~r/^[a-zA-Z0-9._-]+$/
+
   # ===========================================================================
   # Platform Detection
   # ===========================================================================
@@ -57,11 +61,18 @@ defmodule ElixirOntologies.Analyzer.SourceUrl do
   def detect_platform(host) when is_binary(host) do
     host_lower = String.downcase(host)
 
-    cond do
-      github_host?(host_lower) -> :github
-      gitlab_host?(host_lower) -> :gitlab
-      bitbucket_host?(host_lower) -> :bitbucket
-      true -> :unknown
+    # First check custom platforms from config
+    case custom_platform_match(host_lower) do
+      {:ok, platform} ->
+        platform
+
+      :no_match ->
+        cond do
+          github_host?(host_lower) -> :github
+          gitlab_host?(host_lower) -> :gitlab
+          bitbucket_host?(host_lower) -> :bitbucket
+          true -> :unknown
+        end
     end
   end
 
@@ -83,6 +94,56 @@ defmodule ElixirOntologies.Analyzer.SourceUrl do
   defp bitbucket_host?(host) do
     host == "bitbucket.org" or String.ends_with?(host, ".bitbucket.org") or
       String.ends_with?(host, ".bitbucket.io")
+  end
+
+  # Check custom platform configuration
+  defp custom_platform_match(host) do
+    custom_platforms = get_custom_platforms()
+
+    Enum.find_value(custom_platforms, :no_match, fn config ->
+      cond do
+        # Match by exact host
+        is_binary(config[:host]) and host == config[:host] ->
+          {:ok, config[:platform]}
+
+        # Match by regex pattern
+        is_struct(config[:host_pattern], Regex) and Regex.match?(config[:host_pattern], host) ->
+          {:ok, config[:platform]}
+
+        # Match by suffix
+        is_binary(config[:host_suffix]) and String.ends_with?(host, config[:host_suffix]) ->
+          {:ok, config[:platform]}
+
+        true ->
+          nil
+      end
+    end)
+  end
+
+  @doc """
+  Returns the configured custom git platforms.
+
+  ## Configuration
+
+  Custom platforms can be configured in your application config:
+
+      config :elixir_ontologies, SourceUrl,
+        custom_platforms: [
+          %{host: "git.mycompany.com", platform: :github},
+          %{host_pattern: ~r/^github\\.mycompany\\.com$/, platform: :github},
+          %{host_suffix: ".git.internal", platform: :gitlab}
+        ]
+
+  Each entry must have:
+  - `:platform` - One of `:github`, `:gitlab`, `:bitbucket`
+  - One of:
+    - `:host` - Exact hostname to match
+    - `:host_pattern` - Regex to match against hostname
+    - `:host_suffix` - Suffix to match (e.g., ".github.mycompany.com")
+  """
+  @spec get_custom_platforms() :: [map()]
+  def get_custom_platforms do
+    Application.get_env(:elixir_ontologies, __MODULE__, [])[:custom_platforms] || []
   end
 
   @doc """
@@ -131,21 +192,31 @@ defmodule ElixirOntologies.Analyzer.SourceUrl do
 
       iex> SourceUrl.for_file(:unknown, "owner", "repo", "sha", "file.ex")
       nil
+
+      # Invalid segments return nil
+      iex> SourceUrl.for_file(:github, "evil/../other", "repo", "sha", "file.ex")
+      nil
   """
   @spec for_file(platform(), String.t(), String.t(), String.t(), String.t()) :: String.t() | nil
   def for_file(platform, owner, repo, commit, path) do
-    case platform do
-      :github ->
-        "https://github.com/#{owner}/#{repo}/blob/#{commit}/#{normalize_path(path)}"
+    with :ok <- validate_url_segment(owner),
+         :ok <- validate_url_segment(repo),
+         :ok <- validate_url_segment(commit) do
+      case platform do
+        :github ->
+          "https://github.com/#{owner}/#{repo}/blob/#{commit}/#{normalize_path(path)}"
 
-      :gitlab ->
-        "https://gitlab.com/#{owner}/#{repo}/-/blob/#{commit}/#{normalize_path(path)}"
+        :gitlab ->
+          "https://gitlab.com/#{owner}/#{repo}/-/blob/#{commit}/#{normalize_path(path)}"
 
-      :bitbucket ->
-        "https://bitbucket.org/#{owner}/#{repo}/src/#{commit}/#{normalize_path(path)}"
+        :bitbucket ->
+          "https://bitbucket.org/#{owner}/#{repo}/src/#{commit}/#{normalize_path(path)}"
 
-      :unknown ->
-        nil
+        :unknown ->
+          nil
+      end
+    else
+      :error -> nil
     end
   end
 
@@ -196,18 +267,24 @@ defmodule ElixirOntologies.Analyzer.SourceUrl do
           String.t() | nil
   def for_line(platform, owner, repo, commit, path, line)
       when is_integer(line) and line > 0 and line <= @max_line_number do
-    case platform do
-      :github ->
-        "https://github.com/#{owner}/#{repo}/blob/#{commit}/#{normalize_path(path)}#L#{line}"
+    with :ok <- validate_url_segment(owner),
+         :ok <- validate_url_segment(repo),
+         :ok <- validate_url_segment(commit) do
+      case platform do
+        :github ->
+          "https://github.com/#{owner}/#{repo}/blob/#{commit}/#{normalize_path(path)}#L#{line}"
 
-      :gitlab ->
-        "https://gitlab.com/#{owner}/#{repo}/-/blob/#{commit}/#{normalize_path(path)}#L#{line}"
+        :gitlab ->
+          "https://gitlab.com/#{owner}/#{repo}/-/blob/#{commit}/#{normalize_path(path)}#L#{line}"
 
-      :bitbucket ->
-        "https://bitbucket.org/#{owner}/#{repo}/src/#{commit}/#{normalize_path(path)}#lines-#{line}"
+        :bitbucket ->
+          "https://bitbucket.org/#{owner}/#{repo}/src/#{commit}/#{normalize_path(path)}#lines-#{line}"
 
-      :unknown ->
-        nil
+        :unknown ->
+          nil
+      end
+    else
+      :error -> nil
     end
   end
 
@@ -279,18 +356,24 @@ defmodule ElixirOntologies.Analyzer.SourceUrl do
       when is_integer(start_line) and is_integer(end_line) and
              start_line > 0 and end_line > 0 and
              start_line <= end_line and end_line <= @max_line_number do
-    case platform do
-      :github ->
-        "https://github.com/#{owner}/#{repo}/blob/#{commit}/#{normalize_path(path)}#L#{start_line}-L#{end_line}"
+    with :ok <- validate_url_segment(owner),
+         :ok <- validate_url_segment(repo),
+         :ok <- validate_url_segment(commit) do
+      case platform do
+        :github ->
+          "https://github.com/#{owner}/#{repo}/blob/#{commit}/#{normalize_path(path)}#L#{start_line}-L#{end_line}"
 
-      :gitlab ->
-        "https://gitlab.com/#{owner}/#{repo}/-/blob/#{commit}/#{normalize_path(path)}#L#{start_line}-#{end_line}"
+        :gitlab ->
+          "https://gitlab.com/#{owner}/#{repo}/-/blob/#{commit}/#{normalize_path(path)}#L#{start_line}-#{end_line}"
 
-      :bitbucket ->
-        "https://bitbucket.org/#{owner}/#{repo}/src/#{commit}/#{normalize_path(path)}#lines-#{start_line}:#{end_line}"
+        :bitbucket ->
+          "https://bitbucket.org/#{owner}/#{repo}/src/#{commit}/#{normalize_path(path)}#lines-#{start_line}:#{end_line}"
 
-      :unknown ->
-        nil
+        :unknown ->
+          nil
+      end
+    else
+      :error -> nil
     end
   end
 
@@ -425,6 +508,17 @@ defmodule ElixirOntologies.Analyzer.SourceUrl do
 
   defp get_commit(%Repository{current_commit: commit}) when is_binary(commit), do: {:ok, commit}
   defp get_commit(_), do: {:error, :no_commit}
+
+  # Validates URL segments to prevent path injection attacks
+  defp validate_url_segment(segment) when is_binary(segment) do
+    if String.match?(segment, @valid_segment_regex) do
+      :ok
+    else
+      :error
+    end
+  end
+
+  defp validate_url_segment(_), do: :error
 
   defp make_relative_path(file_path, repo_root) do
     expanded = Path.expand(file_path)

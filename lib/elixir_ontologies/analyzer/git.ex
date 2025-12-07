@@ -79,6 +79,7 @@ defmodule ElixirOntologies.Analyzer.Git do
             author: String.t() | nil
           }
 
+    @enforce_keys [:sha, :short_sha]
     defstruct [
       :sha,
       :short_sha,
@@ -107,6 +108,7 @@ defmodule ElixirOntologies.Analyzer.Git do
             last_commit: String.t() | nil
           }
 
+    @enforce_keys [:absolute_path, :relative_path]
     defstruct [
       :absolute_path,
       :relative_path,
@@ -483,17 +485,25 @@ defmodule ElixirOntologies.Analyzer.Git do
   @doc """
   Gets the last commit SHA that modified a specific file.
 
+  Validates that the file path is within the repository before executing
+  the git command to prevent information leakage about files outside the repo.
+
   ## Examples
 
       iex> alias ElixirOntologies.Analyzer.Git
       iex> {:ok, sha} = Git.file_commit(".", "mix.exs")
       iex> String.length(sha)
       40
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> Git.file_commit(".", "/etc/passwd")
+      {:error, :outside_repo}
   """
   @spec file_commit(String.t(), String.t()) :: {:ok, String.t()} | {:error, atom()}
   def file_commit(path, file_path) do
-    with {:ok, repo_path} <- detect_repo(path) do
-      case run_git_command(repo_path, ["log", "-1", "--format=%H", "--", file_path]) do
+    with {:ok, repo_path} <- detect_repo(path),
+         {:ok, relative_path} <- relative_to_repo(file_path, repo_path) do
+      case run_git_command(repo_path, ["log", "-1", "--format=%H", "--", relative_path]) do
         {:ok, sha} ->
           trimmed = String.trim(sha)
 

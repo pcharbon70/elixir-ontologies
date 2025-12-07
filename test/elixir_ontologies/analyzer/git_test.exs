@@ -256,12 +256,14 @@ defmodule ElixirOntologies.Analyzer.GitTest do
       assert {:error, :file_not_tracked} = Git.file_commit(".", "nonexistent_file.txt")
     end
 
-    test "returns error for untracked file" do
-      # Create a temp file that's not tracked
-      temp_path = Path.join(System.tmp_dir!(), "untracked_test_file_#{:rand.uniform(10000)}.txt")
+    test "returns error for untracked file in repo" do
+      # Create a temp file in the repo that's not tracked
+      {:ok, repo_path} = Git.detect_repo(".")
+      temp_name = "untracked_test_file_#{:rand.uniform(10000)}.txt"
+      temp_path = Path.join(repo_path, temp_name)
       File.write!(temp_path, "test")
 
-      result = Git.file_commit(".", temp_path)
+      result = Git.file_commit(".", temp_name)
       File.rm!(temp_path)
 
       assert {:error, :file_not_tracked} = result
@@ -347,7 +349,7 @@ defmodule ElixirOntologies.Analyzer.GitTest do
 
   describe "CommitRef struct" do
     test "has expected fields" do
-      commit = %CommitRef{}
+      commit = %CommitRef{sha: "abc123", short_sha: "abc123"}
       assert Map.has_key?(commit, :sha)
       assert Map.has_key?(commit, :short_sha)
       assert Map.has_key?(commit, :message)
@@ -357,8 +359,14 @@ defmodule ElixirOntologies.Analyzer.GitTest do
     end
 
     test "tags defaults to empty list" do
-      commit = %CommitRef{}
+      commit = %CommitRef{sha: "abc123", short_sha: "abc123"}
       assert commit.tags == []
+    end
+
+    test "enforces required keys" do
+      assert_raise ArgumentError, ~r/the following keys must also be given/, fn ->
+        struct!(CommitRef, [])
+      end
     end
   end
 
@@ -531,11 +539,113 @@ defmodule ElixirOntologies.Analyzer.GitTest do
 
   describe "SourceFile struct" do
     test "has expected fields" do
-      sf = %SourceFile{}
+      sf = %SourceFile{absolute_path: "/path/to/file", relative_path: "file"}
       assert Map.has_key?(sf, :absolute_path)
       assert Map.has_key?(sf, :relative_path)
       assert Map.has_key?(sf, :repository_path)
       assert Map.has_key?(sf, :last_commit)
+    end
+
+    test "enforces required keys" do
+      assert_raise ArgumentError, ~r/the following keys must also be given/, fn ->
+        struct!(SourceFile, [])
+      end
+    end
+  end
+
+  # ============================================================================
+  # Repository Without Remote Tests
+  # ============================================================================
+
+  describe "repository without remote" do
+    setup do
+      # Create a temporary directory for the git repo
+      tmp_dir = Path.join(System.tmp_dir!(), "git_test_#{:rand.uniform(1_000_000)}")
+      File.mkdir_p!(tmp_dir)
+
+      # Create a git repo without any remote
+      System.cmd("git", ["init"], cd: tmp_dir)
+      # Configure git user for the commit
+      System.cmd("git", ["config", "user.email", "test@example.com"], cd: tmp_dir)
+      System.cmd("git", ["config", "user.name", "Test User"], cd: tmp_dir)
+      # Create a file and commit
+      File.write!(Path.join(tmp_dir, "test.txt"), "test content")
+      System.cmd("git", ["add", "."], cd: tmp_dir)
+      System.cmd("git", ["commit", "-m", "Initial commit"], cd: tmp_dir)
+
+      on_exit(fn -> File.rm_rf!(tmp_dir) end)
+
+      {:ok, repo_path: tmp_dir}
+    end
+
+    test "detect_repo finds repo without remote", %{repo_path: repo_path} do
+      {:ok, path} = Git.detect_repo(repo_path)
+      assert path == repo_path
+    end
+
+    test "repository/1 works without remote", %{repo_path: repo_path} do
+      {:ok, repo} = Git.repository(repo_path)
+
+      assert %Repository{} = repo
+      assert repo.path == repo_path
+      assert is_binary(repo.name)
+      assert repo.name == Path.basename(repo_path)
+      # No remote means these should be nil
+      assert is_nil(repo.remote_url)
+      assert is_nil(repo.host)
+      assert is_nil(repo.owner)
+      # But branch and commit should exist
+      assert is_binary(repo.current_branch)
+      assert is_binary(repo.current_commit)
+      # Metadata should indicate no remote
+      assert repo.metadata.has_remote == false
+    end
+
+    test "remote_url returns error for repo without remote", %{repo_path: repo_path} do
+      assert {:error, :no_remote} = Git.remote_url(repo_path)
+    end
+
+    test "current_branch works for repo without remote", %{repo_path: repo_path} do
+      {:ok, branch} = Git.current_branch(repo_path)
+      assert is_binary(branch)
+      # Default branch for new repos is often "master" or "main" depending on git config
+      assert branch in ["main", "master"]
+    end
+
+    test "current_commit works for repo without remote", %{repo_path: repo_path} do
+      {:ok, sha} = Git.current_commit(repo_path)
+      assert is_binary(sha)
+      assert String.length(sha) == 40
+    end
+
+    test "source_file works for tracked file in repo without remote", %{repo_path: repo_path} do
+      {:ok, sf} = Git.source_file("test.txt", repo_path)
+
+      assert %SourceFile{} = sf
+      assert sf.relative_path == "test.txt"
+      assert is_binary(sf.last_commit)
+    end
+  end
+
+  # ============================================================================
+  # file_commit Security Tests
+  # ============================================================================
+
+  describe "file_commit/2 security" do
+    test "rejects absolute paths outside repository" do
+      # This should fail because /etc/passwd is outside the repo
+      assert {:error, :outside_repo} = Git.file_commit(".", "/etc/passwd")
+    end
+
+    test "rejects path traversal attacks" do
+      # This should fail because it tries to escape the repo
+      assert {:error, :outside_repo} = Git.file_commit(".", "../../../etc/passwd")
+    end
+
+    test "accepts relative paths within repository" do
+      {:ok, sha} = Git.file_commit(".", "mix.exs")
+      assert is_binary(sha)
+      assert String.length(sha) == 40
     end
   end
 end

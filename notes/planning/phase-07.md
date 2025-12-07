@@ -58,7 +58,7 @@ Generate source URLs for various hosting platforms.
 - [x] 7.2.1.7 Support Bitbucket URL format: `https://bitbucket.org/org/repo/src/sha/path#lines-10:20`
 - [x] 7.2.1.8 Auto-detect platform from remote URL
 - [x] 7.2.1.9 Repository struct integration via `for_file/2`, `for_line/3`, `for_range/4`
-- [x] 7.2.1.10 Write source URL tests (success: 53 tests - 20 doctests + 33 unit tests)
+- [x] 7.2.1.10 Write source URL tests (success: 79 tests - 23 doctests + 56 unit tests)
 
 **Section 7.2 Unit Tests:**
 - [x] Test GitHub URL generation
