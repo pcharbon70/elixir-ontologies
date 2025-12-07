@@ -72,20 +72,23 @@ Generate source URLs for various hosting platforms.
 This section manages absolute and relative file paths.
 
 ### 7.3.1 Path Utilities
-- [ ] **Task 7.3.1 Complete**
+- [x] **Task 7.3.1 Complete**
 
 Implement path utilities for source file management.
 
-- [ ] 7.3.1.1 Create utilities in `Git` or separate module
-- [ ] 7.3.1.2 Implement `relative_to_repo/2` converting absolute to relative path
-- [ ] 7.3.1.3 Set `filePath` (absolute) and `relativeFilePath` (relative to repo root)
-- [ ] 7.3.1.4 Link files via `inRepository`
-- [ ] 7.3.1.5 Write path utility tests (success: 6 tests)
+- [x] 7.3.1.1 Add utilities to `Git` module
+- [x] 7.3.1.2 Implement `relative_to_repo/2` converting absolute to relative path
+- [x] 7.3.1.3 Create `SourceFile` struct with `absolute_path` and `relative_path`
+- [x] 7.3.1.4 Implement `source_file/1,2` factory functions linking files to repository
+- [x] 7.3.1.5 Add `normalize_path/1` for cross-platform path normalization
+- [x] 7.3.1.6 Add `file_in_repo?/2` check function
+- [x] 7.3.1.7 Write path utility tests (success: 25 new tests, 98 total)
 
 **Section 7.3 Unit Tests:**
-- [ ] Test relative path calculation
-- [ ] Test handling of paths outside repo
-- [ ] Test Windows/Unix path normalization
+- [x] Test relative path calculation (7 tests)
+- [x] Test handling of paths outside repo (4 tests)
+- [x] Test Windows/Unix path normalization (7 tests)
+- [x] Test SourceFile creation and auto-detection (7 tests)
 
 ## Phase 7 Integration Tests
 

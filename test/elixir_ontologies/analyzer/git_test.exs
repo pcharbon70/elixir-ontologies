@@ -5,6 +5,7 @@ defmodule ElixirOntologies.Analyzer.GitTest do
   alias ElixirOntologies.Analyzer.Git.Repository
   alias ElixirOntologies.Analyzer.Git.ParsedUrl
   alias ElixirOntologies.Analyzer.Git.CommitRef
+  alias ElixirOntologies.Analyzer.Git.SourceFile
 
   doctest ElixirOntologies.Analyzer.Git
 
@@ -368,6 +369,173 @@ defmodule ElixirOntologies.Analyzer.GitTest do
       assert Map.has_key?(parsed, :owner)
       assert Map.has_key?(parsed, :repo)
       assert Map.has_key?(parsed, :protocol)
+    end
+  end
+
+  # ============================================================================
+  # Path Utilities Tests
+  # ============================================================================
+
+  describe "relative_to_repo/2" do
+    setup do
+      {:ok, repo_path} = Git.detect_repo(".")
+      {:ok, repo_path: repo_path}
+    end
+
+    test "converts absolute path to relative", %{repo_path: repo_path} do
+      abs_path = Path.join(repo_path, "lib/elixir_ontologies.ex")
+      {:ok, rel} = Git.relative_to_repo(abs_path, repo_path)
+      assert rel == "lib/elixir_ontologies.ex"
+    end
+
+    test "handles already relative path", %{repo_path: repo_path} do
+      {:ok, rel} = Git.relative_to_repo("mix.exs", repo_path)
+      assert rel == "mix.exs"
+    end
+
+    test "handles nested relative path", %{repo_path: repo_path} do
+      {:ok, rel} = Git.relative_to_repo("lib/elixir_ontologies/analyzer/git.ex", repo_path)
+      assert rel == "lib/elixir_ontologies/analyzer/git.ex"
+    end
+
+    test "returns . for repo root", %{repo_path: repo_path} do
+      {:ok, rel} = Git.relative_to_repo(repo_path, repo_path)
+      assert rel == "."
+    end
+
+    test "returns error for path outside repo", %{repo_path: repo_path} do
+      assert {:error, :outside_repo} = Git.relative_to_repo("/etc/passwd", repo_path)
+    end
+
+    test "returns error for relative path that resolves outside repo", %{repo_path: repo_path} do
+      assert {:error, :outside_repo} = Git.relative_to_repo("../../../etc/passwd", repo_path)
+    end
+
+    test "normalizes path separators", %{repo_path: repo_path} do
+      {:ok, rel} = Git.relative_to_repo("lib//elixir_ontologies.ex", repo_path)
+      assert rel == "lib/elixir_ontologies.ex"
+    end
+  end
+
+  describe "file_in_repo?/2" do
+    setup do
+      {:ok, repo_path} = Git.detect_repo(".")
+      {:ok, repo_path: repo_path}
+    end
+
+    test "returns true for file in repo", %{repo_path: repo_path} do
+      assert Git.file_in_repo?("mix.exs", repo_path)
+    end
+
+    test "returns true for absolute path in repo", %{repo_path: repo_path} do
+      abs_path = Path.join(repo_path, "mix.exs")
+      assert Git.file_in_repo?(abs_path, repo_path)
+    end
+
+    test "returns false for file outside repo", %{repo_path: repo_path} do
+      refute Git.file_in_repo?("/etc/passwd", repo_path)
+    end
+
+    test "returns false for path traversal attack", %{repo_path: repo_path} do
+      refute Git.file_in_repo?("../../../etc/passwd", repo_path)
+    end
+  end
+
+  describe "normalize_path/1" do
+    test "collapses multiple slashes" do
+      assert Git.normalize_path("lib//foo.ex") == "lib/foo.ex"
+      assert Git.normalize_path("lib///foo///bar.ex") == "lib/foo/bar.ex"
+    end
+
+    test "converts backslashes to forward slashes" do
+      assert Git.normalize_path("lib\\foo.ex") == "lib/foo.ex"
+      assert Git.normalize_path("lib\\foo\\bar.ex") == "lib/foo/bar.ex"
+    end
+
+    test "removes ./ in middle of path" do
+      assert Git.normalize_path("lib/./foo.ex") == "lib/foo.ex"
+      assert Git.normalize_path("lib/./foo/./bar.ex") == "lib/foo/bar.ex"
+    end
+
+    test "removes leading ./" do
+      assert Git.normalize_path("./lib/foo.ex") == "lib/foo.ex"
+    end
+
+    test "removes trailing slash" do
+      assert Git.normalize_path("lib/foo/") == "lib/foo"
+    end
+
+    test "handles already clean path" do
+      assert Git.normalize_path("lib/foo.ex") == "lib/foo.ex"
+    end
+
+    test "handles empty string" do
+      assert Git.normalize_path("") == ""
+    end
+  end
+
+  describe "source_file/2" do
+    setup do
+      {:ok, repo_path} = Git.detect_repo(".")
+      {:ok, repo_path: repo_path}
+    end
+
+    test "creates SourceFile struct", %{repo_path: repo_path} do
+      {:ok, sf} = Git.source_file("mix.exs", repo_path)
+
+      assert %SourceFile{} = sf
+      assert sf.relative_path == "mix.exs"
+      assert is_binary(sf.absolute_path)
+      assert String.ends_with?(sf.absolute_path, "mix.exs")
+      assert sf.repository_path == Path.expand(repo_path)
+    end
+
+    test "includes last commit SHA for tracked file", %{repo_path: repo_path} do
+      {:ok, sf} = Git.source_file("mix.exs", repo_path)
+      assert is_binary(sf.last_commit)
+      assert String.length(sf.last_commit) == 40
+    end
+
+    test "sets last_commit to nil for untracked file", %{repo_path: repo_path} do
+      # Create temp file in repo
+      temp_path = Path.join(repo_path, "temp_untracked_#{:rand.uniform(10000)}.txt")
+      File.write!(temp_path, "test")
+
+      {:ok, sf} = Git.source_file(temp_path, repo_path)
+      assert is_nil(sf.last_commit)
+
+      File.rm!(temp_path)
+    end
+
+    test "returns error for file outside repo", %{repo_path: repo_path} do
+      assert {:error, :outside_repo} = Git.source_file("/etc/passwd", repo_path)
+    end
+  end
+
+  describe "source_file/1 (auto-detect repo)" do
+    test "creates SourceFile with auto-detected repo" do
+      {:ok, sf} = Git.source_file("mix.exs")
+
+      assert %SourceFile{} = sf
+      assert sf.relative_path == "mix.exs"
+      assert is_binary(sf.repository_path)
+    end
+
+    test "returns error for path not in any repo" do
+      # Could be :not_found (no git repo) or :invalid_path (path doesn't exist)
+      result = Git.source_file("/tmp/nonexistent.txt")
+      assert {:error, reason} = result
+      assert reason in [:not_found, :invalid_path]
+    end
+  end
+
+  describe "SourceFile struct" do
+    test "has expected fields" do
+      sf = %SourceFile{}
+      assert Map.has_key?(sf, :absolute_path)
+      assert Map.has_key?(sf, :relative_path)
+      assert Map.has_key?(sf, :repository_path)
+      assert Map.has_key?(sf, :last_commit)
     end
   end
 end

@@ -90,6 +90,32 @@ defmodule ElixirOntologies.Analyzer.Git do
   end
 
   # ===========================================================================
+  # Source File Struct
+  # ===========================================================================
+
+  defmodule SourceFile do
+    @moduledoc """
+    Represents a source file within a git repository.
+
+    Links a file to its repository context with both absolute and relative paths.
+    """
+
+    @type t :: %__MODULE__{
+            absolute_path: String.t(),
+            relative_path: String.t(),
+            repository_path: String.t() | nil,
+            last_commit: String.t() | nil
+          }
+
+    defstruct [
+      :absolute_path,
+      :relative_path,
+      :repository_path,
+      :last_commit
+    ]
+  end
+
+  # ===========================================================================
   # Parsed URL Struct
   # ===========================================================================
 
@@ -583,6 +609,193 @@ defmodule ElixirOntologies.Analyzer.Git do
   end
 
   # ===========================================================================
+  # Path Utilities
+  # ===========================================================================
+
+  @doc """
+  Converts an absolute file path to a path relative to the repository root.
+
+  ## Parameters
+
+  - `file_path` - The file path (absolute or relative)
+  - `repo_path` - The repository root path
+
+  ## Returns
+
+  - `{:ok, relative_path}` - The path relative to repo root
+  - `{:error, :outside_repo}` - If file is outside the repository
+  - `{:error, :invalid_path}` - If path doesn't exist
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, repo_path} = Git.detect_repo(".")
+      iex> {:ok, rel} = Git.relative_to_repo("mix.exs", repo_path)
+      iex> rel
+      "mix.exs"
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, repo_path} = Git.detect_repo(".")
+      iex> abs_path = Path.join(repo_path, "lib/elixir_ontologies.ex")
+      iex> {:ok, rel} = Git.relative_to_repo(abs_path, repo_path)
+      iex> rel
+      "lib/elixir_ontologies.ex"
+  """
+  @spec relative_to_repo(String.t(), String.t()) ::
+          {:ok, String.t()} | {:error, :outside_repo | :invalid_path}
+  def relative_to_repo(file_path, repo_path) do
+    expanded_file = Path.expand(file_path)
+    expanded_repo = Path.expand(repo_path)
+    # Ensure repo path ends with separator for proper prefix matching
+    repo_prefix = ensure_trailing_separator(expanded_repo)
+
+    cond do
+      # File path is exactly the repo root
+      expanded_file == expanded_repo ->
+        {:ok, "."}
+
+      # File is within repo
+      String.starts_with?(expanded_file, repo_prefix) ->
+        relative = String.trim_leading(expanded_file, repo_prefix)
+        {:ok, normalize_path(relative)}
+
+      # File might be a relative path already
+      Path.type(file_path) != :absolute ->
+        # Check if resolving relative to repo puts it inside
+        resolved = Path.join(expanded_repo, file_path) |> Path.expand()
+
+        if String.starts_with?(resolved, repo_prefix) or resolved == expanded_repo do
+          {:ok, normalize_path(file_path)}
+        else
+          {:error, :outside_repo}
+        end
+
+      true ->
+        {:error, :outside_repo}
+    end
+  end
+
+  @doc """
+  Checks if a file path is within the repository.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, repo_path} = Git.detect_repo(".")
+      iex> Git.file_in_repo?("mix.exs", repo_path)
+      true
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, repo_path} = Git.detect_repo(".")
+      iex> Git.file_in_repo?("/etc/passwd", repo_path)
+      false
+  """
+  @spec file_in_repo?(String.t(), String.t()) :: boolean()
+  def file_in_repo?(file_path, repo_path) do
+    case relative_to_repo(file_path, repo_path) do
+      {:ok, _} -> true
+      {:error, _} -> false
+    end
+  end
+
+  @doc """
+  Normalizes a file path for consistent representation.
+
+  - Converts backslashes to forward slashes (Windows compatibility)
+  - Removes redundant separators
+  - Resolves `.` components (but preserves leading `./`)
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> Git.normalize_path("lib//foo.ex")
+      "lib/foo.ex"
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> Git.normalize_path("lib/./foo.ex")
+      "lib/foo.ex"
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> Git.normalize_path("lib\\\\foo.ex")
+      "lib/foo.ex"
+  """
+  @spec normalize_path(String.t()) :: String.t()
+  def normalize_path(path) when is_binary(path) do
+    path
+    # Convert Windows backslashes to forward slashes
+    |> String.replace("\\", "/")
+    # Collapse multiple slashes
+    |> String.replace(~r{/+}, "/")
+    # Remove trailing slash (unless root)
+    |> String.trim_trailing("/")
+    # Remove ./ in middle of path
+    |> String.replace(~r{/\./}, "/")
+    # Handle leading ./
+    |> normalize_leading_dot()
+  end
+
+  @doc """
+  Creates a SourceFile struct linking a file to its repository.
+
+  ## Parameters
+
+  - `file_path` - Path to the source file
+  - `repo_path` - Path to the repository root
+
+  ## Returns
+
+  - `{:ok, source_file}` - SourceFile struct with paths and commit info
+  - `{:error, reason}` - If file cannot be linked
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, repo_path} = Git.detect_repo(".")
+      iex> {:ok, sf} = Git.source_file("mix.exs", repo_path)
+      iex> sf.relative_path
+      "mix.exs"
+      iex> is_binary(sf.absolute_path)
+      true
+  """
+  @spec source_file(String.t(), String.t()) :: {:ok, SourceFile.t()} | {:error, atom()}
+  def source_file(file_path, repo_path) do
+    with {:ok, relative} <- relative_to_repo(file_path, repo_path) do
+      absolute = Path.expand(file_path, repo_path)
+
+      last_commit =
+        case file_commit(repo_path, relative) do
+          {:ok, sha} -> sha
+          {:error, _} -> nil
+        end
+
+      {:ok,
+       %SourceFile{
+         absolute_path: absolute,
+         relative_path: relative,
+         repository_path: Path.expand(repo_path),
+         last_commit: last_commit
+       }}
+    end
+  end
+
+  @doc """
+  Creates a SourceFile struct from a path, automatically detecting the repository.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Analyzer.Git
+      iex> {:ok, sf} = Git.source_file("mix.exs")
+      iex> sf.relative_path
+      "mix.exs"
+  """
+  @spec source_file(String.t()) :: {:ok, SourceFile.t()} | {:error, atom()}
+  def source_file(file_path) do
+    with {:ok, repo_path} <- detect_repo(file_path) do
+      source_file(file_path, repo_path)
+    end
+  end
+
+  # ===========================================================================
   # Private Helpers
   # ===========================================================================
 
@@ -682,6 +895,21 @@ defmodule ElixirOntologies.Analyzer.Git do
 
   defp extract_repo_name(%ParsedUrl{repo: repo}, _repo_path) do
     repo
+  end
+
+  defp ensure_trailing_separator(path) do
+    if String.ends_with?(path, "/") do
+      path
+    else
+      path <> "/"
+    end
+  end
+
+  defp normalize_leading_dot(path) do
+    case path do
+      "./" <> rest -> rest
+      other -> other
+    end
   end
 
   defp get_commit_metadata(repo_path) do
