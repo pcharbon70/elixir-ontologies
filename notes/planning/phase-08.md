@@ -31,20 +31,20 @@ Detect Mix project and extract metadata.
 This section orchestrates analysis of multiple files into a single graph.
 
 ### 8.2.1 Project Analyzer
-- [ ] **Task 8.2.1 Complete**
+- [x] **Task 8.2.1 Complete**
 
 Analyze entire project into knowledge graph.
 
-- [ ] 8.2.1.1 Create `lib/elixir_ontologies/analyzer/project_analyzer.ex`
-- [ ] 8.2.1.2 Implement `ProjectAnalyzer.analyze/2` with path and options
-- [ ] 8.2.1.3 Discover all .ex and .exs files in source directories
-- [ ] 8.2.1.4 Exclude test files by default (configurable)
-- [ ] 8.2.1.5 Analyze each file using `FileAnalyzer`
-- [ ] 8.2.1.6 Merge results into single graph
-- [ ] 8.2.1.7 Build cross-file relationships (imports, aliases, calls)
-- [ ] 8.2.1.8 Add project-level metadata to graph
-- [ ] 8.2.1.9 Report progress during analysis
-- [ ] 8.2.1.10 Write project analyzer tests (success: 12 tests)
+- [x] 8.2.1.1 Create `lib/elixir_ontologies/analyzer/project_analyzer.ex`
+- [x] 8.2.1.2 Implement `ProjectAnalyzer.analyze/2` with path and options
+- [x] 8.2.1.3 Discover all .ex and .exs files in source directories
+- [x] 8.2.1.4 Exclude test files by default (configurable)
+- [x] 8.2.1.5 Analyze each file using `FileAnalyzer`
+- [x] 8.2.1.6 Merge results into single graph
+- [ ] 8.2.1.7 Build cross-file relationships (imports, aliases, calls) - DEFERRED
+- [x] 8.2.1.8 Add project-level metadata to graph (basic statistics)
+- [ ] 8.2.1.9 Report progress during analysis - DEFERRED
+- [x] 8.2.1.10 Write project analyzer tests (success: 18 tests)
 
 ### 8.2.2 File Analyzer
 - [x] **Task 8.2.2 Complete**
@@ -65,9 +65,9 @@ Single file analyzer composing all extractors.
 **Section 8.2 Unit Tests:**
 - [x] Test single file analysis produces valid graph
 - [x] Test multi-module file analysis
-- [ ] Test project analysis discovers all files
-- [ ] Test project analysis merges graphs correctly
-- [ ] Test progress reporting
+- [x] Test project analysis discovers all files
+- [x] Test project analysis merges graphs correctly
+- [ ] Test progress reporting - DEFERRED
 
 ## 8.3 Incremental Updates
 
