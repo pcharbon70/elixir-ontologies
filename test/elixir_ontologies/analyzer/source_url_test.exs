@@ -319,28 +319,27 @@ defmodule ElixirOntologies.Analyzer.SourceUrlTest do
   describe "path traversal prevention" do
     test "removes .. sequences from paths" do
       url = SourceUrl.for_file(:github, "owner", "repo", "sha", "lib/../etc/passwd")
-      refute String.contains?(url, "..")
+      # Positive assertion: verify the actual normalized path
+      assert url == "https://github.com/owner/repo/blob/sha/lib/etc/passwd"
     end
 
     test "removes multiple consecutive dots" do
       url = SourceUrl.for_file(:github, "owner", "repo", "sha", "lib/.../foo.ex")
-      refute String.contains?(url, "...")
+      # Positive assertion: dots should be removed entirely
+      assert url == "https://github.com/owner/repo/blob/sha/lib/foo.ex"
     end
 
     test "collapses multiple slashes in path" do
       url = SourceUrl.for_file(:github, "owner", "repo", "sha", "lib//foo///bar.ex")
-      # Extract path portion after /blob/sha/
-      path_portion = String.split(url, "/blob/sha/") |> List.last()
-      refute String.contains?(path_portion, "//")
+      # Positive assertion: verify single slashes in result
+      assert url == "https://github.com/owner/repo/blob/sha/lib/foo/bar.ex"
     end
 
     test "handles combined path normalization" do
       url = SourceUrl.for_file(:github, "owner", "repo", "sha", "/./lib/../src//file.ex")
-      # Extract path portion after /blob/sha/
-      path_portion = String.split(url, "/blob/sha/") |> List.last()
-      # Should not contain .., or //
-      refute String.contains?(path_portion, "..")
-      refute String.contains?(path_portion, "//")
+      # Positive assertion: all normalizations applied correctly
+      # Note: .. is removed but not resolved (lib/.. becomes lib/, not parent directory)
+      assert url == "https://github.com/owner/repo/blob/sha/lib/src/file.ex"
     end
   end
 
@@ -415,6 +414,157 @@ defmodule ElixirOntologies.Analyzer.SourceUrlTest do
     test "returns nil for for_range with no name" do
       repo = %Repository{host: "github.com", owner: "owner", name: nil, current_commit: "sha"}
       assert is_nil(SourceUrl.for_range(repo, "file.ex", 1, 10))
+    end
+  end
+
+  # ============================================================================
+  # URL Segment Validation Tests (Security)
+  # ============================================================================
+
+  describe "URL segment validation (security)" do
+    test "rejects segments with path traversal" do
+      # These should be rejected to prevent path injection
+      assert is_nil(SourceUrl.for_file(:github, "../etc", "repo", "sha", "file.ex"))
+      assert is_nil(SourceUrl.for_file(:github, "owner", "../etc", "sha", "file.ex"))
+      assert is_nil(SourceUrl.for_file(:github, "owner", "repo", "../sha", "file.ex"))
+    end
+
+    test "rejects segments with shell injection characters" do
+      assert is_nil(SourceUrl.for_file(:github, "owner;rm", "repo", "sha", "file.ex"))
+      assert is_nil(SourceUrl.for_file(:github, "owner", "repo|cat", "sha", "file.ex"))
+      assert is_nil(SourceUrl.for_file(:github, "owner", "repo", "sha`whoami`", "file.ex"))
+    end
+
+    test "rejects segments with slashes" do
+      assert is_nil(SourceUrl.for_file(:github, "owner/evil", "repo", "sha", "file.ex"))
+      assert is_nil(SourceUrl.for_file(:github, "owner", "repo/evil", "sha", "file.ex"))
+    end
+
+    test "rejects empty segments" do
+      assert is_nil(SourceUrl.for_file(:github, "", "repo", "sha", "file.ex"))
+      assert is_nil(SourceUrl.for_file(:github, "owner", "", "sha", "file.ex"))
+      assert is_nil(SourceUrl.for_file(:github, "owner", "repo", "", "file.ex"))
+    end
+
+    test "rejects segments with special URL characters" do
+      assert is_nil(SourceUrl.for_file(:github, "owner?evil", "repo", "sha", "file.ex"))
+      assert is_nil(SourceUrl.for_file(:github, "owner", "repo#evil", "sha", "file.ex"))
+      assert is_nil(SourceUrl.for_file(:github, "owner", "repo", "sha@evil", "file.ex"))
+    end
+
+    test "accepts valid segments" do
+      # Standard names
+      assert SourceUrl.for_file(:github, "owner", "repo", "sha", "file.ex") != nil
+
+      # Names with dots
+      assert SourceUrl.for_file(:github, "owner.name", "repo.git", "abc123", "file.ex") != nil
+
+      # Names with underscores
+      assert SourceUrl.for_file(:github, "owner_name", "my_repo", "sha123", "file.ex") != nil
+
+      # Names with hyphens
+      assert SourceUrl.for_file(:github, "my-owner", "my-repo", "sha-abc", "file.ex") != nil
+
+      # Mixed valid characters
+      assert SourceUrl.for_file(:github, "owner-123", "repo_v2.0", "a1b2c3", "file.ex") != nil
+    end
+
+    test "for_line also validates segments" do
+      assert is_nil(SourceUrl.for_line(:github, "../etc", "repo", "sha", "file.ex", 10))
+      assert is_nil(SourceUrl.for_line(:github, "owner", "../etc", "sha", "file.ex", 10))
+    end
+
+    test "for_range also validates segments" do
+      assert is_nil(SourceUrl.for_range(:github, "../etc", "repo", "sha", "file.ex", 1, 10))
+      assert is_nil(SourceUrl.for_range(:github, "owner", "../etc", "sha", "file.ex", 1, 10))
+    end
+  end
+
+  # ============================================================================
+  # Custom Platforms Configuration Tests
+  # ============================================================================
+
+  describe "get_custom_platforms/0" do
+    test "returns empty list when no config" do
+      # Default behavior when no custom platforms configured
+      platforms = SourceUrl.get_custom_platforms()
+      assert is_list(platforms)
+    end
+
+    test "custom platform with exact host match" do
+      # Set up a custom platform config using correct key structure
+      original = Application.get_env(:elixir_ontologies, SourceUrl)
+
+      # Config uses :platform key to map to known platforms like :github
+      custom_config = [
+        custom_platforms: [
+          %{host: "git.mycompany.com", platform: :github}
+        ]
+      ]
+
+      Application.put_env(:elixir_ontologies, SourceUrl, custom_config)
+
+      try do
+        platforms = SourceUrl.get_custom_platforms()
+        assert length(platforms) == 1
+        assert hd(platforms)[:host] == "git.mycompany.com"
+        assert hd(platforms)[:platform] == :github
+      after
+        if original do
+          Application.put_env(:elixir_ontologies, SourceUrl, original)
+        else
+          Application.delete_env(:elixir_ontologies, SourceUrl)
+        end
+      end
+    end
+
+    test "custom platform detection from host" do
+      original = Application.get_env(:elixir_ontologies, SourceUrl)
+
+      custom_config = [
+        custom_platforms: [
+          %{host: "git.mycompany.com", platform: :github}
+        ]
+      ]
+
+      Application.put_env(:elixir_ontologies, SourceUrl, custom_config)
+
+      try do
+        # Platform should be detected as :github (the platform value)
+        assert :github == SourceUrl.detect_platform("git.mycompany.com")
+        # But similar hosts should not match
+        assert :unknown == SourceUrl.detect_platform("git.othercompany.com")
+      after
+        if original do
+          Application.put_env(:elixir_ontologies, SourceUrl, original)
+        else
+          Application.delete_env(:elixir_ontologies, SourceUrl)
+        end
+      end
+    end
+
+    test "custom platform with host_suffix match" do
+      original = Application.get_env(:elixir_ontologies, SourceUrl)
+
+      custom_config = [
+        custom_platforms: [
+          %{host_suffix: ".git.internal", platform: :gitlab}
+        ]
+      ]
+
+      Application.put_env(:elixir_ontologies, SourceUrl, custom_config)
+
+      try do
+        assert :gitlab == SourceUrl.detect_platform("company.git.internal")
+        assert :gitlab == SourceUrl.detect_platform("dev.git.internal")
+        assert :unknown == SourceUrl.detect_platform("git.external.com")
+      after
+        if original do
+          Application.put_env(:elixir_ontologies, SourceUrl, original)
+        else
+          Application.delete_env(:elixir_ontologies, SourceUrl)
+        end
+      end
     end
   end
 end

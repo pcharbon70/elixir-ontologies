@@ -1,17 +1,17 @@
-defmodule ElixirOntologies.Analyzer.Git.PathUtils do
+defmodule ElixirOntologies.Analyzer.PathUtils do
   @moduledoc """
-  Path utilities for git repository operations.
+  Path utilities for file path normalization and validation.
 
   Provides functions for normalizing, validating, and manipulating
-  file paths in the context of git repositories.
+  file paths. Used by Git, SourceUrl, and other analyzer modules.
 
   ## Usage
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.normalize("lib//foo.ex")
       "lib/foo.ex"
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.relative_to_root("lib/foo.ex", "/home/user/project")
       {:ok, "lib/foo.ex"}
   """
@@ -29,15 +29,15 @@ defmodule ElixirOntologies.Analyzer.Git.PathUtils do
 
   ## Examples
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.normalize("lib//foo.ex")
       "lib/foo.ex"
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.normalize("lib/./foo.ex")
       "lib/foo.ex"
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.normalize("lib\\\\foo.ex")
       "lib/foo.ex"
   """
@@ -72,11 +72,11 @@ defmodule ElixirOntologies.Analyzer.Git.PathUtils do
 
   ## Examples
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.relative_to_root("/home/user/project/lib/foo.ex", "/home/user/project")
       {:ok, "lib/foo.ex"}
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.relative_to_root("mix.exs", "/home/user/project")
       {:ok, "mix.exs"}
   """
@@ -118,11 +118,11 @@ defmodule ElixirOntologies.Analyzer.Git.PathUtils do
 
   ## Examples
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.in_repo?("mix.exs", "/home/user/project")
       true
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.in_repo?("/etc/passwd", "/home/user/project")
       false
   """
@@ -139,11 +139,11 @@ defmodule ElixirOntologies.Analyzer.Git.PathUtils do
 
   ## Examples
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.ensure_trailing_separator("/home/user/project")
       "/home/user/project/"
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.ensure_trailing_separator("/home/user/project/")
       "/home/user/project/"
   """
@@ -163,11 +163,11 @@ defmodule ElixirOntologies.Analyzer.Git.PathUtils do
 
   ## Examples
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.remove_traversal("lib/../etc/passwd")
       "lib/etc/passwd"
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.remove_traversal("../../../etc/passwd")
       "etc/passwd"
   """
@@ -184,11 +184,11 @@ defmodule ElixirOntologies.Analyzer.Git.PathUtils do
 
   ## Examples
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.join("/home/user/project", "lib/foo.ex")
       "/home/user/project/lib/foo.ex"
 
-      iex> alias ElixirOntologies.Analyzer.Git.PathUtils
+      iex> alias ElixirOntologies.Analyzer.PathUtils
       iex> PathUtils.join("/home/user/project/", "./lib/foo.ex")
       "/home/user/project/lib/foo.ex"
   """

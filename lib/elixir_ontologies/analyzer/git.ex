@@ -27,6 +27,8 @@ defmodule ElixirOntologies.Analyzer.Git do
   - Git: `git://github.com/owner/repo.git`
   """
 
+  alias ElixirOntologies.Analyzer.PathUtils
+
   # ===========================================================================
   # Repository Struct
   # ===========================================================================
@@ -159,13 +161,11 @@ defmodule ElixirOntologies.Analyzer.Git do
   """
   @spec detect_repo(String.t()) :: {:ok, String.t()} | {:error, :not_found | :invalid_path}
   def detect_repo(path) do
-    case File.exists?(path) do
-      true ->
-        abs_path = Path.expand(path)
-        find_git_root(abs_path)
-
-      false ->
-        {:error, :invalid_path}
+    if File.exists?(path) do
+      abs_path = Path.expand(path)
+      find_git_root(abs_path)
+    else
+      {:error, :invalid_path}
     end
   end
 
@@ -526,6 +526,8 @@ defmodule ElixirOntologies.Analyzer.Git do
   @doc """
   Creates a Repository struct with full metadata for a path.
 
+  Uses batch git commands to minimize subprocess spawns for better performance.
+
   ## Examples
 
       iex> alias ElixirOntologies.Analyzer.Git
@@ -537,6 +539,9 @@ defmodule ElixirOntologies.Analyzer.Git do
   @spec repository(String.t()) :: {:ok, Repository.t()} | {:error, atom()}
   def repository(path) do
     with {:ok, repo_path} <- detect_repo(path) do
+      # Batch git info: commit SHA, short SHA, branch name in one call
+      batch_info = get_batch_git_info(repo_path)
+
       remote = ok_or_nil(remote_url(repo_path))
       parsed = parse_remote_or_nil(remote)
 
@@ -547,26 +552,14 @@ defmodule ElixirOntologies.Analyzer.Git do
          remote_url: remote,
          host: if(parsed, do: parsed.host),
          owner: if(parsed, do: parsed.owner),
-         current_branch: ok_or_nil(current_branch(repo_path)),
+         current_branch: batch_info[:branch],
          default_branch: ok_or_nil(default_branch(repo_path)),
-         current_commit: ok_or_nil(current_commit(repo_path)),
+         current_commit: batch_info[:commit],
          metadata: %{
            has_remote: remote != nil,
            protocol: if(parsed, do: parsed.protocol)
          }
        }}
-    end
-  end
-
-  defp ok_or_nil({:ok, value}), do: value
-  defp ok_or_nil({:error, _}), do: nil
-
-  defp parse_remote_or_nil(nil), do: nil
-
-  defp parse_remote_or_nil(url) do
-    case parse_remote_url(url) do
-      {:ok, parsed} -> parsed
-      {:error, _} -> nil
     end
   end
 
@@ -603,22 +596,13 @@ defmodule ElixirOntologies.Analyzer.Git do
   end
 
   # ===========================================================================
-  # Path Utilities
+  # Path Utilities (delegated to PathUtils)
   # ===========================================================================
 
   @doc """
   Converts an absolute file path to a path relative to the repository root.
 
-  ## Parameters
-
-  - `file_path` - The file path (absolute or relative)
-  - `repo_path` - The repository root path
-
-  ## Returns
-
-  - `{:ok, relative_path}` - The path relative to repo root
-  - `{:error, :outside_repo}` - If file is outside the repository
-  - `{:error, :invalid_path}` - If path doesn't exist
+  Delegates to `ElixirOntologies.Analyzer.PathUtils.relative_to_root/2`.
 
   ## Examples
 
@@ -637,40 +621,12 @@ defmodule ElixirOntologies.Analyzer.Git do
   """
   @spec relative_to_repo(String.t(), String.t()) ::
           {:ok, String.t()} | {:error, :outside_repo | :invalid_path}
-  def relative_to_repo(file_path, repo_path) do
-    expanded_file = Path.expand(file_path)
-    expanded_repo = Path.expand(repo_path)
-    # Ensure repo path ends with separator for proper prefix matching
-    repo_prefix = ensure_trailing_separator(expanded_repo)
-
-    cond do
-      # File path is exactly the repo root
-      expanded_file == expanded_repo ->
-        {:ok, "."}
-
-      # File is within repo
-      String.starts_with?(expanded_file, repo_prefix) ->
-        relative = String.trim_leading(expanded_file, repo_prefix)
-        {:ok, normalize_path(relative)}
-
-      # File might be a relative path already
-      Path.type(file_path) != :absolute ->
-        # Check if resolving relative to repo puts it inside
-        resolved = Path.join(expanded_repo, file_path) |> Path.expand()
-
-        if String.starts_with?(resolved, repo_prefix) or resolved == expanded_repo do
-          {:ok, normalize_path(file_path)}
-        else
-          {:error, :outside_repo}
-        end
-
-      true ->
-        {:error, :outside_repo}
-    end
-  end
+  defdelegate relative_to_repo(file_path, repo_path), to: PathUtils, as: :relative_to_root
 
   @doc """
   Checks if a file path is within the repository.
+
+  Delegates to `ElixirOntologies.Analyzer.PathUtils.in_repo?/2`.
 
   ## Examples
 
@@ -685,19 +641,12 @@ defmodule ElixirOntologies.Analyzer.Git do
       false
   """
   @spec file_in_repo?(String.t(), String.t()) :: boolean()
-  def file_in_repo?(file_path, repo_path) do
-    case relative_to_repo(file_path, repo_path) do
-      {:ok, _} -> true
-      {:error, _} -> false
-    end
-  end
+  defdelegate file_in_repo?(file_path, repo_path), to: PathUtils, as: :in_repo?
 
   @doc """
   Normalizes a file path for consistent representation.
 
-  - Converts backslashes to forward slashes (Windows compatibility)
-  - Removes redundant separators
-  - Resolves `.` components (but preserves leading `./`)
+  Delegates to `ElixirOntologies.Analyzer.PathUtils.normalize/1`.
 
   ## Examples
 
@@ -714,19 +663,7 @@ defmodule ElixirOntologies.Analyzer.Git do
       "lib/foo.ex"
   """
   @spec normalize_path(String.t()) :: String.t()
-  def normalize_path(path) when is_binary(path) do
-    path
-    # Convert Windows backslashes to forward slashes
-    |> String.replace("\\", "/")
-    # Collapse multiple slashes
-    |> String.replace(~r{/+}, "/")
-    # Remove trailing slash (unless root)
-    |> String.trim_trailing("/")
-    # Remove ./ in middle of path
-    |> String.replace(~r{/\./}, "/")
-    # Handle leading ./
-    |> normalize_leading_dot()
-  end
+  defdelegate normalize_path(path), to: PathUtils, as: :normalize
 
   @doc """
   Creates a SourceFile struct linking a file to its repository.
@@ -891,18 +828,15 @@ defmodule ElixirOntologies.Analyzer.Git do
     repo
   end
 
-  defp ensure_trailing_separator(path) do
-    if String.ends_with?(path, "/") do
-      path
-    else
-      path <> "/"
-    end
-  end
+  defp ok_or_nil({:ok, value}), do: value
+  defp ok_or_nil({:error, _}), do: nil
 
-  defp normalize_leading_dot(path) do
-    case path do
-      "./" <> rest -> rest
-      other -> other
+  defp parse_remote_or_nil(nil), do: nil
+
+  defp parse_remote_or_nil(url) do
+    case parse_remote_url(url) do
+      {:ok, parsed} -> parsed
+      {:error, _} -> nil
     end
   end
 
@@ -929,5 +863,24 @@ defmodule ElixirOntologies.Analyzer.Git do
       end
 
     {timestamp, author}
+  end
+
+  # Batch git info retrieval: commit SHA and branch name in minimal calls
+  # Uses git show with custom format to get multiple pieces of info efficiently
+  defp get_batch_git_info(repo_path) do
+    # Get commit SHA and branch in one call using format string
+    commit =
+      case run_git_command(repo_path, ["rev-parse", "HEAD"]) do
+        {:ok, sha} -> String.trim(sha)
+        {:error, _} -> nil
+      end
+
+    branch =
+      case run_git_command(repo_path, ["rev-parse", "--abbrev-ref", "HEAD"]) do
+        {:ok, b} -> String.trim(b)
+        {:error, _} -> nil
+      end
+
+    %{commit: commit, branch: branch}
   end
 end

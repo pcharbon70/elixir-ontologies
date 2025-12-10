@@ -414,6 +414,170 @@ defmodule ElixirOntologies.Analyzer.SourceUrl do
   end
 
   # ===========================================================================
+  # Error Tuple Variants
+  # ===========================================================================
+
+  @doc """
+  Generates a URL for a file, returning an error tuple on failure.
+
+  ## Examples
+
+      iex> SourceUrl.for_file_result(:github, "owner", "repo", "abc123", "lib/foo.ex")
+      {:ok, "https://github.com/owner/repo/blob/abc123/lib/foo.ex"}
+
+      iex> SourceUrl.for_file_result(:unknown, "owner", "repo", "sha", "file.ex")
+      {:error, :unsupported_platform}
+
+      iex> SourceUrl.for_file_result(:github, "../evil", "repo", "sha", "file.ex")
+      {:error, :invalid_segment}
+  """
+  @spec for_file_result(platform(), String.t(), String.t(), String.t(), String.t()) ::
+          {:ok, String.t()} | {:error, atom()}
+  def for_file_result(platform, owner, repo, commit, path) do
+    case for_file(platform, owner, repo, commit, path) do
+      nil ->
+        cond do
+          platform == :unknown -> {:error, :unsupported_platform}
+          not valid_segment?(owner) -> {:error, :invalid_segment}
+          not valid_segment?(repo) -> {:error, :invalid_segment}
+          not valid_segment?(commit) -> {:error, :invalid_segment}
+          true -> {:error, :url_generation_failed}
+        end
+
+      url ->
+        {:ok, url}
+    end
+  end
+
+  @doc """
+  Generates a URL for a line, returning an error tuple on failure.
+
+  ## Examples
+
+      iex> SourceUrl.for_line_result(:github, "owner", "repo", "sha", "file.ex", 42)
+      {:ok, "https://github.com/owner/repo/blob/sha/file.ex#L42"}
+
+      iex> SourceUrl.for_line_result(:github, "owner", "repo", "sha", "file.ex", 0)
+      {:error, :invalid_line_number}
+  """
+  @spec for_line_result(platform(), String.t(), String.t(), String.t(), String.t(), line_number()) ::
+          {:ok, String.t()} | {:error, atom()}
+  def for_line_result(platform, owner, repo, commit, path, line) do
+    case for_line(platform, owner, repo, commit, path, line) do
+      nil ->
+        cond do
+          platform == :unknown -> {:error, :unsupported_platform}
+          not valid_segment?(owner) -> {:error, :invalid_segment}
+          not valid_segment?(repo) -> {:error, :invalid_segment}
+          not valid_segment?(commit) -> {:error, :invalid_segment}
+          not valid_line?(line) -> {:error, :invalid_line_number}
+          true -> {:error, :url_generation_failed}
+        end
+
+      url ->
+        {:ok, url}
+    end
+  end
+
+  @doc """
+  Generates a URL for a line range, returning an error tuple on failure.
+
+  ## Examples
+
+      iex> SourceUrl.for_range_result(:github, "owner", "repo", "sha", "file.ex", 10, 20)
+      {:ok, "https://github.com/owner/repo/blob/sha/file.ex#L10-L20"}
+
+      iex> SourceUrl.for_range_result(:github, "owner", "repo", "sha", "file.ex", 20, 10)
+      {:error, :invalid_line_range}
+  """
+  @spec for_range_result(
+          platform(),
+          String.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          line_number(),
+          line_number()
+        ) :: {:ok, String.t()} | {:error, atom()}
+  def for_range_result(platform, owner, repo, commit, path, start_line, end_line) do
+    case for_range(platform, owner, repo, commit, path, start_line, end_line) do
+      nil ->
+        cond do
+          platform == :unknown -> {:error, :unsupported_platform}
+          not valid_segment?(owner) -> {:error, :invalid_segment}
+          not valid_segment?(repo) -> {:error, :invalid_segment}
+          not valid_segment?(commit) -> {:error, :invalid_segment}
+          not valid_line_range?(start_line, end_line) -> {:error, :invalid_line_range}
+          true -> {:error, :url_generation_failed}
+        end
+
+      url ->
+        {:ok, url}
+    end
+  end
+
+  # ===========================================================================
+  # Bang Variants
+  # ===========================================================================
+
+  @doc """
+  Generates a URL for a file, raising on failure.
+
+  ## Examples
+
+      iex> SourceUrl.for_file!(:github, "owner", "repo", "abc123", "lib/foo.ex")
+      "https://github.com/owner/repo/blob/abc123/lib/foo.ex"
+  """
+  @spec for_file!(platform(), String.t(), String.t(), String.t(), String.t()) :: String.t()
+  def for_file!(platform, owner, repo, commit, path) do
+    case for_file_result(platform, owner, repo, commit, path) do
+      {:ok, url} -> url
+      {:error, reason} -> raise "Failed to generate file URL: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Generates a URL for a line, raising on failure.
+
+  ## Examples
+
+      iex> SourceUrl.for_line!(:github, "owner", "repo", "sha", "file.ex", 42)
+      "https://github.com/owner/repo/blob/sha/file.ex#L42"
+  """
+  @spec for_line!(platform(), String.t(), String.t(), String.t(), String.t(), line_number()) ::
+          String.t()
+  def for_line!(platform, owner, repo, commit, path, line) do
+    case for_line_result(platform, owner, repo, commit, path, line) do
+      {:ok, url} -> url
+      {:error, reason} -> raise "Failed to generate line URL: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Generates a URL for a line range, raising on failure.
+
+  ## Examples
+
+      iex> SourceUrl.for_range!(:github, "owner", "repo", "sha", "file.ex", 10, 20)
+      "https://github.com/owner/repo/blob/sha/file.ex#L10-L20"
+  """
+  @spec for_range!(
+          platform(),
+          String.t(),
+          String.t(),
+          String.t(),
+          String.t(),
+          line_number(),
+          line_number()
+        ) :: String.t()
+  def for_range!(platform, owner, repo, commit, path, start_line, end_line) do
+    case for_range_result(platform, owner, repo, commit, path, start_line, end_line) do
+      {:ok, url} -> url
+      {:error, reason} -> raise "Failed to generate range URL: #{inspect(reason)}"
+    end
+  end
+
+  # ===========================================================================
   # Convenience Functions
   # ===========================================================================
 
@@ -518,6 +682,26 @@ defmodule ElixirOntologies.Analyzer.SourceUrl do
   end
 
   defp validate_url_segment(_), do: :error
+
+  # Boolean validation helpers for error tuple functions
+  defp valid_segment?(segment) when is_binary(segment) do
+    String.match?(segment, @valid_segment_regex)
+  end
+
+  defp valid_segment?(_), do: false
+
+  defp valid_line?(line) when is_integer(line) do
+    line > 0 and line <= @max_line_number
+  end
+
+  defp valid_line?(_), do: false
+
+  defp valid_line_range?(start_line, end_line)
+       when is_integer(start_line) and is_integer(end_line) do
+    start_line > 0 and end_line > 0 and start_line <= end_line and end_line <= @max_line_number
+  end
+
+  defp valid_line_range?(_, _), do: false
 
   defp make_relative_path(file_path, repo_root) do
     expanded = Path.expand(file_path)
