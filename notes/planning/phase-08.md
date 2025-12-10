@@ -74,16 +74,16 @@ Single file analyzer composing all extractors.
 This section implements incremental analysis for changed files.
 
 ### 8.3.1 Change Tracker
-- [ ] **Task 8.3.1 Complete**
+- [x] **Task 8.3.1 Complete**
 
 Track file changes for incremental updates.
 
-- [ ] 8.3.1.1 Create `lib/elixir_ontologies/analyzer/change_tracker.ex`
-- [ ] 8.3.1.2 Store file modification times in graph metadata
-- [ ] 8.3.1.3 Implement `ChangeTracker.changed_files/2` comparing current vs stored
-- [ ] 8.3.1.4 Implement `ChangeTracker.new_files/2` finding added files
-- [ ] 8.3.1.5 Implement `ChangeTracker.deleted_files/2` finding removed files
-- [ ] 8.3.1.6 Write change tracker tests (success: 8 tests)
+- [x] 8.3.1.1 Create `lib/elixir_ontologies/analyzer/change_tracker.ex`
+- [x] 8.3.1.2 Implement State and FileInfo structs for storing file metadata
+- [x] 8.3.1.3 Implement `ChangeTracker.changed_files/2` comparing current vs stored
+- [x] 8.3.1.4 Implement `ChangeTracker.new_files/2` finding added files
+- [x] 8.3.1.5 Implement `ChangeTracker.deleted_files/2` finding removed files
+- [x] 8.3.1.6 Write change tracker tests (success: 10 tests + 5 doctests)
 
 ### 8.3.2 Incremental Analyzer
 - [ ] **Task 8.3.2 Complete**
@@ -99,9 +99,9 @@ Update graph incrementally based on changes.
 - [ ] 8.3.2.7 Write incremental update tests (success: 10 tests)
 
 **Section 8.3 Unit Tests:**
-- [ ] Test change detection for modified files
-- [ ] Test new file detection
-- [ ] Test deleted file detection
+- [x] Test change detection for modified files
+- [x] Test new file detection
+- [x] Test deleted file detection
 - [ ] Test incremental update removes old triples
 - [ ] Test incremental update adds new triples
 
