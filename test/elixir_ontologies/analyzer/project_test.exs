@@ -115,7 +115,7 @@ defmodule ElixirOntologies.Analyzer.ProjectTest do
 
     test "handles project with no dependencies" do
       # Create a temporary minimal project
-      tmp_dir = create_temp_project("test_no_deps", [deps: false])
+      tmp_dir = create_temp_project("test_no_deps", deps: false)
 
       try do
         {:ok, project} = Project.detect(tmp_dir)

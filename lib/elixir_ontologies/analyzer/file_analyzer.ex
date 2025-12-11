@@ -385,7 +385,10 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
     # Run all extractors on the module body
     %ModuleAnalysis{
       name: module_name,
-      module_info: safe_extract(fn -> Extractors.Module.extract({:defmodule, [], [alias_ast, [do: body]]}) end),
+      module_info:
+        safe_extract(fn ->
+          Extractors.Module.extract({:defmodule, [], [alias_ast, [do: body]]})
+        end),
       functions: extract_functions(body),
       types: extract_types(body),
       specs: extract_specs(body),
@@ -505,14 +508,17 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
       {:collect, item} ->
         # Add to collection and continue walking children
         new_acc = [item | acc]
+
         node
         |> Tuple.to_list()
         |> Enum.reduce(new_acc, &walk_ast(&1, fun, &2))
+
       :continue ->
         # Just walk children
         node
         |> Tuple.to_list()
         |> Enum.reduce(acc, &walk_ast(&1, fun, &2))
+
       :skip ->
         acc
     end
@@ -551,7 +557,8 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
     graph = Graph.new()
 
     # Add basic module metadata
-    _ = length(modules)  # Use modules variable
+    # Use modules variable
+    _ = length(modules)
 
     graph
   end

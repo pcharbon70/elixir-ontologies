@@ -143,6 +143,7 @@ defmodule ElixirOntologiesTest do
       # Create test directory
       test_dir = Path.join(project_dir, "test")
       File.mkdir_p!(test_dir)
+
       File.write!(Path.join(test_dir, "sample_test.exs"), """
       defmodule SampleTest do
         use ExUnit.Case

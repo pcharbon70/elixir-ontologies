@@ -390,8 +390,8 @@ defmodule ElixirOntologies.Analyzer.Phase8IntegrationTest do
 
       # Error should be for broken.ex
       assert Enum.any?(result.errors, fn {path, _error} ->
-        String.ends_with?(path, "broken.ex")
-      end)
+               String.ends_with?(path, "broken.ex")
+             end)
     end
   end
 
@@ -422,7 +422,8 @@ defmodule ElixirOntologies.Analyzer.Phase8IntegrationTest do
       assert length(initial.files) == 3
 
       # Modify a file
-      :timer.sleep(1100)  # Ensure mtime changes
+      # Ensure mtime changes
+      :timer.sleep(1100)
 
       lib_dir = Path.join(project_dir, "lib")
 
@@ -440,8 +441,8 @@ defmodule ElixirOntologies.Analyzer.Phase8IntegrationTest do
       assert length(updated.changes.changed) == 1
 
       assert Enum.any?(updated.changes.changed, fn path ->
-        String.ends_with?(path, "simple.ex")
-      end)
+               String.ends_with?(path, "simple.ex")
+             end)
 
       assert updated.changes.new == []
       assert updated.changes.deleted == []
@@ -471,8 +472,8 @@ defmodule ElixirOntologies.Analyzer.Phase8IntegrationTest do
       assert length(updated.changes.new) == 1
 
       assert Enum.any?(updated.changes.new, fn path ->
-        String.ends_with?(path, "new_module.ex")
-      end)
+               String.ends_with?(path, "new_module.ex")
+             end)
 
       # File count should increase
       assert length(updated.files) == 4
@@ -711,15 +712,15 @@ defmodule ElixirOntologies.Analyzer.Phase8IntegrationTest do
       assert length(updated.changes.changed) == 1
 
       assert Enum.any?(updated.changes.changed, fn path ->
-        String.contains?(path, "app_one")
-      end)
+               String.contains?(path, "app_one")
+             end)
 
       # app_two should be unchanged
       assert length(updated.changes.unchanged) == 1
 
       assert Enum.any?(updated.changes.unchanged, fn path ->
-        String.contains?(path, "app_two")
-      end)
+               String.contains?(path, "app_two")
+             end)
     end
   end
 
@@ -754,8 +755,8 @@ defmodule ElixirOntologies.Analyzer.Phase8IntegrationTest do
           assert %Result{} = result
           assert length(result.files) > 0
 
-          # Git info should be detected (project should have repository info)
-          # Note: Git integration details depend on implementation
+        # Git info should be detected (project should have repository info)
+        # Note: Git integration details depend on implementation
 
         :git_unavailable ->
           # Skip test if git not available
