@@ -114,12 +114,10 @@ defmodule ElixirOntologies.Analyzer.ChangeTracker do
     - `unchanged` - List of files that haven't changed
     """
 
-    defstruct [
-      changed: [],
-      new: [],
-      deleted: [],
-      unchanged: []
-    ]
+    defstruct changed: [],
+              new: [],
+              deleted: [],
+              unchanged: []
 
     @type t :: %__MODULE__{
             changed: [String.t()],

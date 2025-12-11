@@ -7,23 +7,23 @@ This phase implements SHACL validation integration and comprehensive testing.
 This section integrates SHACL validation for generated graphs.
 
 ### 10.1.1 Validation Module
-- [ ] **Task 10.1.1 Complete**
+- [x] **Task 10.1.1 Complete**
 
 Implement SHACL validation for generated graphs.
 
-- [ ] 10.1.1.1 Create `lib/elixir_ontologies/validator.ex`
-- [ ] 10.1.1.2 Load shapes from `elixir-shapes.ttl`
-- [ ] 10.1.1.3 Implement `Validator.validate/2` checking graph against shapes
-- [ ] 10.1.1.4 Return structured validation report
-- [ ] 10.1.1.5 Provide clear error messages for violations
-- [ ] 10.1.1.6 Add `--validate` option to analyze task
-- [ ] 10.1.1.7 Write validation tests (success: 12 tests)
+- [x] 10.1.1.1 Create `lib/elixir_ontologies/validator.ex`
+- [x] 10.1.1.2 Load shapes from `elixir-shapes.ttl`
+- [x] 10.1.1.3 Implement `Validator.validate/2` checking graph against shapes
+- [x] 10.1.1.4 Return structured validation report
+- [x] 10.1.1.5 Provide clear error messages for violations
+- [x] 10.1.1.6 Add `--validate` option to analyze task
+- [x] 10.1.1.7 Write validation tests (success: 26 tests)
 
 **Section 10.1 Unit Tests:**
-- [ ] Test validation passes for valid graph
-- [ ] Test validation catches missing required properties
-- [ ] Test validation catches invalid patterns
-- [ ] Test validation report structure
+- [x] Test validation passes for valid graph
+- [x] Test validation catches missing required properties
+- [x] Test validation catches invalid patterns
+- [x] Test validation report structure
 
 ## 10.2 Comprehensive Testing
 

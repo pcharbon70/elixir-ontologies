@@ -228,7 +228,8 @@ defmodule ElixirOntologies.Analyzer.ProjectAnalyzerTest do
       assert result.project.path != nil
 
       # Files
-      assert length(result.files) > 40  # Should have many source files
+      # Should have many source files
+      assert length(result.files) > 40
       assert Enum.all?(result.files, &(&1.status == :ok))
 
       # Graph
@@ -288,7 +289,9 @@ defmodule ElixirOntologies.Analyzer.ProjectAnalyzerTest do
   describe "update/3 - with temporary test files" do
     setup do
       # Create a temporary directory for testing
-      temp_dir = System.tmp_dir!() |> Path.join("elixir_ontologies_test_#{:rand.uniform(100000)}")
+      temp_dir =
+        System.tmp_dir!() |> Path.join("elixir_ontologies_test_#{:rand.uniform(100_000)}")
+
       File.mkdir_p!(temp_dir)
 
       # Create a minimal mix.exs
@@ -335,7 +338,8 @@ defmodule ElixirOntologies.Analyzer.ProjectAnalyzerTest do
       assert length(initial.files) == 1
 
       # Modify the file
-      :timer.sleep(1100)  # Ensure mtime changes (1 second granularity on some systems)
+      # Ensure mtime changes (1 second granularity on some systems)
+      :timer.sleep(1100)
 
       File.write!(file1_path, """
       defmodule Foo do
@@ -544,7 +548,9 @@ defmodule ElixirOntologies.Analyzer.ProjectAnalyzerTest do
   describe "update/3 - graph correctness" do
     setup do
       # Create a temporary directory for testing
-      temp_dir = System.tmp_dir!() |> Path.join("elixir_ontologies_test_#{:rand.uniform(100000)}")
+      temp_dir =
+        System.tmp_dir!() |> Path.join("elixir_ontologies_test_#{:rand.uniform(100_000)}")
+
       File.mkdir_p!(temp_dir)
 
       # Create a minimal mix.exs

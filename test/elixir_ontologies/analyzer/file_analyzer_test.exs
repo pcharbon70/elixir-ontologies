@@ -63,6 +63,7 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzerTest do
 
       # Should find this test module (name might be atom or string-atom)
       module_names = Enum.map(result.modules, & &1.name)
+
       assert ElixirOntologies.Analyzer.FileAnalyzerTest in module_names or
                :"ElixirOntologies.Analyzer.FileAnalyzerTest" in module_names
     end
