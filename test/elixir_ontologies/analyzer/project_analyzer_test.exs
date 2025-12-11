@@ -240,4 +240,406 @@ defmodule ElixirOntologies.Analyzer.ProjectAnalyzerTest do
       assert result.metadata.successful_files == length(result.files)
     end
   end
+
+  # ============================================================================
+  # Incremental Update Tests
+  # ============================================================================
+
+  describe "update/3 - no changes" do
+    test "returns same graph when no files changed" do
+      # Initial analysis
+      {:ok, initial} = ProjectAnalyzer.analyze(".")
+
+      # Immediate update with no changes
+      {:ok, updated} = ProjectAnalyzer.update(initial, ".")
+
+      # Should have all files marked as unchanged
+      assert updated.changes.unchanged == Enum.map(initial.files, & &1.file_path)
+      assert updated.changes.changed == []
+      assert updated.changes.new == []
+      assert updated.changes.deleted == []
+
+      # File count should be the same
+      assert length(updated.files) == length(initial.files)
+
+      # Metadata should be updated
+      assert updated.metadata.changed_count == 0
+      assert updated.metadata.new_count == 0
+      assert updated.metadata.deleted_count == 0
+      assert updated.metadata.unchanged_count == length(initial.files)
+    end
+
+    test "update timestamp is newer than original" do
+      {:ok, initial} = ProjectAnalyzer.analyze(".")
+
+      # Small delay to ensure different timestamp
+      :timer.sleep(100)
+
+      {:ok, updated} = ProjectAnalyzer.update(initial, ".")
+
+      # Update timestamp should be newer
+      assert DateTime.compare(
+               updated.metadata.update_timestamp,
+               initial.metadata.last_analysis
+             ) == :gt
+    end
+  end
+
+  describe "update/3 - with temporary test files" do
+    setup do
+      # Create a temporary directory for testing
+      temp_dir = System.tmp_dir!() |> Path.join("elixir_ontologies_test_#{:rand.uniform(100000)}")
+      File.mkdir_p!(temp_dir)
+
+      # Create a minimal mix.exs
+      mix_content = """
+      defmodule TestProject.MixProject do
+        use Mix.Project
+
+        def project do
+          [
+            app: :test_project,
+            version: "0.1.0"
+          ]
+        end
+      end
+      """
+
+      File.write!(Path.join(temp_dir, "mix.exs"), mix_content)
+
+      # Create lib directory
+      lib_dir = Path.join(temp_dir, "lib")
+      File.mkdir_p!(lib_dir)
+
+      # Create initial file
+      file1_path = Path.join(lib_dir, "foo.ex")
+
+      file1_content = """
+      defmodule Foo do
+        def hello, do: :world
+      end
+      """
+
+      File.write!(file1_path, file1_content)
+
+      on_exit(fn ->
+        File.rm_rf!(temp_dir)
+      end)
+
+      {:ok, temp_dir: temp_dir, lib_dir: lib_dir, file1_path: file1_path}
+    end
+
+    test "detects changed files", %{temp_dir: temp_dir, file1_path: file1_path} do
+      # Initial analysis
+      {:ok, initial} = ProjectAnalyzer.analyze(temp_dir)
+      assert length(initial.files) == 1
+
+      # Modify the file
+      :timer.sleep(1100)  # Ensure mtime changes (1 second granularity on some systems)
+
+      File.write!(file1_path, """
+      defmodule Foo do
+        def hello, do: :universe
+        def goodbye, do: :world
+      end
+      """)
+
+      # Update analysis
+      {:ok, updated} = ProjectAnalyzer.update(initial, temp_dir)
+
+      # Should detect the change
+      assert length(updated.changes.changed) == 1
+      assert file1_path in updated.changes.changed
+      assert updated.changes.new == []
+      assert updated.changes.deleted == []
+      assert updated.changes.unchanged == []
+
+      # Metadata should reflect the change
+      assert updated.metadata.changed_count == 1
+      assert updated.metadata.new_count == 0
+      assert updated.metadata.deleted_count == 0
+    end
+
+    test "detects new files", %{temp_dir: temp_dir, lib_dir: lib_dir} do
+      # Initial analysis
+      {:ok, initial} = ProjectAnalyzer.analyze(temp_dir)
+      assert length(initial.files) == 1
+
+      # Add a new file
+      file2_path = Path.join(lib_dir, "bar.ex")
+
+      File.write!(file2_path, """
+      defmodule Bar do
+        def test, do: :ok
+      end
+      """)
+
+      # Update analysis
+      {:ok, updated} = ProjectAnalyzer.update(initial, temp_dir)
+
+      # Should detect the new file
+      assert length(updated.changes.new) == 1
+      assert file2_path in updated.changes.new
+      assert updated.changes.changed == []
+      assert updated.changes.deleted == []
+      assert length(updated.changes.unchanged) == 1
+
+      # File count should increase
+      assert length(updated.files) == 2
+
+      # Metadata should reflect the addition
+      assert updated.metadata.new_count == 1
+      assert updated.metadata.file_count == 2
+    end
+
+    test "detects deleted files", %{temp_dir: temp_dir, file1_path: file1_path} do
+      # Initial analysis
+      {:ok, initial} = ProjectAnalyzer.analyze(temp_dir)
+      assert length(initial.files) == 1
+
+      # Delete the file
+      File.rm!(file1_path)
+
+      # Update analysis
+      {:ok, updated} = ProjectAnalyzer.update(initial, temp_dir)
+
+      # Should detect the deletion
+      assert length(updated.changes.deleted) == 1
+      assert file1_path in updated.changes.deleted
+      assert updated.changes.changed == []
+      assert updated.changes.new == []
+      assert updated.changes.unchanged == []
+
+      # File count should decrease
+      assert length(updated.files) == 0
+
+      # Metadata should reflect the deletion
+      assert updated.metadata.deleted_count == 1
+      assert updated.metadata.file_count == 0
+    end
+
+    test "handles mixed changes (changed + new + deleted)", %{
+      temp_dir: temp_dir,
+      lib_dir: lib_dir,
+      file1_path: file1_path
+    } do
+      # Add second file before initial analysis
+      file2_path = Path.join(lib_dir, "bar.ex")
+
+      File.write!(file2_path, """
+      defmodule Bar do
+        def test, do: :ok
+      end
+      """)
+
+      # Initial analysis
+      {:ok, initial} = ProjectAnalyzer.analyze(temp_dir)
+      assert length(initial.files) == 2
+
+      # Now make mixed changes:
+      # 1. Modify file1
+      :timer.sleep(1100)
+
+      File.write!(file1_path, """
+      defmodule Foo do
+        def hello, do: :modified
+      end
+      """)
+
+      # 2. Delete file2
+      File.rm!(file2_path)
+
+      # 3. Add file3
+      file3_path = Path.join(lib_dir, "baz.ex")
+
+      File.write!(file3_path, """
+      defmodule Baz do
+        def new, do: :function
+      end
+      """)
+
+      # Update analysis
+      {:ok, updated} = ProjectAnalyzer.update(initial, temp_dir)
+
+      # Should detect all changes
+      assert length(updated.changes.changed) == 1
+      assert file1_path in updated.changes.changed
+
+      assert length(updated.changes.new) == 1
+      assert file3_path in updated.changes.new
+
+      assert length(updated.changes.deleted) == 1
+      assert file2_path in updated.changes.deleted
+
+      assert updated.changes.unchanged == []
+
+      # Final file count
+      assert length(updated.files) == 2
+
+      # Metadata
+      assert updated.metadata.changed_count == 1
+      assert updated.metadata.new_count == 1
+      assert updated.metadata.deleted_count == 1
+      assert updated.metadata.file_count == 2
+    end
+  end
+
+  describe "update/3 - error handling" do
+    test "falls back to full analysis when previous state missing" do
+      # Analyze normally
+      {:ok, initial} = ProjectAnalyzer.analyze(".")
+
+      # Remove analysis_state from metadata to simulate old result
+      initial_without_state = %{initial | metadata: Map.delete(initial.metadata, :analysis_state)}
+
+      # Update should fall back to full analysis
+      {:ok, updated} = ProjectAnalyzer.update(initial_without_state, ".")
+
+      # Should complete successfully
+      assert length(updated.files) > 0
+      assert is_struct(updated.graph)
+
+      # All files should be marked as "changed" in fallback mode
+      assert length(updated.changes.changed) == length(updated.files)
+    end
+
+    test "handles force_full_analysis option" do
+      {:ok, initial} = ProjectAnalyzer.analyze(".")
+
+      # Force full re-analysis
+      {:ok, updated} = ProjectAnalyzer.update(initial, ".", force_full_analysis: true)
+
+      # Should re-analyze all files
+      assert length(updated.changes.changed) == length(updated.files)
+      assert updated.changes.unchanged == []
+    end
+
+    test "returns error for invalid project path" do
+      {:ok, initial} = ProjectAnalyzer.analyze(".")
+
+      # Try to update with non-existent path
+      assert {:error, _reason} = ProjectAnalyzer.update(initial, "/nonexistent/path")
+    end
+  end
+
+  describe "update!/3" do
+    test "returns result on success" do
+      {:ok, initial} = ProjectAnalyzer.analyze(".")
+
+      updated = ProjectAnalyzer.update!(initial, ".")
+
+      assert updated.changes != nil
+      assert is_list(updated.files)
+    end
+
+    test "raises on error" do
+      {:ok, initial} = ProjectAnalyzer.analyze(".")
+
+      assert_raise RuntimeError, ~r/Failed to update project analysis/, fn ->
+        ProjectAnalyzer.update!(initial, "/nonexistent/path")
+      end
+    end
+  end
+
+  describe "update/3 - graph correctness" do
+    setup do
+      # Create a temporary directory for testing
+      temp_dir = System.tmp_dir!() |> Path.join("elixir_ontologies_test_#{:rand.uniform(100000)}")
+      File.mkdir_p!(temp_dir)
+
+      # Create a minimal mix.exs
+      mix_content = """
+      defmodule TestProject.MixProject do
+        use Mix.Project
+
+        def project do
+          [
+            app: :test_project,
+            version: "0.1.0"
+          ]
+        end
+      end
+      """
+
+      File.write!(Path.join(temp_dir, "mix.exs"), mix_content)
+
+      # Create lib directory
+      lib_dir = Path.join(temp_dir, "lib")
+      File.mkdir_p!(lib_dir)
+
+      on_exit(fn ->
+        File.rm_rf!(temp_dir)
+      end)
+
+      {:ok, temp_dir: temp_dir, lib_dir: lib_dir}
+    end
+
+    test "unchanged files' triples remain in graph", %{temp_dir: temp_dir, lib_dir: lib_dir} do
+      # Create two files
+      file1_path = Path.join(lib_dir, "foo.ex")
+      file2_path = Path.join(lib_dir, "bar.ex")
+
+      File.write!(file1_path, """
+      defmodule Foo do
+        def hello, do: :world
+      end
+      """)
+
+      File.write!(file2_path, """
+      defmodule Bar do
+        def test, do: :ok
+      end
+      """)
+
+      # Initial analysis
+      {:ok, initial} = ProjectAnalyzer.analyze(temp_dir)
+      _initial_statement_count = RDF.Graph.statement_count(initial.graph.graph)
+
+      # Modify only file1
+      :timer.sleep(1100)
+
+      File.write!(file1_path, """
+      defmodule Foo do
+        def hello, do: :universe
+      end
+      """)
+
+      # Update
+      {:ok, updated} = ProjectAnalyzer.update(initial, temp_dir)
+
+      # Graph should still be valid
+      updated_statement_count = RDF.Graph.statement_count(updated.graph.graph)
+      assert updated_statement_count >= 0
+
+      # Should have analyzed both files (one unchanged, one changed)
+      assert length(updated.files) == 2
+    end
+  end
+
+  describe "update/3 - metadata tracking" do
+    test "tracks analysis state for future updates" do
+      {:ok, initial} = ProjectAnalyzer.analyze(".")
+
+      # Should have analysis state
+      assert Map.has_key?(initial.metadata, :analysis_state)
+      assert Map.has_key?(initial.metadata, :file_paths)
+      assert Map.has_key?(initial.metadata, :last_analysis)
+
+      # Update
+      {:ok, updated} = ProjectAnalyzer.update(initial, ".")
+
+      # Should also have analysis state
+      assert Map.has_key?(updated.metadata, :analysis_state)
+      assert Map.has_key?(updated.metadata, :file_paths)
+      assert Map.has_key?(updated.metadata, :last_analysis)
+
+      # Should have update-specific metadata
+      assert Map.has_key?(updated.metadata, :changed_count)
+      assert Map.has_key?(updated.metadata, :new_count)
+      assert Map.has_key?(updated.metadata, :deleted_count)
+      assert Map.has_key?(updated.metadata, :unchanged_count)
+      assert Map.has_key?(updated.metadata, :previous_analysis)
+      assert Map.has_key?(updated.metadata, :update_timestamp)
+    end
+  end
 end

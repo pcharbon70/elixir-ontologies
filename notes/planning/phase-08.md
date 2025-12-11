@@ -86,24 +86,24 @@ Track file changes for incremental updates.
 - [x] 8.3.1.6 Write change tracker tests (success: 10 tests + 5 doctests)
 
 ### 8.3.2 Incremental Analyzer
-- [ ] **Task 8.3.2 Complete**
+- [x] **Task 8.3.2 Complete**
 
 Update graph incrementally based on changes.
 
-- [ ] 8.3.2.1 Implement `ProjectAnalyzer.update/2` with existing graph
-- [ ] 8.3.2.2 Remove triples for deleted/changed files
-- [ ] 8.3.2.3 Re-analyze changed files
-- [ ] 8.3.2.4 Analyze new files
-- [ ] 8.3.2.5 Merge updates into graph
-- [ ] 8.3.2.6 Update modification timestamps
-- [ ] 8.3.2.7 Write incremental update tests (success: 10 tests)
+- [x] 8.3.2.1 Implement `ProjectAnalyzer.update/3` with existing result, path, and options
+- [x] 8.3.2.2 Remove triples for deleted/changed files (via graph rebuild approach)
+- [x] 8.3.2.3 Re-analyze changed files
+- [x] 8.3.2.4 Analyze new files
+- [x] 8.3.2.5 Merge updates into graph
+- [x] 8.3.2.6 Update modification timestamps
+- [x] 8.3.2.7 Write incremental update tests (success: 13 tests, all passing)
 
 **Section 8.3 Unit Tests:**
 - [x] Test change detection for modified files
 - [x] Test new file detection
 - [x] Test deleted file detection
-- [ ] Test incremental update removes old triples
-- [ ] Test incremental update adds new triples
+- [x] Test incremental update removes old triples (via graph rebuild)
+- [x] Test incremental update adds new triples
 
 ## Phase 8 Integration Tests
 

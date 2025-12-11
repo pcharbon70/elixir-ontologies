@@ -58,7 +58,7 @@ defmodule ElixirOntologies.Analyzer.ProjectAnalyzer do
   - Permission denied on files
   """
 
-  alias ElixirOntologies.Analyzer.{Project, FileAnalyzer}
+  alias ElixirOntologies.Analyzer.{Project, FileAnalyzer, ChangeTracker}
   alias ElixirOntologies.{Config, Graph}
 
   require Logger
@@ -126,6 +126,40 @@ defmodule ElixirOntologies.Analyzer.ProjectAnalyzer do
             analysis: FileAnalyzer.Result.t() | nil,
             status: :ok | :error | :skipped,
             error: term()
+          }
+  end
+
+  defmodule UpdateResult do
+    @moduledoc """
+    Result of incremental project analysis update.
+
+    ## Fields
+
+    - `project` - Project.Project struct with project metadata
+    - `files` - Updated list of FileResult structs (unchanged + re-analyzed)
+    - `graph` - Updated unified RDF graph
+    - `changes` - ChangeTracker.Changes struct showing what changed
+    - `errors` - List of {file_path, error} tuples for failed files
+    - `metadata` - Update statistics (counts, timestamps, etc.)
+    """
+
+    @enforce_keys [:project, :files, :graph, :changes]
+    defstruct [
+      :project,
+      :files,
+      :graph,
+      :changes,
+      errors: [],
+      metadata: %{}
+    ]
+
+    @type t :: %__MODULE__{
+            project: Project.Project.t(),
+            files: [ElixirOntologies.Analyzer.ProjectAnalyzer.FileResult.t()],
+            graph: Graph.t(),
+            changes: ChangeTracker.Changes.t(),
+            errors: [{String.t(), term()}],
+            metadata: map()
           }
   end
 
@@ -205,6 +239,96 @@ defmodule ElixirOntologies.Analyzer.ProjectAnalyzer do
     case analyze(path, opts) do
       {:ok, result} -> result
       {:error, reason} -> raise "Failed to analyze project: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Updates an existing analysis result based on file changes.
+
+  Performs incremental analysis by:
+  1. Detecting which files have changed, been added, or deleted
+  2. Keeping analysis results for unchanged files
+  3. Re-analyzing changed files
+  4. Analyzing new files
+  5. Removing results for deleted files
+  6. Rebuilding the unified graph
+
+  ## Parameters
+
+  - `previous_result` - Previous Result struct from analyze/2
+  - `path` - Path to project root (should be same as original analysis)
+  - `opts` - Keyword list of options (same as analyze/2)
+
+  ## Options
+
+  Same as `analyze/2`, plus:
+  - `force_full_analysis` - If true, ignore changes and re-analyze all files
+
+  ## Returns
+
+  - `{:ok, update_result}` - Successful update with UpdateResult struct
+  - `{:error, reason}` - Update failed
+
+  ## Examples
+
+      # Initial analysis
+      {:ok, initial} = ProjectAnalyzer.analyze(".")
+
+      # ... files are modified ...
+
+      # Incremental update
+      {:ok, updated} = ProjectAnalyzer.update(initial, ".")
+
+      # Check what changed
+      updated.changes.changed  # => ["lib/foo.ex"]
+      updated.changes.new      # => ["lib/bar.ex"]
+      updated.changes.deleted  # => []
+
+  ## Fallback Behavior
+
+  If the previous result doesn't contain analysis state (e.g., from an
+  older version), this falls back to full re-analysis.
+  """
+  @spec update(Result.t(), String.t(), keyword()) :: {:ok, UpdateResult.t()} | {:error, term()}
+  def update(previous_result, path, opts \\ []) do
+    force_full = Keyword.get(opts, :force_full_analysis, false)
+    config = Keyword.get(opts, :config, Config.default())
+
+    with {:ok, project} <- Project.detect(path) do
+      # Check if we should do full analysis or incremental
+      case {force_full, detect_file_changes(previous_result, project, opts)} do
+        # Force full analysis requested
+        {true, _} ->
+          do_full_update(previous_result, project, path, opts, config)
+
+        # No previous state, fall back to full analysis
+        {false, nil} ->
+          Logger.info("No previous analysis state found, performing full re-analysis")
+          do_full_update(previous_result, project, path, opts, config)
+
+        # Incremental update
+        {false, {changes, _current_files}} ->
+          do_incremental_update(previous_result, project, changes, opts, config)
+      end
+    end
+  end
+
+  @doc """
+  Updates an existing analysis result, raising on error.
+
+  Same as `update/3` but raises a runtime error instead of returning
+  an error tuple.
+
+  ## Examples
+
+      result = ProjectAnalyzer.analyze!(".")
+      updated = ProjectAnalyzer.update!(result, ".")
+  """
+  @spec update!(Result.t(), String.t(), keyword()) :: UpdateResult.t()
+  def update!(previous_result, path, opts \\ []) do
+    case update(previous_result, path, opts) do
+      {:ok, result} -> result
+      {:error, reason} -> raise "Failed to update project analysis: #{inspect(reason)}"
     end
   end
 
@@ -308,12 +432,141 @@ defmodule ElixirOntologies.Analyzer.ProjectAnalyzer do
   # ===========================================================================
 
   defp build_metadata(file_results, errors) do
+    file_paths = Enum.map(file_results, & &1.file_path)
+    analysis_state = ChangeTracker.capture_state(file_paths)
+
     %{
       file_count: length(file_results),
       error_count: length(errors),
       module_count: Enum.sum(Enum.map(file_results, &length(&1.analysis.modules))),
       successful_files: length(file_results),
-      failed_files: length(errors)
+      failed_files: length(errors),
+      file_paths: file_paths,
+      analysis_state: analysis_state,
+      last_analysis: DateTime.utc_now()
     }
+  end
+
+  # ===========================================================================
+  # Private - Incremental Updates
+  # ===========================================================================
+
+  defp do_full_update(previous_result, project, _path, opts, config) do
+    # Do full re-analysis
+    files = discover_files(project, opts)
+
+    case validate_files(files) do
+      {:ok, valid_files} ->
+        {file_results, errors} = analyze_files(valid_files, project, config, opts)
+        graph = merge_graphs(file_results)
+
+        # Create a "changes" struct showing everything as changed
+        all_files = Enum.map(file_results, & &1.file_path)
+        previous_files = Map.get(previous_result.metadata, :file_paths, [])
+
+        changes = %ChangeTracker.Changes{
+          changed: all_files,
+          new: all_files -- previous_files,
+          deleted: previous_files -- all_files,
+          unchanged: []
+        }
+
+        metadata = build_update_metadata(changes, file_results, errors, previous_result.metadata)
+
+        {:ok,
+         %UpdateResult{
+           project: project,
+           files: file_results,
+           graph: graph,
+           changes: changes,
+           errors: errors,
+           metadata: metadata
+         }}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp do_incremental_update(previous_result, project, changes, opts, config) do
+    # Update file list (keep unchanged, identify files to analyze)
+    {unchanged_files, files_to_analyze} = update_file_list(previous_result.files, changes)
+
+    # Analyze changed and new files
+    {new_file_results, errors} = analyze_updated_files(files_to_analyze, project, config, opts)
+
+    # Combine unchanged and newly analyzed files
+    all_file_results = unchanged_files ++ new_file_results
+
+    # Rebuild graph from all files
+    graph = merge_graphs(all_file_results)
+
+    # Build metadata with change statistics
+    metadata = build_update_metadata(changes, all_file_results, errors, previous_result.metadata)
+
+    {:ok,
+     %UpdateResult{
+       project: project,
+       files: all_file_results,
+       graph: graph,
+       changes: changes,
+       errors: errors,
+       metadata: metadata
+     }}
+  end
+
+  defp detect_file_changes(previous_result, project, opts) do
+    # Extract previous state from metadata
+    old_state = Map.get(previous_result.metadata, :analysis_state)
+
+    # If no previous state, return nil to trigger full analysis
+    if is_nil(old_state) do
+      nil
+    else
+      # Discover current files
+      current_files = discover_files(project, opts)
+
+      # Capture current state
+      new_state = ChangeTracker.capture_state(current_files)
+
+      # Detect changes
+      changes = ChangeTracker.detect_changes(old_state, new_state)
+
+      {changes, current_files}
+    end
+  end
+
+  defp update_file_list(previous_files, changes) do
+    # Create map of previous files by path for quick lookup
+    previous_map = Map.new(previous_files, fn file -> {file.file_path, file} end)
+
+    # Keep only unchanged files
+    unchanged_files =
+      changes.unchanged
+      |> Enum.map(&Map.get(previous_map, &1))
+      |> Enum.reject(&is_nil/1)
+
+    # Files that need analysis (changed + new)
+    files_to_analyze = changes.changed ++ changes.new
+
+    {unchanged_files, files_to_analyze}
+  end
+
+  defp analyze_updated_files(files, project, config, opts) do
+    # Reuse existing analyze_files logic
+    analyze_files(files, project, config, opts)
+  end
+
+  defp build_update_metadata(changes, file_results, errors, previous_metadata) do
+    base_metadata = build_metadata(file_results, errors)
+
+    Map.merge(base_metadata, %{
+      changed_count: length(changes.changed),
+      new_count: length(changes.new),
+      deleted_count: length(changes.deleted),
+      unchanged_count: length(changes.unchanged),
+      previous_analysis: Map.get(previous_metadata, :last_analysis),
+      update_timestamp: DateTime.utc_now()
+    })
   end
 end
