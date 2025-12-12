@@ -569,5 +569,202 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
       assert reason =~ "Missing required property"
       assert reason =~ "sh:select"
     end
+
+    test "handles deeply nested RDF lists (depth limit protection)" do
+      import ExUnit.CaptureLog
+
+      prop_node = RDF.bnode("prop1")
+
+      # Create a deeply nested RDF list exceeding the depth limit (100)
+      # Each list node points to the next via rdf:rest, creating a chain
+      list_nodes =
+        for i <- 0..105 do
+          RDF.bnode("list#{i}")
+        end
+
+      # Build the list triples: each node has rdf:first and rdf:rest
+      list_triples =
+        list_nodes
+        |> Enum.with_index()
+        |> Enum.flat_map(fn {node, idx} ->
+          if idx < length(list_nodes) - 1 do
+            next_node = Enum.at(list_nodes, idx + 1)
+            [
+              {node, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#first>,
+               RDF.literal("item#{idx}")},
+              {node, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>, next_node}
+            ]
+          else
+            # Last node points to rdf:nil
+            [
+              {node, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#first>,
+               RDF.literal("item#{idx}")},
+              {node, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>,
+               ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#nil>}
+            ]
+          end
+        end)
+
+      graph =
+        RDF.Graph.new([
+          {~I<http://example.org/Shape1>, RDF.type(), ~I<http://www.w3.org/ns/shacl#NodeShape>},
+          {~I<http://example.org/Shape1>, ~I<http://www.w3.org/ns/shacl#property>, prop_node},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#path>, ~I<http://example.org/items>},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#in>, hd(list_nodes)}
+          | list_triples
+        ])
+
+      # Should fail with depth limit error
+      log =
+        capture_log(fn ->
+          {:error, reason} = Reader.parse_shapes(graph)
+          assert reason =~ "RDF list depth limit exceeded"
+          assert reason =~ "100"
+        end)
+
+      assert log =~ "RDF list depth limit exceeded"
+    end
+
+    test "handles circular RDF list references" do
+      import ExUnit.CaptureLog
+
+      prop_node = RDF.bnode("prop1")
+      list_node1 = RDF.bnode("list1")
+      list_node2 = RDF.bnode("list2")
+
+      # Create a circular list: list1 -> list2 -> list1 -> ...
+      graph =
+        RDF.Graph.new([
+          {~I<http://example.org/Shape1>, RDF.type(), ~I<http://www.w3.org/ns/shacl#NodeShape>},
+          {~I<http://example.org/Shape1>, ~I<http://www.w3.org/ns/shacl#property>, prop_node},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#path>, ~I<http://example.org/items>},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#in>, list_node1},
+          {list_node1, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#first>,
+           RDF.literal("item1")},
+          {list_node1, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>, list_node2},
+          {list_node2, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#first>,
+           RDF.literal("item2")},
+          # Create circular reference back to list_node1
+          {list_node2, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>, list_node1}
+        ])
+
+      # Should fail with depth limit error (circular lists will hit the depth limit)
+      log =
+        capture_log(fn ->
+          {:error, reason} = Reader.parse_shapes(graph)
+          assert reason =~ "RDF list depth limit exceeded"
+        end)
+
+      assert log =~ "RDF list depth limit exceeded"
+    end
+
+    test "handles property shape with invalid constraint value types" do
+      prop_node = RDF.bnode("prop1")
+
+      # minCount should be a non-negative integer, but provide a string
+      graph =
+        RDF.Graph.new([
+          {~I<http://example.org/Shape1>, RDF.type(), ~I<http://www.w3.org/ns/shacl#NodeShape>},
+          {~I<http://example.org/Shape1>, ~I<http://www.w3.org/ns/shacl#property>, prop_node},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#path>, ~I<http://example.org/name>},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#minCount>, RDF.literal("not-a-number")}
+        ])
+
+      # Should either parse gracefully (ignoring invalid value) or fail
+      {:ok, shapes} = Reader.parse_shapes(graph)
+      assert length(shapes) == 1
+      [shape] = shapes
+      assert length(shape.property_shapes) == 1
+      [prop_shape] = shape.property_shapes
+
+      # Invalid minCount should be nil (gracefully ignored)
+      assert prop_shape.min_count == nil
+    end
+
+    test "handles node shape with multiple target classes" do
+      graph =
+        RDF.Graph.new([
+          {~I<http://example.org/Shape1>, RDF.type(), ~I<http://www.w3.org/ns/shacl#NodeShape>},
+          {~I<http://example.org/Shape1>, ~I<http://www.w3.org/ns/shacl#targetClass>,
+           ~I<http://example.org/Module>},
+          {~I<http://example.org/Shape1>, ~I<http://www.w3.org/ns/shacl#targetClass>,
+           ~I<http://example.org/Function>},
+          {~I<http://example.org/Shape1>, ~I<http://www.w3.org/ns/shacl#targetClass>,
+           ~I<http://example.org/Macro>}
+        ])
+
+      {:ok, shapes} = Reader.parse_shapes(graph)
+      assert length(shapes) == 1
+      [shape] = shapes
+
+      # Should have all three target classes
+      assert length(shape.target_classes) == 3
+      assert Enum.member?(shape.target_classes, ~I<http://example.org/Module>)
+      assert Enum.member?(shape.target_classes, ~I<http://example.org/Function>)
+      assert Enum.member?(shape.target_classes, ~I<http://example.org/Macro>)
+    end
+
+    test "handles node shape with blank node ID" do
+      blank_shape = RDF.bnode("shape1")
+      prop_node = RDF.bnode("prop1")
+
+      graph =
+        RDF.Graph.new([
+          {blank_shape, RDF.type(), ~I<http://www.w3.org/ns/shacl#NodeShape>},
+          {blank_shape, ~I<http://www.w3.org/ns/shacl#targetClass>,
+           ~I<http://example.org/Module>},
+          {blank_shape, ~I<http://www.w3.org/ns/shacl#property>, prop_node},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#path>, ~I<http://example.org/name>},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#minCount>, RDF.literal(1)}
+        ])
+
+      {:ok, shapes} = Reader.parse_shapes(graph)
+      assert length(shapes) == 1
+      [shape] = shapes
+
+      # Shape should have blank node ID
+      assert match?(%RDF.BlankNode{}, shape.id)
+      assert shape.id == blank_shape
+    end
+
+    test "handles malformed RDF list missing rdf:first" do
+      prop_node = RDF.bnode("prop1")
+      list_node = RDF.bnode("list1")
+
+      # List node has rdf:rest but no rdf:first
+      graph =
+        RDF.Graph.new([
+          {~I<http://example.org/Shape1>, RDF.type(), ~I<http://www.w3.org/ns/shacl#NodeShape>},
+          {~I<http://example.org/Shape1>, ~I<http://www.w3.org/ns/shacl#property>, prop_node},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#path>, ~I<http://example.org/items>},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#in>, list_node},
+          {list_node, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>,
+           ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#nil>}
+        ])
+
+      {:error, reason} = Reader.parse_shapes(graph)
+      assert reason =~ "Malformed RDF list"
+      assert reason =~ "rdf:first"
+    end
+
+    test "handles malformed RDF list missing rdf:rest" do
+      prop_node = RDF.bnode("prop1")
+      list_node = RDF.bnode("list1")
+
+      # List node has rdf:first but no rdf:rest
+      graph =
+        RDF.Graph.new([
+          {~I<http://example.org/Shape1>, RDF.type(), ~I<http://www.w3.org/ns/shacl#NodeShape>},
+          {~I<http://example.org/Shape1>, ~I<http://www.w3.org/ns/shacl#property>, prop_node},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#path>, ~I<http://example.org/items>},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#in>, list_node},
+          {list_node, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#first>,
+           RDF.literal("item1")}
+        ])
+
+      {:error, reason} = Reader.parse_shapes(graph)
+      assert reason =~ "Malformed RDF list"
+      assert reason =~ "rdf:rest"
+    end
   end
 end

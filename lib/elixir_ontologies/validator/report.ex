@@ -91,9 +91,8 @@ defmodule ElixirOntologies.Validator.Report do
 
   """
   @spec has_violations?(t()) :: boolean()
-  def has_violations?(%__MODULE__{violations: violations}) do
-    length(violations) > 0
-  end
+  def has_violations?(%__MODULE__{violations: []}), do: false
+  def has_violations?(%__MODULE__{violations: [_ | _]}), do: true
 
   @doc """
   Returns the total number of issues (violations + warnings + info).

@@ -5,21 +5,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
 
   alias ElixirOntologies.SHACL.Writer
   alias ElixirOntologies.SHACL.Model.{ValidationReport, ValidationResult}
-
-  # SHACL vocabulary for assertions
-  @sh_validation_report ~I<http://www.w3.org/ns/shacl#ValidationReport>
-  @sh_validation_result ~I<http://www.w3.org/ns/shacl#ValidationResult>
-  @sh_conforms ~I<http://www.w3.org/ns/shacl#conforms>
-  @sh_result ~I<http://www.w3.org/ns/shacl#result>
-  @sh_focus_node ~I<http://www.w3.org/ns/shacl#focusNode>
-  @sh_result_path ~I<http://www.w3.org/ns/shacl#resultPath>
-  @sh_source_shape ~I<http://www.w3.org/ns/shacl#sourceShape>
-  @sh_result_severity ~I<http://www.w3.org/ns/shacl#resultSeverity>
-  @sh_result_message ~I<http://www.w3.org/ns/shacl#resultMessage>
-  @sh_violation ~I<http://www.w3.org/ns/shacl#Violation>
-  @sh_warning ~I<http://www.w3.org/ns/shacl#Warning>
-  @sh_info ~I<http://www.w3.org/ns/shacl#Info>
-  @rdf_type ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>
+  alias ElixirOntologies.SHACL.Vocabulary, as: SHACL
 
   # Helper: Get all objects for a given predicate
   defp get_objects(graph, predicate) do
@@ -48,10 +34,10 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       assert RDF.Graph.triple_count(graph) == 2
 
       # Should have ValidationReport type
-      assert Enum.member?(get_objects(graph, @rdf_type), @sh_validation_report)
+      assert Enum.member?(get_objects(graph, SHACL.rdf_type()), SHACL.validation_report())
 
       # Should have conforms = true
-      assert Enum.member?(get_objects(graph, @sh_conforms), true)
+      assert Enum.member?(get_objects(graph, SHACL.conforms()), true)
     end
 
     test "report resource is a blank node" do
@@ -85,27 +71,27 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       {:ok, graph} = Writer.to_graph(report)
 
       # Report should have conforms = false
-      assert get_objects(graph, @sh_conforms) |> Enum.member?(false)
+      assert get_objects(graph, SHACL.conforms()) |> Enum.member?(false)
 
       # Should have one result
-      result_nodes = get_objects(graph, @sh_result)
+      result_nodes = get_objects(graph, SHACL.result())
       assert length(result_nodes) == 1
 
       # Result should have ValidationResult type
-      assert get_objects(graph, @rdf_type) |> Enum.member?(@sh_validation_result)
+      assert get_objects(graph, SHACL.rdf_type()) |> Enum.member?(SHACL.validation_result())
 
       # Result should have all required properties
-      assert get_objects(graph, @sh_focus_node)
+      assert get_objects(graph, SHACL.focus_node())
              |> Enum.member?(~I<http://example.org/Module1>)
 
-      assert get_objects(graph, @sh_result_path)
+      assert get_objects(graph, SHACL.result_path())
              |> Enum.member?(~I<http://example.org/moduleName>)
 
-      assert get_objects(graph, @sh_source_shape)
+      assert get_objects(graph, SHACL.source_shape())
              |> Enum.member?(~I<http://example.org/ModuleShape>)
 
-      assert get_objects(graph, @sh_result_severity) |> Enum.member?(@sh_violation)
-      assert get_objects(graph, @sh_result_message) |> Enum.member?("Module name is invalid")
+      assert get_objects(graph, SHACL.result_severity()) |> Enum.member?(SHACL.violation())
+      assert get_objects(graph, SHACL.result_message()) |> Enum.member?("Module name is invalid")
     end
 
     test "converts report with multiple violations" do
@@ -134,14 +120,14 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       {:ok, graph} = Writer.to_graph(report)
 
       # Should have 2 results
-      result_nodes = get_objects(graph, @sh_result)
+      result_nodes = get_objects(graph, SHACL.result())
       assert length(result_nodes) == 2
 
       # Both results should be blank nodes
       assert Enum.all?(result_nodes, &match?(%RDF.BlankNode{}, &1))
 
       # Should have both focus nodes
-      focus_nodes = get_objects(graph, @sh_focus_node)
+      focus_nodes = get_objects(graph, SHACL.focus_node())
       assert Enum.member?(focus_nodes, ~I<http://example.org/Module1>)
       assert Enum.member?(focus_nodes, ~I<http://example.org/Module2>)
     end
@@ -164,7 +150,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       }
 
       {:ok, graph} = Writer.to_graph(report)
-      assert get_objects(graph, @sh_result_severity) |> Enum.member?(@sh_violation)
+      assert get_objects(graph, SHACL.result_severity()) |> Enum.member?(SHACL.violation())
     end
 
     test "converts warning severity correctly" do
@@ -183,7 +169,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       }
 
       {:ok, graph} = Writer.to_graph(report)
-      assert get_objects(graph, @sh_result_severity) |> Enum.member?(@sh_warning)
+      assert get_objects(graph, SHACL.result_severity()) |> Enum.member?(SHACL.warning())
     end
 
     test "converts info severity correctly" do
@@ -202,7 +188,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       }
 
       {:ok, graph} = Writer.to_graph(report)
-      assert get_objects(graph, @sh_result_severity) |> Enum.member?(@sh_info)
+      assert get_objects(graph, SHACL.result_severity()) |> Enum.member?(SHACL.info())
     end
   end
 
@@ -225,7 +211,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       {:ok, graph} = Writer.to_graph(report)
 
       # Should not have any sh:resultPath triples
-      path_values = get_objects(graph, @sh_result_path)
+      path_values = get_objects(graph, SHACL.result_path())
       assert path_values == []
     end
 
@@ -247,7 +233,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       {:ok, graph} = Writer.to_graph(report)
 
       # Should have sh:resultPath triple
-      path_values = get_objects(graph, @sh_result_path)
+      path_values = get_objects(graph, SHACL.result_path())
       assert Enum.member?(path_values, ~I<http://example.org/property>)
     end
 
@@ -269,7 +255,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       {:ok, graph} = Writer.to_graph(report)
 
       # Should not have any sh:resultMessage triples
-      message_values = get_objects(graph, @sh_result_message)
+      message_values = get_objects(graph, SHACL.result_message())
       assert message_values == []
     end
 
@@ -291,7 +277,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       {:ok, graph} = Writer.to_graph(report)
 
       # Should have sh:resultMessage triple
-      message_values = get_objects(graph, @sh_result_message)
+      message_values = get_objects(graph, SHACL.result_message())
       assert Enum.member?(message_values, "Custom error message")
     end
   end
@@ -313,7 +299,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       }
 
       {:ok, graph} = Writer.to_graph(report)
-      focus_nodes = get_objects(graph, @sh_focus_node)
+      focus_nodes = get_objects(graph, SHACL.focus_node())
       assert Enum.member?(focus_nodes, ~I<http://example.org/Module1>)
     end
 
@@ -335,7 +321,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       }
 
       {:ok, graph} = Writer.to_graph(report)
-      focus_nodes = get_objects(graph, @sh_focus_node)
+      focus_nodes = get_objects(graph, SHACL.focus_node())
       assert Enum.member?(focus_nodes, bnode)
     end
 
@@ -357,7 +343,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       }
 
       {:ok, graph} = Writer.to_graph(report)
-      focus_nodes = get_objects(graph, @sh_focus_node)
+      focus_nodes = get_objects(graph, SHACL.focus_node())
       assert Enum.member?(focus_nodes, "test value")
     end
   end
@@ -426,7 +412,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
 
       # Parsed graph should have the same structure
       assert RDF.Graph.triple_count(parsed_graph) >= 7
-      assert get_objects(parsed_graph, @sh_conforms) |> Enum.member?(false)
+      assert get_objects(parsed_graph, SHACL.conforms()) |> Enum.member?(false)
     end
   end
 
@@ -484,12 +470,12 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       {:ok, graph} = Writer.to_graph(report)
 
       # Should be conformant despite having results
-      assert get_objects(graph, @sh_conforms) |> Enum.member?(true)
+      assert get_objects(graph, SHACL.conforms()) |> Enum.member?(true)
 
       # Should have both severity types
-      severities = get_objects(graph, @sh_result_severity)
-      assert Enum.member?(severities, @sh_warning)
-      assert Enum.member?(severities, @sh_info)
+      severities = get_objects(graph, SHACL.result_severity())
+      assert Enum.member?(severities, SHACL.warning())
+      assert Enum.member?(severities, SHACL.info())
     end
 
     test "complex report with mixed severities" do
@@ -527,7 +513,7 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       {:ok, turtle} = Writer.to_turtle(graph)
 
       # Should have all 3 results
-      assert get_objects(graph, @sh_result) |> length() == 3
+      assert get_objects(graph, SHACL.result()) |> length() == 3
 
       # Turtle should be parseable and complete
       {:ok, parsed} = RDF.Turtle.read_string(turtle)
@@ -562,10 +548,10 @@ defmodule ElixirOntologies.SHACL.WriterTest do
       assert RDF.Graph.triple_count(graph1) == RDF.Graph.triple_count(graph2)
 
       # Should preserve conforms value
-      assert get_objects(graph2, @sh_conforms) |> Enum.member?(false)
+      assert get_objects(graph2, SHACL.conforms()) |> Enum.member?(false)
 
       # Should preserve severity
-      assert get_objects(graph2, @sh_result_severity) |> Enum.member?(@sh_violation)
+      assert get_objects(graph2, SHACL.result_severity()) |> Enum.member?(SHACL.violation())
     end
   end
 end

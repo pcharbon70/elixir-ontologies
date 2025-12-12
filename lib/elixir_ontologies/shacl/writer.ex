@@ -96,32 +96,7 @@ defmodule ElixirOntologies.SHACL.Writer do
   """
 
   alias ElixirOntologies.SHACL.Model.{ValidationReport, ValidationResult}
-
-  # SHACL Vocabulary
-  @sh_validation_report RDF.iri("http://www.w3.org/ns/shacl#ValidationReport")
-  @sh_validation_result RDF.iri("http://www.w3.org/ns/shacl#ValidationResult")
-  @sh_conforms RDF.iri("http://www.w3.org/ns/shacl#conforms")
-  @sh_result RDF.iri("http://www.w3.org/ns/shacl#result")
-  @sh_focus_node RDF.iri("http://www.w3.org/ns/shacl#focusNode")
-  @sh_result_path RDF.iri("http://www.w3.org/ns/shacl#resultPath")
-  @sh_source_shape RDF.iri("http://www.w3.org/ns/shacl#sourceShape")
-  @sh_result_severity RDF.iri("http://www.w3.org/ns/shacl#resultSeverity")
-  @sh_result_message RDF.iri("http://www.w3.org/ns/shacl#resultMessage")
-
-  # Severity IRIs
-  @sh_violation RDF.iri("http://www.w3.org/ns/shacl#Violation")
-  @sh_warning RDF.iri("http://www.w3.org/ns/shacl#Warning")
-  @sh_info RDF.iri("http://www.w3.org/ns/shacl#Info")
-
-  # RDF Vocabulary
-  @rdf_type RDF.iri("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
-
-  # SHACL prefix map for Turtle serialization
-  @shacl_prefixes %{
-    sh: "http://www.w3.org/ns/shacl#",
-    rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-    xsd: "http://www.w3.org/2001/XMLSchema#"
-  }
+  alias ElixirOntologies.SHACL.Vocabulary, as: SHACL
 
   @doc """
   Convert a ValidationReport struct to an RDF graph.
@@ -165,8 +140,8 @@ defmodule ElixirOntologies.SHACL.Writer do
       # Add report type and conforms
       graph =
         graph
-        |> RDF.Graph.add({report_node, @rdf_type, @sh_validation_report})
-        |> RDF.Graph.add({report_node, @sh_conforms, report.conforms?})
+        |> RDF.Graph.add({report_node, SHACL.rdf_type(), SHACL.validation_report()})
+        |> RDF.Graph.add({report_node, SHACL.conforms(), report.conforms?})
 
       # Add all validation results
       graph =
@@ -216,7 +191,7 @@ defmodule ElixirOntologies.SHACL.Writer do
   end
 
   def to_turtle(%RDF.Graph{} = graph, opts) do
-    prefixes = Keyword.get(opts, :prefixes, @shacl_prefixes)
+    prefixes = Keyword.get(opts, :prefixes, SHACL.prefix_map())
 
     case RDF.Turtle.write_string(graph, prefixes: prefixes) do
       {:ok, turtle} -> {:ok, turtle}
@@ -234,22 +209,22 @@ defmodule ElixirOntologies.SHACL.Writer do
     result_node = RDF.bnode()
 
     # Add link from report to result
-    graph = RDF.Graph.add(graph, {report_node, @sh_result, result_node})
+    graph = RDF.Graph.add(graph, {report_node, SHACL.result(), result_node})
 
     # Add result type
-    graph = RDF.Graph.add(graph, {result_node, @rdf_type, @sh_validation_result})
+    graph = RDF.Graph.add(graph, {result_node, SHACL.rdf_type(), SHACL.validation_result()})
 
     # Add required properties
     graph =
       graph
-      |> RDF.Graph.add({result_node, @sh_focus_node, result.focus_node})
-      |> RDF.Graph.add({result_node, @sh_source_shape, result.source_shape})
-      |> RDF.Graph.add({result_node, @sh_result_severity, severity_to_iri(result.severity)})
+      |> RDF.Graph.add({result_node, SHACL.focus_node(), result.focus_node})
+      |> RDF.Graph.add({result_node, SHACL.source_shape(), result.source_shape})
+      |> RDF.Graph.add({result_node, SHACL.result_severity(), severity_to_iri(result.severity)})
 
     # Add optional path (only if not nil)
     graph =
       if result.path != nil do
-        RDF.Graph.add(graph, {result_node, @sh_result_path, result.path})
+        RDF.Graph.add(graph, {result_node, SHACL.result_path(), result.path})
       else
         graph
       end
@@ -257,7 +232,7 @@ defmodule ElixirOntologies.SHACL.Writer do
     # Add optional message (only if not nil)
     graph =
       if result.message != nil do
-        RDF.Graph.add(graph, {result_node, @sh_result_message, result.message})
+        RDF.Graph.add(graph, {result_node, SHACL.result_message(), result.message})
       else
         graph
       end
@@ -267,7 +242,7 @@ defmodule ElixirOntologies.SHACL.Writer do
 
   # Map severity atom to SHACL severity IRI
   @spec severity_to_iri(ValidationResult.severity()) :: RDF.IRI.t()
-  defp severity_to_iri(:violation), do: @sh_violation
-  defp severity_to_iri(:warning), do: @sh_warning
-  defp severity_to_iri(:info), do: @sh_info
+  defp severity_to_iri(:violation), do: SHACL.violation()
+  defp severity_to_iri(:warning), do: SHACL.warning()
+  defp severity_to_iri(:info), do: SHACL.info()
 end

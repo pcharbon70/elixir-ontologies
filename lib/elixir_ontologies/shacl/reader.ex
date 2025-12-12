@@ -49,43 +49,19 @@ defmodule ElixirOntologies.SHACL.Reader do
   """
 
   alias ElixirOntologies.SHACL.Model.{NodeShape, PropertyShape, SPARQLConstraint}
+  alias ElixirOntologies.SHACL.Vocabulary, as: SHACL
 
   require Logger
+
+  # Module attribute for pattern matching (function calls can't be used in patterns)
+  @rdf_nil SHACL.rdf_nil()
 
   # Security limits for regex compilation
   @max_regex_length 500
   @regex_compile_timeout 100
 
-  # SHACL Vocabulary
-  @sh_node_shape RDF.iri("http://www.w3.org/ns/shacl#NodeShape")
-  @sh_target_class RDF.iri("http://www.w3.org/ns/shacl#targetClass")
-  @sh_property RDF.iri("http://www.w3.org/ns/shacl#property")
-  @sh_sparql RDF.iri("http://www.w3.org/ns/shacl#sparql")
-
-  # Property Constraint Vocabulary
-  @sh_path RDF.iri("http://www.w3.org/ns/shacl#path")
-  @sh_message RDF.iri("http://www.w3.org/ns/shacl#message")
-  @sh_min_count RDF.iri("http://www.w3.org/ns/shacl#minCount")
-  @sh_max_count RDF.iri("http://www.w3.org/ns/shacl#maxCount")
-  @sh_datatype RDF.iri("http://www.w3.org/ns/shacl#datatype")
-  @sh_class RDF.iri("http://www.w3.org/ns/shacl#class")
-  @sh_pattern RDF.iri("http://www.w3.org/ns/shacl#pattern")
-  @sh_min_length RDF.iri("http://www.w3.org/ns/shacl#minLength")
-  @sh_min_inclusive RDF.iri("http://www.w3.org/ns/shacl#minInclusive")
-  @sh_max_inclusive RDF.iri("http://www.w3.org/ns/shacl#maxInclusive")
-  @sh_in RDF.iri("http://www.w3.org/ns/shacl#in")
-  @sh_has_value RDF.iri("http://www.w3.org/ns/shacl#hasValue")
-  @sh_qualified_value_shape RDF.iri("http://www.w3.org/ns/shacl#qualifiedValueShape")
-  @sh_qualified_min_count RDF.iri("http://www.w3.org/ns/shacl#qualifiedMinCount")
-
-  # SPARQL Constraint Vocabulary
-  @sh_select RDF.iri("http://www.w3.org/ns/shacl#select")
-
-  # RDF Vocabulary
-  @rdf_type RDF.iri("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
-  @rdf_first RDF.iri("http://www.w3.org/1999/02/22-rdf-syntax-ns#first")
-  @rdf_rest RDF.iri("http://www.w3.org/1999/02/22-rdf-syntax-ns#rest")
-  @rdf_nil RDF.iri("http://www.w3.org/1999/02/22-rdf-syntax-ns#nil")
+  # Security limit for RDF list depth (prevent stack overflow)
+  @max_list_depth 100
 
   @doc """
   Parse SHACL shapes from an RDF graph into NodeShape structs.
@@ -123,7 +99,7 @@ defmodule ElixirOntologies.SHACL.Reader do
       graph
       |> RDF.Graph.triples()
       |> Enum.filter(fn {_s, p, o} ->
-        p == @rdf_type && o == @sh_node_shape
+        p == SHACL.rdf_type() && o == SHACL.node_shape()
       end)
       |> Enum.map(fn {s, _p, _o} -> s end)
       |> Enum.uniq()
@@ -173,7 +149,7 @@ defmodule ElixirOntologies.SHACL.Reader do
   defp extract_target_classes(desc) do
     target_classes =
       desc
-      |> RDF.Description.get(@sh_target_class, [])
+      |> RDF.Description.get(SHACL.target_class(), [])
       |> List.wrap()
       |> Enum.filter(&match?(%RDF.IRI{}, &1))
 
@@ -186,7 +162,7 @@ defmodule ElixirOntologies.SHACL.Reader do
   defp parse_property_shapes(graph, node_desc) do
     property_ids =
       node_desc
-      |> RDF.Description.get(@sh_property, [])
+      |> RDF.Description.get(SHACL.property(), [])
       |> List.wrap()
 
     property_shapes =
@@ -209,18 +185,18 @@ defmodule ElixirOntologies.SHACL.Reader do
   defp parse_property_shape(graph, prop_id) do
     desc = RDF.Graph.description(graph, prop_id)
 
-    with {:ok, path} <- extract_required_iri(desc, @sh_path, "sh:path"),
-         {:ok, message} <- extract_optional_string(desc, @sh_message),
-         {:ok, min_count} <- extract_optional_integer(desc, @sh_min_count),
-         {:ok, max_count} <- extract_optional_integer(desc, @sh_max_count),
-         {:ok, datatype} <- extract_optional_iri(desc, @sh_datatype),
-         {:ok, class_iri} <- extract_optional_iri(desc, @sh_class),
+    with {:ok, path} <- extract_required_iri(desc, SHACL.path(), "sh:path"),
+         {:ok, message} <- extract_optional_string(desc, SHACL.message()),
+         {:ok, min_count} <- extract_optional_integer(desc, SHACL.min_count()),
+         {:ok, max_count} <- extract_optional_integer(desc, SHACL.max_count()),
+         {:ok, datatype} <- extract_optional_iri(desc, SHACL.datatype()),
+         {:ok, class_iri} <- extract_optional_iri(desc, SHACL.class()),
          {:ok, pattern} <- extract_optional_pattern(desc),
-         {:ok, min_length} <- extract_optional_integer(desc, @sh_min_length),
-         {:ok, min_inclusive} <- extract_optional_numeric(desc, @sh_min_inclusive),
-         {:ok, max_inclusive} <- extract_optional_numeric(desc, @sh_max_inclusive),
+         {:ok, min_length} <- extract_optional_integer(desc, SHACL.min_length()),
+         {:ok, min_inclusive} <- extract_optional_numeric(desc, SHACL.min_inclusive()),
+         {:ok, max_inclusive} <- extract_optional_numeric(desc, SHACL.max_inclusive()),
          {:ok, in_values} <- extract_in_values(graph, desc),
-         {:ok, has_value} <- extract_optional_term(desc, @sh_has_value),
+         {:ok, has_value} <- extract_optional_term(desc, SHACL.has_value()),
          {:ok, {qualified_class, qualified_min_count}} <-
            extract_qualified_constraints(graph, desc) do
       {:ok,
@@ -254,7 +230,7 @@ defmodule ElixirOntologies.SHACL.Reader do
   defp parse_sparql_constraints(graph, node_desc, shape_id) do
     sparql_ids =
       node_desc
-      |> RDF.Description.get(@sh_sparql, [])
+      |> RDF.Description.get(SHACL.sparql(), [])
       |> List.wrap()
 
     constraints =
@@ -281,8 +257,8 @@ defmodule ElixirOntologies.SHACL.Reader do
   defp parse_sparql_constraint(graph, sparql_id, source_shape_id) do
     desc = RDF.Graph.description(graph, sparql_id)
 
-    with {:ok, message} <- extract_optional_string(desc, @sh_message),
-         {:ok, select_query} <- extract_required_string(desc, @sh_select, "sh:select"),
+    with {:ok, message} <- extract_optional_string(desc, SHACL.message()),
+         {:ok, select_query} <- extract_required_string(desc, SHACL.select(), "sh:select"),
          {:ok, prefixes_graph} <- extract_optional_prefixes(desc) do
       {:ok,
        %SPARQLConstraint{
@@ -318,14 +294,7 @@ defmodule ElixirOntologies.SHACL.Reader do
   @spec extract_optional_iri(RDF.Description.t(), RDF.IRI.t()) ::
           {:ok, RDF.IRI.t() | nil} | {:error, term()}
   defp extract_optional_iri(desc, predicate) do
-    values =
-      desc
-      |> RDF.Description.get(predicate)
-      |> case do
-        nil -> []
-        list when is_list(list) -> list
-        single -> [single]
-      end
+    values = desc |> RDF.Description.get(predicate) |> normalize_to_list()
 
     case values do
       [] -> {:ok, nil}
@@ -334,18 +303,18 @@ defmodule ElixirOntologies.SHACL.Reader do
     end
   end
 
+  # Helper: Normalize RDF.Description.get/2 result to a list
+  # Handles nil, single values, and lists consistently
+  @spec normalize_to_list(term()) :: list()
+  defp normalize_to_list(nil), do: []
+  defp normalize_to_list(list) when is_list(list), do: list
+  defp normalize_to_list(single), do: [single]
+
   # Helper: Extract required string value
   @spec extract_required_string(RDF.Description.t(), RDF.IRI.t(), String.t()) ::
           {:ok, String.t()} | {:error, term()}
   defp extract_required_string(desc, predicate, name) do
-    values =
-      desc
-      |> RDF.Description.get(predicate)
-      |> case do
-        nil -> []
-        list when is_list(list) -> list
-        single -> [single]
-      end
+    values = desc |> RDF.Description.get(predicate) |> normalize_to_list()
 
     case values do
       [] -> {:error, "Missing required property: #{name}"}
@@ -358,14 +327,7 @@ defmodule ElixirOntologies.SHACL.Reader do
   @spec extract_optional_string(RDF.Description.t(), RDF.IRI.t()) ::
           {:ok, String.t() | nil} | {:error, term()}
   defp extract_optional_string(desc, predicate) do
-    values =
-      desc
-      |> RDF.Description.get(predicate)
-      |> case do
-        nil -> []
-        list when is_list(list) -> list
-        single -> [single]
-      end
+    values = desc |> RDF.Description.get(predicate) |> normalize_to_list()
 
     case values do
       [] -> {:ok, nil}
@@ -378,19 +340,24 @@ defmodule ElixirOntologies.SHACL.Reader do
   @spec extract_optional_integer(RDF.Description.t(), RDF.IRI.t()) ::
           {:ok, non_neg_integer() | nil} | {:error, term()}
   defp extract_optional_integer(desc, predicate) do
-    values =
-      desc
-      |> RDF.Description.get(predicate)
-      |> case do
-        nil -> []
-        list when is_list(list) -> list
-        single -> [single]
-      end
+    values = desc |> RDF.Description.get(predicate) |> normalize_to_list()
 
     case values do
-      [] -> {:ok, nil}
-      [%RDF.Literal{} = lit | _] -> {:ok, RDF.Literal.value(lit)}
-      [_other | _] -> {:ok, nil}
+      [] ->
+        {:ok, nil}
+
+      [%RDF.Literal{} = lit | _] ->
+        value = RDF.Literal.value(lit)
+
+        if is_integer(value) and value >= 0 do
+          {:ok, value}
+        else
+          # Invalid integer value - gracefully ignore
+          {:ok, nil}
+        end
+
+      [_other | _] ->
+        {:ok, nil}
     end
   end
 
@@ -398,14 +365,7 @@ defmodule ElixirOntologies.SHACL.Reader do
   @spec extract_optional_numeric(RDF.Description.t(), RDF.IRI.t()) ::
           {:ok, integer() | float() | nil} | {:error, term()}
   defp extract_optional_numeric(desc, predicate) do
-    values =
-      desc
-      |> RDF.Description.get(predicate)
-      |> case do
-        nil -> []
-        list when is_list(list) -> list
-        single -> [single]
-      end
+    values = desc |> RDF.Description.get(predicate) |> normalize_to_list()
 
     case values do
       [] ->
@@ -435,14 +395,7 @@ defmodule ElixirOntologies.SHACL.Reader do
   # Helper: Extract and compile regex pattern with security limits
   @spec extract_optional_pattern(RDF.Description.t()) :: {:ok, Regex.t() | nil} | {:error, term()}
   defp extract_optional_pattern(desc) do
-    values =
-      desc
-      |> RDF.Description.get(@sh_pattern)
-      |> case do
-        nil -> []
-        list when is_list(list) -> list
-        single -> [single]
-      end
+    values = desc |> RDF.Description.get(SHACL.pattern()) |> normalize_to_list()
 
     case values do
       [] ->
@@ -501,14 +454,7 @@ defmodule ElixirOntologies.SHACL.Reader do
   @spec extract_in_values(RDF.Graph.t(), RDF.Description.t()) ::
           {:ok, [RDF.Term.t()]} | {:error, term()}
   defp extract_in_values(graph, desc) do
-    values =
-      desc
-      |> RDF.Description.get(@sh_in)
-      |> case do
-        nil -> []
-        list when is_list(list) -> list
-        single -> [single]
-      end
+    values = desc |> RDF.Description.get(SHACL.in_values()) |> normalize_to_list()
 
     case values do
       [] -> {:ok, []}
@@ -516,34 +462,27 @@ defmodule ElixirOntologies.SHACL.Reader do
     end
   end
 
-  # Helper: Parse RDF list into Elixir list
-  @spec parse_rdf_list(RDF.Graph.t(), RDF.Term.t()) :: {:ok, [RDF.Term.t()]} | {:error, term()}
-  defp parse_rdf_list(_graph, @rdf_nil), do: {:ok, []}
+  # Helper: Parse RDF list into Elixir list with depth limit
+  @spec parse_rdf_list(RDF.Graph.t(), RDF.Term.t(), non_neg_integer()) ::
+          {:ok, [RDF.Term.t()]} | {:error, term()}
+  defp parse_rdf_list(graph, list_node, depth \\ 0)
 
-  defp parse_rdf_list(graph, list_node) do
+  defp parse_rdf_list(_graph, @rdf_nil, _depth), do: {:ok, []}
+
+  defp parse_rdf_list(_graph, _node, depth) when depth > @max_list_depth do
+    Logger.warning("RDF list depth limit exceeded (max: #{@max_list_depth})")
+    {:error, "RDF list depth limit exceeded (max: #{@max_list_depth})"}
+  end
+
+  defp parse_rdf_list(graph, list_node, depth) do
     desc = RDF.Graph.description(graph, list_node)
 
-    first_values =
-      desc
-      |> RDF.Description.get(@rdf_first)
-      |> case do
-        nil -> []
-        list when is_list(list) -> list
-        single -> [single]
-      end
-
-    rest_values =
-      desc
-      |> RDF.Description.get(@rdf_rest)
-      |> case do
-        nil -> []
-        list when is_list(list) -> list
-        single -> [single]
-      end
+    first_values = desc |> RDF.Description.get(SHACL.rdf_first()) |> normalize_to_list()
+    rest_values = desc |> RDF.Description.get(SHACL.rdf_rest()) |> normalize_to_list()
 
     with [first | _] <- first_values,
          [rest | _] <- rest_values,
-         {:ok, rest_list} <- parse_rdf_list(graph, rest) do
+         {:ok, rest_list} <- parse_rdf_list(graph, rest, depth + 1) do
       {:ok, [first | rest_list]}
     else
       [] -> {:error, "Malformed RDF list: missing rdf:first or rdf:rest"}
@@ -556,13 +495,7 @@ defmodule ElixirOntologies.SHACL.Reader do
           {:ok, {RDF.IRI.t() | nil, non_neg_integer() | nil}} | {:error, term()}
   defp extract_qualified_constraints(graph, desc) do
     qualified_shape_values =
-      desc
-      |> RDF.Description.get(@sh_qualified_value_shape)
-      |> case do
-        nil -> []
-        list when is_list(list) -> list
-        single -> [single]
-      end
+      desc |> RDF.Description.get(SHACL.qualified_value_shape()) |> normalize_to_list()
 
     case qualified_shape_values do
       [] ->
@@ -571,8 +504,8 @@ defmodule ElixirOntologies.SHACL.Reader do
       [qualified_shape_id | _] ->
         qualified_desc = RDF.Graph.description(graph, qualified_shape_id)
 
-        with {:ok, qualified_class} <- extract_optional_iri(qualified_desc, @sh_class),
-             {:ok, qualified_min_count} <- extract_optional_integer(desc, @sh_qualified_min_count) do
+        with {:ok, qualified_class} <- extract_optional_iri(qualified_desc, SHACL.class()),
+             {:ok, qualified_min_count} <- extract_optional_integer(desc, SHACL.qualified_min_count()) do
           {:ok, {qualified_class, qualified_min_count}}
         end
     end
