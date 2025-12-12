@@ -156,6 +156,50 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
       end)
     end
 
+    test "parses minInclusive constraints", %{shapes: shapes} do
+      min_inclusive_shapes =
+        shapes
+        |> Enum.flat_map(& &1.property_shapes)
+        |> Enum.filter(&(&1.min_inclusive != nil))
+
+      # Verify values are numeric (integer or float)
+      Enum.each(min_inclusive_shapes, fn shape ->
+        assert is_integer(shape.min_inclusive) or is_float(shape.min_inclusive)
+      end)
+    end
+
+    test "parses maxInclusive constraints", %{shapes: shapes} do
+      max_inclusive_shapes =
+        shapes
+        |> Enum.flat_map(& &1.property_shapes)
+        |> Enum.filter(&(&1.max_inclusive != nil))
+
+      # elixir-shapes.ttl has at least 1 maxInclusive constraint (function arity)
+      assert length(max_inclusive_shapes) > 0
+
+      # Verify values are numeric (integer or float)
+      Enum.each(max_inclusive_shapes, fn shape ->
+        assert is_integer(shape.max_inclusive) or is_float(shape.max_inclusive)
+      end)
+    end
+
+    test "parses function arity maxInclusive constraint correctly", %{shapes: shapes} do
+      function_shape =
+        Enum.find(shapes, fn s ->
+          s.id == ~I<https://w3id.org/elixir-code/shapes#FunctionShape>
+        end)
+
+      # Find arity property shape
+      arity_shape =
+        Enum.find(function_shape.property_shapes, fn ps ->
+          ps.path == ~I<https://w3id.org/elixir-code/structure#arity>
+        end)
+
+      assert arity_shape != nil
+      assert arity_shape.max_inclusive == 255
+      assert arity_shape.datatype == ~I<http://www.w3.org/2001/XMLSchema#nonNegativeInteger>
+    end
+
     test "parses sh:in value constraints as RDF lists", %{shapes: shapes} do
       in_shapes =
         shapes
@@ -482,7 +526,7 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
       assert reason =~ "sh:path"
     end
 
-    test "handles invalid regex pattern" do
+    test "handles invalid regex pattern gracefully" do
       prop_node = RDF.bnode("prop1")
 
       graph =
@@ -493,8 +537,22 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
           {prop_node, ~I<http://www.w3.org/ns/shacl#pattern>, RDF.literal("[")}
         ])
 
-      {:error, reason} = Reader.parse_shapes(graph)
-      assert reason =~ "Failed to compile regex pattern"
+      # Invalid regex patterns are now logged as warnings and set to nil
+      # instead of failing the entire parse operation (security improvement)
+      import ExUnit.CaptureLog
+
+      log =
+        capture_log(fn ->
+          {:ok, shapes} = Reader.parse_shapes(graph)
+          assert length(shapes) == 1
+          [shape] = shapes
+          assert length(shape.property_shapes) == 1
+          [prop_shape] = shape.property_shapes
+          # Pattern should be nil since it failed to compile
+          assert prop_shape.pattern == nil
+        end)
+
+      assert log =~ "Regex compilation failed"
     end
 
     test "handles SPARQL constraint missing required select query" do

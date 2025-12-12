@@ -180,4 +180,95 @@ defmodule ElixirOntologies.SHACL.Model.ValidationReport do
           conforms?: boolean(),
           results: [ValidationResult.t()]
         }
+
+  @doc """
+  Creates a ValidationReport from a legacy Validator.Report struct.
+
+  This adapter function provides backward compatibility by converting
+  the older Report structure (with separate violations/warnings/info lists)
+  into the SHACL-compliant ValidationReport structure (with unified results list).
+
+  ## Field Mapping
+
+  - `Report.conforms` → `ValidationReport.conforms?`
+  - `Report.violations` → results with severity `:violation`
+  - `Report.warnings` → results with severity `:warning`
+  - `Report.info` → results with severity `:info`
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Validator.{Report, Violation}
+      iex> alias ElixirOntologies.SHACL.Model.ValidationReport
+      iex>
+      iex> legacy_report = %Report{
+      ...>   conforms: false,
+      ...>   violations: [%Violation{message: "Error"}],
+      ...>   warnings: []
+      ...> }
+      iex>
+      iex> validation_report = ValidationReport.from_legacy_report(legacy_report)
+      iex> validation_report.conforms?
+      false
+      iex> length(validation_report.results)
+      1
+
+  """
+  @spec from_legacy_report(ElixirOntologies.Validator.Report.t()) :: t()
+  def from_legacy_report(%ElixirOntologies.Validator.Report{} = report) do
+    # Convert violations
+    violation_results =
+      Enum.map(report.violations, fn v ->
+        %ValidationResult{
+          focus_node: v.focus_node,
+          path: v.result_path,
+          source_shape: v.source_shape,
+          severity: :violation,
+          message: v.message,
+          details: %{
+            value: v.value,
+            constraint_component: v.constraint_component
+          }
+        }
+      end)
+
+    # Convert warnings
+    warning_results =
+      Enum.map(report.warnings, fn w ->
+        %ValidationResult{
+          focus_node: w.focus_node,
+          path: w.result_path,
+          source_shape: w.source_shape,
+          severity: :warning,
+          message: w.message,
+          details: %{
+            value: w.value,
+            constraint_component: w.constraint_component
+          }
+        }
+      end)
+
+    # Convert info messages
+    info_results =
+      Enum.map(report.info, fn i ->
+        %ValidationResult{
+          focus_node: i.focus_node,
+          path: i.result_path,
+          source_shape: i.source_shape,
+          severity: :info,
+          message: i.message,
+          details: %{
+            value: i.value,
+            constraint_component: i.constraint_component
+          }
+        }
+      end)
+
+    # Combine all results
+    all_results = violation_results ++ warning_results ++ info_results
+
+    %__MODULE__{
+      conforms?: report.conforms,
+      results: all_results
+    }
+  end
 end

@@ -5,6 +5,12 @@ defmodule ElixirOntologies.SHACL.Writer do
   This module converts ValidationReport structs into RDF graphs following
   the W3C SHACL validation report vocabulary, then serializes to Turtle.
 
+  ## Backward Compatibility
+
+  The Writer accepts both `SHACL.Model.ValidationReport` (new SHACL-compliant format)
+  and `Validator.Report` (legacy format). Legacy reports are automatically converted
+  using the `ValidationReport.from_legacy_report/1` adapter function.
+
   ## Usage
 
       # Given a validation report
@@ -140,7 +146,14 @@ defmodule ElixirOntologies.SHACL.Writer do
       iex> RDF.Graph.triple_count(graph)
       2
   """
-  @spec to_graph(ValidationReport.t()) :: {:ok, RDF.Graph.t()} | {:error, term()}
+  @spec to_graph(ValidationReport.t() | ElixirOntologies.Validator.Report.t()) ::
+          {:ok, RDF.Graph.t()} | {:error, term()}
+  def to_graph(%ElixirOntologies.Validator.Report{} = legacy_report) do
+    # Convert legacy Report to ValidationReport and delegate
+    validation_report = ValidationReport.from_legacy_report(legacy_report)
+    to_graph(validation_report)
+  end
+
   def to_graph(%ValidationReport{} = report) do
     try do
       # Create blank node for report
