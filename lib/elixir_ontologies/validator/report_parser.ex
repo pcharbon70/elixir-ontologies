@@ -47,9 +47,7 @@ defmodule ElixirOntologies.Validator.ReportParser do
   @sh_result_message RDF.iri("http://www.w3.org/ns/shacl#resultMessage")
   @sh_result_severity RDF.iri("http://www.w3.org/ns/shacl#resultSeverity")
   @sh_source_shape RDF.iri("http://www.w3.org/ns/shacl#sourceShape")
-  @sh_source_constraint_component RDF.iri(
-                                     "http://www.w3.org/ns/shacl#sourceConstraintComponent"
-                                   )
+  @sh_source_constraint_component RDF.iri("http://www.w3.org/ns/shacl#sourceConstraintComponent")
 
   @sh_violation RDF.iri("http://www.w3.org/ns/shacl#Violation")
   @sh_warning RDF.iri("http://www.w3.org/ns/shacl#Warning")
