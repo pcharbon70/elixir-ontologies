@@ -33,15 +33,15 @@ Parse SHACL shapes from Turtle files into Elixir data structures.
 - [x] 11.1.2.7 Write reader parsing tests (target: 20+ tests, achieved: 32 tests)
 
 ### 11.1.3 Validation Report Writer
-- [ ] **Task 11.1.3 Complete**
+- [x] **Task 11.1.3 Complete**
 
 Generate SHACL validation reports as RDF graphs in Turtle format.
 
-- [ ] 11.1.3.1 Create `lib/elixir_ontologies/shacl/writer.ex`
-- [ ] 11.1.3.2 Implement `to_graph/1` converting ValidationReport to RDF graph
-- [ ] 11.1.3.3 Implement `to_turtle/1` serializing report to Turtle string
-- [ ] 11.1.3.4 Follow SHACL report vocabulary (sh:ValidationReport, sh:result)
-- [ ] 11.1.3.5 Write report generation tests (target: 10+ tests)
+- [x] 11.1.3.1 Create `lib/elixir_ontologies/shacl/writer.ex`
+- [x] 11.1.3.2 Implement `to_graph/1` converting ValidationReport to RDF graph
+- [x] 11.1.3.3 Implement `to_turtle/1` serializing report to Turtle string
+- [x] 11.1.3.4 Follow SHACL report vocabulary (sh:ValidationReport, sh:result)
+- [x] 11.1.3.5 Write report generation tests (target: 10+ tests, achieved: 22 tests)
 
 **Section 11.1 Unit Tests:**
 - [ ] Test parsing node shapes with sh:targetClass
