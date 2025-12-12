@@ -20,17 +20,17 @@ Define internal data structures for representing SHACL shapes and validation res
 - [x] 11.1.1.7 Write model structure tests (target: 15+ tests, achieved: 58 tests)
 
 ### 11.1.2 SHACL Shapes Reader
-- [ ] **Task 11.1.2 Complete**
+- [x] **Task 11.1.2 Complete**
 
 Parse SHACL shapes from Turtle files into Elixir data structures.
 
-- [ ] 11.1.2.1 Create `lib/elixir_ontologies/shacl/reader.ex`
-- [ ] 11.1.2.2 Implement `parse_shapes/2` to extract NodeShapes from RDF graph
-- [ ] 11.1.2.3 Implement property shape parsing (sh:property constraints)
-- [ ] 11.1.2.4 Implement SPARQL constraint parsing (sh:sparql)
-- [ ] 11.1.2.5 Handle RDF lists for sh:in value constraints
-- [ ] 11.1.2.6 Compile regex patterns from sh:pattern constraints
-- [ ] 11.1.2.7 Write reader parsing tests (target: 20+ tests)
+- [x] 11.1.2.1 Create `lib/elixir_ontologies/shacl/reader.ex`
+- [x] 11.1.2.2 Implement `parse_shapes/2` to extract NodeShapes from RDF graph
+- [x] 11.1.2.3 Implement property shape parsing (sh:property constraints)
+- [x] 11.1.2.4 Implement SPARQL constraint parsing (sh:sparql)
+- [x] 11.1.2.5 Handle RDF lists for sh:in value constraints
+- [x] 11.1.2.6 Compile regex patterns from sh:pattern constraints
+- [x] 11.1.2.7 Write reader parsing tests (target: 20+ tests, achieved: 32 tests)
 
 ### 11.1.3 Validation Report Writer
 - [ ] **Task 11.1.3 Complete**
