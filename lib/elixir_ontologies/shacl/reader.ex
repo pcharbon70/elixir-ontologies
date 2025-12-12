@@ -26,6 +26,7 @@ defmodule ElixirOntologies.SHACL.Reader do
   - `sh:minCount`, `sh:maxCount` - Cardinality constraints
   - `sh:datatype`, `sh:class` - Type constraints
   - `sh:pattern`, `sh:minLength` - String constraints
+  - `sh:minInclusive`, `sh:maxInclusive` - Numeric constraints
   - `sh:in`, `sh:hasValue` - Value constraints
   - `sh:qualifiedValueShape`, `sh:qualifiedMinCount` - Qualified constraints
 
@@ -49,6 +50,12 @@ defmodule ElixirOntologies.SHACL.Reader do
 
   alias ElixirOntologies.SHACL.Model.{NodeShape, PropertyShape, SPARQLConstraint}
 
+  require Logger
+
+  # Security limits for regex compilation
+  @max_regex_length 500
+  @regex_compile_timeout 100
+
   # SHACL Vocabulary
   @sh_node_shape RDF.iri("http://www.w3.org/ns/shacl#NodeShape")
   @sh_target_class RDF.iri("http://www.w3.org/ns/shacl#targetClass")
@@ -64,6 +71,8 @@ defmodule ElixirOntologies.SHACL.Reader do
   @sh_class RDF.iri("http://www.w3.org/ns/shacl#class")
   @sh_pattern RDF.iri("http://www.w3.org/ns/shacl#pattern")
   @sh_min_length RDF.iri("http://www.w3.org/ns/shacl#minLength")
+  @sh_min_inclusive RDF.iri("http://www.w3.org/ns/shacl#minInclusive")
+  @sh_max_inclusive RDF.iri("http://www.w3.org/ns/shacl#maxInclusive")
   @sh_in RDF.iri("http://www.w3.org/ns/shacl#in")
   @sh_has_value RDF.iri("http://www.w3.org/ns/shacl#hasValue")
   @sh_qualified_value_shape RDF.iri("http://www.w3.org/ns/shacl#qualifiedValueShape")
@@ -208,6 +217,8 @@ defmodule ElixirOntologies.SHACL.Reader do
          {:ok, class_iri} <- extract_optional_iri(desc, @sh_class),
          {:ok, pattern} <- extract_optional_pattern(desc),
          {:ok, min_length} <- extract_optional_integer(desc, @sh_min_length),
+         {:ok, min_inclusive} <- extract_optional_numeric(desc, @sh_min_inclusive),
+         {:ok, max_inclusive} <- extract_optional_numeric(desc, @sh_max_inclusive),
          {:ok, in_values} <- extract_in_values(graph, desc),
          {:ok, has_value} <- extract_optional_term(desc, @sh_has_value),
          {:ok, {qualified_class, qualified_min_count}} <-
@@ -223,6 +234,8 @@ defmodule ElixirOntologies.SHACL.Reader do
          class: class_iri,
          pattern: pattern,
          min_length: min_length,
+         min_inclusive: min_inclusive,
+         max_inclusive: max_inclusive,
          in: in_values,
          has_value: has_value,
          qualified_class: qualified_class,
@@ -381,6 +394,37 @@ defmodule ElixirOntologies.SHACL.Reader do
     end
   end
 
+  # Helper: Extract optional numeric value (integer or float)
+  @spec extract_optional_numeric(RDF.Description.t(), RDF.IRI.t()) ::
+          {:ok, integer() | float() | nil} | {:error, term()}
+  defp extract_optional_numeric(desc, predicate) do
+    values =
+      desc
+      |> RDF.Description.get(predicate)
+      |> case do
+        nil -> []
+        list when is_list(list) -> list
+        single -> [single]
+      end
+
+    case values do
+      [] ->
+        {:ok, nil}
+
+      [%RDF.Literal{} = lit | _] ->
+        value = RDF.Literal.value(lit)
+
+        cond do
+          is_integer(value) -> {:ok, value}
+          is_float(value) -> {:ok, value}
+          true -> {:ok, nil}
+        end
+
+      [_other | _] ->
+        {:ok, nil}
+    end
+  end
+
   # Helper: Extract optional term (any RDF term)
   @spec extract_optional_term(RDF.Description.t(), RDF.IRI.t()) ::
           {:ok, RDF.Term.t() | nil} | {:error, term()}
@@ -388,7 +432,7 @@ defmodule ElixirOntologies.SHACL.Reader do
     {:ok, RDF.Description.get(desc, predicate)}
   end
 
-  # Helper: Extract and compile regex pattern
+  # Helper: Extract and compile regex pattern with security limits
   @spec extract_optional_pattern(RDF.Description.t()) :: {:ok, Regex.t() | nil} | {:error, term()}
   defp extract_optional_pattern(desc) do
     values =
@@ -407,12 +451,48 @@ defmodule ElixirOntologies.SHACL.Reader do
       [%RDF.Literal{} = lit | _] ->
         pattern_string = RDF.Literal.value(lit)
 
-        case Regex.compile(pattern_string) do
-          {:ok, regex} -> {:ok, regex}
-          {:error, reason} -> {:error, "Failed to compile regex pattern: #{inspect(reason)}"}
+        # Security check: Reject patterns that are too long (ReDoS prevention)
+        if byte_size(pattern_string) > @max_regex_length do
+          Logger.warning(
+            "Skipping regex pattern that exceeds maximum length: " <>
+              "#{byte_size(pattern_string)} bytes (max: #{@max_regex_length})"
+          )
+
+          {:ok, nil}
+        else
+          # Compile with timeout to prevent ReDoS attacks
+          compile_with_timeout(pattern_string, @regex_compile_timeout)
         end
 
       [_other | _] ->
+        {:ok, nil}
+    end
+  end
+
+  # Compile regex with timeout protection against ReDoS
+  @spec compile_with_timeout(String.t(), non_neg_integer()) ::
+          {:ok, Regex.t() | nil} | {:error, term()}
+  defp compile_with_timeout(pattern_string, timeout_ms) do
+    task = Task.async(fn -> Regex.compile(pattern_string) end)
+
+    case Task.yield(task, timeout_ms) || Task.shutdown(task) do
+      {:ok, {:ok, regex}} ->
+        {:ok, regex}
+
+      {:ok, {:error, reason}} ->
+        Logger.warning("Regex compilation failed: #{inspect(reason)}")
+        {:ok, nil}
+
+      nil ->
+        Logger.warning(
+          "Regex compilation timed out after #{timeout_ms}ms - " <>
+            "potential ReDoS pattern: #{String.slice(pattern_string, 0, 50)}..."
+        )
+
+        {:ok, nil}
+
+      {:exit, reason} ->
+        Logger.warning("Regex compilation process exited: #{inspect(reason)}")
         {:ok, nil}
     end
   end
