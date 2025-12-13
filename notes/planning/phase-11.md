@@ -149,16 +149,16 @@ Update Mix tasks to work with native SHACL validator without external dependenci
 - [x] 11.4.2.5 Test --validate flag end-to-end with native implementation
 
 ### 11.4.3 Create SHACL Public API
-- [ ] **Task 11.4.3 Complete**
+- [x] **Task 11.4.3 Complete**
 
 Create clean, documented public API for SHACL validation.
 
-- [ ] 11.4.3.1 Create `lib/elixir_ontologies/shacl.ex` as main entry point
-- [ ] 11.4.3.2 Implement `validate/3` function (data_graph, shapes_graph, opts)
-- [ ] 11.4.3.3 Implement `validate_file/3` convenience function
-- [ ] 11.4.3.4 Add comprehensive module documentation with examples
-- [ ] 11.4.3.5 Add usage examples in @moduledoc
-- [ ] 11.4.3.6 Write public API integration tests (target: 10+ tests)
+- [x] 11.4.3.1 Create `lib/elixir_ontologies/shacl.ex` as main entry point
+- [x] 11.4.3.2 Implement `validate/3` function (data_graph, shapes_graph, opts)
+- [x] 11.4.3.3 Implement `validate_file/3` convenience function
+- [x] 11.4.3.4 Add comprehensive module documentation with examples
+- [x] 11.4.3.5 Add usage examples in @moduledoc
+- [x] 11.4.3.6 Write public API integration tests (target: 10+ tests, achieved: 18 tests)
 
 **Section 11.4 Unit Tests:**
 - [ ] Test Validator.validate/2 API with various graphs
