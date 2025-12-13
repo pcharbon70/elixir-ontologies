@@ -55,38 +55,38 @@ Generate SHACL validation reports as RDF graphs in Turtle format.
 This section implements the core constraint validation logic for all SHACL constraint types used in elixir-shapes.ttl.
 
 ### 11.2.1 Core Constraint Validators
-- [ ] **Task 11.2.1 Complete**
+- [x] **Task 11.2.1 Complete**
 
 Implement validators for each SHACL constraint type.
 
-- [ ] 11.2.1.1 Create `lib/elixir_ontologies/shacl/validators/cardinality.ex`
-- [ ] 11.2.1.2 Implement sh:minCount and sh:maxCount validation
-- [ ] 11.2.1.3 Create `lib/elixir_ontologies/shacl/validators/type.ex`
-- [ ] 11.2.1.4 Implement sh:datatype validation for RDF literals
-- [ ] 11.2.1.5 Implement sh:class validation for RDF resources
-- [ ] 11.2.1.6 Create `lib/elixir_ontologies/shacl/validators/string.ex`
-- [ ] 11.2.1.7 Implement sh:pattern regex validation
-- [ ] 11.2.1.8 Implement sh:minLength string validation
-- [ ] 11.2.1.9 Create `lib/elixir_ontologies/shacl/validators/value.ex`
-- [ ] 11.2.1.10 Implement sh:in value enumeration validation
-- [ ] 11.2.1.11 Implement sh:hasValue specific value validation
-- [ ] 11.2.1.12 Create `lib/elixir_ontologies/shacl/validators/qualified.ex`
-- [ ] 11.2.1.13 Implement sh:qualifiedValueShape + sh:qualifiedMinCount
-- [ ] 11.2.1.14 Write comprehensive validator tests (target: 40+ tests)
+- [x] 11.2.1.1 Create `lib/elixir_ontologies/shacl/validators/cardinality.ex`
+- [x] 11.2.1.2 Implement sh:minCount and sh:maxCount validation
+- [x] 11.2.1.3 Create `lib/elixir_ontologies/shacl/validators/type.ex`
+- [x] 11.2.1.4 Implement sh:datatype validation for RDF literals
+- [x] 11.2.1.5 Implement sh:class validation for RDF resources
+- [x] 11.2.1.6 Create `lib/elixir_ontologies/shacl/validators/string.ex`
+- [x] 11.2.1.7 Implement sh:pattern regex validation
+- [x] 11.2.1.8 Implement sh:minLength string validation
+- [x] 11.2.1.9 Create `lib/elixir_ontologies/shacl/validators/value.ex`
+- [x] 11.2.1.10 Implement sh:in value enumeration validation
+- [x] 11.2.1.11 Implement sh:hasValue specific value validation
+- [x] 11.2.1.12 Create `lib/elixir_ontologies/shacl/validators/qualified.ex`
+- [x] 11.2.1.13 Implement sh:qualifiedValueShape + sh:qualifiedMinCount
+- [x] 11.2.1.14 Write comprehensive validator tests (target: 40+ tests, achieved: 110 tests)
 
 ### 11.2.2 Main Validator Engine
-- [ ] **Task 11.2.2 Complete**
+- [x] **Task 11.2.2 Complete**
 
 Orchestrate validation across all shapes, nodes, and constraints with parallel processing.
 
-- [ ] 11.2.2.1 Create `lib/elixir_ontologies/shacl/validator.ex`
-- [ ] 11.2.2.2 Implement `run/3` main validation entry point
-- [ ] 11.2.2.3 Implement target node selection based on sh:targetClass
-- [ ] 11.2.2.4 Implement focus node validation loop
-- [ ] 11.2.2.5 Implement property shape validation for each focus node
-- [ ] 11.2.2.6 Implement parallel validation using Task.async_stream
-- [ ] 11.2.2.7 Aggregate ValidationResults into ValidationReport
-- [ ] 11.2.2.8 Write validator orchestration tests (target: 15+ tests)
+- [x] 11.2.2.1 Create `lib/elixir_ontologies/shacl/validator.ex`
+- [x] 11.2.2.2 Implement `run/3` main validation entry point
+- [x] 11.2.2.3 Implement target node selection based on sh:targetClass
+- [x] 11.2.2.4 Implement focus node validation loop
+- [x] 11.2.2.5 Implement property shape validation for each focus node
+- [x] 11.2.2.6 Implement parallel validation using Task.async_stream
+- [x] 11.2.2.7 Aggregate ValidationResults into ValidationReport
+- [x] 11.2.2.8 Write validator orchestration tests (target: 15+ tests, achieved: 22 tests)
 
 **Section 11.2 Unit Tests:**
 - [ ] Test each constraint type with conformant data (should pass)
