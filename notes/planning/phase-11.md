@@ -138,15 +138,15 @@ Remove all pySHACL code and dependencies from the codebase.
 - [x] 11.4.1.6 Update `validate/2` to call native SHACL.validate/3
 
 ### 11.4.2 Update Mix Task Integration
-- [ ] **Task 11.4.2 Complete**
+- [x] **Task 11.4.2 Complete** (completed in Phase 11.4.1)
 
 Update Mix tasks to work with native SHACL validator without external dependencies.
 
-- [ ] 11.4.2.1 Update `lib/mix/tasks/elixir_ontologies.analyze.ex`
-- [ ] 11.4.2.2 Remove pySHACL availability checks
-- [ ] 11.4.2.3 Update validation output formatting for native reports
-- [ ] 11.4.2.4 Update validation error reporting and messages
-- [ ] 11.4.2.5 Test --validate flag end-to-end with native implementation
+- [x] 11.4.2.1 Update `lib/mix/tasks/elixir_ontologies.analyze.ex`
+- [x] 11.4.2.2 Remove pySHACL availability checks
+- [x] 11.4.2.3 Update validation output formatting for native reports
+- [x] 11.4.2.4 Update validation error reporting and messages
+- [x] 11.4.2.5 Test --validate flag end-to-end with native implementation
 
 ### 11.4.3 Create SHACL Public API
 - [ ] **Task 11.4.3 Complete**
