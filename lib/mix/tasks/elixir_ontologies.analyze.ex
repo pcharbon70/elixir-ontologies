@@ -295,24 +295,20 @@ defmodule Mix.Tasks.ElixirOntologies.Analyze do
   defp validate_graph(graph, quiet) do
     progress(quiet, "Validating graph against SHACL shapes...")
 
-    unless Validator.available?() do
-      error("pySHACL is not available")
-      Mix.shell().info("")
-      Mix.shell().info(Validator.installation_instructions())
-      exit({:shutdown, 1})
-    end
-
     case Validator.validate(graph) do
       {:ok, report} ->
-        if report.conforms do
+        if report.conforms? do
           progress(quiet, "Validation: PASSED")
           Mix.shell().info([:green, "✓ ", :reset, "Graph conforms to SHACL shapes"])
         else
+          # Filter for violations only (ignore warnings and info)
+          violations = Enum.filter(report.results, fn r -> r.severity == :violation end)
+
           error("Validation: FAILED")
           Mix.shell().info("")
-          Mix.shell().info("Found #{length(report.violations)} violation(s):")
+          Mix.shell().info("Found #{length(violations)} violation(s):")
 
-          for violation <- Enum.take(report.violations, 10) do
+          for violation <- Enum.take(violations, 10) do
             Mix.shell().info("")
             Mix.shell().info([:red, "  ✗ ", :reset, violation.message])
 
@@ -320,14 +316,14 @@ defmodule Mix.Tasks.ElixirOntologies.Analyze do
               Mix.shell().info("    Focus node: #{inspect(violation.focus_node)}")
             end
 
-            if violation.result_path do
-              Mix.shell().info("    Path: #{inspect(violation.result_path)}")
+            if violation.path do
+              Mix.shell().info("    Path: #{inspect(violation.path)}")
             end
           end
 
-          if length(report.violations) > 10 do
+          if length(violations) > 10 do
             Mix.shell().info("")
-            Mix.shell().info("  ... and #{length(report.violations) - 10} more violations")
+            Mix.shell().info("  ... and #{length(violations) - 10} more violations")
           end
 
           exit({:shutdown, 1})

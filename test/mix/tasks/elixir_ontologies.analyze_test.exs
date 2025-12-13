@@ -391,55 +391,31 @@ defmodule Mix.Tasks.ElixirOntologies.AnalyzeTest do
       {:ok, test_file: test_file}
     end
 
-    @tag :requires_pyshacl
     test "validates graph when --validate flag provided", %{test_file: test_file} do
-      if ElixirOntologies.Validator.available?() do
-        output =
-          capture_io(fn ->
-            Analyze.run([test_file, "--validate", "--quiet"])
-          end)
+      output =
+        capture_io(fn ->
+          Analyze.run([test_file, "--validate", "--quiet"])
+        end)
 
-        # Should include validation output
-        assert output =~ "Graph conforms" or output =~ "Validation"
-      else
-        # Should show installation instructions if pySHACL not available
-        assert catch_exit(
-                 capture_io(fn ->
-                   Analyze.run([test_file, "--validate"])
-                 end)
-               ) == {:shutdown, 1}
-      end
-    end
-
-    @tag :requires_pyshacl
-    test "validation error shown when pySHACL not available", %{test_file: test_file} do
-      unless ElixirOntologies.Validator.available?() do
-        output =
-          capture_io(fn ->
-            catch_exit(Analyze.run([test_file, "--validate"]))
-          end)
-
-        assert output =~ "pySHACL is not available" or output =~ "pip install pyshacl"
-      end
+      # Should include validation output
+      assert output =~ "Graph conforms" or output =~ "Validation"
     end
 
     test "--validate flag is recognized as valid option", %{test_file: test_file} do
       # Test that the option is accepted without causing option parsing errors
       output =
         capture_io(fn ->
-          # May exit if pySHACL not available, but shouldn't show "Invalid options"
-          catch_exit(Analyze.run([test_file, "--validate", "--quiet"]))
+          Analyze.run([test_file, "--validate", "--quiet"])
         end)
 
       refute output =~ "Invalid options"
     end
 
-    @tag :requires_pyshacl
     test "short flag -v works for validation", %{test_file: test_file} do
       # Test the -v alias
       output =
         capture_io(fn ->
-          catch_exit(Analyze.run([test_file, "-v", "--quiet"]))
+          Analyze.run([test_file, "-v", "--quiet"])
         end)
 
       # Should not show "Invalid options"

@@ -8,24 +8,13 @@ defmodule ElixirOntologies.Validator do
 
   ## Features
 
+  - Native Elixir SHACL validation (no external dependencies)
   - Validates RDF graphs against SHACL shapes
   - Returns structured validation reports
-  - Detects pySHACL availability
-  - Provides clear error messages
+  - Supports core SHACL constraints (cardinality, type, string, value, qualified)
+  - Supports SPARQL-based constraints for complex validation rules
+  - Parallel validation for performance
   - Integrates with Mix tasks
-
-  ## Requirements
-
-  This module requires pySHACL to be installed on your system. pySHACL is a Python
-  library that provides SHACL validation.
-
-  To install pySHACL:
-
-      pip install pyshacl
-
-  To check if pySHACL is available:
-
-      ElixirOntologies.Validator.available?()
 
   ## Usage
 
@@ -35,10 +24,10 @@ defmodule ElixirOntologies.Validator do
       {:ok, graph} = ElixirOntologies.analyze_file("lib/my_module.ex")
       {:ok, report} = ElixirOntologies.Validator.validate(graph)
 
-      if report.conforms do
+      if report.conforms? do
         IO.puts("Graph is valid!")
       else
-        IO.puts("Found \#{length(report.violations)} violations")
+        IO.puts("Found \#{length(report.results)} violations")
       end
 
   ### Validation from Mix Task
@@ -47,51 +36,75 @@ defmodule ElixirOntologies.Validator do
 
   ### Custom Shapes File
 
-      {:ok, report} = ElixirOntologies.Validator.validate(graph, shapes_file: "custom-shapes.ttl")
+      {:ok, shapes} = RDF.Turtle.read_file("custom-shapes.ttl")
+      {:ok, report} = ElixirOntologies.Validator.validate(graph, shapes_graph: shapes)
 
   ## Validation Reports
 
-  Validation reports contain:
-  - `conforms`: Boolean indicating overall conformance
-  - `violations`: List of constraint violations (errors)
-  - `warnings`: List of warnings (non-critical issues)
-  - `info`: List of informational messages
+  Validation reports (ElixirOntologies.SHACL.Model.ValidationReport) contain:
+  - `conforms?`: Boolean indicating overall conformance
+  - `results`: List of validation results (violations, warnings, info)
 
-  Each violation/warning/info includes:
+  Each ValidationResult includes:
   - `focus_node`: The RDF node that violated the constraint
-  - `result_path`: The property path that was constrained
-  - `value`: The actual value that violated the constraint
-  - `message`: Human-readable error message
+  - `path`: The property path that was constrained (nil for node-level constraints)
   - `severity`: `:violation`, `:warning`, or `:info`
   - `source_shape`: The SHACL shape that was violated
-  - `constraint_component`: Which SHACL constraint failed
+  - `message`: Human-readable error message
+  - `details`: Map with constraint-specific details
 
-  ## Error Handling
+  ## Validation Options
 
-  If pySHACL is not available, the validator will return:
+  - `:shapes_graph` - Custom RDF.Graph with SHACL shapes (default: loads elixir-shapes.ttl)
+  - `:parallel` - Enable parallel validation (default: true)
+  - `:max_concurrency` - Max concurrent tasks (default: System.schedulers_online())
+  - `:timeout` - Validation timeout per shape in ms (default: 5000)
 
-      {:error, :pyshacl_not_available}
+  ## Examples
 
-  You can check availability and get installation instructions:
+      # Basic validation with default shapes
+      {:ok, graph} = ElixirOntologies.analyze_file("lib/my_module.ex")
+      {:ok, report} = ElixirOntologies.Validator.validate(graph)
 
-      unless ElixirOntologies.Validator.available?() do
-        IO.puts(ElixirOntologies.Validator.installation_instructions())
+      # Custom shapes
+      {:ok, shapes} = RDF.Turtle.read_file("my-shapes.ttl")
+      {:ok, report} = ElixirOntologies.Validator.validate(graph, shapes_graph: shapes)
+
+      # Sequential validation (for debugging)
+      {:ok, report} = ElixirOntologies.Validator.validate(graph, parallel: false)
+
+      # Custom concurrency and timeout
+      {:ok, report} = ElixirOntologies.Validator.validate(graph,
+        max_concurrency: 4,
+        timeout: 10_000
+      )
+
+      # Check results
+      if report.conforms? do
+        IO.puts("Valid!")
+      else
+        Enum.each(report.results, fn result ->
+          IO.puts("[\#{result.severity}] \#{result.message}")
+          IO.puts("  Focus node: \#{inspect(result.focus_node)}")
+          if result.path, do: IO.puts("  Path: \#{inspect(result.path)}")
+        end)
       end
 
   """
 
-  alias ElixirOntologies.{Graph, Validator}
-  alias Validator.{Report, ReportParser, ShaclEngine}
+  alias ElixirOntologies.{Graph, SHACL}
 
   require Logger
 
   @typedoc "Validation options"
   @type option ::
-          {:shapes_file, Path.t()}
-          | {:timeout, non_neg_integer()}
+          {:shapes_graph, RDF.Graph.t()}
+          | {:parallel, boolean()}
+          | {:max_concurrency, pos_integer()}
+          | {:timeout, timeout()}
 
   @typedoc "Validation result"
-  @type validation_result :: {:ok, Report.t()} | {:error, term()}
+  @type validation_result :: {:ok, SHACL.Model.ValidationReport.t()} | {:error, term()}
 
   @doc """
   Validates an RDF graph against SHACL shapes.
@@ -100,115 +113,81 @@ defmodule ElixirOntologies.Validator do
 
   - `graph`: The RDF graph to validate (ElixirOntologies.Graph struct)
   - `opts`: Optional keyword list with:
-    - `:shapes_file` - Path to SHACL shapes file (default: priv/ontologies/elixir-shapes.ttl)
-    - `:timeout` - Validation timeout in milliseconds (default: 30000)
+    - `:shapes_graph` - Custom RDF.Graph with SHACL shapes (default: loads elixir-shapes.ttl)
+    - `:parallel` - Enable parallel validation (default: true)
+    - `:max_concurrency` - Max concurrent tasks (default: System.schedulers_online())
+    - `:timeout` - Validation timeout per shape in ms (default: 5000)
 
   ## Returns
 
-  - `{:ok, report}` - Validation completed, check `report.conforms`
-  - `{:error, :pyshacl_not_available}` - pySHACL not installed
+  - `{:ok, report}` - Validation completed, check `report.conforms?`
   - `{:error, reason}` - Validation error
 
   ## Examples
 
-      # Validate a graph
+      # Validate with default shapes
       {:ok, graph} = ElixirOntologies.analyze_file("lib/my_module.ex")
       {:ok, report} = ElixirOntologies.Validator.validate(graph)
 
-      # Check conformance
-      if report.conforms do
+      if report.conforms? do
         IO.puts("Valid!")
       else
-        Enum.each(report.violations, fn violation ->
-          IO.puts("Error: \#{violation.message}")
+        Enum.each(report.results, fn result ->
+          IO.puts("Error: \#{result.message}")
         end)
       end
 
       # Custom shapes file
-      {:ok, report} = ElixirOntologies.Validator.validate(graph, shapes_file: "my-shapes.ttl")
+      {:ok, shapes} = RDF.Turtle.read_file("my-shapes.ttl")
+      {:ok, report} = ElixirOntologies.Validator.validate(graph, shapes_graph: shapes)
 
-      # Custom timeout
-      {:ok, report} = ElixirOntologies.Validator.validate(graph, timeout: 60_000)
+      # Sequential validation for debugging
+      {:ok, report} = ElixirOntologies.Validator.validate(graph, parallel: false)
 
   """
   @spec validate(Graph.t(), [option()]) :: validation_result()
-  def validate(%Graph{} = graph, opts \\ []) do
-    with {:ok, turtle_string} <- serialize_graph(graph),
-         {:ok, result} <- ShaclEngine.validate(turtle_string, opts) do
-      process_validation_result(result)
+  def validate(%Graph{graph: rdf_graph}, opts \\ []) do
+    with {:ok, shapes_graph} <- get_shapes_graph(opts) do
+      # Call native SHACL validator
+      SHACL.Validator.run(rdf_graph, shapes_graph, opts)
     end
   end
 
-  @doc """
-  Checks if the SHACL validator (pySHACL) is available.
+  # Gets the shapes graph from options or loads default
+  @spec get_shapes_graph(keyword()) :: {:ok, RDF.Graph.t()} | {:error, term()}
+  defp get_shapes_graph(opts) do
+    case Keyword.get(opts, :shapes_graph) do
+      nil ->
+        # Load default shapes file
+        load_default_shapes()
 
-  ## Returns
+      shapes_graph when is_struct(shapes_graph, RDF.Graph) ->
+        {:ok, shapes_graph}
 
-  - `true` if pySHACL is installed and available
-  - `false` otherwise
-
-  ## Examples
-
-      iex> if ElixirOntologies.Validator.available?() do
-      ...>   IO.puts("Validation available")
-      ...> else
-      ...>   IO.puts("Please install pySHACL")
-      ...> end
-
-  """
-  @spec available?() :: boolean()
-  def available? do
-    ShaclEngine.available?()
-  end
-
-  @doc """
-  Returns installation instructions for pySHACL.
-
-  ## Returns
-
-  A string with installation instructions
-
-  ## Examples
-
-      iex> instructions = ElixirOntologies.Validator.installation_instructions()
-      iex> IO.puts(instructions)
-
-  """
-  @spec installation_instructions() :: String.t()
-  def installation_instructions do
-    ShaclEngine.installation_instructions()
-  end
-
-  # Serializes graph to Turtle format
-  @spec serialize_graph(Graph.t()) :: {:ok, String.t()} | {:error, term()}
-  defp serialize_graph(graph) do
-    case Graph.to_turtle(graph) do
-      {:ok, turtle} -> {:ok, turtle}
-      {:error, reason} -> {:error, {:serialization_error, reason}}
+      _ ->
+        {:error, :invalid_shapes_graph}
     end
   end
 
-  # Processes the validation result from ShaclEngine
-  @spec process_validation_result(ShaclEngine.validation_result()) :: validation_result()
-  defp process_validation_result({:ok, :conforms}) do
-    # Graph conforms - return empty report
-    {:ok, Report.new(conforms: true)}
-  end
+  # Loads the default elixir-shapes.ttl file
+  @spec load_default_shapes() :: {:ok, RDF.Graph.t()} | {:error, term()}
+  defp load_default_shapes do
+    shapes_path = Path.join(:code.priv_dir(:elixir_ontologies), "ontologies/elixir-shapes.ttl")
 
-  defp process_validation_result({:ok, :non_conformant, report_turtle}) do
-    # Graph does not conform - parse the validation report
-    case ReportParser.parse(report_turtle) do
-      {:ok, report} ->
-        {:ok, report}
+    case File.exists?(shapes_path) do
+      true ->
+        case RDF.Turtle.read_file(shapes_path) do
+          {:ok, shapes_graph} ->
+            {:ok, shapes_graph}
 
-      {:error, reason} ->
-        Logger.warning("Failed to parse validation report: #{inspect(reason)}")
-        # Return a basic non-conformant report
-        {:ok, Report.new(conforms: false)}
+          {:error, reason} ->
+            Logger.error("Failed to read shapes file: #{inspect(reason)}")
+            {:error, {:shapes_read_error, reason}}
+        end
+
+      false ->
+        Logger.error("Shapes file not found: #{shapes_path}")
+        {:error, :shapes_file_not_found}
     end
-  end
-
-  defp process_validation_result({:error, reason}) do
-    {:error, reason}
   end
 end

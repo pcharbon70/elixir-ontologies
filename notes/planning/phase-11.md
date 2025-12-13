@@ -126,16 +126,16 @@ Evaluate SPARQL-based constraints using SPARQL.ex library.
 This section updates the public API to use the native SHACL implementation and removes all pySHACL dependencies.
 
 ### 11.4.1 Remove pySHACL Implementation
-- [ ] **Task 11.4.1 Complete**
+- [x] **Task 11.4.1 Complete**
 
 Remove all pySHACL code and dependencies from the codebase.
 
-- [ ] 11.4.1.1 Delete `lib/elixir_ontologies/validator/shacl_engine.ex`
-- [ ] 11.4.1.2 Delete all pySHACL-specific test files
-- [ ] 11.4.1.3 Remove all `:requires_pyshacl` test tags
-- [ ] 11.4.1.4 Update `lib/elixir_ontologies/validator.ex` to use SHACL module
-- [ ] 11.4.1.5 Remove `available?/0` and `installation_instructions/0` functions
-- [ ] 11.4.1.6 Update `validate/2` to call native SHACL.validate/3
+- [x] 11.4.1.1 Delete `lib/elixir_ontologies/validator/shacl_engine.ex`
+- [x] 11.4.1.2 Delete all pySHACL-specific test files
+- [x] 11.4.1.3 Remove all `:requires_pyshacl` test tags
+- [x] 11.4.1.4 Update `lib/elixir_ontologies/validator.ex` to use SHACL module
+- [x] 11.4.1.5 Remove `available?/0` and `installation_instructions/0` functions
+- [x] 11.4.1.6 Update `validate/2` to call native SHACL.validate/3
 
 ### 11.4.2 Update Mix Task Integration
 - [ ] **Task 11.4.2 Complete**
