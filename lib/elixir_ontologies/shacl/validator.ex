@@ -192,14 +192,21 @@ defmodule ElixirOntologies.SHACL.Validator do
     |> Enum.uniq()
   end
 
-  # Validate a focus node against all property shapes in a NodeShape
+  # Validate a focus node against all property shapes and SPARQL constraints in a NodeShape
   @spec validate_focus_node(RDF.Graph.t(), RDF.Term.t(), NodeShape.t()) ::
           [ValidationResult.t()]
   defp validate_focus_node(data_graph, focus_node, node_shape) do
-    node_shape.property_shapes
-    |> Enum.flat_map(fn property_shape ->
-      validate_property_shape(data_graph, focus_node, property_shape)
-    end)
+    # Validate property shapes
+    property_results =
+      node_shape.property_shapes
+      |> Enum.flat_map(fn property_shape ->
+        validate_property_shape(data_graph, focus_node, property_shape)
+      end)
+
+    # Validate SPARQL constraints (node-level)
+    sparql_results = Validators.SPARQL.validate(data_graph, focus_node, node_shape.sparql_constraints)
+
+    property_results ++ sparql_results
   end
 
   # Dispatch to appropriate constraint validators for a PropertyShape
