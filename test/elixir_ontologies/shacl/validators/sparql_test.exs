@@ -328,6 +328,13 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
       assert SPARQL.validate(data_graph, ~I<http://example.org/M#foo/2>, [constraint]) == []
     end
 
+    # PENDING: This test is currently disabled due to SPARQL.ex library limitations
+    # with nested SELECT subqueries. The SPARQL query uses a subquery to count parameters:
+    # `SELECT (COUNT(?param) AS ?paramCount) WHERE { ?head struct:hasParameter ?param }`
+    # This pattern is valid SPARQL 1.1 but not fully supported by the SPARQL.ex library.
+    # Error: "unknown prefix in 'struct:arity' on line 7"
+    # TODO: Either upgrade SPARQL.ex to support subqueries or rewrite constraint to avoid subqueries
+    # See: Phase 11.4.4 Review Fixes - SPARQL Limitations Documentation
     @tag :pending
     test "FunctionArityMatchShape: invalid function (arity != parameter count)" do
       clause = RDF.bnode("clause1")
@@ -415,6 +422,14 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
       assert SPARQL.validate(data_graph, impl, [constraint]) == []
     end
 
+    # PENDING: This test is currently disabled due to SPARQL.ex library limitations
+    # with FILTER NOT EXISTS clauses. The SPARQL query uses a negative pattern:
+    # `FILTER NOT EXISTS { $this struct:containsFunction ?implFunc . ... }`
+    # This pattern is valid SPARQL 1.1 but not fully supported by the SPARQL.ex library.
+    # The library doesn't correctly handle complex FILTER NOT EXISTS patterns with multiple
+    # triple patterns inside the NOT EXISTS block.
+    # TODO: Either upgrade SPARQL.ex to support FILTER NOT EXISTS or rewrite constraint
+    # See: Phase 11.4.4 Review Fixes - SPARQL Limitations Documentation
     @tag :pending
     test "ProtocolComplianceShape: invalid implementation (missing protocol function)" do
       protocol = ~I<http://example.org/MyProtocol>

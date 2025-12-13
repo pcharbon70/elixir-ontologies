@@ -208,13 +208,15 @@ defmodule ElixirOntologies.SHACLTest do
 
   describe "integration" do
     test "works with real elixir-shapes.ttl" do
-      # Create minimal Elixir code graph
+      # Create minimal valid Elixir code graph
       data_graph =
         RDF.Graph.new([
           {~I<http://example.org/M>, RDF.type(),
-           ~I<https://w3id.org/elixir-code/ontology/structure#Module>},
-          {~I<http://example.org/M>, ~I<https://w3id.org/elixir-code/ontology/core#moduleName>,
-           "MyModule"}
+           ~I<https://w3id.org/elixir-code/structure#Module>},
+          {~I<http://example.org/M>, ~I<https://w3id.org/elixir-code/structure#moduleName>,
+           "MyModule"},
+          {~I<http://example.org/M>, ~I<https://w3id.org/elixir-code/core#sourceFile>,
+           "/path/to/my_module.ex"}
         ])
 
       # Load real elixir-shapes.ttl
@@ -226,10 +228,118 @@ defmodule ElixirOntologies.SHACLTest do
           {:ok, report} = SHACL.validate(data_graph, shapes_graph)
 
           assert %ValidationReport{} = report
-          # May or may not conform depending on elixir-shapes.ttl constraints
+          # Valid module should conform
+          assert report.conforms? == true
+          assert report.results == []
 
         false ->
           # Skip test if shapes file not found (e.g., in CI without priv dir)
+          :ok
+      end
+    end
+
+    test "detects module name pattern violations" do
+      # Load test fixture with invalid module name
+      data_file = Path.join(@fixtures_dir, "module_with_invalid_name.ttl")
+      {:ok, data_graph} = RDF.Turtle.read_file(data_file)
+
+      # Load real elixir-shapes.ttl
+      shapes_path = Path.join(:code.priv_dir(:elixir_ontologies), "ontologies/elixir-shapes.ttl")
+
+      case File.exists?(shapes_path) do
+        true ->
+          {:ok, shapes_graph} = RDF.Turtle.read_file(shapes_path)
+          {:ok, report} = SHACL.validate(data_graph, shapes_graph)
+
+          # Should NOT conform due to invalid module name
+          assert report.conforms? == false
+
+          # Should have specific violation about module name pattern
+          module_name_violation =
+            Enum.find(report.results, fn v ->
+              v.path == ~I<https://w3id.org/elixir-code/structure#moduleName>
+            end)
+
+          assert module_name_violation != nil
+          assert module_name_violation.severity == :violation
+          assert module_name_violation.focus_node == ~I<http://example.org/invalid_module>
+          assert module_name_violation.message =~ ~r/UpperCamelCase|pattern|module name/i
+
+        false ->
+          :ok
+      end
+    end
+
+    test "detects multiple violations in single graph" do
+      # Load test fixture with multiple violations
+      data_file = Path.join(@fixtures_dir, "module_with_violations.ttl")
+      {:ok, data_graph} = RDF.Turtle.read_file(data_file)
+
+      # Load real elixir-shapes.ttl
+      shapes_path = Path.join(:code.priv_dir(:elixir_ontologies), "ontologies/elixir-shapes.ttl")
+
+      case File.exists?(shapes_path) do
+        true ->
+          {:ok, shapes_graph} = RDF.Turtle.read_file(shapes_path)
+          {:ok, report} = SHACL.validate(data_graph, shapes_graph)
+
+          # Should NOT conform
+          assert report.conforms? == false
+
+          # Should have multiple violations
+          violations = Enum.filter(report.results, fn v -> v.severity == :violation end)
+          assert length(violations) >= 2
+
+          # Should have violations for different constraint types
+          violation_types =
+            violations
+            |> Enum.map(fn v -> v.path end)
+            |> Enum.uniq()
+
+          assert length(violation_types) >= 2
+
+        false ->
+          :ok
+      end
+    end
+
+    test "complete analyze-validate workflow with valid code" do
+      # Create temporary Elixir file with valid code
+      temp_dir = System.tmp_dir!()
+      file_path = Path.join(temp_dir, "ValidModule_#{:rand.uniform(999_999)}.ex")
+
+      File.write!(file_path, """
+      defmodule ValidModule do
+        @moduledoc "Test module"
+        def test, do: :ok
+      end
+      """)
+
+      on_exit(fn -> File.rm(file_path) end)
+
+      # Analyze the file to get RDF graph
+      case ElixirOntologies.analyze_file(file_path) do
+        {:ok, %ElixirOntologies.Graph{graph: rdf_graph}} ->
+          # Load elixir-shapes.ttl
+          shapes_path =
+            Path.join(:code.priv_dir(:elixir_ontologies), "ontologies/elixir-shapes.ttl")
+
+          case File.exists?(shapes_path) do
+            true ->
+              {:ok, shapes_graph} = RDF.Turtle.read_file(shapes_path)
+              {:ok, report} = SHACL.validate(rdf_graph, shapes_graph)
+
+              # Valid code should produce a validation report
+              assert %ValidationReport{} = report
+              # Report should either conform or have specific expected violations
+              # (Don't assert conforms? as analyzer output may vary)
+
+            false ->
+              :ok
+          end
+
+        {:error, _} ->
+          # Skip if analysis failed
           :ok
       end
     end

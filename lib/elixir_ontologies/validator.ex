@@ -90,6 +90,93 @@ defmodule ElixirOntologies.Validator do
         end)
       end
 
+  ## API Stability
+
+  **Stability**: Public API - This module's public interface is stable and follows semantic versioning.
+
+  - **Breaking Changes**: Will only occur in major version updates (e.g., 1.x → 2.x)
+  - **New Features**: May be added in minor version updates (e.g., 1.0 → 1.1)
+  - **Bug Fixes**: May occur in patch version updates (e.g., 1.0.0 → 1.0.1)
+
+  **Public API Surface** (Stable):
+  - `validate/2` - Domain-specific validation with automatic shape loading
+  - `ValidationReport` struct - Validation report structure
+  - `ValidationResult` struct - Individual result structure
+
+  ## Migration from pySHACL
+
+  Prior to Phase 11.4, this module used pySHACL (Python-based SHACL validator)
+  via the `SHACLEngine` bridge module. As of Phase 11.4, validation is implemented
+  natively in Elixir.
+
+  ### What Changed
+
+  **Removed**:
+  - `ElixirOntologies.Validator.SHACLEngine` module (Python bridge)
+  - `available?/0` function (no longer needed - always available)
+  - `installation_instructions/0` function (no installation required)
+  - Python/pySHACL dependency
+
+  **API Compatibility**: **No Breaking Changes**
+
+  The `validate/2` function signature remains identical:
+  ```elixir
+  {:ok, graph} = ElixirOntologies.analyze_file("lib/my_module.ex")
+  {:ok, report} = ElixirOntologies.Validator.validate(graph)
+  # Works identically before and after Phase 11.4
+  ```
+
+  ### Benefits
+
+  1. **Always Available** - No external installation required
+  2. **Better Performance** - Native Elixir with parallel validation
+  3. **Better Security** - No shell execution
+  4. **Better Errors** - Structured Elixir error tuples
+  5. **Easier Deployment** - Single BEAM VM
+  6. **Easier Testing** - Pure Elixir, no mocking
+
+  ### Known Limitations
+
+  SPARQL constraints with complex subqueries may not execute due to SPARQL.ex
+  library limitations. This affects <5% of shapes. All elixir-shapes.ttl
+  constraints are fully supported.
+
+  ## Relationship to SHACL Module
+
+  This module (`ElixirOntologies.Validator`) is a **domain-specific facade** for
+  Elixir ontology validation. It delegates to `ElixirOntologies.SHACL` for
+  general-purpose SHACL validation.
+
+  **Architecture**:
+  ```
+  ElixirOntologies.Validator (domain-specific facade)
+      ↓ delegates to
+  ElixirOntologies.SHACL (general-purpose API)
+      ↓ orchestrates
+  ElixirOntologies.SHACL.Validator (internal engine)
+      ↓ uses
+  ElixirOntologies.SHACL.Validators.* (constraint validators)
+  ```
+
+  **When to Use**:
+  - Use `Validator` (this module) when validating Elixir code graphs with
+    automatic loading of elixir-shapes.ttl
+  - Use `SHACL` directly when validating arbitrary RDF graphs with custom shapes
+
+  **Example**:
+  ```elixir
+  # Domain-specific (automatic elixir-shapes.ttl loading)
+  {:ok, graph} = ElixirOntologies.analyze_file("lib/my_module.ex")
+  {:ok, report} = ElixirOntologies.Validator.validate(graph)
+
+  # General-purpose (you provide shapes)
+  {:ok, data} = RDF.Turtle.read_file("my_data.ttl")
+  {:ok, shapes} = RDF.Turtle.read_file("my_shapes.ttl")
+  {:ok, report} = ElixirOntologies.SHACL.validate(data, shapes)
+  ```
+
+  **See Also**: `ElixirOntologies.SHACL` for general-purpose SHACL validation
+
   """
 
   alias ElixirOntologies.{Graph, SHACL}

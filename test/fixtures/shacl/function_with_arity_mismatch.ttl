@@ -1,0 +1,24 @@
+@prefix struct: <https://w3id.org/elixir-code/ontology/structure#> .
+@prefix core: <https://w3id.org/elixir-code/ontology/core#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Module
+<http://example.org/TestModule> a struct:Module ;
+    core:moduleName "TestModule" ;
+    core:sourceFile "/path/to/test.ex" .
+
+# Function with arity 2 but only 1 parameter (violates arity match)
+<http://example.org/TestModule#test/2> a struct:Function ;
+    struct:functionName "test" ;
+    struct:arity 2 ;  # Says arity is 2
+    struct:belongsTo <http://example.org/TestModule> ;
+    struct:hasClause <http://example.org/TestModule#test/2/clause/1> .
+
+# Function clause with only 1 parameter (should have 2)
+<http://example.org/TestModule#test/2/clause/1> a struct:FunctionClause ;
+    struct:hasParameter <http://example.org/TestModule#test/2/clause/1/param/1> .
+
+<http://example.org/TestModule#test/2/clause/1/param/1> a struct:Parameter ;
+    struct:parameterName "x" ;
+    struct:parameterPosition 1 .
