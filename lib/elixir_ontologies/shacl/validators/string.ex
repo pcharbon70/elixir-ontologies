@@ -67,7 +67,7 @@ defmodule ElixirOntologies.SHACL.Validators.String do
 
   import RDF.Sigils
 
-  alias ElixirOntologies.SHACL.Model.{PropertyShape, ValidationResult}
+  alias ElixirOntologies.SHACL.Model.{NodeShape, PropertyShape, ValidationResult}
   alias ElixirOntologies.SHACL.Validators.Helpers
 
   @doc """
@@ -218,6 +218,235 @@ defmodule ElixirOntologies.SHACL.Validators.String do
           end)
 
         results ++ Enum.reverse(violations)
+    end
+  end
+
+  @doc """
+  Validate node-level string constraints (sh:pattern, sh:minLength, sh:maxLength).
+
+  Validates constraints applied directly to the focus node itself, not to its properties.
+
+  Returns a list of ValidationResult structs for any violations found.
+  Returns empty list if the focus node conforms to all node-level string constraints.
+
+  ## Parameters
+
+  - `_data_graph` - RDF.Graph.t() (unused for string validation)
+  - `focus_node` - RDF.Term.t() the node being validated (checked directly)
+  - `node_shape` - NodeShape.t() containing node_pattern, node_min_length, and/or node_max_length
+
+  ## Returns
+
+  List of ValidationResult.t() structs (empty = no violations)
+  """
+  @spec validate_node(RDF.Graph.t(), RDF.Term.t(), NodeShape.t()) :: [ValidationResult.t()]
+  def validate_node(_data_graph, focus_node, node_shape) do
+    # Accumulate violations for node-level constraints
+    []
+    |> check_node_pattern(focus_node, node_shape)
+    |> check_node_min_length(focus_node, node_shape)
+    |> check_node_max_length(focus_node, node_shape)
+    |> check_node_language_in(focus_node, node_shape)
+  end
+
+  # Check sh:pattern constraint on the focus node itself
+  @spec check_node_pattern([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_pattern(results, focus_node, node_shape) do
+    case node_shape.node_pattern do
+      nil ->
+        # No pattern constraint
+        results
+
+      pattern ->
+        # Extract string content from focus node
+        case Helpers.extract_string(focus_node) do
+          nil ->
+            # Not a literal with string content - no violation (nodeKind validator handles this)
+            results
+
+          str ->
+            # Test against pattern
+            if Regex.match?(pattern, str) do
+              # Pattern matches
+              results
+            else
+              # Violation: pattern doesn't match
+              violation =
+                Helpers.build_node_violation(
+                  focus_node,
+                  node_shape,
+                  "Focus node does not match required pattern #{inspect(pattern.source)}",
+                  %{
+                    constraint_component: ~I<http://www.w3.org/ns/shacl#PatternConstraintComponent>,
+                    pattern: pattern.source,
+                    actual_value: str
+                  }
+                )
+
+              [violation | results]
+            end
+        end
+    end
+  end
+
+  # Check sh:minLength constraint on the focus node itself
+  @spec check_node_min_length([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_min_length(results, focus_node, node_shape) do
+    case node_shape.node_min_length do
+      nil ->
+        # No minLength constraint
+        results
+
+      min_length ->
+        # Extract string content from focus node
+        case Helpers.extract_string(focus_node) do
+          nil ->
+            # Not a literal with string content - no violation (nodeKind validator handles this)
+            results
+
+          str ->
+            # Check length
+            actual_length = String.length(str)
+
+            if actual_length >= min_length do
+              # Length is sufficient
+              results
+            else
+              # Violation: string too short
+              violation =
+                Helpers.build_node_violation(
+                  focus_node,
+                  node_shape,
+                  "Focus node is too short (expected at least #{min_length} characters, found #{actual_length})",
+                  %{
+                    constraint_component: ~I<http://www.w3.org/ns/shacl#MinLengthConstraintComponent>,
+                    min_length: min_length,
+                    actual_length: actual_length,
+                    actual_value: str
+                  }
+                )
+
+              [violation | results]
+            end
+        end
+    end
+  end
+
+  # Check sh:maxLength constraint on the focus node itself
+  @spec check_node_max_length([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_max_length(results, focus_node, node_shape) do
+    case node_shape.node_max_length do
+      nil ->
+        # No maxLength constraint
+        results
+
+      max_length ->
+        # Extract string content from focus node
+        case Helpers.extract_string(focus_node) do
+          nil ->
+            # Not a literal with string content - no violation (nodeKind validator handles this)
+            results
+
+          str ->
+            # Check length
+            actual_length = String.length(str)
+
+            if actual_length <= max_length do
+              # Length is acceptable
+              results
+            else
+              # Violation: string too long
+              violation =
+                Helpers.build_node_violation(
+                  focus_node,
+                  node_shape,
+                  "Focus node is too long (expected at most #{max_length} characters, found #{actual_length})",
+                  %{
+                    constraint_component: ~I<http://www.w3.org/ns/shacl#MaxLengthConstraintComponent>,
+                    max_length: max_length,
+                    actual_length: actual_length,
+                    actual_value: str
+                  }
+                )
+
+              [violation | results]
+            end
+        end
+    end
+  end
+
+  # Check sh:languageIn constraint on the focus node itself
+  @spec check_node_language_in([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_language_in(results, focus_node, node_shape) do
+    case node_shape.node_language_in do
+      nil ->
+        results
+
+      [] ->
+        results
+
+      allowed_languages ->
+        # Check if focus node is a literal
+        if match?(%RDF.Literal{}, focus_node) do
+          # Check if literal has a language tag
+          case RDF.Literal.language(focus_node) do
+            nil ->
+              # Plain literal without language tag - violation
+              violation =
+                Helpers.build_node_violation(
+                  focus_node,
+                  node_shape,
+                  "Focus node must have a language tag",
+                  %{
+                    constraint_component: ~I<http://www.w3.org/ns/shacl#LanguageInConstraintComponent>,
+                    allowed_languages: allowed_languages,
+                    actual_value: focus_node
+                  }
+                )
+
+              [violation | results]
+
+            lang when is_binary(lang) ->
+              # Literal has language tag - check if it's allowed
+              if lang in allowed_languages do
+                results
+              else
+                violation =
+                  Helpers.build_node_violation(
+                    focus_node,
+                    node_shape,
+                    "Language tag '#{lang}' is not in the allowed list",
+                    %{
+                      constraint_component: ~I<http://www.w3.org/ns/shacl#LanguageInConstraintComponent>,
+                      allowed_languages: allowed_languages,
+                      actual_language: lang,
+                      actual_value: focus_node
+                    }
+                  )
+
+                [violation | results]
+              end
+          end
+        else
+          # Not a literal - violation
+          violation =
+            Helpers.build_node_violation(
+              focus_node,
+              node_shape,
+              "Focus node must be a literal with a language tag",
+              %{
+                constraint_component: ~I<http://www.w3.org/ns/shacl#LanguageInConstraintComponent>,
+                allowed_languages: allowed_languages,
+                actual_value: focus_node
+              }
+            )
+
+          [violation | results]
+        end
     end
   end
 end
