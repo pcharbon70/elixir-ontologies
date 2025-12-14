@@ -162,8 +162,14 @@ defmodule ElixirOntologies.SHACL.Validator do
   # Validate a single NodeShape against all its target nodes
   @spec validate_node_shape(RDF.Graph.t(), NodeShape.t()) :: [ValidationResult.t()]
   defp validate_node_shape(data_graph, %NodeShape{} = node_shape) do
-    # Find all target nodes for this shape
-    target_nodes = select_target_nodes(data_graph, node_shape.target_classes)
+    # Find all target nodes for this shape via explicit targeting (sh:targetClass)
+    explicit_targets = select_target_nodes(data_graph, node_shape.target_classes)
+
+    # Find all target nodes via implicit class targeting (SHACL 2.1.3.1)
+    implicit_targets = select_implicit_target_nodes(data_graph, node_shape.implicit_class_target)
+
+    # Combine and deduplicate target nodes
+    target_nodes = (explicit_targets ++ implicit_targets) |> Enum.uniq()
 
     # Validate each target node
     Enum.flat_map(target_nodes, fn focus_node ->
@@ -189,6 +195,25 @@ defmodule ElixirOntologies.SHACL.Validator do
       end)
       |> Enum.map(fn {s, _p, _o} -> s end)
     end)
+    |> Enum.uniq()
+  end
+
+  # Select target nodes via implicit class targeting (SHACL 2.1.3.1)
+  # When a shape is also an rdfs:Class, it implicitly targets all instances of that class
+  @spec select_implicit_target_nodes(RDF.Graph.t(), RDF.IRI.t() | nil) :: [RDF.Term.t()]
+  defp select_implicit_target_nodes(_data_graph, nil) do
+    # No implicit targeting
+    []
+  end
+
+  defp select_implicit_target_nodes(data_graph, implicit_class_iri) do
+    # Find all subjects that have rdf:type matching the implicit class
+    data_graph
+    |> RDF.Graph.triples()
+    |> Enum.filter(fn {_s, p, o} ->
+      p == RDF.type() && o == implicit_class_iri
+    end)
+    |> Enum.map(fn {s, _p, _o} -> s end)
     |> Enum.uniq()
   end
 

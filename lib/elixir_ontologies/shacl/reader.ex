@@ -132,12 +132,14 @@ defmodule ElixirOntologies.SHACL.Reader do
     desc = RDF.Graph.description(graph, shape_id)
 
     with {:ok, target_classes} <- extract_target_classes(desc),
+         {:ok, implicit_class_target} <- extract_implicit_class_target(desc, shape_id),
          {:ok, property_shapes} <- parse_property_shapes(graph, desc),
          {:ok, sparql_constraints} <- parse_sparql_constraints(graph, desc, shape_id) do
       {:ok,
        %NodeShape{
          id: shape_id,
          target_classes: target_classes,
+         implicit_class_target: implicit_class_target,
          property_shapes: property_shapes,
          sparql_constraints: sparql_constraints
        }}
@@ -154,6 +156,35 @@ defmodule ElixirOntologies.SHACL.Reader do
       |> Enum.filter(&match?(%RDF.IRI{}, &1))
 
     {:ok, target_classes}
+  end
+
+  # Extract implicit class target per SHACL 2.1.3.1
+  # When a shape is also defined as an rdfs:Class, it implicitly targets
+  # all instances of that class
+  @spec extract_implicit_class_target(RDF.Description.t(), RDF.IRI.t() | RDF.BlankNode.t()) ::
+          {:ok, RDF.IRI.t() | nil} | {:error, term()}
+  defp extract_implicit_class_target(desc, shape_id) do
+    # Check if this shape also has rdf:type rdfs:Class
+    types =
+      desc
+      |> RDF.Description.get(SHACL.rdf_type(), [])
+      |> List.wrap()
+
+    # RDFS.Class IRI
+    rdfs_class = RDF.iri("http://www.w3.org/2000/01/rdf-schema#Class")
+
+    is_class? = Enum.any?(types, fn type -> type == rdfs_class end)
+
+    # If the shape is also a class, use its own IRI as implicit target
+    # (only for named shapes with IRIs, not blank nodes)
+    implicit_target =
+      if is_class? && match?(%RDF.IRI{}, shape_id) do
+        shape_id
+      else
+        nil
+      end
+
+    {:ok, implicit_target}
   end
 
   # Parse all property shapes for a node shape
