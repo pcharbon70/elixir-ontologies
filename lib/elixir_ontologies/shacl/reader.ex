@@ -86,10 +86,71 @@ defmodule ElixirOntologies.SHACL.Reader do
   @spec parse_shapes(RDF.Graph.t(), keyword()) :: {:ok, [NodeShape.t()]} | {:error, term()}
   def parse_shapes(shapes_graph, opts \\ []) do
     with {:ok, shape_iris} <- find_node_shapes(shapes_graph),
-         {:ok, shapes} <- parse_all_node_shapes(shapes_graph, shape_iris, opts) do
-      {:ok, shapes}
+         {:ok, top_level_shapes} <- parse_all_node_shapes(shapes_graph, shape_iris, opts),
+         {:ok, all_shapes} <- parse_inline_shapes(shapes_graph, top_level_shapes, opts) do
+      {:ok, all_shapes}
     end
   end
+
+  # Recursively parse inline blank node shapes referenced in logical operators
+  # This handles cases like sh:and ( [ sh:property [...] ] [ sh:property [...] ] )
+  # where the shapes are defined inline without explicit sh:NodeShape typing
+  @spec parse_inline_shapes(RDF.Graph.t(), [NodeShape.t()], keyword()) ::
+          {:ok, [NodeShape.t()]} | {:error, term()}
+  defp parse_inline_shapes(graph, shapes, opts) do
+    # Recursively discover and parse inline shapes until no new ones are found
+    parse_inline_shapes_recursive(graph, shapes, MapSet.new(Enum.map(shapes, & &1.id)), opts)
+  end
+
+  # Recursive helper for parse_inline_shapes
+  defp parse_inline_shapes_recursive(graph, shapes, parsed_ids, opts) do
+    # Collect all shape references from logical operators
+    referenced_shape_ids =
+      shapes
+      |> Enum.flat_map(&collect_logical_shape_refs/1)
+      |> MapSet.new()
+
+    # Find blank nodes that haven't been parsed yet
+    new_blank_nodes =
+      referenced_shape_ids
+      |> Enum.filter(fn ref ->
+        match?(%RDF.BlankNode{}, ref) && !MapSet.member?(parsed_ids, ref)
+      end)
+
+    # If no new blank nodes to parse, we're done
+    if Enum.empty?(new_blank_nodes) do
+      {:ok, shapes}
+    else
+      # Parse the new blank node shapes
+      case parse_all_node_shapes(graph, new_blank_nodes, opts) do
+        {:ok, new_shapes} ->
+          # Update parsed IDs and shapes, then recurse
+          updated_ids = MapSet.union(parsed_ids, MapSet.new(Enum.map(new_shapes, & &1.id)))
+          updated_shapes = shapes ++ new_shapes
+          parse_inline_shapes_recursive(graph, updated_shapes, updated_ids, opts)
+
+        error ->
+          error
+      end
+    end
+  end
+
+  # Collect all shape references from logical operators in a NodeShape
+  defp collect_logical_shape_refs(%NodeShape{} = shape) do
+    []
+    |> concat_list(shape.node_and || [])
+    |> concat_list(shape.node_or || [])
+    |> concat_list(shape.node_xone || [])
+    |> concat_single(shape.node_not)
+  end
+
+  # Helper: Concatenate a list to results
+  defp concat_list(results, list) when is_list(list), do: results ++ list
+  defp concat_list(results, _), do: results
+
+  # Helper: Concatenate a single value to results
+  defp concat_single(results, nil), do: results
+  defp concat_single(results, value), do: results ++ [value]
 
   # Find all NodeShape instances in the graph
   @spec find_node_shapes(RDF.Graph.t()) ::
@@ -160,7 +221,12 @@ defmodule ElixirOntologies.SHACL.Reader do
          node_pattern: node_constraints[:pattern],
          node_in: node_constraints[:in],
          node_has_value: node_constraints[:has_value],
-         node_language_in: node_constraints[:language_in]
+         node_language_in: node_constraints[:language_in],
+         # Logical operators
+         node_and: node_constraints[:node_and],
+         node_or: node_constraints[:node_or],
+         node_xone: node_constraints[:node_xone],
+         node_not: node_constraints[:node_not]
        }}
     end
   end
@@ -234,7 +300,11 @@ defmodule ElixirOntologies.SHACL.Reader do
          {:ok, pattern} <- extract_optional_pattern(desc),
          {:ok, in_values} <- extract_node_in_values(graph, desc),
          {:ok, has_value} <- extract_optional_term(desc, SHACL.has_value()),
-         {:ok, language_in} <- extract_optional_language_in(graph, desc) do
+         {:ok, language_in} <- extract_optional_language_in(graph, desc),
+         {:ok, node_and} <- extract_logical_and(graph, desc),
+         {:ok, node_or} <- extract_logical_or(graph, desc),
+         {:ok, node_xone} <- extract_logical_xone(graph, desc),
+         {:ok, node_not} <- extract_logical_not(desc) do
       {:ok,
        %{
          datatype: datatype,
@@ -249,7 +319,11 @@ defmodule ElixirOntologies.SHACL.Reader do
          pattern: pattern,
          in: in_values,
          has_value: has_value,
-         language_in: language_in
+         language_in: language_in,
+         node_and: node_and,
+         node_or: node_or,
+         node_xone: node_xone,
+         node_not: node_not
        }}
     end
   end
@@ -272,6 +346,78 @@ defmodule ElixirOntologies.SHACL.Reader do
           error -> error
         end
     end
+  end
+
+  # Helper: Extract sh:and logical operator (all shapes must conform)
+  @spec extract_logical_and(RDF.Graph.t(), RDF.Description.t()) ::
+          {:ok, [RDF.IRI.t() | RDF.BlankNode.t()] | nil} | {:error, term()}
+  defp extract_logical_and(graph, desc) do
+    values = desc |> RDF.Description.get(SHACL.and_operator()) |> normalize_to_list()
+
+    case values do
+      [] ->
+        {:ok, nil}
+
+      [list_head | _] ->
+        case parse_rdf_list(graph, list_head, 0) do
+          {:ok, []} -> {:ok, nil}
+          {:ok, shape_refs} -> {:ok, shape_refs}
+          error -> error
+        end
+    end
+  end
+
+  # Helper: Extract sh:or logical operator (at least one shape must conform)
+  @spec extract_logical_or(RDF.Graph.t(), RDF.Description.t()) ::
+          {:ok, [RDF.IRI.t() | RDF.BlankNode.t()] | nil} | {:error, term()}
+  defp extract_logical_or(graph, desc) do
+    values = desc |> RDF.Description.get(SHACL.or_operator()) |> normalize_to_list()
+
+    case values do
+      [] ->
+        {:ok, nil}
+
+      [list_head | _] ->
+        case parse_rdf_list(graph, list_head, 0) do
+          {:ok, []} -> {:ok, nil}
+          {:ok, shape_refs} -> {:ok, shape_refs}
+          error -> error
+        end
+    end
+  end
+
+  # Helper: Extract sh:xone logical operator (exactly one shape must conform)
+  @spec extract_logical_xone(RDF.Graph.t(), RDF.Description.t()) ::
+          {:ok, [RDF.IRI.t() | RDF.BlankNode.t()] | nil} | {:error, term()}
+  defp extract_logical_xone(graph, desc) do
+    values = desc |> RDF.Description.get(SHACL.xone_operator()) |> normalize_to_list()
+
+    case values do
+      [] ->
+        {:ok, nil}
+
+      [list_head | _] ->
+        case parse_rdf_list(graph, list_head, 0) do
+          {:ok, []} -> {:ok, nil}
+          {:ok, shape_refs} -> {:ok, shape_refs}
+          error -> error
+        end
+    end
+  end
+
+  # Helper: Extract sh:not logical operator (shape must NOT conform)
+  @spec extract_logical_not(RDF.Description.t()) ::
+          {:ok, RDF.IRI.t() | RDF.BlankNode.t() | nil} | {:error, term()}
+  defp extract_logical_not(desc) do
+    # sh:not takes a single shape reference, not a list
+    # RDF.Description.get may return a list, so we normalize and take first value
+    value =
+      case desc |> RDF.Description.get(SHACL.not_operator()) |> normalize_to_list() do
+        [] -> nil
+        [first | _] -> first
+      end
+
+    {:ok, value}
   end
 
   # Parse all property shapes for a node shape

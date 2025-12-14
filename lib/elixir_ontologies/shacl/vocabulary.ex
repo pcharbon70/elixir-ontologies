@@ -36,6 +36,7 @@ defmodule ElixirOntologies.SHACL.Vocabulary do
 
   # Targeting
   @sh_target_class RDF.iri("http://www.w3.org/ns/shacl#targetClass")
+  @sh_target_node RDF.iri("http://www.w3.org/ns/shacl#targetNode")
 
   # Property Shapes
   @sh_property RDF.iri("http://www.w3.org/ns/shacl#property")
@@ -56,9 +57,14 @@ defmodule ElixirOntologies.SHACL.Vocabulary do
   # Property Constraints - Numeric
   @sh_min_inclusive RDF.iri("http://www.w3.org/ns/shacl#minInclusive")
   @sh_max_inclusive RDF.iri("http://www.w3.org/ns/shacl#maxInclusive")
+  @sh_min_exclusive RDF.iri("http://www.w3.org/ns/shacl#minExclusive")
+  @sh_max_exclusive RDF.iri("http://www.w3.org/ns/shacl#maxExclusive")
+  @sh_max_length RDF.iri("http://www.w3.org/ns/shacl#maxLength")
 
   # Property Constraints - Value
   @sh_in RDF.iri("http://www.w3.org/ns/shacl#in")
+  @sh_node_kind RDF.iri("http://www.w3.org/ns/shacl#nodeKind")
+  @sh_language_in RDF.iri("http://www.w3.org/ns/shacl#languageIn")
   @sh_has_value RDF.iri("http://www.w3.org/ns/shacl#hasValue")
 
   # Property Constraints - Qualified
@@ -68,6 +74,18 @@ defmodule ElixirOntologies.SHACL.Vocabulary do
   # SPARQL Constraints
   @sh_sparql RDF.iri("http://www.w3.org/ns/shacl#sparql")
   @sh_select RDF.iri("http://www.w3.org/ns/shacl#select")
+
+  # Logical Operators
+  @sh_and RDF.iri("http://www.w3.org/ns/shacl#and")
+  @sh_or RDF.iri("http://www.w3.org/ns/shacl#or")
+  @sh_xone RDF.iri("http://www.w3.org/ns/shacl#xone")
+  @sh_not RDF.iri("http://www.w3.org/ns/shacl#not")
+
+  # Constraint Components (for violation reporting)
+  @sh_and_constraint_component RDF.iri("http://www.w3.org/ns/shacl#AndConstraintComponent")
+  @sh_or_constraint_component RDF.iri("http://www.w3.org/ns/shacl#OrConstraintComponent")
+  @sh_xone_constraint_component RDF.iri("http://www.w3.org/ns/shacl#XoneConstraintComponent")
+  @sh_not_constraint_component RDF.iri("http://www.w3.org/ns/shacl#NotConstraintComponent")
 
   # Validation Report Predicates
   @sh_conforms RDF.iri("http://www.w3.org/ns/shacl#conforms")
@@ -106,6 +124,9 @@ defmodule ElixirOntologies.SHACL.Vocabulary do
   @doc "SHACL targetClass predicate IRI"
   def target_class, do: @sh_target_class
 
+  @doc "SHACL targetNode predicate IRI"
+  def target_node, do: @sh_target_node
+
   # Property Shapes
   @doc "SHACL property predicate IRI"
   def property, do: @sh_property
@@ -141,6 +162,22 @@ defmodule ElixirOntologies.SHACL.Vocabulary do
   @doc "SHACL maxInclusive constraint IRI"
   def max_inclusive, do: @sh_max_inclusive
 
+  @doc "SHACL minExclusive constraint IRI"
+  def min_exclusive, do: @sh_min_exclusive
+
+  @doc "SHACL maxExclusive constraint IRI"
+  def max_exclusive, do: @sh_max_exclusive
+
+  @doc "SHACL maxLength constraint IRI"
+  def max_length, do: @sh_max_length
+
+  # Node Kind Constraints
+  @doc "SHACL nodeKind constraint IRI"
+  def node_kind, do: @sh_node_kind
+
+  @doc "SHACL languageIn constraint IRI (allowed language tags)"
+  def language_in, do: @sh_language_in
+
   # Value Constraints
   @doc "SHACL in constraint IRI (value enumeration)"
   def in_values, do: @sh_in
@@ -161,6 +198,32 @@ defmodule ElixirOntologies.SHACL.Vocabulary do
 
   @doc "SHACL select query predicate IRI"
   def select, do: @sh_select
+
+  # Logical Operators
+  @doc "SHACL and logical operator IRI (all shapes must conform)"
+  def and_operator, do: @sh_and
+
+  @doc "SHACL or logical operator IRI (at least one shape must conform)"
+  def or_operator, do: @sh_or
+
+  @doc "SHACL xone logical operator IRI (exactly one shape must conform)"
+  def xone_operator, do: @sh_xone
+
+  @doc "SHACL not logical operator IRI (shape must NOT conform)"
+  def not_operator, do: @sh_not
+
+  # Constraint Components
+  @doc "SHACL AndConstraintComponent IRI"
+  def and_constraint_component, do: @sh_and_constraint_component
+
+  @doc "SHACL OrConstraintComponent IRI"
+  def or_constraint_component, do: @sh_or_constraint_component
+
+  @doc "SHACL XoneConstraintComponent IRI"
+  def xone_constraint_component, do: @sh_xone_constraint_component
+
+  @doc "SHACL NotConstraintComponent IRI"
+  def not_constraint_component, do: @sh_not_constraint_component
 
   # Validation Report Predicates
   @doc "SHACL conforms predicate IRI"

@@ -96,53 +96,77 @@ defmodule ElixirOntologies.SHACL.Validator do
   @spec run(RDF.Graph.t(), RDF.Graph.t(), [validation_option()]) ::
           {:ok, ValidationReport.t()} | {:error, term()}
   def run(data_graph, shapes_graph, opts \\ []) do
-    with {:ok, node_shapes} <- Reader.parse_shapes(shapes_graph),
-         {:ok, all_results} <- validate_all_shapes(data_graph, node_shapes, opts) do
-      # Compute conformance: no violations = conforms
-      conforms? = Enum.all?(all_results, fn r -> r.severity != :violation end)
+    with {:ok, node_shapes} <- Reader.parse_shapes(shapes_graph) do
+      # Build shape map for resolving references in logical operators
+      shape_map = build_shape_map(node_shapes)
 
-      report = %ValidationReport{
-        conforms?: conforms?,
-        results: all_results
-      }
+      with {:ok, all_results} <- validate_all_shapes(data_graph, node_shapes, shape_map, opts) do
+        # Compute conformance: no violations = conforms
+        conforms? = Enum.all?(all_results, fn r -> r.severity != :violation end)
 
-      {:ok, report}
+        report = %ValidationReport{
+          conforms?: conforms?,
+          results: all_results
+        }
+
+        {:ok, report}
+      end
     end
   end
 
+  # Build map of shape_id -> NodeShape for reference resolution
+  @spec build_shape_map([NodeShape.t()]) :: %{(RDF.IRI.t() | RDF.BlankNode.t()) => NodeShape.t()}
+  defp build_shape_map(node_shapes) do
+    Enum.into(node_shapes, %{}, fn shape -> {shape.id, shape} end)
+  end
+
   # Validate all shapes (potentially in parallel)
-  @spec validate_all_shapes(RDF.Graph.t(), [NodeShape.t()], keyword()) ::
+  @spec validate_all_shapes(
+          RDF.Graph.t(),
+          [NodeShape.t()],
+          %{(RDF.IRI.t() | RDF.BlankNode.t()) => NodeShape.t()},
+          keyword()
+        ) ::
           {:ok, [ValidationResult.t()]} | {:error, term()}
-  defp validate_all_shapes(data_graph, node_shapes, opts) do
+  defp validate_all_shapes(data_graph, node_shapes, shape_map, opts) do
     if Keyword.get(opts, :parallel, true) do
-      validate_shapes_parallel(data_graph, node_shapes, opts)
+      validate_shapes_parallel(data_graph, node_shapes, shape_map, opts)
     else
-      validate_shapes_sequential(data_graph, node_shapes)
+      validate_shapes_sequential(data_graph, node_shapes, shape_map)
     end
   end
 
   # Sequential validation (simple, predictable)
-  @spec validate_shapes_sequential(RDF.Graph.t(), [NodeShape.t()]) ::
+  @spec validate_shapes_sequential(
+          RDF.Graph.t(),
+          [NodeShape.t()],
+          %{(RDF.IRI.t() | RDF.BlankNode.t()) => NodeShape.t()}
+        ) ::
           {:ok, [ValidationResult.t()]}
-  defp validate_shapes_sequential(data_graph, node_shapes) do
+  defp validate_shapes_sequential(data_graph, node_shapes, shape_map) do
     results =
       node_shapes
-      |> Enum.flat_map(&validate_node_shape(data_graph, &1))
+      |> Enum.flat_map(&validate_node_shape(data_graph, &1, shape_map))
 
     {:ok, results}
   end
 
   # Parallel validation (performance)
-  @spec validate_shapes_parallel(RDF.Graph.t(), [NodeShape.t()], keyword()) ::
+  @spec validate_shapes_parallel(
+          RDF.Graph.t(),
+          [NodeShape.t()],
+          %{(RDF.IRI.t() | RDF.BlankNode.t()) => NodeShape.t()},
+          keyword()
+        ) ::
           {:ok, [ValidationResult.t()]}
-  defp validate_shapes_parallel(data_graph, node_shapes, opts) do
+  defp validate_shapes_parallel(data_graph, node_shapes, shape_map, opts) do
     max_concurrency = Keyword.get(opts, :max_concurrency, System.schedulers_online())
     timeout = Keyword.get(opts, :timeout, 5_000)
 
     results =
       node_shapes
       |> Task.async_stream(
-        fn shape -> validate_node_shape(data_graph, shape) end,
+        fn shape -> validate_node_shape(data_graph, shape, shape_map) end,
         max_concurrency: max_concurrency,
         timeout: timeout,
         ordered: false
@@ -160,20 +184,27 @@ defmodule ElixirOntologies.SHACL.Validator do
   end
 
   # Validate a single NodeShape against all its target nodes
-  @spec validate_node_shape(RDF.Graph.t(), NodeShape.t()) :: [ValidationResult.t()]
-  defp validate_node_shape(data_graph, %NodeShape{} = node_shape) do
+  @spec validate_node_shape(
+          RDF.Graph.t(),
+          NodeShape.t(),
+          %{(RDF.IRI.t() | RDF.BlankNode.t()) => NodeShape.t()}
+        ) :: [ValidationResult.t()]
+  defp validate_node_shape(data_graph, %NodeShape{} = node_shape, shape_map) do
     # Find all target nodes for this shape via explicit targeting (sh:targetClass)
     explicit_targets = select_target_nodes(data_graph, node_shape.target_classes)
+
+    # Find target nodes via explicit node targeting (sh:targetNode)
+    node_targets = select_explicit_target_nodes(node_shape.target_nodes)
 
     # Find all target nodes via implicit class targeting (SHACL 2.1.3.1)
     implicit_targets = select_implicit_target_nodes(data_graph, node_shape.implicit_class_target)
 
     # Combine and deduplicate target nodes
-    target_nodes = (explicit_targets ++ implicit_targets) |> Enum.uniq()
+    target_nodes = (explicit_targets ++ node_targets ++ implicit_targets) |> Enum.uniq()
 
     # Validate each target node
     Enum.flat_map(target_nodes, fn focus_node ->
-      validate_focus_node(data_graph, focus_node, node_shape)
+      validate_focus_node(data_graph, focus_node, node_shape, shape_map)
     end)
   end
 
@@ -198,6 +229,14 @@ defmodule ElixirOntologies.SHACL.Validator do
     |> Enum.uniq()
   end
 
+  # Select explicitly targeted nodes via sh:targetNode
+  # sh:targetNode directly specifies which nodes to target (IRIs, literals, or blank nodes)
+  @spec select_explicit_target_nodes([RDF.Term.t()]) :: [RDF.Term.t()]
+  defp select_explicit_target_nodes(target_nodes) do
+    # No data graph lookup needed - the nodes are directly specified
+    target_nodes
+  end
+
   # Select target nodes via implicit class targeting (SHACL 2.1.3.1)
   # When a shape is also an rdfs:Class, it implicitly targets all instances of that class
   @spec select_implicit_target_nodes(RDF.Graph.t(), RDF.IRI.t() | nil) :: [RDF.Term.t()]
@@ -217,21 +256,45 @@ defmodule ElixirOntologies.SHACL.Validator do
     |> Enum.uniq()
   end
 
-  # Validate a focus node against all property shapes and SPARQL constraints in a NodeShape
-  @spec validate_focus_node(RDF.Graph.t(), RDF.Term.t(), NodeShape.t()) ::
+  # Validate a focus node against node-level constraints, property shapes, and SPARQL constraints
+  @spec validate_focus_node(
+          RDF.Graph.t(),
+          RDF.Term.t(),
+          NodeShape.t(),
+          %{(RDF.IRI.t() | RDF.BlankNode.t()) => NodeShape.t()}
+        ) ::
           [ValidationResult.t()]
-  defp validate_focus_node(data_graph, focus_node, node_shape) do
-    # Validate property shapes
+  defp validate_focus_node(data_graph, focus_node, node_shape, shape_map) do
+    # First validate node-level constraints (applied to focus node itself)
+    node_results = validate_node_constraints(data_graph, focus_node, node_shape, shape_map)
+
+    # Then validate property shapes
     property_results =
       node_shape.property_shapes
       |> Enum.flat_map(fn property_shape ->
         validate_property_shape(data_graph, focus_node, property_shape)
       end)
 
-    # Validate SPARQL constraints (node-level)
+    # Finally validate SPARQL constraints (node-level)
     sparql_results = Validators.SPARQL.validate(data_graph, focus_node, node_shape.sparql_constraints)
 
-    property_results ++ sparql_results
+    node_results ++ property_results ++ sparql_results
+  end
+
+  # Dispatch to appropriate constraint validators for node-level constraints
+  @spec validate_node_constraints(
+          RDF.Graph.t(),
+          RDF.Term.t(),
+          NodeShape.t(),
+          %{(RDF.IRI.t() | RDF.BlankNode.t()) => NodeShape.t()}
+        ) ::
+          [ValidationResult.t()]
+  defp validate_node_constraints(data_graph, focus_node, node_shape, shape_map) do
+    []
+    |> concat(Validators.Type.validate_node(data_graph, focus_node, node_shape))
+    |> concat(Validators.String.validate_node(data_graph, focus_node, node_shape))
+    |> concat(Validators.Value.validate_node(data_graph, focus_node, node_shape))
+    |> concat(Validators.LogicalOperators.validate_node(data_graph, focus_node, node_shape, shape_map))
   end
 
   # Dispatch to appropriate constraint validators for a PropertyShape

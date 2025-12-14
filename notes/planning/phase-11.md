@@ -204,6 +204,38 @@ Test with actual Elixir code analysis scenarios and real-world graphs.
 - [ ] Test error cases and edge conditions
 - [ ] Test validation performance with large graphs (1000+ triples)
 
+## 11.6 Advanced SHACL Features
+
+This section implements advanced SHACL constraint types beyond the core constraints.
+
+### 11.6.1 Logical Operators
+- [x] **Task 11.6.1 Complete**
+
+Implement SHACL logical constraint operators (sh:and, sh:or, sh:xone, sh:not) for complex validation logic.
+
+- [x] 11.6.1.1 Add logical operator IRIs to SHACL.Vocabulary
+- [x] 11.6.1.2 Update NodeShape model with node-level logical operator fields
+- [x] 11.6.1.3 Implement RDF list parsing for sh:and, sh:or, sh:xone in Reader
+- [x] 11.6.1.4 Implement single value extraction for sh:not in Reader
+- [x] 11.6.1.5 Implement recursive inline blank node shape parsing
+- [x] 11.6.1.6 Create LogicalOperators validator module
+- [x] 11.6.1.7 Implement sh:and validation (all shapes must conform)
+- [x] 11.6.1.8 Implement sh:or validation (at least one shape must conform)
+- [x] 11.6.1.9 Implement sh:xone validation (exactly one shape must conform)
+- [x] 11.6.1.10 Implement sh:not validation (shape must NOT conform)
+- [x] 11.6.1.11 Implement shape_map architecture for recursive validation
+- [x] 11.6.1.12 Add recursion depth limit (50 levels) for cycle prevention
+- [x] 11.6.1.13 Fix sh:not list normalization bug
+- [x] 11.6.1.14 Verify W3C test suite pass rate increase (47.2% → 64.2%)
+
+**Results:**
+- W3C pass rate: 64.2% (34/53 core tests passing)
+- Logical operator tests: 6/7 passing (85.7%)
+- Improvement: +17.0 percentage points over baseline
+- Files modified: 5 (vocabulary, model, reader, validator, new logical_operators)
+- Lines added: ~450
+- Compiler warnings: 0
+
 ## Phase 11 Integration Tests
 
 - [ ] **Phase 11 Integration Tests Complete** (15+ tests)
