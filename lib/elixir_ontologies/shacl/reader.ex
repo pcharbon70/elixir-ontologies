@@ -132,16 +132,35 @@ defmodule ElixirOntologies.SHACL.Reader do
     desc = RDF.Graph.description(graph, shape_id)
 
     with {:ok, target_classes} <- extract_target_classes(desc),
+         {:ok, target_nodes} <- extract_target_nodes(desc),
          {:ok, implicit_class_target} <- extract_implicit_class_target(desc, shape_id),
+         {:ok, message} <- extract_optional_string(desc, SHACL.message()),
+         {:ok, node_constraints} <- extract_node_constraints(graph, desc),
          {:ok, property_shapes} <- parse_property_shapes(graph, desc),
          {:ok, sparql_constraints} <- parse_sparql_constraints(graph, desc, shape_id) do
       {:ok,
        %NodeShape{
          id: shape_id,
          target_classes: target_classes,
+         target_nodes: target_nodes,
          implicit_class_target: implicit_class_target,
+         message: message,
          property_shapes: property_shapes,
-         sparql_constraints: sparql_constraints
+         sparql_constraints: sparql_constraints,
+         # Node-level constraints
+         node_datatype: node_constraints[:datatype],
+         node_class: node_constraints[:class],
+         node_node_kind: node_constraints[:node_kind],
+         node_min_inclusive: node_constraints[:min_inclusive],
+         node_max_inclusive: node_constraints[:max_inclusive],
+         node_min_exclusive: node_constraints[:min_exclusive],
+         node_max_exclusive: node_constraints[:max_exclusive],
+         node_min_length: node_constraints[:min_length],
+         node_max_length: node_constraints[:max_length],
+         node_pattern: node_constraints[:pattern],
+         node_in: node_constraints[:in],
+         node_has_value: node_constraints[:has_value],
+         node_language_in: node_constraints[:language_in]
        }}
     end
   end
@@ -156,6 +175,18 @@ defmodule ElixirOntologies.SHACL.Reader do
       |> Enum.filter(&match?(%RDF.IRI{}, &1))
 
     {:ok, target_classes}
+  end
+
+  # Extract explicit target nodes from node shape description
+  # sh:targetNode can target any RDF term (IRIs, literals, blank nodes)
+  @spec extract_target_nodes(RDF.Description.t()) :: {:ok, [RDF.Term.t()]} | {:error, term()}
+  defp extract_target_nodes(desc) do
+    target_nodes =
+      desc
+      |> RDF.Description.get(SHACL.target_node(), [])
+      |> List.wrap()
+
+    {:ok, target_nodes}
   end
 
   # Extract implicit class target per SHACL 2.1.3.1
@@ -185,6 +216,62 @@ defmodule ElixirOntologies.SHACL.Reader do
       end
 
     {:ok, implicit_target}
+  end
+
+  # Extract node-level constraints from node shape description
+  # These are constraints applied directly to focus nodes (not to their properties)
+  @spec extract_node_constraints(RDF.Graph.t(), RDF.Description.t()) :: {:ok, map()} | {:error, term()}
+  defp extract_node_constraints(graph, desc) do
+    with {:ok, datatype} <- extract_optional_iri(desc, SHACL.datatype()),
+         {:ok, class_iri} <- extract_optional_iri(desc, SHACL.class()),
+         {:ok, node_kind} <- extract_optional_node_kind(desc),
+         {:ok, min_inclusive} <- extract_optional_literal(desc, SHACL.min_inclusive()),
+         {:ok, max_inclusive} <- extract_optional_literal(desc, SHACL.max_inclusive()),
+         {:ok, min_exclusive} <- extract_optional_literal(desc, SHACL.min_exclusive()),
+         {:ok, max_exclusive} <- extract_optional_literal(desc, SHACL.max_exclusive()),
+         {:ok, min_length} <- extract_optional_integer(desc, SHACL.min_length()),
+         {:ok, max_length} <- extract_optional_integer(desc, SHACL.max_length()),
+         {:ok, pattern} <- extract_optional_pattern(desc),
+         {:ok, in_values} <- extract_node_in_values(graph, desc),
+         {:ok, has_value} <- extract_optional_term(desc, SHACL.has_value()),
+         {:ok, language_in} <- extract_optional_language_in(graph, desc) do
+      {:ok,
+       %{
+         datatype: datatype,
+         class: class_iri,
+         node_kind: node_kind,
+         min_inclusive: min_inclusive,
+         max_inclusive: max_inclusive,
+         min_exclusive: min_exclusive,
+         max_exclusive: max_exclusive,
+         min_length: min_length,
+         max_length: max_length,
+         pattern: pattern,
+         in: in_values,
+         has_value: has_value,
+         language_in: language_in
+       }}
+    end
+  end
+
+  # Helper: Extract sh:in values from RDF list (for node-level constraints)
+  @spec extract_node_in_values(RDF.Graph.t(), RDF.Description.t()) ::
+          {:ok, [RDF.Term.t()] | nil} | {:error, term()}
+  defp extract_node_in_values(graph, desc) do
+    values = desc |> RDF.Description.get(SHACL.in_values()) |> normalize_to_list()
+
+    case values do
+      [] ->
+        {:ok, nil}
+
+      [list_head | _] ->
+        case parse_rdf_list(graph, list_head, 0) do
+          {:ok, []} -> {:ok, nil}
+          # Empty list = no constraint
+          {:ok, items} -> {:ok, items}
+          error -> error
+        end
+    end
   end
 
   # Parse all property shapes for a node shape
@@ -423,6 +510,24 @@ defmodule ElixirOntologies.SHACL.Reader do
     {:ok, RDF.Description.get(desc, predicate)}
   end
 
+  # Helper: Extract optional numeric literal (returns the literal, not the value)
+  @spec extract_optional_literal(RDF.Description.t(), RDF.IRI.t()) ::
+          {:ok, RDF.Literal.t() | nil} | {:error, term()}
+  defp extract_optional_literal(desc, predicate) do
+    values = desc |> RDF.Description.get(predicate) |> normalize_to_list()
+
+    case values do
+      [] ->
+        {:ok, nil}
+
+      [%RDF.Literal{} = lit | _] ->
+        {:ok, lit}
+
+      [_other | _] ->
+        {:ok, nil}
+    end
+  end
+
   # Helper: Extract and compile regex pattern with security limits
   @spec extract_optional_pattern(RDF.Description.t()) :: {:ok, Regex.t() | nil} | {:error, term()}
   defp extract_optional_pattern(desc) do
@@ -547,5 +652,69 @@ defmodule ElixirOntologies.SHACL.Reader do
   defp extract_optional_prefixes(_desc) do
     # Prefixes are currently not parsed; we'll use the shapes graph's prefixes
     {:ok, nil}
+  end
+
+  # Helper: Extract optional node kind
+  @spec extract_optional_node_kind(RDF.Description.t()) :: {:ok, atom() | nil}
+  defp extract_optional_node_kind(desc) do
+    case RDF.Description.get(desc, SHACL.node_kind()) do
+      nil ->
+        {:ok, nil}
+
+      values when is_list(values) ->
+        # Take first value if multiple
+        parse_node_kind(List.first(values))
+
+      value ->
+        parse_node_kind(value)
+    end
+  end
+
+  # Helper: Parse node kind IRI to atom
+  defp parse_node_kind(%RDF.IRI{} = iri) do
+    case to_string(iri) do
+      "http://www.w3.org/ns/shacl#IRI" -> {:ok, :iri}
+      "http://www.w3.org/ns/shacl#BlankNode" -> {:ok, :blank_node}
+      "http://www.w3.org/ns/shacl#Literal" -> {:ok, :literal}
+      "http://www.w3.org/ns/shacl#BlankNodeOrIRI" -> {:ok, :blank_node_or_iri}
+      "http://www.w3.org/ns/shacl#BlankNodeOrLiteral" -> {:ok, :blank_node_or_literal}
+      "http://www.w3.org/ns/shacl#IRIOrLiteral" -> {:ok, :iri_or_literal}
+      _ -> {:ok, nil}
+    end
+  end
+
+  defp parse_node_kind(_), do: {:ok, nil}
+
+  # Helper: Extract optional language tags (sh:languageIn)
+  @spec extract_optional_language_in(RDF.Graph.t(), RDF.Description.t()) ::
+          {:ok, [String.t()] | nil} | {:error, term()}
+  defp extract_optional_language_in(graph, desc) do
+    values = desc |> RDF.Description.get(SHACL.language_in()) |> normalize_to_list()
+
+    case values do
+      [] ->
+        {:ok, nil}
+
+      [list_head | _] ->
+        case parse_rdf_list(graph, list_head, 0) do
+          {:ok, []} ->
+            {:ok, nil}
+
+          {:ok, literals} ->
+            # Extract language tags as strings
+            language_tags =
+              Enum.map(literals, fn lit ->
+                case lit do
+                  %RDF.Literal{} -> RDF.Literal.value(lit)
+                  other -> to_string(other)
+                end
+              end)
+
+            {:ok, language_tags}
+
+          error ->
+            error
+        end
+    end
   end
 end
