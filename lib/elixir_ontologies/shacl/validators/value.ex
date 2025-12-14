@@ -69,7 +69,7 @@ defmodule ElixirOntologies.SHACL.Validators.Value do
 
   import RDF.Sigils
 
-  alias ElixirOntologies.SHACL.Model.{PropertyShape, ValidationResult}
+  alias ElixirOntologies.SHACL.Model.{NodeShape, PropertyShape, ValidationResult}
   alias ElixirOntologies.SHACL.Validators.Helpers
 
   @doc """
@@ -246,6 +246,281 @@ defmodule ElixirOntologies.SHACL.Validators.Value do
           end)
 
         results ++ Enum.reverse(violations)
+    end
+  end
+
+  @doc """
+  Validate node-level value constraints.
+
+  Validates constraints applied directly to the focus node itself, not to its properties.
+  Handles: sh:in, sh:hasValue, sh:minInclusive, sh:maxInclusive, sh:minExclusive, sh:maxExclusive.
+
+  Returns a list of ValidationResult structs for any violations found.
+  Returns empty list if the focus node conforms to all node-level value constraints.
+
+  ## Parameters
+
+  - `_data_graph` - RDF.Graph.t() (unused for value validation)
+  - `focus_node` - RDF.Term.t() the node being validated (checked directly)
+  - `node_shape` - NodeShape.t() containing node value constraints
+
+  ## Returns
+
+  List of ValidationResult.t() structs (empty = no violations)
+  """
+  @spec validate_node(RDF.Graph.t(), RDF.Term.t(), NodeShape.t()) :: [ValidationResult.t()]
+  def validate_node(_data_graph, focus_node, node_shape) do
+    # Accumulate violations for node-level constraints
+    []
+    |> check_node_in(focus_node, node_shape)
+    |> check_node_has_value(focus_node, node_shape)
+    |> check_node_min_inclusive(focus_node, node_shape)
+    |> check_node_max_inclusive(focus_node, node_shape)
+    |> check_node_min_exclusive(focus_node, node_shape)
+    |> check_node_max_exclusive(focus_node, node_shape)
+  end
+
+  # Check sh:in constraint on the focus node itself
+  @spec check_node_in([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_in(results, focus_node, node_shape) do
+    case node_shape.node_in do
+      nil ->
+        # No in constraint
+        results
+
+      [] ->
+        # Empty list means no constraint
+        results
+
+      allowed_values ->
+        if focus_node in allowed_values do
+          # Node is in allowed list
+          results
+        else
+          # Violation: node not in allowed list
+          violation =
+            Helpers.build_node_violation(
+              focus_node,
+              node_shape,
+              "Focus node is not one of the allowed values",
+              %{
+                constraint_component: ~I<http://www.w3.org/ns/shacl#InConstraintComponent>,
+                allowed_values: allowed_values,
+                actual_value: focus_node
+              }
+            )
+
+          [violation | results]
+        end
+    end
+  end
+
+  # Check sh:hasValue constraint on the focus node itself
+  @spec check_node_has_value([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_has_value(results, focus_node, node_shape) do
+    case node_shape.node_has_value do
+      nil ->
+        # No hasValue constraint
+        results
+
+      required_value ->
+        if focus_node == required_value do
+          # Node matches required value
+          results
+        else
+          # Violation: node doesn't match required value
+          violation =
+            Helpers.build_node_violation(
+              focus_node,
+              node_shape,
+              "Focus node does not match required value",
+              %{
+                constraint_component: ~I<http://www.w3.org/ns/shacl#HasValueConstraintComponent>,
+                required_value: required_value,
+                actual_value: focus_node
+              }
+            )
+
+          [violation | results]
+        end
+    end
+  end
+
+  # Check sh:minInclusive constraint on the focus node itself
+  @spec check_node_min_inclusive([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_min_inclusive(results, focus_node, node_shape) do
+    case node_shape.node_min_inclusive do
+      nil ->
+        # No minInclusive constraint
+        results
+
+      min_value_literal ->
+        # Extract numeric value from literal
+        min_value = RDF.Literal.value(min_value_literal)
+
+        # Extract numeric value from focus node
+        case Helpers.extract_number(focus_node) do
+          nil ->
+            # Not a numeric literal - no violation (datatype validator handles this)
+            results
+
+          num ->
+            # Check if value >= minInclusive
+            if num >= min_value do
+              # Value within range
+              results
+            else
+              # Violation: value too small
+              violation =
+                Helpers.build_node_violation(
+                  focus_node,
+                  node_shape,
+                  "Focus node is below minimum (expected >= #{min_value}, found #{num})",
+                  %{
+                    constraint_component: ~I<http://www.w3.org/ns/shacl#MinInclusiveConstraintComponent>,
+                    min_inclusive: min_value,
+                    actual_value: num
+                  }
+                )
+
+              [violation | results]
+            end
+        end
+    end
+  end
+
+  # Check sh:maxInclusive constraint on the focus node itself
+  @spec check_node_max_inclusive([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_max_inclusive(results, focus_node, node_shape) do
+    case node_shape.node_max_inclusive do
+      nil ->
+        # No maxInclusive constraint
+        results
+
+      max_value_literal ->
+        # Extract numeric value from literal
+        max_value = RDF.Literal.value(max_value_literal)
+
+        # Extract numeric value from focus node
+        case Helpers.extract_number(focus_node) do
+          nil ->
+            # Not a numeric literal - no violation (datatype validator handles this)
+            results
+
+          num ->
+            # Check if value <= maxInclusive
+            if num <= max_value do
+              # Value within range
+              results
+            else
+              # Violation: value too large
+              violation =
+                Helpers.build_node_violation(
+                  focus_node,
+                  node_shape,
+                  "Focus node exceeds maximum (expected <= #{max_value}, found #{num})",
+                  %{
+                    constraint_component: ~I<http://www.w3.org/ns/shacl#MaxInclusiveConstraintComponent>,
+                    max_inclusive: max_value,
+                    actual_value: num
+                  }
+                )
+
+              [violation | results]
+            end
+        end
+    end
+  end
+
+  # Check sh:minExclusive constraint on the focus node itself
+  @spec check_node_min_exclusive([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_min_exclusive(results, focus_node, node_shape) do
+    case node_shape.node_min_exclusive do
+      nil ->
+        # No minExclusive constraint
+        results
+
+      min_value_literal ->
+        # Extract numeric value from literal
+        min_value = RDF.Literal.value(min_value_literal)
+
+        # Extract numeric value from focus node
+        case Helpers.extract_number(focus_node) do
+          nil ->
+            # Not a numeric literal - no violation (datatype validator handles this)
+            results
+
+          num ->
+            # Check if value > minExclusive
+            if num > min_value do
+              # Value within range
+              results
+            else
+              # Violation: value too small or equal
+              violation =
+                Helpers.build_node_violation(
+                  focus_node,
+                  node_shape,
+                  "Focus node is not above minimum (expected > #{min_value}, found #{num})",
+                  %{
+                    constraint_component: ~I<http://www.w3.org/ns/shacl#MinExclusiveConstraintComponent>,
+                    min_exclusive: min_value,
+                    actual_value: num
+                  }
+                )
+
+              [violation | results]
+            end
+        end
+    end
+  end
+
+  # Check sh:maxExclusive constraint on the focus node itself
+  @spec check_node_max_exclusive([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_max_exclusive(results, focus_node, node_shape) do
+    case node_shape.node_max_exclusive do
+      nil ->
+        # No maxExclusive constraint
+        results
+
+      max_value_literal ->
+        # Extract numeric value from literal
+        max_value = RDF.Literal.value(max_value_literal)
+
+        # Extract numeric value from focus node
+        case Helpers.extract_number(focus_node) do
+          nil ->
+            # Not a numeric literal - no violation (datatype validator handles this)
+            results
+
+          num ->
+            # Check if value < maxExclusive
+            if num < max_value do
+              # Value within range
+              results
+            else
+              # Violation: value too large or equal
+              violation =
+                Helpers.build_node_violation(
+                  focus_node,
+                  node_shape,
+                  "Focus node is not below maximum (expected < #{max_value}, found #{num})",
+                  %{
+                    constraint_component: ~I<http://www.w3.org/ns/shacl#MaxExclusiveConstraintComponent>,
+                    max_exclusive: max_value,
+                    actual_value: num
+                  }
+                )
+
+              [violation | results]
+            end
+        end
     end
   end
 end

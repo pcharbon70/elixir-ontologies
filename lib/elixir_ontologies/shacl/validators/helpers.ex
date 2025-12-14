@@ -23,7 +23,7 @@ defmodule ElixirOntologies.SHACL.Validators.Helpers do
       )
   """
 
-  alias ElixirOntologies.SHACL.Model.{PropertyShape, ValidationResult}
+  alias ElixirOntologies.SHACL.Model.{NodeShape, PropertyShape, ValidationResult}
 
   @doc """
   Extract all values for a given property path from a focus node.
@@ -109,6 +109,51 @@ defmodule ElixirOntologies.SHACL.Validators.Helpers do
       source_shape: property_shape.id,
       severity: :violation,
       message: property_shape.message || default_message,
+      details: details
+    }
+  end
+
+  @doc """
+  Build a ValidationResult struct for a node-level constraint violation.
+
+  Creates a ValidationResult with severity :violation for constraints applied
+  directly to the focus node (not to its properties).
+
+  ## Parameters
+
+  - `focus_node` - RDF.Term.t() node that violated the constraint
+  - `node_shape` - NodeShape.t() containing id and optional message
+  - `default_message` - String.t() default message if node_shape.message is nil
+  - `details` - map() additional details about the violation
+
+  ## Returns
+
+  ValidationResult.t() struct with path set to nil (node-level constraints have no path)
+
+  ## Examples
+
+      iex> node_shape = %NodeShape{
+      ...>   id: ~I<http://example.org/shapes/PersonShape>,
+      ...>   message: "Must be a literal"
+      ...> }
+      iex> result = build_node_violation(
+      ...>   ~I<http://example.org/Person1>,
+      ...>   node_shape,
+      ...>   "Default message",
+      ...>   %{constraint_component: SHACL.NodeKindConstraintComponent}
+      ...> )
+      iex> result.severity
+      :violation
+  """
+  @spec build_node_violation(RDF.Term.t(), NodeShape.t(), String.t(), map()) ::
+          ValidationResult.t()
+  def build_node_violation(focus_node, node_shape, default_message, details) do
+    %ValidationResult{
+      focus_node: focus_node,
+      path: nil,
+      source_shape: node_shape.id,
+      severity: :violation,
+      message: node_shape.message || default_message,
       details: details
     }
   end
@@ -242,6 +287,50 @@ defmodule ElixirOntologies.SHACL.Validators.Helpers do
         # Check if term has rdf:type class_iri
         types = get_property_values(data_graph, term, RDF.type())
         Enum.member?(types, class_iri)
+    end
+  end
+
+  @doc """
+  Check if an RDF term matches the specified node kind.
+
+  Node kinds from SHACL specification:
+  - :iri - Term must be an IRI
+  - :blank_node - Term must be a blank node
+  - :literal - Term must be a literal
+  - :blank_node_or_iri - Term must be a blank node or IRI
+  - :blank_node_or_literal - Term must be a blank node or literal
+  - :iri_or_literal - Term must be an IRI or literal
+
+  ## Parameters
+
+  - `term` - RDF.Term.t() to check
+  - `node_kind` - atom() one of the node kinds listed above
+
+  ## Returns
+
+  boolean()
+
+  ## Examples
+
+      iex> is_node_kind?(~I<http://example.org/Module1>, :iri)
+      true
+
+      iex> is_node_kind?(RDF.Literal.new("hello"), :literal)
+      true
+
+      iex> is_node_kind?(~I<http://example.org/Module1>, :literal)
+      false
+  """
+  @spec is_node_kind?(RDF.Term.t(), atom()) :: boolean()
+  def is_node_kind?(term, node_kind) do
+    case node_kind do
+      :iri -> match?(%RDF.IRI{}, term)
+      :blank_node -> match?(%RDF.BlankNode{}, term)
+      :literal -> match?(%RDF.Literal{}, term)
+      :blank_node_or_iri -> match?(%RDF.BlankNode{}, term) or match?(%RDF.IRI{}, term)
+      :blank_node_or_literal -> match?(%RDF.BlankNode{}, term) or match?(%RDF.Literal{}, term)
+      :iri_or_literal -> match?(%RDF.IRI{}, term) or match?(%RDF.Literal{}, term)
+      _ -> false
     end
   end
 end

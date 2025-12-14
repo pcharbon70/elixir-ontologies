@@ -70,7 +70,7 @@ defmodule ElixirOntologies.SHACL.Validators.Type do
 
   import RDF.Sigils
 
-  alias ElixirOntologies.SHACL.Model.{PropertyShape, ValidationResult}
+  alias ElixirOntologies.SHACL.Model.{NodeShape, PropertyShape, ValidationResult}
   alias ElixirOntologies.SHACL.Validators.Helpers
 
   @doc """
@@ -202,6 +202,129 @@ defmodule ElixirOntologies.SHACL.Validators.Type do
           end)
 
         results ++ Enum.reverse(violations)
+    end
+  end
+
+  @doc """
+  Validate node-level type constraints (sh:datatype, sh:class, sh:nodeKind).
+
+  Validates constraints applied directly to the focus node itself, not to its properties.
+
+  Returns a list of ValidationResult structs for any violations found.
+  Returns empty list if the focus node conforms to all node-level type constraints.
+
+  ## Parameters
+
+  - `data_graph` - RDF.Graph.t() containing the data to validate
+  - `focus_node` - RDF.Term.t() the node being validated (checked directly)
+  - `node_shape` - NodeShape.t() containing node_datatype, node_class, and/or node_node_kind
+
+  ## Returns
+
+  List of ValidationResult.t() structs (empty = no violations)
+  """
+  @spec validate_node(RDF.Graph.t(), RDF.Term.t(), NodeShape.t()) :: [ValidationResult.t()]
+  def validate_node(data_graph, focus_node, node_shape) do
+    # Accumulate violations for node-level constraints
+    []
+    |> check_node_datatype(focus_node, node_shape)
+    |> check_node_class(data_graph, focus_node, node_shape)
+    |> check_node_kind(focus_node, node_shape)
+  end
+
+  # Check sh:datatype constraint on the focus node itself
+  @spec check_node_datatype([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_datatype(results, focus_node, node_shape) do
+    case node_shape.node_datatype do
+      nil ->
+        # No datatype constraint
+        results
+
+      datatype_iri ->
+        if Helpers.is_datatype?(focus_node, datatype_iri) do
+          # Node has correct datatype
+          results
+        else
+          # Violation: wrong datatype or not a literal
+          violation =
+            Helpers.build_node_violation(
+              focus_node,
+              node_shape,
+              "Focus node does not have required datatype #{inspect(datatype_iri)}",
+              %{
+                constraint_component: ~I<http://www.w3.org/ns/shacl#DatatypeConstraintComponent>,
+                expected_datatype: datatype_iri,
+                actual_value: focus_node
+              }
+            )
+
+          [violation | results]
+        end
+    end
+  end
+
+  # Check sh:class constraint on the focus node itself
+  @spec check_node_class([ValidationResult.t()], RDF.Graph.t(), RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_class(results, data_graph, focus_node, node_shape) do
+    case node_shape.node_class do
+      nil ->
+        # No class constraint
+        results
+
+      class_iri ->
+        if Helpers.is_instance_of?(data_graph, focus_node, class_iri) do
+          # Node is instance of required class
+          results
+        else
+          # Violation: not an instance of the class
+          violation =
+            Helpers.build_node_violation(
+              focus_node,
+              node_shape,
+              "Focus node is not an instance of class #{inspect(class_iri)}",
+              %{
+                constraint_component: ~I<http://www.w3.org/ns/shacl#ClassConstraintComponent>,
+                expected_class: class_iri,
+                actual_value: focus_node
+              }
+            )
+
+          [violation | results]
+        end
+    end
+  end
+
+  # Check sh:nodeKind constraint on the focus node itself
+  @spec check_node_kind([ValidationResult.t()], RDF.Term.t(), NodeShape.t()) ::
+          [ValidationResult.t()]
+  defp check_node_kind(results, focus_node, node_shape) do
+    case node_shape.node_node_kind do
+      nil ->
+        # No nodeKind constraint
+        results
+
+      node_kind ->
+        if Helpers.is_node_kind?(focus_node, node_kind) do
+          # Node matches required kind
+          results
+        else
+          # Violation: wrong node kind
+          violation =
+            Helpers.build_node_violation(
+              focus_node,
+              node_shape,
+              "Focus node does not match required node kind #{inspect(node_kind)}",
+              %{
+                constraint_component: ~I<http://www.w3.org/ns/shacl#NodeKindConstraintComponent>,
+                expected_node_kind: node_kind,
+                actual_value: focus_node
+              }
+            )
+
+          [violation | results]
+        end
     end
   end
 end
