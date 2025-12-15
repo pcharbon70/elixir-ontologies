@@ -1,0 +1,27 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Invalid function - arity exceeds maximum of 255
+# Tests:
+# - FunctionShape: sh:maxInclusive 255 constraint violation
+# Expected: Function arity must be between 0 and 255
+
+:invalid_module a struct:Module ;
+    struct:moduleName "MyApp.Invalid"^^xsd:string .
+
+:invalid_bad_arity a struct:Function ;
+    struct:functionName "bad_arity"^^xsd:string ;
+    struct:arity "256"^^xsd:nonNegativeInteger ;
+    struct:belongsTo :invalid_module ;
+    struct:hasClause :invalid_bad_arity_clause1 .
+
+:invalid_bad_arity_clause1 a struct:FunctionClause ;
+    struct:clauseOrder "1"^^xsd:positiveInteger ;
+    struct:hasHead [
+        a struct:FunctionHead
+    ] ;
+    struct:hasBody [
+        a struct:FunctionBody
+    ] .

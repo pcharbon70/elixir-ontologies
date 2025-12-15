@@ -1,0 +1,12 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix evo: <https://w3id.org/elixir-code/evolution#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid developer
+# Tests:
+# - DeveloperShape: developerName (required)
+# - DeveloperShape: developerEmail pattern (optional but validated if present)
+
+:developer_alice a evo:Developer ;
+    evo:developerName "Alice Johnson"^^xsd:string ;
+    evo:developerEmail "alice.johnson@example.com"^^xsd:string .

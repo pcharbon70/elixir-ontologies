@@ -1,0 +1,15 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix evo: <https://w3id.org/elixir-code/evolution#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid semantic version
+# Tests:
+# - SemanticVersionShape: majorVersion (nonNegativeInteger, required)
+# - SemanticVersionShape: minorVersion (nonNegativeInteger, required)
+# - SemanticVersionShape: patchVersion (nonNegativeInteger, required)
+
+:version1 a evo:SemanticVersion , evo:CodeVersion ;
+    evo:versionString "1.2.3"^^xsd:string ;
+    evo:majorVersion "1"^^xsd:nonNegativeInteger ;
+    evo:minorVersion "2"^^xsd:nonNegativeInteger ;
+    evo:patchVersion "3"^^xsd:nonNegativeInteger .

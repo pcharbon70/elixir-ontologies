@@ -1,0 +1,14 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix otp: <https://w3id.org/elixir-code/otp#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid child spec
+# Tests:
+# - ChildSpecShape: all required properties
+# - ChildSpecShape: childId, hasRestartStrategy, hasChildType, startModule
+
+:child_worker a otp:ChildSpec ;
+    otp:childId "worker1"^^xsd:string ;
+    otp:hasRestartStrategy otp:Permanent ;
+    otp:hasChildType otp:WorkerType ;
+    otp:startModule "MyApp.Worker"^^xsd:string .

@@ -1,0 +1,17 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Invalid function - no clauses
+# Tests:
+# - FunctionShape: sh:minCount 1 for hasClause constraint violation
+# Expected: Function must have at least one clause
+
+:invalid_module3 a struct:Module ;
+    struct:moduleName "MyApp.Invalid"^^xsd:string .
+
+:invalid_no_clause a struct:Function ;
+    struct:functionName "no_clause"^^xsd:string ;
+    struct:arity "0"^^xsd:nonNegativeInteger ;
+    struct:belongsTo :invalid_module3 .
+# Missing struct:hasClause property

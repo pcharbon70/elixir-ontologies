@@ -1,0 +1,10 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+
+# Invalid module - missing moduleName property
+# Tests:
+# - ModuleShape: sh:minCount 1 constraint violation
+# Expected: Module must have exactly one moduleName
+
+:MyModule a struct:Module .
+# Missing struct:moduleName property

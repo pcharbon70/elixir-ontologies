@@ -1,0 +1,11 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Invalid module - lowercase name violates naming pattern
+# Tests:
+# - ModuleShape: sh:pattern constraint violation
+# Expected: Module name must start with uppercase letter
+
+:myapp a struct:Module ;
+    struct:moduleName "myapp"^^xsd:string .

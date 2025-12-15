@@ -1,0 +1,30 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix evo: <https://w3id.org/elixir-code/evolution#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid commit
+# Tests:
+# - CommitShape: commitHash pattern (40-char hex)
+# - CommitShape: commitMessage (non-empty)
+# - CommitShape: authoredAt (dateTime)
+# - CommitShape: wasAssociatedWith (minCount 1)
+# - CommitShape: containsChange (minCount 1)
+# - ChangeSetShape: changedElement (minCount 1)
+
+:developer1 a evo:Developer , evo:DevelopmentAgent ;
+    evo:developerName "Alice Smith"^^xsd:string ;
+    evo:developerEmail "alice@example.com"^^xsd:string .
+
+:module1 a struct:Module ;
+    struct:moduleName "MyApp.Example"^^xsd:string .
+
+:changeset1 a evo:ChangeSet ;
+    evo:changedElement :module1 .
+
+:commit1 a evo:Commit ;
+    evo:commitHash "abc123def456789012345678901234567890abcd"^^xsd:string ;
+    evo:commitMessage "Add new feature"^^xsd:string ;
+    evo:authoredAt "2025-12-15T10:30:00Z"^^xsd:dateTime ;
+    evo:wasAssociatedWith :developer1 ;
+    evo:containsChange :changeset1 .

@@ -1,0 +1,25 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix evo: <https://w3id.org/elixir-code/evolution#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Invalid commit - missing commit message
+# Tests:
+# - CommitShape: sh:minCount 1 for commitMessage constraint violation
+# Expected: Commit must have a non-empty message
+
+:developer1 a evo:Developer , evo:DevelopmentAgent ;
+    evo:developerName "Charlie"^^xsd:string .
+
+:module1 a struct:Module ;
+    struct:moduleName "MyApp"^^xsd:string .
+
+:changeset1 a evo:ChangeSet ;
+    evo:changedElement :module1 .
+
+:commit_no_message a evo:Commit ;
+    evo:commitHash "abc123def456789012345678901234567890abcd"^^xsd:string ;
+    evo:authoredAt "2025-12-15T10:30:00Z"^^xsd:dateTime ;
+    evo:wasAssociatedWith :developer1 ;
+    evo:containsChange :changeset1 .
+# Missing evo:commitMessage property
