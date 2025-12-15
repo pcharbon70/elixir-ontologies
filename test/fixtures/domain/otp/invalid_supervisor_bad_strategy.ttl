@@ -1,0 +1,17 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix otp: <https://w3id.org/elixir-code/otp#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Invalid Supervisor - invalid strategy not in enum
+# Tests:
+# - SupervisorShape: sh:in constraint violation
+# Expected: Strategy must be OneForOne, OneForAll, or RestForOne
+
+:bad_supervisor_module a struct:Module ;
+    struct:moduleName "MyApp.BadSupervisor"^^xsd:string .
+
+:bad_supervisor_impl a otp:Supervisor ;
+    otp:implementsModule :bad_supervisor_module ;
+    otp:hasStrategy "InvalidStrategy"^^xsd:string .
+# String literal is not one of the allowed IRI values

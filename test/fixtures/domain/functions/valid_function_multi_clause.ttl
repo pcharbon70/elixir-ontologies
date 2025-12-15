@@ -1,0 +1,59 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid function with multiple clauses
+# Tests:
+# - FunctionShape: function with 2 parameters
+# - FunctionClauseShape: multiple clauses with proper clauseOrder
+# - ParameterShape: parameterPosition for each parameter
+
+:math_module a struct:Module ;
+    struct:moduleName "MyApp.Math"^^xsd:string .
+
+:math_max a struct:Function ;
+    struct:functionName "max"^^xsd:string ;
+    struct:arity "2"^^xsd:nonNegativeInteger ;
+    struct:belongsTo :math_module ;
+    struct:hasClause :math_max_clause1 , :math_max_clause2 .
+
+:math_max_clause1 a struct:FunctionClause ;
+    struct:clauseOrder "1"^^xsd:positiveInteger ;
+    struct:hasHead [
+        a struct:FunctionHead ;
+        core:hasParameter [
+            a core:Parameter ;
+            core:parameterPosition "1"^^xsd:positiveInteger ;
+            core:parameterName "a"^^xsd:string
+        ] , [
+            a core:Parameter ;
+            core:parameterPosition "2"^^xsd:positiveInteger ;
+            core:parameterName "b"^^xsd:string
+        ]
+    ] ;
+    struct:hasBody [
+        a struct:FunctionBody
+    ] ;
+    struct:hasGuard [
+        a core:Guard ;
+        core:guardExpression "a >= b"^^xsd:string
+    ] .
+
+:math_max_clause2 a struct:FunctionClause ;
+    struct:clauseOrder "2"^^xsd:positiveInteger ;
+    struct:hasHead [
+        a struct:FunctionHead ;
+        core:hasParameter [
+            a core:Parameter ;
+            core:parameterPosition "1"^^xsd:positiveInteger ;
+            core:parameterName "a"^^xsd:string
+        ] , [
+            a core:Parameter ;
+            core:parameterPosition "2"^^xsd:positiveInteger ;
+            core:parameterName "b"^^xsd:string
+        ]
+    ] ;
+    struct:hasBody [
+        a struct:FunctionBody
+    ] .

@@ -1,0 +1,36 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid function with arity 0
+# Tests:
+# - FunctionShape: valid function name pattern (snake_case)
+# - FunctionShape: arity 0 (nonNegativeInteger)
+# - FunctionShape: belongsTo (exactly 1 module)
+# - FunctionShape: hasClause (minCount 1)
+# - FunctionClauseShape: clauseOrder, hasHead, hasBody
+# - SourceLocationShape: startLine, endLine
+
+:utils_module a struct:Module ;
+    struct:moduleName "MyApp.Utils"^^xsd:string .
+
+:utils_now a struct:Function ;
+    struct:functionName "now"^^xsd:string ;
+    struct:arity "0"^^xsd:nonNegativeInteger ;
+    struct:belongsTo :utils_module ;
+    struct:hasClause :utils_now_clause1 ;
+    core:sourceLocation [
+        a core:SourceLocation ;
+        core:startLine "10"^^xsd:positiveInteger ;
+        core:endLine "12"^^xsd:positiveInteger
+    ] .
+
+:utils_now_clause1 a struct:FunctionClause ;
+    struct:clauseOrder "1"^^xsd:positiveInteger ;
+    struct:hasHead [
+        a struct:FunctionHead
+    ] ;
+    struct:hasBody [
+        a struct:FunctionBody
+    ] .

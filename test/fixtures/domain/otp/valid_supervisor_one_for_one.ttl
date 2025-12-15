@@ -1,0 +1,25 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix otp: <https://w3id.org/elixir-code/otp#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid Supervisor with OneForOne strategy
+# Tests:
+# - SupervisorShape: hasStrategy with valid enum value
+# - SupervisorShape: maxRestarts and maxSeconds types
+
+:supervisor_module a struct:Module ;
+    struct:moduleName "MyApp.Supervisor"^^xsd:string .
+
+:supervisor_impl a otp:Supervisor ;
+    otp:implementsModule :supervisor_module ;
+    otp:hasStrategy otp:OneForOne ;
+    otp:maxRestarts "3"^^xsd:nonNegativeInteger ;
+    otp:maxSeconds "5"^^xsd:positiveInteger ;
+    otp:hasChildSpec :supervisor_child1 .
+
+:supervisor_child1 a otp:ChildSpec ;
+    otp:childId "child1"^^xsd:string ;
+    otp:hasRestartStrategy otp:Permanent ;
+    otp:hasChildType otp:WorkerType ;
+    otp:startModule "MyApp.Worker"^^xsd:string .

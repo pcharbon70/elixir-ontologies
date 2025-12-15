@@ -1,0 +1,15 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid nested module
+# Tests:
+# - NestedModuleShape: nested module with parent reference
+# - NestedModuleShape: parentModule cardinality (exactly 1)
+
+:MyApp a struct:Module ;
+    struct:moduleName "MyApp"^^xsd:string .
+
+:MyApp.User a struct:NestedModule , struct:Module ;
+    struct:moduleName "MyApp.User"^^xsd:string ;
+    struct:parentModule :MyApp .

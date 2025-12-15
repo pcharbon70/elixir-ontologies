@@ -1,0 +1,17 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix otp: <https://w3id.org/elixir-code/otp#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid ETS table
+# Tests:
+# - ETSTableShape: ownedByProcess, hasTableType, hasAccessType
+# - ETSTableShape: valid enum values for table types and access types
+
+:my_process a otp:Process ;
+    otp:processName "my_process"^^xsd:string .
+
+:my_ets_table a otp:ETSTable ;
+    otp:tableName "users"^^xsd:string ;
+    otp:ownedByProcess :my_process ;
+    otp:hasTableType otp:SetTable ;
+    otp:hasAccessType otp:PublicTable .

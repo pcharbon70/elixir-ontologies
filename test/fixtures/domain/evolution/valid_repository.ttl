@@ -1,0 +1,16 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix evo: <https://w3id.org/elixir-code/evolution#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid repository with branch
+# Tests:
+# - RepositoryShape: repositoryUrl (anyURI)
+# - RepositoryShape: defaultBranch (class Branch)
+# - BranchShape: branchName pattern
+
+:main_branch a evo:Branch ;
+    evo:branchName "main"^^xsd:string .
+
+:repo1 a evo:Repository ;
+    evo:repositoryUrl "https://github.com/example/myapp"^^xsd:anyURI ;
+    evo:defaultBranch :main_branch .
