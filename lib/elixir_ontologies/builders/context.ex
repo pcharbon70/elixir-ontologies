@@ -1,0 +1,262 @@
+defmodule ElixirOntologies.Builders.Context do
+  @moduledoc """
+  Context struct for RDF builder operations.
+
+  The `BuilderContext` maintains state during RDF graph construction, providing:
+  - Base IRI for generating resource URIs
+  - Current file path being analyzed
+  - Parent module IRI for nested modules
+  - Configuration options
+  - Additional metadata
+
+  ## Usage
+
+      alias ElixirOntologies.Builders.Context
+
+      context = Context.new(
+        base_iri: "https://example.org/code#",
+        file_path: "lib/my_app/users.ex"
+      )
+
+      # Thread context through builders
+      {module_iri, triples} = ModuleBuilder.build(module_info, context)
+
+      # Create child context for nested modules
+      child_context = Context.with_parent_module(context, module_iri)
+
+  ## Fields
+
+  - `:base_iri` - Base IRI for resource generation (required)
+  - `:file_path` - Current file being analyzed (optional)
+  - `:parent_module` - Parent module IRI for nested modules (optional)
+  - `:config` - Configuration options (optional)
+  - `:metadata` - Additional context metadata (optional)
+  """
+
+  @enforce_keys [:base_iri]
+  defstruct [
+    :base_iri,
+    :file_path,
+    :parent_module,
+    config: %{},
+    metadata: %{}
+  ]
+
+  @type t :: %__MODULE__{
+          base_iri: String.t() | RDF.IRI.t(),
+          file_path: String.t() | nil,
+          parent_module: RDF.IRI.t() | nil,
+          config: map(),
+          metadata: map()
+        }
+
+  # ===========================================================================
+  # Constructor
+  # ===========================================================================
+
+  @doc """
+  Creates a new builder context.
+
+  ## Parameters
+
+  - `opts` - Keyword list of context options
+
+  ## Options
+
+  - `:base_iri` - Base IRI for resource generation (required)
+  - `:file_path` - Current file being analyzed
+  - `:parent_module` - Parent module IRI for nested modules
+  - `:config` - Configuration map
+  - `:metadata` - Additional metadata map
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(base_iri: "https://example.org/code#")
+      iex> context.base_iri
+      "https://example.org/code#"
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   file_path: "lib/my_app.ex"
+      ...> )
+      iex> context.file_path
+      "lib/my_app.ex"
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_private: false}
+      ...> )
+      iex> context.config.include_private
+      false
+  """
+  @spec new(keyword()) :: t()
+  def new(opts) when is_list(opts) do
+    base_iri = Keyword.fetch!(opts, :base_iri)
+    file_path = Keyword.get(opts, :file_path)
+    parent_module = Keyword.get(opts, :parent_module)
+    config = Keyword.get(opts, :config, %{})
+    metadata = Keyword.get(opts, :metadata, %{})
+
+    %__MODULE__{
+      base_iri: base_iri,
+      file_path: file_path,
+      parent_module: parent_module,
+      config: config,
+      metadata: metadata
+    }
+  end
+
+  # ===========================================================================
+  # Context Transformations
+  # ===========================================================================
+
+  @doc """
+  Creates a new context with a parent module IRI.
+
+  Used when building nested modules to maintain the parent-child relationship.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(base_iri: "https://example.org/code#")
+      iex> parent_iri = ~I<https://example.org/code#MyApp>
+      iex> child_context = ElixirOntologies.Builders.Context.with_parent_module(context, parent_iri)
+      iex> child_context.parent_module
+      ~I<https://example.org/code#MyApp>
+      iex> child_context.base_iri
+      "https://example.org/code#"
+  """
+  @spec with_parent_module(t(), RDF.IRI.t()) :: t()
+  def with_parent_module(%__MODULE__{} = context, parent_module_iri) do
+    %{context | parent_module: parent_module_iri}
+  end
+
+  @doc """
+  Creates a new context with updated metadata.
+
+  Merges the provided metadata map with the existing metadata.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   metadata: %{version: "1.0.0"}
+      ...> )
+      iex> updated = ElixirOntologies.Builders.Context.with_metadata(context, %{author: "dev"})
+      iex> updated.metadata
+      %{version: "1.0.0", author: "dev"}
+  """
+  @spec with_metadata(t(), map()) :: t()
+  def with_metadata(%__MODULE__{} = context, new_metadata) when is_map(new_metadata) do
+    %{context | metadata: Map.merge(context.metadata, new_metadata)}
+  end
+
+  @doc """
+  Creates a new context with updated configuration.
+
+  Merges the provided config map with the existing configuration.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_private: true}
+      ...> )
+      iex> updated = ElixirOntologies.Builders.Context.with_config(context, %{include_docs: false})
+      iex> updated.config
+      %{include_private: true, include_docs: false}
+  """
+  @spec with_config(t(), map()) :: t()
+  def with_config(%__MODULE__{} = context, new_config) when is_map(new_config) do
+    %{context | config: Map.merge(context.config, new_config)}
+  end
+
+  @doc """
+  Creates a new context with a different file path.
+
+  Used when processing multiple files in a project.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   file_path: "lib/users.ex"
+      ...> )
+      iex> new_context = ElixirOntologies.Builders.Context.with_file_path(context, "lib/accounts.ex")
+      iex> new_context.file_path
+      "lib/accounts.ex"
+  """
+  @spec with_file_path(t(), String.t()) :: t()
+  def with_file_path(%__MODULE__{} = context, file_path) when is_binary(file_path) do
+    %{context | file_path: file_path}
+  end
+
+  # ===========================================================================
+  # Config Helpers
+  # ===========================================================================
+
+  @doc """
+  Gets a configuration value from the context.
+
+  Returns the value if present, otherwise returns the provided default.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_private: false}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.get_config(context, :include_private, true)
+      false
+      iex> ElixirOntologies.Builders.Context.get_config(context, :include_docs, true)
+      true
+  """
+  @spec get_config(t(), atom(), term()) :: term()
+  def get_config(%__MODULE__{config: config}, key, default \\ nil) do
+    Map.get(config, key, default)
+  end
+
+  @doc """
+  Gets a metadata value from the context.
+
+  Returns the value if present, otherwise returns the provided default.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   metadata: %{version: "1.0.0"}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.get_metadata(context, :version)
+      "1.0.0"
+      iex> ElixirOntologies.Builders.Context.get_metadata(context, :author, "unknown")
+      "unknown"
+  """
+  @spec get_metadata(t(), atom(), term()) :: term()
+  def get_metadata(%__MODULE__{metadata: metadata}, key, default \\ nil) do
+    Map.get(metadata, key, default)
+  end
+
+  # ===========================================================================
+  # Validation
+  # ===========================================================================
+
+  @doc """
+  Validates that a context is properly configured for building.
+
+  Returns `:ok` if valid, `{:error, reason}` otherwise.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(base_iri: "https://example.org/code#")
+      iex> ElixirOntologies.Builders.Context.validate(context)
+      :ok
+
+      iex> context = %ElixirOntologies.Builders.Context{base_iri: nil}
+      iex> ElixirOntologies.Builders.Context.validate(context)
+      {:error, :missing_base_iri}
+  """
+  @spec validate(t()) :: :ok | {:error, atom()}
+  def validate(%__MODULE__{base_iri: nil}), do: {:error, :missing_base_iri}
+  def validate(%__MODULE__{base_iri: base_iri}) when is_binary(base_iri) or is_struct(base_iri, RDF.IRI), do: :ok
+  def validate(_), do: {:error, :invalid_context}
+end
