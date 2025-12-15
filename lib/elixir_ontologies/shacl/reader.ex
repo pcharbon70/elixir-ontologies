@@ -92,9 +92,10 @@ defmodule ElixirOntologies.SHACL.Reader do
     end
   end
 
-  # Recursively parse inline blank node shapes referenced in logical operators
+  # Recursively parse inline shapes referenced in logical operators
   # This handles cases like sh:and ( [ sh:property [...] ] [ sh:property [...] ] )
   # where the shapes are defined inline without explicit sh:NodeShape typing
+  # Also handles named shape references (IRIs) that aren't explicitly typed as sh:NodeShape
   @spec parse_inline_shapes(RDF.Graph.t(), [NodeShape.t()], keyword()) ::
           {:ok, [NodeShape.t()]} | {:error, term()}
   defp parse_inline_shapes(graph, shapes, opts) do
@@ -110,19 +111,20 @@ defmodule ElixirOntologies.SHACL.Reader do
       |> Enum.flat_map(&collect_logical_shape_refs/1)
       |> MapSet.new()
 
-    # Find blank nodes that haven't been parsed yet
-    new_blank_nodes =
+    # Find referenced shapes (blank nodes or IRIs) that haven't been parsed yet
+    new_shape_refs =
       referenced_shape_ids
       |> Enum.filter(fn ref ->
-        match?(%RDF.BlankNode{}, ref) && !MapSet.member?(parsed_ids, ref)
+        (match?(%RDF.BlankNode{}, ref) || match?(%RDF.IRI{}, ref)) &&
+        !MapSet.member?(parsed_ids, ref)
       end)
 
-    # If no new blank nodes to parse, we're done
-    if Enum.empty?(new_blank_nodes) do
+    # If no new shapes to parse, we're done
+    if Enum.empty?(new_shape_refs) do
       {:ok, shapes}
     else
-      # Parse the new blank node shapes
-      case parse_all_node_shapes(graph, new_blank_nodes, opts) do
+      # Parse the new referenced shapes (both blank nodes and IRIs)
+      case parse_all_node_shapes(graph, new_shape_refs, opts) do
         {:ok, new_shapes} ->
           # Update parsed IDs and shapes, then recurse
           updated_ids = MapSet.union(parsed_ids, MapSet.new(Enum.map(new_shapes, & &1.id)))

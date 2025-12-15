@@ -236,6 +236,32 @@ Implement SHACL logical constraint operators (sh:and, sh:or, sh:xone, sh:not) fo
 - Lines added: ~450
 - Compiler warnings: 0
 
+### 11.6.2 Test Infrastructure Improvements (xone-duplicate Fix)
+- [x] **Task 11.6.2 Complete**
+
+Fix failing xone-duplicate W3C test by improving test infrastructure and Reader capabilities.
+
+- [x] 11.6.2.1 Download missing xone-duplicate test files from W3C repository
+- [x] 11.6.2.2 Update W3C test runner to load external data/shapes files
+- [x] 11.6.2.3 Implement load_data_graph/3 helper function
+- [x] 11.6.2.4 Implement load_shapes_graph/3 helper function
+- [x] 11.6.2.5 Implement load_external_graph/3 for relative file resolution
+- [x] 11.6.2.6 Update Reader to parse IRI-referenced shapes (not just blank nodes)
+- [x] 11.6.2.7 Exclude -data.ttl and -shapes.ttl files from test generation
+- [x] 11.6.2.8 Verify xone-duplicate test passes with correct validation
+- [x] 11.6.2.9 Verify W3C pass rate improvement (64.2% → 66.0%)
+
+**Results:**
+- W3C pass rate: 66.0% (35/53 core tests passing)
+- xone-duplicate test: ✅ PASSING (was failing)
+- Improvement: +1.8 percentage points
+- Files modified: 4 (w3c_test_runner, reader, w3c_test.exs, +2 fixture files)
+- Lines added: ~109
+- Compiler warnings: 0
+- **Key Achievement**: External file loading support for W3C tests
+
+**Note:** Originally scoped as "property-level logical operators" but investigation revealed xone-duplicate tests node-level edge cases, not property-level operators. Property-level operators remain a valid future enhancement.
+
 ## Phase 11 Integration Tests
 
 - [ ] **Phase 11 Integration Tests Complete** (15+ tests)

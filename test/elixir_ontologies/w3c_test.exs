@@ -47,9 +47,11 @@ defmodule ElixirOntologies.W3CTest do
     "pre-binding-001"
   ]
 
-  # Get all test files
+  # Get all test files (exclude -data.ttl and -shapes.ttl files which are referenced by test manifests)
   @core_test_files Path.wildcard(Path.join(@core_dir, "*.ttl"))
+                   |> Enum.reject(fn file -> String.ends_with?(file, "-data.ttl") or String.ends_with?(file, "-shapes.ttl") end)
   @sparql_test_files Path.wildcard(Path.join(@sparql_dir, "*.ttl"))
+                     |> Enum.reject(fn file -> String.ends_with?(file, "-data.ttl") or String.ends_with?(file, "-shapes.ttl") end)
 
   # Statistics tracking
   @total_core_tests length(@core_test_files)
