@@ -200,6 +200,39 @@ defmodule ElixirOntologies.IRI do
   end
 
   @doc """
+  Generates an IRI for a type definition.
+
+  Types are identified by their module, name, and arity.
+
+  ## Parameters
+
+  - `base_iri` - The base IRI
+  - `module` - The module name
+  - `type_name` - The type name
+  - `arity` - The type arity (number of type parameters, must be non-negative)
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.for_type("https://example.org/code#", "MyApp.Types", "user_t", 0)
+      ~I<https://example.org/code#MyApp.Types/type/user_t/0>
+
+      iex> ElixirOntologies.IRI.for_type("https://example.org/code#", "MyApp", "my_list", 1)
+      ~I<https://example.org/code#MyApp/type/my_list/1>
+  """
+  @spec for_type(
+          String.t() | RDF.IRI.t(),
+          String.t() | atom(),
+          String.t() | atom(),
+          non_neg_integer()
+        ) :: RDF.IRI.t()
+  def for_type(base_iri, module, type_name, arity)
+      when is_integer(arity) and arity >= 0 do
+    mod = module |> module_to_string() |> escape_name()
+    type = escape_name(type_name)
+    build_iri(base_iri, "#{mod}/type/#{type}/#{arity}")
+  end
+
+  @doc """
   Generates an IRI for a source file.
 
   ## Parameters
