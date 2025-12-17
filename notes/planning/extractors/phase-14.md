@@ -21,16 +21,18 @@ Note: Intersection types are not part of Elixir's type system (they exist in Typ
 - [x] 14.1.1.6 Add union type support to existing tests (7 tests for union types + 3 new position tracking tests)
 
 ### 14.1.2 Parameterized Types (Generics)
-- [ ] **Task 14.1.2 Pending**
+- [x] **Task 14.1.2 Complete**
 
 Extract parameterized types like `list(integer())`, `map(atom(), binary())`, and user-defined generic types.
 
-- [ ] 14.1.2.1 Implement `extract_parameterized_type/1` for built-in parameterized types
-- [ ] 14.1.2.2 Handle `list(t)`, `map(k, v)`, `keyword(t)`, `tuple()` patterns
-- [ ] 14.1.2.3 Extract type parameters and their positions
-- [ ] 14.1.2.4 Support nested parameterized types (e.g., `list(map(atom(), integer()))`)
-- [ ] 14.1.2.5 Create `%TypeExpression{kind: :parameterized, base_type: ..., parameters: [...]}` struct
-- [ ] 14.1.2.6 Add parameterized type tests
+Note: Rather than a separate `kind: :parameterized`, parameterized types use `kind: :basic` or `kind: :remote` with `parameterized: true` in metadata, which is more consistent with Elixir's type system.
+
+- [x] 14.1.2.1 Implement `extract_parameterized_type/1` for built-in parameterized types (existing, enhanced with position tracking)
+- [x] 14.1.2.2 Handle `list(t)`, `map(k, v)`, `keyword(t)`, `tuple()` patterns (tested)
+- [x] 14.1.2.3 Extract type parameters and their positions (via `param_position` in metadata, `param_count` in parent)
+- [x] 14.1.2.4 Support nested parameterized types (e.g., `list(map(atom(), integer()))`) (tested)
+- [x] 14.1.2.5 Create `%TypeExpression{kind: :parameterized, base_type: ..., parameters: [...]}` struct (using `kind: :basic` with `parameterized: true` instead)
+- [x] 14.1.2.6 Add parameterized type tests (10 new tests + `parameterized?/1` helper)
 
 ### 14.1.3 Remote Types
 - [ ] **Task 14.1.3 Pending**

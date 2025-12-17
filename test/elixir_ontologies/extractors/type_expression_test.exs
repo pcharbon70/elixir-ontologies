@@ -57,7 +57,74 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert result.kind == :basic
       assert result.name == :list
       assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 1
       assert length(result.elements) == 1
+    end
+
+    test "parameterized type parameters have position tracking" do
+      {:ok, result} = TypeExpression.parse({:list, [], [{:integer, [], []}]})
+      assert result.metadata.param_count == 1
+      param = hd(result.elements)
+      assert param.metadata.param_position == 0
+    end
+
+    test "parses map(key, value) with two parameters" do
+      {:ok, result} = TypeExpression.parse({:map, [], [{:atom, [], []}, {:term, [], []}]})
+      assert result.kind == :basic
+      assert result.name == :map
+      assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 2
+      assert length(result.elements) == 2
+
+      [key_param, value_param] = result.elements
+      assert key_param.metadata.param_position == 0
+      assert key_param.name == :atom
+      assert value_param.metadata.param_position == 1
+      assert value_param.name == :term
+    end
+
+    test "parses keyword(value) parameterized type" do
+      {:ok, result} = TypeExpression.parse({:keyword, [], [{:binary, [], []}]})
+      assert result.kind == :basic
+      assert result.name == :keyword
+      assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 1
+      param = hd(result.elements)
+      assert param.name == :binary
+      assert param.metadata.param_position == 0
+    end
+
+    test "parses nested parameterized types list(map(k, v))" do
+      # list(map(atom(), integer()))
+      inner_map = {:map, [], [{:atom, [], []}, {:integer, [], []}]}
+      {:ok, result} = TypeExpression.parse({:list, [], [inner_map]})
+
+      assert result.kind == :basic
+      assert result.name == :list
+      assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 1
+
+      # Check the inner map
+      inner = hd(result.elements)
+      assert inner.kind == :basic
+      assert inner.name == :map
+      assert inner.metadata.parameterized == true
+      assert inner.metadata.param_count == 2
+      assert inner.metadata.param_position == 0
+
+      # Check inner map parameters
+      [key, value] = inner.elements
+      assert key.name == :atom
+      assert key.metadata.param_position == 0
+      assert value.name == :integer
+      assert value.metadata.param_position == 1
+    end
+
+    test "non-parameterized basic type has no param_count" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert result.kind == :basic
+      refute Map.has_key?(result.metadata, :parameterized)
+      refute Map.has_key?(result.metadata, :param_count)
     end
   end
 
@@ -365,7 +432,36 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert result.kind == :remote
       assert result.name == :t
       assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 1
       assert length(result.elements) == 1
+      param = hd(result.elements)
+      assert param.metadata.param_position == 0
+    end
+
+    test "non-parameterized remote type has parameterized: false" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.metadata.parameterized == false
+      refute Map.has_key?(result.metadata, :param_count)
+    end
+
+    test "parses remote type with multiple parameters" do
+      # Map.t(key, value) equivalent
+      ast =
+        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [],
+         [{:key, [], nil}, {:value, [], nil}]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :remote
+      assert result.name == :t
+      assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 2
+
+      [key_param, value_param] = result.elements
+      assert key_param.name == :key
+      assert key_param.metadata.param_position == 0
+      assert value_param.name == :value
+      assert value_param.metadata.param_position == 1
     end
   end
 
@@ -463,6 +559,22 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
     test "variable?/1" do
       {:ok, result} = TypeExpression.parse({:a, [], nil})
       assert TypeExpression.variable?(result)
+    end
+
+    test "parameterized?/1 returns true for parameterized basic type" do
+      {:ok, result} = TypeExpression.parse({:list, [], [{:integer, [], []}]})
+      assert TypeExpression.parameterized?(result)
+    end
+
+    test "parameterized?/1 returns true for parameterized remote type" do
+      ast = {{:., [], [{:__aliases__, [], [:Enumerable]}, :t]}, [], [{:element, [], nil}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.parameterized?(result)
+    end
+
+    test "parameterized?/1 returns false for non-parameterized types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      refute TypeExpression.parameterized?(result)
     end
 
     test "literal?/1" do

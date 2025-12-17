@@ -368,13 +368,32 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   # Remote type with parameters: Module.type(args)
   defp do_parse({{:., _, [{:__aliases__, _, module_parts}, type_name]}, _, args} = ast)
        when is_list(args) do
+    parsed_params =
+      if args == [] do
+        nil
+      else
+        args
+        |> Enum.with_index()
+        |> Enum.map(fn {arg, index} ->
+          parsed = do_parse(arg)
+          %{parsed | metadata: Map.put(parsed.metadata, :param_position, index)}
+        end)
+      end
+
+    metadata =
+      if args == [] do
+        %{parameterized: false}
+      else
+        %{parameterized: true, param_count: length(args)}
+      end
+
     %__MODULE__{
       kind: :remote,
       name: type_name,
       module: module_parts,
-      elements: if(args == [], do: nil, else: Enum.map(args, &do_parse/1)),
+      elements: parsed_params,
       ast: ast,
-      metadata: %{parameterized: args != []}
+      metadata: metadata
     }
   end
 
@@ -395,12 +414,20 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   # Parameterized basic type: list(element), keyword(value)
   defp do_parse({name, _, args} = ast)
        when name in @basic_types and is_list(args) and args != [] do
+    parsed_params =
+      args
+      |> Enum.with_index()
+      |> Enum.map(fn {arg, index} ->
+        parsed = do_parse(arg)
+        %{parsed | metadata: Map.put(parsed.metadata, :param_position, index)}
+      end)
+
     %__MODULE__{
       kind: :basic,
       name: name,
-      elements: Enum.map(args, &do_parse/1),
+      elements: parsed_params,
       ast: ast,
-      metadata: %{parameterized: true}
+      metadata: %{parameterized: true, param_count: length(args)}
     }
   end
 
@@ -607,6 +634,23 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   @spec literal?(t()) :: boolean()
   def literal?(%__MODULE__{kind: :literal}), do: true
   def literal?(_), do: false
+
+  @doc """
+  Returns true if the type expression is parameterized (has type parameters).
+
+  ## Examples
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:list, [], [{:integer, [], []}]})
+      iex> ElixirOntologies.Extractors.TypeExpression.parameterized?(result)
+      true
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:atom, [], []})
+      iex> ElixirOntologies.Extractors.TypeExpression.parameterized?(result)
+      false
+  """
+  @spec parameterized?(t()) :: boolean()
+  def parameterized?(%__MODULE__{metadata: %{parameterized: true}}), do: true
+  def parameterized?(_), do: false
 
   @doc """
   Returns the list of known basic type names.
