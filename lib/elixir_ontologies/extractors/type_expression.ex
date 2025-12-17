@@ -205,9 +205,17 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   defp do_parse({:|, _, [_left, _right]} = ast) do
     elements = flatten_union(ast)
 
+    parsed_elements =
+      elements
+      |> Enum.with_index()
+      |> Enum.map(fn {element, index} ->
+        parsed = do_parse(element)
+        %{parsed | metadata: Map.put(parsed.metadata, :union_position, index)}
+      end)
+
     %__MODULE__{
       kind: :union,
-      elements: Enum.map(elements, &do_parse/1),
+      elements: parsed_elements,
       ast: ast,
       metadata: %{element_count: length(elements)}
     }

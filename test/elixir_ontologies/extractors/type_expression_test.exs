@@ -143,6 +143,45 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       {:ok, result} = TypeExpression.parse({:|, [], [:ok, :error]})
       assert result.metadata.element_count == 2
     end
+
+    test "union members have position tracking" do
+      {:ok, result} = TypeExpression.parse({:|, [], [:ok, :error]})
+      assert Enum.at(result.elements, 0).metadata.union_position == 0
+      assert Enum.at(result.elements, 1).metadata.union_position == 1
+    end
+
+    test "nested union members have correct positions after flattening" do
+      # :a | :b | :c | :d parsed as nested unions
+      {:ok, result} =
+        TypeExpression.parse({:|, [], [:a, {:|, [], [:b, {:|, [], [:c, :d]}]}]})
+
+      assert result.metadata.element_count == 4
+      assert Enum.at(result.elements, 0).metadata.union_position == 0
+      assert Enum.at(result.elements, 0).name == :a
+      assert Enum.at(result.elements, 1).metadata.union_position == 1
+      assert Enum.at(result.elements, 1).name == :b
+      assert Enum.at(result.elements, 2).metadata.union_position == 2
+      assert Enum.at(result.elements, 2).name == :c
+      assert Enum.at(result.elements, 3).metadata.union_position == 3
+      assert Enum.at(result.elements, 3).name == :d
+    end
+
+    test "union with 5+ members preserves all positions" do
+      # Build a deeply nested union: :a | :b | :c | :d | :e
+      union =
+        {:|, [],
+         [
+           :a,
+           {:|, [], [:b, {:|, [], [:c, {:|, [], [:d, :e]}]}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(union)
+      assert result.metadata.element_count == 5
+
+      Enum.each(0..4, fn i ->
+        assert Enum.at(result.elements, i).metadata.union_position == i
+      end)
+    end
   end
 
   # ===========================================================================

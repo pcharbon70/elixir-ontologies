@@ -7,16 +7,18 @@ This phase completes the type system extraction and building capabilities. While
 This section enhances the TypeExpression extractor to handle all type expression forms defined in the elixir-structure.ttl ontology, including composite types, parameterized types, and special forms.
 
 ### 14.1.1 Union and Intersection Types
-- [ ] **Task 14.1.1 Pending**
+- [x] **Task 14.1.1 Complete**
 
 Extract union types (|) and intersection type information from typespecs, representing the full type algebra.
 
-- [ ] 14.1.1.1 Update `lib/elixir_ontologies/extractors/type_expression.ex` to detect union type AST patterns
-- [ ] 14.1.1.2 Implement `extract_union_type/1` returning `%{type: :union, types: [...]}`
-- [ ] 14.1.1.3 Handle nested unions (flattening `a | b | c` into single union)
-- [ ] 14.1.1.4 Extract type positions for each union member
-- [ ] 14.1.1.5 Create `%TypeExpression{kind: :union}` struct variant
-- [ ] 14.1.1.6 Add union type support to existing tests
+Note: Intersection types are not part of Elixir's type system (they exist in TypeScript and other languages). Only union types are implemented.
+
+- [x] 14.1.1.1 Update `lib/elixir_ontologies/extractors/type_expression.ex` to detect union type AST patterns
+- [x] 14.1.1.2 Implement `extract_union_type/1` returning `%{type: :union, types: [...]}` (via `do_parse/1` for `{:|, _, [left, right]}`)
+- [x] 14.1.1.3 Handle nested unions (flattening `a | b | c` into single union) (via `flatten_union/1`)
+- [x] 14.1.1.4 Extract type positions for each union member (via `union_position` in metadata)
+- [x] 14.1.1.5 Create `%TypeExpression{kind: :union}` struct variant
+- [x] 14.1.1.6 Add union type support to existing tests (7 tests for union types + 3 new position tracking tests)
 
 ### 14.1.2 Parameterized Types (Generics)
 - [ ] **Task 14.1.2 Pending**
