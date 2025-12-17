@@ -79,7 +79,8 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
   """
 
   alias ElixirOntologies.Analyzer.{Parser, Git, Project}
-  alias ElixirOntologies.{Config, Graph}
+  alias ElixirOntologies.{Config, Graph, Pipeline}
+  alias ElixirOntologies.Builders.Context
   alias ElixirOntologies.Extractors
 
   require Logger
@@ -381,6 +382,7 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
   # Extract content from a single module
   defp extract_module_content({:defmodule, _, [alias_ast, [do: body]]}, _context, _config) do
     module_name = extract_module_name(alias_ast)
+    module_name_list = extract_module_name_list(alias_ast)
 
     # Run all extractors on the module body
     %ModuleAnalysis{
@@ -389,7 +391,7 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
         safe_extract(fn ->
           Extractors.Module.extract({:defmodule, [], [alias_ast, [do: body]]})
         end),
-      functions: extract_functions(body),
+      functions: extract_functions(body, module_name_list),
       types: extract_types(body),
       specs: extract_specs(body),
       protocols: extract_protocols(body),
@@ -409,6 +411,14 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
   defp extract_module_name(atom) when is_atom(atom), do: atom
   defp extract_module_name(_), do: :UnknownModule
 
+  # Extract module name as list of atoms for Function extractor
+  defp extract_module_name_list({:__aliases__, _, name_parts}) do
+    name_parts
+  end
+
+  defp extract_module_name_list(atom) when is_atom(atom), do: [atom]
+  defp extract_module_name_list(_), do: [:UnknownModule]
+
   # ===========================================================================
   # Private - Extractor Composition
   # ===========================================================================
@@ -416,10 +426,10 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
   # Note: Extractors work on individual nodes, not module bodies
   # We walk the AST to find relevant nodes and extract from each
 
-  defp extract_functions(body) do
+  defp extract_functions(body, module_name_list) do
     body
     |> find_function_nodes()
-    |> Enum.map(&safe_extract(fn -> Extractors.Function.extract(&1) end))
+    |> Enum.map(&safe_extract(fn -> Extractors.Function.extract(&1, module: module_name_list) end))
     |> Enum.reject(&is_nil/1)
   end
 
@@ -551,15 +561,23 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
   # Private - Graph Building
   # ===========================================================================
 
-  defp build_graph(modules, _context, _config) do
-    # For now, return an empty graph with module count in metadata
-    # Full graph building will be implemented after basic structure is working
-    graph = Graph.new()
+  defp build_graph(modules, context, config) do
+    # Build RDF graph using the Pipeline integration
+    # Use relative_path from Git.SourceFile if available
+    file_path = case context.git do
+      %{relative_path: path} -> path
+      _ -> nil
+    end
 
-    # Add basic module metadata
-    # Use modules variable
-    _ = length(modules)
+    builder_context = Context.new(
+      base_iri: config.base_iri,
+      file_path: file_path,
+      config: %{
+        include_source_text: config.include_source_text,
+        include_git_info: config.include_git_info
+      }
+    )
 
-    graph
+    Pipeline.build_graph_for_modules(modules, builder_context)
   end
 end
