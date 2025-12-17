@@ -463,6 +463,77 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert value_param.name == :value
       assert value_param.metadata.param_position == 1
     end
+
+    test "non-parameterized remote type has arity 0" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.metadata.arity == 0
+    end
+
+    test "parameterized remote type has arity equal to param_count" do
+      ast = {{:., [], [{:__aliases__, [], [:Enumerable]}, :t]}, [], [{:element, [], nil}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.metadata.arity == 1
+      assert result.metadata.arity == result.metadata.param_count
+    end
+
+    test "multi-param remote type has correct arity" do
+      ast =
+        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [],
+         [{:key, [], nil}, {:value, [], nil}]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.metadata.arity == 2
+    end
+
+    test "module_iri/1 returns IRI for simple module" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.module_iri(result) == "Elixir.String"
+    end
+
+    test "module_iri/1 returns IRI for nested module" do
+      ast = {{:., [], [{:__aliases__, [], [:MyApp, :Accounts, :User]}, :t]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.module_iri(result) == "Elixir.MyApp.Accounts.User"
+    end
+
+    test "module_iri/1 returns nil for non-remote types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.module_iri(result) == nil
+    end
+
+    test "type_iri/1 returns IRI for non-parameterized type" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.type_iri(result) == "Elixir.String#t/0"
+    end
+
+    test "type_iri/1 returns IRI with arity for parameterized type" do
+      ast = {{:., [], [{:__aliases__, [], [:Enumerable]}, :t]}, [], [{:element, [], nil}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.type_iri(result) == "Elixir.Enumerable#t/1"
+    end
+
+    test "type_iri/1 handles multi-param types" do
+      ast =
+        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [],
+         [{:key, [], nil}, {:value, [], nil}]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.type_iri(result) == "Elixir.Map#t/2"
+    end
+
+    test "type_iri/1 handles nested module with non-t type" do
+      ast = {{:., [], [{:__aliases__, [], [:GenServer]}, :on_start]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.type_iri(result) == "Elixir.GenServer#on_start/0"
+    end
+
+    test "type_iri/1 returns nil for non-remote types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.type_iri(result) == nil
+    end
   end
 
   # ===========================================================================

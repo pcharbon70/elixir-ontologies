@@ -35,16 +35,18 @@ Note: Rather than a separate `kind: :parameterized`, parameterized types use `ki
 - [x] 14.1.2.6 Add parameterized type tests (10 new tests + `parameterized?/1` helper)
 
 ### 14.1.3 Remote Types
-- [ ] **Task 14.1.3 Pending**
+- [x] **Task 14.1.3 Complete**
 
 Extract remote type references like `String.t()`, `Enum.t()`, and qualified type names from external modules.
 
-- [ ] 14.1.3.1 Implement `extract_remote_type/1` detecting `Module.type()` AST pattern
-- [ ] 14.1.3.2 Extract module reference as IRI-compatible format
-- [ ] 14.1.3.3 Extract type name and arity
-- [ ] 14.1.3.4 Handle parameterized remote types (e.g., `GenServer.on_start()`)
-- [ ] 14.1.3.5 Create `%TypeExpression{kind: :remote, module: ..., type_name: ..., arity: ...}` struct
-- [ ] 14.1.3.6 Add remote type tests
+Note: Remote type detection was already implemented. This task enhanced it with arity tracking and IRI-compatible format helpers for RDF generation.
+
+- [x] 14.1.3.1 Implement `extract_remote_type/1` detecting `Module.type()` AST pattern (existing)
+- [x] 14.1.3.2 Extract module reference as IRI-compatible format (via `module_iri/1` helper)
+- [x] 14.1.3.3 Extract type name and arity (arity in metadata)
+- [x] 14.1.3.4 Handle parameterized remote types (e.g., `GenServer.on_start()`) (existing with param_position from 14.1.2)
+- [x] 14.1.3.5 Create `%TypeExpression{kind: :remote, module: ..., type_name: ..., arity: ...}` struct (arity now in metadata)
+- [x] 14.1.3.6 Add remote type tests (11 new tests)
 
 ### 14.1.4 Type Variables and Constraints
 - [ ] **Task 14.1.4 Pending**

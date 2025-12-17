@@ -382,9 +382,9 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
 
     metadata =
       if args == [] do
-        %{parameterized: false}
+        %{parameterized: false, arity: 0}
       else
-        %{parameterized: true, param_count: length(args)}
+        %{parameterized: true, param_count: length(args), arity: length(args)}
       end
 
     %__MODULE__{
@@ -590,6 +590,58 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   @spec remote?(t()) :: boolean()
   def remote?(%__MODULE__{kind: :remote}), do: true
   def remote?(_), do: false
+
+  @doc """
+  Returns the module as an IRI-compatible string.
+
+  Returns the module path in the format used by Elixir's module system,
+  with "Elixir." prefix and dot-separated segments.
+
+  ## Examples
+
+      iex> ast = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> ElixirOntologies.Extractors.TypeExpression.module_iri(result)
+      "Elixir.String"
+
+      iex> ast = {{:., [], [{:__aliases__, [], [:MyApp, :Accounts, :User]}, :t]}, [], []}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> ElixirOntologies.Extractors.TypeExpression.module_iri(result)
+      "Elixir.MyApp.Accounts.User"
+  """
+  @spec module_iri(t()) :: String.t() | nil
+  def module_iri(%__MODULE__{kind: :remote, module: module_parts}) when is_list(module_parts) do
+    "Elixir." <> Enum.join(module_parts, ".")
+  end
+
+  def module_iri(_), do: nil
+
+  @doc """
+  Returns the full type reference as an IRI-compatible string.
+
+  The format is `Elixir.Module.Path#type_name/arity`, which uniquely
+  identifies a type definition within Elixir's module system.
+
+  ## Examples
+
+      iex> ast = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> ElixirOntologies.Extractors.TypeExpression.type_iri(result)
+      "Elixir.String#t/0"
+
+      iex> ast = {{:., [], [{:__aliases__, [], [:Enumerable]}, :t]}, [], [{:element, [], nil}]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> ElixirOntologies.Extractors.TypeExpression.type_iri(result)
+      "Elixir.Enumerable#t/1"
+  """
+  @spec type_iri(t()) :: String.t() | nil
+  def type_iri(%__MODULE__{kind: :remote, module: module_parts, name: type_name, metadata: metadata})
+      when is_list(module_parts) do
+    arity = Map.get(metadata, :arity, 0)
+    "Elixir." <> Enum.join(module_parts, ".") <> "##{type_name}/#{arity}"
+  end
+
+  def type_iri(_), do: nil
 
   @doc """
   Returns true if the type expression is a struct type.
