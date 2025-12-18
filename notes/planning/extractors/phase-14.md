@@ -161,16 +161,18 @@ Note: The ontology uses `structure:unionOf` property (not `hasUnionMember`). Imp
 - [x] 14.3.1.6 Add union type builder tests (12 new tests covering union, basic, tuple, function, variable types)
 
 ### 14.3.2 Parameterized Type Builder
-- [ ] **Task 14.3.2 Pending**
+- [x] **Task 14.3.2 Complete**
 
 Generate RDF triples for parameterized types using structure:ParameterizedType class.
 
-- [ ] 14.3.2.1 Implement `build_parameterized_type/3` generating type IRI
-- [ ] 14.3.2.2 Generate `rdf:type structure:ParameterizedType` triple
-- [ ] 14.3.2.3 Generate `structure:hasBaseType` linking to base type
-- [ ] 14.3.2.4 Generate `structure:hasTypeParameter` triples with ordering
-- [ ] 14.3.2.5 Handle nested parameterized types recursively
-- [ ] 14.3.2.6 Add parameterized type builder tests
+Note: The ontology does not define `hasBaseType` or `hasTypeParameter` properties. Implementation uses `typeName` for base type and `elementType` for type parameters, matching the pattern used by ListType. This was already implemented in Phase 14.3.1 via `build_basic_type/3`.
+
+- [x] 14.3.2.1 Implement `build_parameterized_type/3` generating type IRI (handled by `build_basic_type/3` when elements present)
+- [x] 14.3.2.2 Generate `rdf:type structure:ParameterizedType` triple (line 466-467)
+- [x] 14.3.2.3 Generate `structure:hasBaseType` linking to base type (using `typeName` instead - property doesn't exist)
+- [x] 14.3.2.4 Generate `structure:hasTypeParameter` triples with ordering (using `elementType` - ordering not available)
+- [x] 14.3.2.5 Handle nested parameterized types recursively (works via recursive building)
+- [x] 14.3.2.6 Add parameterized type builder tests (5 tests: basic, name, keyword, nested, deeply nested)
 
 ### 14.3.3 Remote Type Builder
 - [ ] **Task 14.3.3 Pending**

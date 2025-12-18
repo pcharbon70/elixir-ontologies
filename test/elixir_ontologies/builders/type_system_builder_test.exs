@@ -596,6 +596,106 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
 
       assert has_element
     end
+
+    test "builds parameterized type with type name" do
+      context = build_test_context()
+      # AST for `list(integer())`
+      param_ast = {:list, [], [[{:integer, [], []}]]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(param_ast, context)
+
+      # Verify type name is set (the base type name)
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "list"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds keyword parameterized type" do
+      context = build_test_context()
+      # AST for `keyword(integer())`
+      # This is a single-parameter parameterized type
+      param_ast = {:keyword, [], [{:integer, [], []}]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(param_ast, context)
+
+      # Verify parameterized type class
+      assert {node, RDF.type(), Structure.ParameterizedType} in triples
+
+      # Verify type name is keyword
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "keyword"
+
+               _ ->
+                 false
+             end)
+
+      # Verify element type link exists
+      has_element =
+        Enum.any?(triples, fn
+          {^node, pred, _} -> pred == Structure.elementType()
+          _ -> false
+        end)
+
+      assert has_element
+    end
+
+    test "builds nested parameterized type" do
+      context = build_test_context()
+      # AST for `list(list(integer()))`
+      nested_ast = {:list, [], [[{:list, [], [[{:integer, [], []}]]}]]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(nested_ast, context)
+
+      # Verify outer parameterized type
+      assert {node, RDF.type(), Structure.ParameterizedType} in triples
+
+      # Verify we have two ParameterizedType instances (outer and inner list)
+      param_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.ParameterizedType
+          _ -> false
+        end)
+
+      assert param_count == 2
+
+      # Verify inner basic type exists (integer)
+      basic_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.BasicType
+          _ -> false
+        end)
+
+      assert basic_count == 1
+    end
+
+    test "builds deeply nested parameterized type" do
+      context = build_test_context()
+      # AST for `list(list(list(atom())))`
+      deep_ast = {:list, [], [[{:list, [], [[{:list, [], [[{:atom, [], []}]]}]]}]]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(deep_ast, context)
+
+      # Verify outer parameterized type
+      assert {node, RDF.type(), Structure.ParameterizedType} in triples
+
+      # Verify we have 3 ParameterizedType instances (3 levels of list)
+      param_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.ParameterizedType
+          _ -> false
+        end)
+
+      assert param_count == 3
+    end
   end
 
   describe "build_type_expression/2 - tuple types" do
