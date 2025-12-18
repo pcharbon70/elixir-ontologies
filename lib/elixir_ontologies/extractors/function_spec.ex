@@ -45,15 +45,18 @@ defmodule ElixirOntologies.Extractors.FunctionSpec do
   - `:parameter_types` - List of parameter type expressions
   - `:return_type` - The return type expression
   - `:type_constraints` - Map of type variable constraints from `when` clause
+  - `:spec_type` - Type of spec: `:spec`, `:callback`, or `:macrocallback`
   - `:location` - Source location if available
   - `:metadata` - Additional information
   """
+  @type spec_type :: :spec | :callback | :macrocallback
   @type t :: %__MODULE__{
           name: atom(),
           arity: non_neg_integer(),
           parameter_types: [Macro.t()],
           return_type: Macro.t(),
           type_constraints: %{atom() => Macro.t()},
+          spec_type: spec_type(),
           location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
           metadata: map()
         }
@@ -64,6 +67,7 @@ defmodule ElixirOntologies.Extractors.FunctionSpec do
     :return_type,
     parameter_types: [],
     type_constraints: %{},
+    spec_type: :spec,
     location: nil,
     metadata: %{}
   ]
@@ -92,6 +96,71 @@ defmodule ElixirOntologies.Extractors.FunctionSpec do
   @spec spec?(Macro.t()) :: boolean()
   def spec?({:@, _, [{:spec, _, _}]}), do: true
   def spec?(_), do: false
+
+  @doc """
+  Checks if an AST node represents a callback spec.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.FunctionSpec.callback?({:@, [], [{:callback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]})
+      true
+
+      iex> ElixirOntologies.Extractors.FunctionSpec.callback?({:@, [], [{:spec, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]})
+      false
+  """
+  @spec callback?(Macro.t()) :: boolean()
+  def callback?({:@, _, [{:callback, _, _}]}), do: true
+  def callback?(_), do: false
+
+  @doc """
+  Checks if an AST node represents a macrocallback spec.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.FunctionSpec.macrocallback?({:@, [], [{:macrocallback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]})
+      true
+
+      iex> ElixirOntologies.Extractors.FunctionSpec.macrocallback?({:@, [], [{:callback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]})
+      false
+  """
+  @spec macrocallback?(Macro.t()) :: boolean()
+  def macrocallback?({:@, _, [{:macrocallback, _, _}]}), do: true
+  def macrocallback?(_), do: false
+
+  @doc """
+  Checks if an AST node represents an optional_callbacks declaration.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.FunctionSpec.optional_callbacks?({:@, [], [{:optional_callbacks, [], [[foo: 1, bar: 2]]}]})
+      true
+
+      iex> ElixirOntologies.Extractors.FunctionSpec.optional_callbacks?({:@, [], [{:callback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]})
+      false
+  """
+  @spec optional_callbacks?(Macro.t()) :: boolean()
+  def optional_callbacks?({:@, _, [{:optional_callbacks, _, _}]}), do: true
+  def optional_callbacks?(_), do: false
+
+  @doc """
+  Checks if an AST node represents any spec-like attribute (@spec, @callback, @macrocallback).
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.FunctionSpec.any_spec?({:@, [], [{:spec, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]})
+      true
+
+      iex> ElixirOntologies.Extractors.FunctionSpec.any_spec?({:@, [], [{:callback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]})
+      true
+
+      iex> ElixirOntologies.Extractors.FunctionSpec.any_spec?({:@, [], [{:macrocallback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]})
+      true
+
+      iex> ElixirOntologies.Extractors.FunctionSpec.any_spec?({:@, [], [{:doc, [], ["docs"]}]})
+      false
+  """
+  @spec any_spec?(Macro.t()) :: boolean()
+  def any_spec?(node), do: spec?(node) or callback?(node) or macrocallback?(node)
 
   # ===========================================================================
   # Main Extraction
@@ -184,6 +253,114 @@ defmodule ElixirOntologies.Extractors.FunctionSpec do
     end
   end
 
+  # @callback name(...) :: return_type when constraints
+  def extract({:@, meta, [{:callback, _, [{:when, _, [spec_def, constraints]}]}]} = _node, _opts) do
+    case extract_spec_definition(spec_def) do
+      {:ok, name, param_types, return_type} ->
+        constraint_map = extract_constraints(constraints)
+        location = Helpers.extract_location({:@, meta, []})
+
+        {:ok,
+         %__MODULE__{
+           name: name,
+           arity: length(param_types),
+           parameter_types: param_types,
+           return_type: return_type,
+           type_constraints: constraint_map,
+           spec_type: :callback,
+           location: location,
+           metadata: %{
+             has_when_clause: true
+           }
+         }}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # @callback name(...) :: return_type
+  def extract({:@, meta, [{:callback, _, [{:"::", _, [func_call, return_type]}]}]} = _node, _opts) do
+    case extract_func_call(func_call) do
+      {:ok, name, param_types} ->
+        location = Helpers.extract_location({:@, meta, []})
+
+        {:ok,
+         %__MODULE__{
+           name: name,
+           arity: length(param_types),
+           parameter_types: param_types,
+           return_type: return_type,
+           type_constraints: %{},
+           spec_type: :callback,
+           location: location,
+           metadata: %{
+             has_when_clause: false
+           }
+         }}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # @macrocallback name(...) :: return_type when constraints
+  def extract(
+        {:@, meta, [{:macrocallback, _, [{:when, _, [spec_def, constraints]}]}]} = _node,
+        _opts
+      ) do
+    case extract_spec_definition(spec_def) do
+      {:ok, name, param_types, return_type} ->
+        constraint_map = extract_constraints(constraints)
+        location = Helpers.extract_location({:@, meta, []})
+
+        {:ok,
+         %__MODULE__{
+           name: name,
+           arity: length(param_types),
+           parameter_types: param_types,
+           return_type: return_type,
+           type_constraints: constraint_map,
+           spec_type: :macrocallback,
+           location: location,
+           metadata: %{
+             has_when_clause: true
+           }
+         }}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # @macrocallback name(...) :: return_type
+  def extract(
+        {:@, meta, [{:macrocallback, _, [{:"::", _, [func_call, return_type]}]}]} = _node,
+        _opts
+      ) do
+    case extract_func_call(func_call) do
+      {:ok, name, param_types} ->
+        location = Helpers.extract_location({:@, meta, []})
+
+        {:ok,
+         %__MODULE__{
+           name: name,
+           arity: length(param_types),
+           parameter_types: param_types,
+           return_type: return_type,
+           type_constraints: %{},
+           spec_type: :macrocallback,
+           location: location,
+           metadata: %{
+             has_when_clause: false
+           }
+         }}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   def extract(node, _opts) do
     {:error, Helpers.format_error("Not a function spec", node)}
   end
@@ -233,7 +410,7 @@ defmodule ElixirOntologies.Extractors.FunctionSpec do
 
   def extract_all({:__block__, _, statements}) when is_list(statements) do
     statements
-    |> Enum.filter(&spec?/1)
+    |> Enum.filter(&any_spec?/1)
     |> Enum.map(fn node ->
       case extract(node) do
         {:ok, result} -> result
@@ -244,9 +421,74 @@ defmodule ElixirOntologies.Extractors.FunctionSpec do
   end
 
   def extract_all(statement) do
-    if spec?(statement) do
+    if any_spec?(statement) do
       case extract(statement) do
         {:ok, result} -> [result]
+        {:error, _} -> []
+      end
+    else
+      []
+    end
+  end
+
+  @doc """
+  Extracts optional callbacks list from an @optional_callbacks declaration.
+
+  Returns `{:ok, [{name, arity}, ...]}` on success.
+
+  ## Examples
+
+      iex> ast = {:@, [], [{:optional_callbacks, [], [[foo: 1, bar: 2]]}]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.FunctionSpec.extract_optional_callbacks(ast)
+      iex> result
+      [foo: 1, bar: 2]
+
+      iex> ast = {:@, [], [{:spec, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      iex> ElixirOntologies.Extractors.FunctionSpec.extract_optional_callbacks(ast)
+      {:error, "Not an optional_callbacks declaration"}
+  """
+  @spec extract_optional_callbacks(Macro.t()) :: {:ok, keyword()} | {:error, String.t()}
+  def extract_optional_callbacks({:@, _, [{:optional_callbacks, _, [callbacks]}]})
+      when is_list(callbacks) do
+    {:ok, callbacks}
+  end
+
+  def extract_optional_callbacks(_) do
+    {:error, "Not an optional_callbacks declaration"}
+  end
+
+  @doc """
+  Extracts all optional_callbacks declarations from a module body.
+
+  Returns a flat list of all optional callback {name, arity} pairs.
+
+  ## Examples
+
+      iex> body = {:__block__, [], [
+      ...>   {:@, [], [{:optional_callbacks, [], [[foo: 1]]}]},
+      ...>   {:@, [], [{:optional_callbacks, [], [[bar: 2]]}]}
+      ...> ]}
+      iex> ElixirOntologies.Extractors.FunctionSpec.extract_all_optional_callbacks(body)
+      [foo: 1, bar: 2]
+  """
+  @spec extract_all_optional_callbacks(Macro.t()) :: keyword()
+  def extract_all_optional_callbacks(nil), do: []
+
+  def extract_all_optional_callbacks({:__block__, _, statements}) when is_list(statements) do
+    statements
+    |> Enum.filter(&optional_callbacks?/1)
+    |> Enum.flat_map(fn node ->
+      case extract_optional_callbacks(node) do
+        {:ok, callbacks} -> callbacks
+        {:error, _} -> []
+      end
+    end)
+  end
+
+  def extract_all_optional_callbacks(statement) do
+    if optional_callbacks?(statement) do
+      case extract_optional_callbacks(statement) do
+        {:ok, callbacks} -> callbacks
         {:error, _} -> []
       end
     else
