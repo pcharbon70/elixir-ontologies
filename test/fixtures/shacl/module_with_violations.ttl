@@ -1,0 +1,23 @@
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Module with invalid lowercase name (Violation 1)
+<http://example.org/badModule> a struct:Module ;
+    struct:moduleName "badModule" ;  # lowercase - violates pattern
+    core:sourceFile "/path/to/bad.ex" .
+
+# Function with arity > 255 (Violation 2)
+<http://example.org/badModule#bad_function/300> a struct:Function ;
+    struct:functionName "bad_function" ;
+    struct:arity 300 ;  # Exceeds maxInclusive 255
+    struct:belongsTo <http://example.org/badModule> ;
+    struct:hasClause <http://example.org/badModule#bad_function/300/clause/1> .
+
+<http://example.org/badModule#bad_function/300/clause/1> a struct:FunctionClause .
+
+# Module missing moduleName (Violation 3)
+<http://example.org/NoNameModule> a struct:Module ;
+    core:sourceFile "/path/to/noname.ex" .
+    # Missing required moduleName property

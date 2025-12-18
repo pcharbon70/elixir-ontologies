@@ -1,0 +1,17 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid macro definition
+# Tests:
+# - MacroShape: valid macro name and arity
+# - ModuleShape: containsMacro references Macro instances
+
+:dsl_module a struct:Module ;
+    struct:moduleName "MyApp.DSL"^^xsd:string ;
+    struct:containsMacro :dsl_defroute .
+
+:dsl_defroute a struct:Macro ;
+    struct:macroName "defroute"^^xsd:string ;
+    struct:macroArity "2"^^xsd:nonNegativeInteger ;
+    struct:belongsTo :dsl_module .

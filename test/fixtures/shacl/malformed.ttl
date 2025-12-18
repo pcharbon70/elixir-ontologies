@@ -1,0 +1,6 @@
+@prefix ex: <http://example.org/> .
+
+# This is intentionally malformed Turtle - missing closing bracket
+ex:BrokenShape a sh:NodeShape ;
+    sh:targetClass ex:Person
+    # Missing closing bracket and semicolon

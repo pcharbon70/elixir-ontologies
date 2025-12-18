@@ -7,121 +7,145 @@ This phase implements extractors for protocols, behaviours, and structs.
 This section extracts protocol definitions and implementations.
 
 ### 5.1.1 Protocol Definition Extractor
-- [ ] **Task 5.1.1 Complete**
+- [x] **Task 5.1.1 Complete**
 
 Extract defprotocol definitions.
 
-- [ ] 5.1.1.1 Create `lib/elixir_ontologies/extractors/protocol.ex`
-- [ ] 5.1.1.2 Detect `defprotocol` AST pattern
-- [ ] 5.1.1.3 Extract `protocolName`
-- [ ] 5.1.1.4 Extract protocol functions as `ProtocolFunction`
-- [ ] 5.1.1.5 Link via `definesProtocolFunction`
-- [ ] 5.1.1.6 Detect `@fallback_to_any` as `fallbackToAny`
-- [ ] 5.1.1.7 Write protocol definition tests (success: 8 tests)
+- [x] 5.1.1.1 Create `lib/elixir_ontologies/extractors/protocol.ex`
+- [x] 5.1.1.2 Detect `defprotocol` AST pattern
+- [x] 5.1.1.3 Extract `protocolName`
+- [x] 5.1.1.4 Extract protocol functions as `ProtocolFunction`
+- [x] 5.1.1.5 Link via `definesProtocolFunction`
+- [x] 5.1.1.6 Detect `@fallback_to_any` as `fallbackToAny`
+- [x] 5.1.1.7 Write protocol definition tests (success: 23 doctests + 18 unit tests)
 
 ### 5.1.2 Protocol Implementation Extractor
-- [ ] **Task 5.1.2 Complete**
+- [x] **Task 5.1.2 Complete**
 
 Extract defimpl definitions.
 
-- [ ] 5.1.2.1 Detect `defimpl` AST pattern
-- [ ] 5.1.2.2 Create `ProtocolImplementation` instance
-- [ ] 5.1.2.3 Link protocol via `implementsProtocol`
-- [ ] 5.1.2.4 Extract target type via `forDataType`
-- [ ] 5.1.2.5 Detect `@derive` as `DerivedImplementation`
-- [ ] 5.1.2.6 Detect `for: Any` as `AnyImplementation`
-- [ ] 5.1.2.7 Link struct derivations via `derivesProtocol`
-- [ ] 5.1.2.8 Write implementation tests (success: 10 tests)
+- [x] 5.1.2.1 Detect `defimpl` AST pattern
+- [x] 5.1.2.2 Create `ProtocolImplementation` instance
+- [x] 5.1.2.3 Link protocol via `implementsProtocol`
+- [x] 5.1.2.4 Extract target type via `forDataType`
+- [x] 5.1.2.5 Detect `@derive` as `DerivedImplementation`
+- [x] 5.1.2.6 Detect `for: Any` as `AnyImplementation`
+- [x] 5.1.2.7 Link struct derivations via `derivesProtocol`
+- [x] 5.1.2.8 Write implementation tests (success: 23 doctests + 42 unit tests)
 
 **Section 5.1 Unit Tests:**
-- [ ] Test defprotocol extraction
-- [ ] Test protocol function extraction
-- [ ] Test defimpl extraction
-- [ ] Test forDataType linking
-- [ ] Test @derive detection
-- [ ] Test Any implementation detection
+- [x] Test defprotocol extraction
+- [x] Test protocol function extraction
+- [x] Test defimpl extraction
+- [x] Test forDataType linking
+- [x] Test @derive detection
+- [x] Test Any implementation detection
 
 ## 5.2 Behaviour Extractor
 
 This section extracts behaviour definitions and implementations.
 
 ### 5.2.1 Behaviour Definition Extractor
-- [ ] **Task 5.2.1 Complete**
+- [x] **Task 5.2.1 Complete**
 
 Extract modules that define behaviours via @callback.
 
-- [ ] 5.2.1.1 Create `lib/elixir_ontologies/extractors/behaviour.ex`
-- [ ] 5.2.1.2 Detect modules with `@callback` as `Behaviour`
-- [ ] 5.2.1.3 Extract `@callback` as `RequiredCallback`
-- [ ] 5.2.1.4 Extract `@optional_callbacks` items as `OptionalCallback`
-- [ ] 5.2.1.5 Extract `@macrocallback` as `MacroCallback`
-- [ ] 5.2.1.6 Link via `definesCallback`
-- [ ] 5.2.1.7 Create `CallbackSpec` for callback type signatures
-- [ ] 5.2.1.8 Write behaviour definition tests (success: 10 tests)
+- [x] 5.2.1.1 Create `lib/elixir_ontologies/extractors/behaviour.ex`
+- [x] 5.2.1.2 Detect modules with `@callback` as `Behaviour`
+- [x] 5.2.1.3 Extract `@callback` as `RequiredCallback`
+- [x] 5.2.1.4 Extract `@optional_callbacks` items as `OptionalCallback`
+- [x] 5.2.1.5 Extract `@macrocallback` as `MacroCallback`
+- [x] 5.2.1.6 Link via `definesCallback`
+- [x] 5.2.1.7 Create `CallbackSpec` for callback type signatures
+- [x] 5.2.1.8 Write behaviour definition tests (success: 20 doctests + 38 unit tests)
 
 ### 5.2.2 Behaviour Implementation Extractor
-- [ ] **Task 5.2.2 Complete**
+- [x] **Task 5.2.2 Complete**
 
 Extract @behaviour declarations and callback implementations.
 
-- [ ] 5.2.2.1 Detect `@behaviour ModuleName` in module
-- [ ] 5.2.2.2 Create `BehaviourImplementation` relationship
-- [ ] 5.2.2.3 Link via `implementsBehaviour`
-- [ ] 5.2.2.4 Match implemented functions to callbacks via `implementsCallback`
-- [ ] 5.2.2.5 Detect `defoverridable` for default implementations
-- [ ] 5.2.2.6 Link overrides via `overridesDefault`
-- [ ] 5.2.2.7 Write implementation tests (success: 8 tests)
+- [x] 5.2.2.1 Detect `@behaviour ModuleName` in module
+- [x] 5.2.2.2 Create `BehaviourImplementation` relationship
+- [x] 5.2.2.3 Link via `implementsBehaviour`
+- [x] 5.2.2.4 Match implemented functions to callbacks via `implementsCallback`
+- [x] 5.2.2.5 Detect `defoverridable` for default implementations
+- [x] 5.2.2.6 Link overrides via `overridesDefault`
+- [x] 5.2.2.7 Write implementation tests (success: 40 doctests + 71 unit tests)
 
 **Section 5.2 Unit Tests:**
-- [ ] Test behaviour definition extraction
-- [ ] Test @callback extraction
-- [ ] Test @optional_callbacks handling
-- [ ] Test @behaviour declaration extraction
-- [ ] Test callback implementation matching
-- [ ] Test defoverridable detection
+- [x] Test behaviour definition extraction
+- [x] Test @callback extraction
+- [x] Test @optional_callbacks handling
+- [x] Test @behaviour declaration extraction
+- [x] Test callback implementation matching
+- [x] Test defoverridable detection
 
 ## 5.3 Struct Extractor
 
 This section extracts struct and exception definitions.
 
 ### 5.3.1 Struct Definition Extractor
-- [ ] **Task 5.3.1 Complete**
+- [x] **Task 5.3.1 Complete**
 
 Extract defstruct definitions.
 
-- [ ] 5.3.1.1 Create `lib/elixir_ontologies/extractors/struct.ex`
-- [ ] 5.3.1.2 Detect `defstruct` AST pattern
-- [ ] 5.3.1.3 Create `Struct` linked to containing module
-- [ ] 5.3.1.4 Extract fields as `StructField` instances
-- [ ] 5.3.1.5 Set `fieldName` for each field
-- [ ] 5.3.1.6 Detect fields with defaults (`hasDefaultFieldValue: true`)
-- [ ] 5.3.1.7 Extract `@enforce_keys` as `EnforcedKey` subclass
-- [ ] 5.3.1.8 Link via `hasField` and `hasEnforcedKey`
-- [ ] 5.3.1.9 Extract `@derive` protocols via `derivesProtocol`
-- [ ] 5.3.1.10 Write struct tests (success: 12 tests)
+- [x] 5.3.1.1 Create `lib/elixir_ontologies/extractors/struct.ex`
+- [x] 5.3.1.2 Detect `defstruct` AST pattern
+- [x] 5.3.1.3 Create `Struct` linked to containing module
+- [x] 5.3.1.4 Extract fields as `StructField` instances
+- [x] 5.3.1.5 Set `fieldName` for each field
+- [x] 5.3.1.6 Detect fields with defaults (`hasDefaultFieldValue: true`)
+- [x] 5.3.1.7 Extract `@enforce_keys` as `EnforcedKey` subclass
+- [x] 5.3.1.8 Link via `hasField` and `hasEnforcedKey`
+- [x] 5.3.1.9 Extract `@derive` protocols via `derivesProtocol`
+- [x] 5.3.1.10 Write struct tests (success: 26 doctests + 41 unit tests)
 
 ### 5.3.2 Exception Extractor
-- [ ] **Task 5.3.2 Complete**
+- [x] **Task 5.3.2 Complete**
 
 Extract defexception definitions.
 
-- [ ] 5.3.2.1 Detect `defexception` AST pattern
-- [ ] 5.3.2.2 Create `Exception` (subclass of Struct)
-- [ ] 5.3.2.3 Extract exception message field
-- [ ] 5.3.2.4 Extract custom `message/1` implementation if present
-- [ ] 5.3.2.5 Write exception tests (success: 6 tests)
+- [x] 5.3.2.1 Detect `defexception` AST pattern
+- [x] 5.3.2.2 Create `Exception` (subclass of Struct)
+- [x] 5.3.2.3 Extract exception message field
+- [x] 5.3.2.4 Extract custom `message/1` implementation if present
+- [x] 5.3.2.5 Write exception tests (success: 14 doctests + 24 unit tests)
 
 **Section 5.3 Unit Tests:**
-- [ ] Test defstruct extraction
-- [ ] Test struct field extraction
-- [ ] Test default value detection
-- [ ] Test @enforce_keys extraction
-- [ ] Test @derive extraction
-- [ ] Test defexception extraction
+- [x] Test defstruct extraction
+- [x] Test struct field extraction
+- [x] Test default value detection
+- [x] Test @enforce_keys extraction
+- [x] Test @derive extraction
+- [x] Test defexception extraction
 
 ## Phase 5 Integration Tests
+- [x] **Phase 5 Integration Tests Complete**
 
-- [ ] Test protocol with multiple implementations
-- [ ] Test behaviour with implementing module
-- [ ] Test struct with enforced keys and derived protocols
-- [ ] Test exception with custom message
+- [x] Test protocol with multiple implementations
+- [x] Test behaviour with implementing module
+- [x] Test struct with enforced keys and derived protocols
+- [x] Test exception with custom message
+- [x] Test cross-extractor scenarios (struct with behaviour and protocol impl)
+
+**Integration Test Results:** 27 tests passing
+
+## Phase 5 Review Fixes
+- [x] **Phase 5 Review Fixes Complete**
+
+Code quality improvements identified during Phase 5 review.
+
+### Concerns Addressed
+- [x] Extract function signature helpers to `Helpers` module
+- [x] Move `@derive` extraction and `DeriveInfo` to `Helpers` module
+- [x] Add `extract_location_if/2` helper for conditional location extraction
+- [x] Populate metadata fields in all Phase 5 extractors
+- [x] Add missing 5.1.1 documentation files
+
+### Test Improvements
+- [x] Add test for protocol functions with guards
+- [x] Add test for @enforce_keys with non-existent field
+- [x] Add test for exception implementing behaviour
+- [x] Add test for callback with complex union return type
+
+**Review Fix Results:** All tests passing (741 doctests + 23 properties + 1849 tests), dialyzer clean

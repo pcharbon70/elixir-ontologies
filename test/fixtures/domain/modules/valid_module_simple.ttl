@@ -1,0 +1,11 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid simple module conforming to ModuleShape
+# Tests:
+# - ModuleShape: valid module name pattern (UpperCamelCase)
+# - ModuleShape: moduleName cardinality (exactly 1)
+
+:MyApp.User a struct:Module ;
+    struct:moduleName "MyApp.User"^^xsd:string .

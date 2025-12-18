@@ -27,7 +27,22 @@ defmodule ElixirOntologies.MixProject do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+      # RDF and knowledge graph support
+      {:rdf, "~> 2.0"},
+      {:sparql, "~> 0.3", optional: true},
+
+      # Development and documentation
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+
+      # Static analysis
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+
+      # Property-based testing
+      {:stream_data, "~> 1.0", only: :test},
+
+      # Benchmarking
+      {:benchee, "~> 1.3", only: :dev}
     ]
   end
 

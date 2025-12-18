@@ -1,0 +1,37 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid function with default parameters
+# Tests:
+# - ParameterShape: parameter with default value
+# - DefaultParameterShape: hasDefaultValue property
+
+:greeter_module a struct:Module ;
+    struct:moduleName "MyApp.Greeter"^^xsd:string .
+
+:greeter_greet a struct:Function ;
+    struct:functionName "greet"^^xsd:string ;
+    struct:arity "2"^^xsd:nonNegativeInteger ;
+    struct:belongsTo :greeter_module ;
+    struct:hasClause :greeter_greet_clause1 .
+
+:greeter_greet_clause1 a struct:FunctionClause ;
+    struct:clauseOrder "1"^^xsd:positiveInteger ;
+    struct:hasHead [
+        a struct:FunctionHead ;
+        core:hasParameter [
+            a core:Parameter ;
+            core:parameterPosition "1"^^xsd:positiveInteger ;
+            core:parameterName "name"^^xsd:string
+        ] , [
+            a core:Parameter , core:DefaultParameter ;
+            core:parameterPosition "2"^^xsd:positiveInteger ;
+            core:parameterName "greeting"^^xsd:string ;
+            core:hasDefaultValue "\"Hello\""^^xsd:string
+        ]
+    ] ;
+    struct:hasBody [
+        a struct:FunctionBody
+    ] .

@@ -1,0 +1,9 @@
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Module with invalid lowercase name (violates UpperCamelCase pattern)
+<http://example.org/invalid_module> a struct:Module ;
+    struct:moduleName "invalid_module" ;  # lowercase - violates pattern ^[A-Z][A-Za-z0-9_]*
+    core:sourceFile "/path/to/file.ex" .

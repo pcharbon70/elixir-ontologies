@@ -1,0 +1,16 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix otp: <https://w3id.org/elixir-code/otp#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid DynamicSupervisor
+# Tests:
+# - DynamicSupervisorShape: sh:hasValue otp:OneForOne constraint
+# - DynamicSupervisor must use OneForOne strategy
+
+:MyApp.DynamicSupervisor a struct:Module ;
+    struct:moduleName "MyApp.DynamicSupervisor"^^xsd:string .
+
+:MyApp.DynamicSupervisor#DynSupImpl a otp:DynamicSupervisor ;
+    otp:implementsModule :MyApp.DynamicSupervisor ;
+    otp:hasStrategy otp:OneForOne .

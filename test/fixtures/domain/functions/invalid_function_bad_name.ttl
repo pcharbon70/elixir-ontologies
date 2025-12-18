@@ -1,0 +1,27 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Invalid function - UpperCamelCase name violates naming pattern
+# Tests:
+# - FunctionShape: sh:pattern constraint violation
+# Expected: Function name must be snake_case with optional ! or ?
+
+:invalid_module2 a struct:Module ;
+    struct:moduleName "MyApp.Invalid"^^xsd:string .
+
+:invalid_BadName a struct:Function ;
+    struct:functionName "BadName"^^xsd:string ;
+    struct:arity "0"^^xsd:nonNegativeInteger ;
+    struct:belongsTo :invalid_module2 ;
+    struct:hasClause :invalid_BadName_clause1 .
+
+:invalid_BadName_clause1 a struct:FunctionClause ;
+    struct:clauseOrder "1"^^xsd:positiveInteger ;
+    struct:hasHead [
+        a struct:FunctionHead
+    ] ;
+    struct:hasBody [
+        a struct:FunctionBody
+    ] .

@@ -1,0 +1,17 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix otp: <https://w3id.org/elixir-code/otp#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Invalid DynamicSupervisor - wrong strategy
+# Tests:
+# - DynamicSupervisorShape: sh:hasValue otp:OneForOne constraint violation
+# Expected: DynamicSupervisor must use OneForOne strategy
+
+:bad_dyn_supervisor_module a struct:Module ;
+    struct:moduleName "MyApp.BadDynamicSupervisor"^^xsd:string .
+
+:bad_dyn_supervisor_impl a otp:DynamicSupervisor ;
+    otp:implementsModule :bad_dyn_supervisor_module ;
+    otp:hasStrategy otp:OneForAll .
+# OneForAll is not allowed for DynamicSupervisor - must be OneForOne

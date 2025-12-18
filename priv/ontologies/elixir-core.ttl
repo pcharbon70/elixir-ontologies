@@ -66,6 +66,41 @@
     rdfs:subClassOf bfo:BFO_0000031 .
 
 # =============================================================================
+# Comments
+# =============================================================================
+
+:Comment a owl:Class ;
+    rdfs:label "Comment"@en ;
+    rdfs:comment "A source code comment. Comments are not part of the AST but provide important context."@en ;
+    rdfs:subClassOf :CodeElement .
+
+:LineComment a owl:Class ;
+    rdfs:label "Line Comment"@en ;
+    rdfs:comment "A single-line comment starting with #."@en ;
+    rdfs:subClassOf :Comment ;
+    skos:example "# This is a line comment"@en .
+
+:BlockComment a owl:Class ;
+    rdfs:label "Block Comment"@en ;
+    rdfs:comment "A multi-line comment block (consecutive line comments treated as a block)."@en ;
+    rdfs:subClassOf :Comment ;
+    skos:example """# This is a block comment
+# spanning multiple lines
+# with related content"""@en .
+
+:TodoComment a owl:Class ;
+    rdfs:label "TODO Comment"@en ;
+    rdfs:comment "A comment containing TODO, FIXME, HACK, XXX, or similar markers indicating pending work."@en ;
+    rdfs:subClassOf :Comment ;
+    skos:example "# TODO: Implement error handling"@en .
+
+:FixmeComment a owl:Class ;
+    rdfs:label "FIXME Comment"@en ;
+    rdfs:comment "A comment containing FIXME indicating code that needs to be fixed."@en ;
+    rdfs:subClassOf :TodoComment ;
+    skos:example "# FIXME: This breaks with empty lists"@en .
+
+# =============================================================================
 # Abstract Syntax Tree Classes
 # =============================================================================
 
@@ -486,6 +521,27 @@
 # =============================================================================
 # Object Properties
 # =============================================================================
+
+# Comment properties
+:hasComment a owl:ObjectProperty ;
+    rdfs:label "has comment"@en ;
+    rdfs:comment "Links a code element to an associated comment."@en ;
+    rdfs:domain :CodeElement ;
+    rdfs:range :Comment .
+
+:commentAbove a owl:ObjectProperty ;
+    rdfs:label "comment above"@en ;
+    rdfs:comment "A comment appearing directly above a code element."@en ;
+    rdfs:subPropertyOf :hasComment ;
+    rdfs:domain :CodeElement ;
+    rdfs:range :Comment .
+
+:inlineComment a owl:ObjectProperty ;
+    rdfs:label "inline comment"@en ;
+    rdfs:comment "A comment appearing on the same line as a code element."@en ;
+    rdfs:subPropertyOf :hasComment ;
+    rdfs:domain :CodeElement ;
+    rdfs:range :Comment .
 
 # Source location properties
 :hasSourceLocation a owl:ObjectProperty, owl:FunctionalProperty ;

@@ -1,0 +1,12 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Invalid protocol - no protocol functions defined
+# Tests:
+# - ProtocolShape: sh:minCount 1 for definesProtocolFunction constraint violation
+# Expected: Protocol must define at least one protocol function
+
+:MyApp.Serializer a struct:Protocol ;
+    struct:protocolName "MyApp.Serializer"^^xsd:string .
+# Missing struct:definesProtocolFunction property

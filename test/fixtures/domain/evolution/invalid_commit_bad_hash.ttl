@@ -1,0 +1,26 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix evo: <https://w3id.org/elixir-code/evolution#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Invalid commit - hash is only 39 characters (violates 40-char pattern)
+# Tests:
+# - CommitShape: sh:pattern "^[a-f0-9]{40}$" constraint violation
+# Expected: Commit hash must be exactly 40-character hex string
+
+:developer1 a evo:Developer , evo:DevelopmentAgent ;
+    evo:developerName "Bob"^^xsd:string .
+
+:module1 a struct:Module ;
+    struct:moduleName "MyApp"^^xsd:string .
+
+:changeset1 a evo:ChangeSet ;
+    evo:changedElement :module1 .
+
+:bad_commit a evo:Commit ;
+    evo:commitHash "abc123def456789012345678901234567890abc"^^xsd:string ;
+    evo:commitMessage "Fix bug"^^xsd:string ;
+    evo:authoredAt "2025-12-15T10:30:00Z"^^xsd:dateTime ;
+    evo:wasAssociatedWith :developer1 ;
+    evo:containsChange :changeset1 .
+# Hash is 39 chars, not 40

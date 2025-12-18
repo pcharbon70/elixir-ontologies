@@ -1,0 +1,62 @@
+@prefix : <https://w3id.org/elixir-code/test#> .
+@prefix struct: <https://w3id.org/elixir-code/structure#> .
+@prefix core: <https://w3id.org/elixir-code/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Valid module with functions
+# Tests:
+# - ModuleShape: valid module name
+# - ModuleShape: containsFunction references Function instances
+# - FunctionShape: valid function names, arity, belongsTo
+
+:calc_module a struct:Module ;
+    struct:moduleName "MyApp.Calculator"^^xsd:string ;
+    struct:containsFunction :calc_add , :calc_subtract .
+
+:calc_add a struct:Function ;
+    struct:functionName "add"^^xsd:string ;
+    struct:arity "2"^^xsd:nonNegativeInteger ;
+    struct:belongsTo :calc_module ;
+    struct:hasClause :calc_add_clause1 .
+
+:calc_add_clause1 a struct:FunctionClause ;
+    struct:clauseOrder "1"^^xsd:positiveInteger ;
+    struct:hasHead [
+        a struct:FunctionHead ;
+        core:hasParameter [
+            a core:Parameter ;
+            core:parameterPosition "1"^^xsd:positiveInteger ;
+            core:parameterName "a"^^xsd:string
+        ] , [
+            a core:Parameter ;
+            core:parameterPosition "2"^^xsd:positiveInteger ;
+            core:parameterName "b"^^xsd:string
+        ]
+    ] ;
+    struct:hasBody [
+        a struct:FunctionBody
+    ] .
+
+:calc_subtract a struct:Function ;
+    struct:functionName "subtract"^^xsd:string ;
+    struct:arity "2"^^xsd:nonNegativeInteger ;
+    struct:belongsTo :calc_module ;
+    struct:hasClause :calc_subtract_clause1 .
+
+:calc_subtract_clause1 a struct:FunctionClause ;
+    struct:clauseOrder "1"^^xsd:positiveInteger ;
+    struct:hasHead [
+        a struct:FunctionHead ;
+        core:hasParameter [
+            a core:Parameter ;
+            core:parameterPosition "1"^^xsd:positiveInteger ;
+            core:parameterName "x"^^xsd:string
+        ] , [
+            a core:Parameter ;
+            core:parameterPosition "2"^^xsd:positiveInteger ;
+            core:parameterName "y"^^xsd:string
+        ]
+    ] ;
+    struct:hasBody [
+        a struct:FunctionBody
+    ] .

@@ -1,0 +1,22 @@
+@prefix ex: <http://example.org/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Invalid person data - violations:
+# - ex:Charlie missing required ex:name property
+# - ex:David has age < 0 (violates sh:minInclusive)
+# - ex:Eve has invalid email format
+
+ex:Charlie a ex:Person ;
+    ex:age 35 ;
+    ex:email "charlie@example.org" .
+
+ex:David a ex:Person ;
+    ex:name "David Brown" ;
+    ex:age -5 ;
+    ex:email "david@example.org" .
+
+ex:Eve a ex:Person ;
+    ex:name "Eve Wilson" ;
+    ex:age 28 ;
+    ex:email "not-an-email" .
