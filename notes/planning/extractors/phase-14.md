@@ -229,24 +229,26 @@ Enhance callback spec extraction to capture full type information and optional c
 - [x] 14.4.1.6 Add callback spec tests (27 new tests for callback detection and extraction)
 
 ### 14.4.2 Spec Builder Enhancement
-- [ ] **Task 14.4.2 Pending**
+- [x] **Task 14.4.2 Complete**
 
 Enhance spec builder to generate complete RDF for all spec types.
 
-- [ ] 14.4.2.1 Update TypeSystemBuilder for callback specs
-- [ ] 14.4.2.2 Generate `rdf:type structure:CallbackSpec` triple
-- [ ] 14.4.2.3 Generate `rdf:type structure:OptionalCallbackSpec` for optional callbacks
-- [ ] 14.4.2.4 Generate `rdf:type structure:MacroCallbackSpec` for macro callbacks
-- [ ] 14.4.2.5 Generate `structure:definedBy` linking to behaviour
-- [ ] 14.4.2.6 Add spec builder tests
+Note: The ontology does not define `definedBy` property for linking callbacks to behaviours (subtask 14.4.2.5 marked N/A). Implementation uses pattern matching on `spec_type` field to generate the correct RDF class.
+
+- [x] 14.4.2.1 Update TypeSystemBuilder for callback specs (modified build_spec_class_triple)
+- [x] 14.4.2.2 Generate `rdf:type structure:CallbackSpec` triple (pattern match on spec_type: :callback)
+- [x] 14.4.2.3 Generate `rdf:type structure:OptionalCallbackSpec` for optional callbacks (build_optional_callback_triple/1)
+- [x] 14.4.2.4 Generate `rdf:type structure:MacroCallbackSpec` for macro callbacks (pattern match on spec_type: :macrocallback)
+- [x] 14.4.2.5 Generate `structure:definedBy` linking to behaviour (N/A - property doesn't exist in ontology)
+- [x] 14.4.2.6 Add spec builder tests (6 tests for spec_type handling and optional callback marking)
 
 **Section 14.4 Unit Tests:**
-- [ ] Test callback spec extraction
-- [ ] Test optional callback extraction
-- [ ] Test macro callback extraction
-- [ ] Test callback RDF generation
-- [ ] Test callback-to-behaviour linking
-- [ ] Test multi-clause callback specs
+- [x] Test callback spec extraction (14.4.1 - 27 tests)
+- [x] Test optional callback extraction (14.4.1 - extract_optional_callbacks tests)
+- [x] Test macro callback extraction (14.4.1 - macrocallback tests)
+- [x] Test callback RDF generation (14.4.2 - 6 tests for spec_type handling)
+- [x] Test callback-to-behaviour linking (N/A - ontology lacks definedBy property)
+- [x] Test multi-clause callback specs (handled by existing spec extraction)
 
 ## Phase 14 Integration Tests
 

@@ -202,8 +202,8 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
     # Build all triples
     triples =
       [
-        # Core spec triples
-        build_spec_class_triple(spec_iri),
+        # Core spec triples - use spec_type to determine class
+        build_spec_class_triple(spec_iri, func_spec),
         build_function_has_spec_triple(function_iri, spec_iri)
       ] ++
         build_parameter_types_triples(spec_iri, func_spec.parameter_types, context) ++
@@ -215,6 +215,37 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
     triples = List.flatten(triples) |> Enum.uniq()
 
     {spec_iri, triples}
+  end
+
+  @doc """
+  Builds an RDF triple marking a callback as optional.
+
+  Use this function when a callback is listed in `@optional_callbacks`.
+  It generates an additional `rdf:type structure:OptionalCallbackSpec` triple.
+
+  Note: `OptionalCallbackSpec` is a subclass of `CallbackSpec`, so callbacks
+  can have both types when marked as optional.
+
+  ## Parameters
+
+  - `callback_iri` - The IRI of the callback spec
+
+  ## Returns
+
+  An RDF triple marking the callback as optional.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.TypeSystemBuilder
+      iex> alias ElixirOntologies.NS.Structure
+      iex> callback_iri = RDF.iri("https://example.org/MyBehaviour#init/1")
+      iex> triple = TypeSystemBuilder.build_optional_callback_triple(callback_iri)
+      iex> match?({^callback_iri, _, _}, triple) and elem(triple, 2) == Structure.OptionalCallbackSpec
+      true
+  """
+  @spec build_optional_callback_triple(RDF.IRI.t()) :: RDF.Triple.t()
+  def build_optional_callback_triple(callback_iri) do
+    Helpers.type_triple(callback_iri, Structure.OptionalCallbackSpec)
   end
 
   # ===========================================================================
@@ -326,8 +357,22 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
   # Function Spec Triple Generation
   # ===========================================================================
 
-  # Build rdf:type struct:FunctionSpec triple
-  defp build_spec_class_triple(spec_iri) do
+  # Build rdf:type triple based on spec_type
+  # @spec -> FunctionSpec, @callback -> CallbackSpec, @macrocallback -> MacroCallbackSpec
+  defp build_spec_class_triple(spec_iri, %FunctionSpec{spec_type: :spec}) do
+    Helpers.type_triple(spec_iri, Structure.FunctionSpec)
+  end
+
+  defp build_spec_class_triple(spec_iri, %FunctionSpec{spec_type: :callback}) do
+    Helpers.type_triple(spec_iri, Structure.CallbackSpec)
+  end
+
+  defp build_spec_class_triple(spec_iri, %FunctionSpec{spec_type: :macrocallback}) do
+    Helpers.type_triple(spec_iri, Structure.MacroCallbackSpec)
+  end
+
+  # Fallback for specs without spec_type (backward compatibility)
+  defp build_spec_class_triple(spec_iri, _func_spec) do
     Helpers.type_triple(spec_iri, Structure.FunctionSpec)
   end
 

@@ -50,6 +50,7 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
       parameter_types: Keyword.get(opts, :parameter_types, []),
       return_type: Keyword.get(opts, :return_type, :any),
       type_constraints: Keyword.get(opts, :type_constraints, %{}),
+      spec_type: Keyword.get(opts, :spec_type, :spec),
       location: Keyword.get(opts, :location, nil),
       metadata: Keyword.get(opts, :metadata, %{})
     }
@@ -379,6 +380,100 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
       # Check for duplicates
       unique_triples = Enum.uniq(triples)
       assert length(triples) == length(unique_triples)
+    end
+  end
+
+  describe "build_function_spec/3 - spec_type handling" do
+    test "@spec generates FunctionSpec class" do
+      func_spec = build_test_function_spec(name: :add, arity: 2, spec_type: :spec)
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "add", arity: 2)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Verify FunctionSpec class
+      assert {spec_iri, RDF.type(), Structure.FunctionSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.CallbackSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.MacroCallbackSpec} in triples
+    end
+
+    test "@callback generates CallbackSpec class" do
+      func_spec = build_test_function_spec(name: :init, arity: 1, spec_type: :callback)
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "init", arity: 1)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Verify CallbackSpec class
+      assert {spec_iri, RDF.type(), Structure.CallbackSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.FunctionSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.MacroCallbackSpec} in triples
+    end
+
+    test "@macrocallback generates MacroCallbackSpec class" do
+      func_spec = build_test_function_spec(name: :__using__, arity: 1, spec_type: :macrocallback)
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "__using__", arity: 1)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Verify MacroCallbackSpec class
+      assert {spec_iri, RDF.type(), Structure.MacroCallbackSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.FunctionSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.CallbackSpec} in triples
+    end
+
+    test "spec without spec_type defaults to FunctionSpec" do
+      # Legacy struct without spec_type field set
+      func_spec = %FunctionSpec{
+        name: :legacy_func,
+        arity: 0,
+        parameter_types: [],
+        return_type: :any,
+        type_constraints: %{},
+        location: nil,
+        metadata: %{}
+      }
+
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "legacy_func", arity: 0)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Fallback should generate FunctionSpec
+      assert {spec_iri, RDF.type(), Structure.FunctionSpec} in triples
+    end
+  end
+
+  describe "build_optional_callback_triple/1" do
+    test "generates OptionalCallbackSpec type triple" do
+      callback_iri = RDF.iri("https://example.org/code#MyBehaviour/init/1")
+
+      triple = TypeSystemBuilder.build_optional_callback_triple(callback_iri)
+
+      assert triple == {callback_iri, RDF.type(), Structure.OptionalCallbackSpec}
+    end
+
+    test "can mark callback as both CallbackSpec and OptionalCallbackSpec" do
+      func_spec = build_test_function_spec(name: :optional_init, arity: 1, spec_type: :callback)
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "optional_init", arity: 1)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Add optional callback triple
+      optional_triple = TypeSystemBuilder.build_optional_callback_triple(spec_iri)
+
+      all_triples = [optional_triple | triples]
+
+      # Should have both CallbackSpec and OptionalCallbackSpec types
+      assert {spec_iri, RDF.type(), Structure.CallbackSpec} in all_triples
+      assert {spec_iri, RDF.type(), Structure.OptionalCallbackSpec} in all_triples
     end
   end
 
