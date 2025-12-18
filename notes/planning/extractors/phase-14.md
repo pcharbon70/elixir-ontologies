@@ -105,16 +105,18 @@ Note: Struct type detection was already implemented (`kind: :struct`). This task
 - [x] 14.2.2.6 Add struct type tests (17 new tests + 6 doctests)
 
 ### 14.2.3 Literal Types
-- [ ] **Task 14.2.3 Pending**
+- [x] **Task 14.2.3 Complete**
 
 Extract literal type values like `:ok`, `1..10`, and specific atom/integer literals in types.
 
-- [ ] 14.2.3.1 Implement `extract_literal_type/1` for atom literals in types
-- [ ] 14.2.3.2 Handle integer literal types (specific values)
-- [ ] 14.2.3.3 Handle range literal types (`1..100`)
-- [ ] 14.2.3.4 Handle binary literal types with size specifications
-- [ ] 14.2.3.5 Create `%TypeExpression{kind: :literal, value: ...}` struct
-- [ ] 14.2.3.6 Add literal type tests
+Note: Basic literal types (atoms, integers, floats) were already implemented. This task added range literals, binary literals with size specifications, and helper functions for literal type introspection.
+
+- [x] 14.2.3.1 Implement `extract_literal_type/1` for atom literals in types (existing)
+- [x] 14.2.3.2 Handle integer literal types (specific values) (existing)
+- [x] 14.2.3.3 Handle range literal types (`1..100`, `1..100//5`, negative ranges)
+- [x] 14.2.3.4 Handle binary literal types with size specifications (`<<_::8>>`, `<<_::binary>>`, `<<_::_*8>>`)
+- [x] 14.2.3.5 Create `%TypeExpression{kind: :literal, ...}` struct (uses `literal_type` in metadata)
+- [x] 14.2.3.6 Add literal type tests (21 new tests + 10 doctests)
 
 ### 14.2.4 Tuple Types
 - [ ] **Task 14.2.4 Pending**
@@ -133,8 +135,8 @@ Extract tuple types with specific element types like `{:ok, result}` and `{atom(
 - [x] Test multi-arity function types (14.2.1)
 - [x] Test struct type extraction `%User{}` (existing)
 - [x] Test struct type with field constraints (14.2.2)
-- [ ] Test literal atom type `:ok`
-- [ ] Test literal range type `1..10`
+- [x] Test literal atom type `:ok` (existing)
+- [x] Test literal range type `1..10` (14.2.3)
 - [ ] Test tuple type `{atom(), integer()}`
 - [ ] Test tagged tuple patterns
 

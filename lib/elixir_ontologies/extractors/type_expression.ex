@@ -544,6 +544,58 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
     }
   end
 
+  # Range literal: 1..10
+  defp do_parse({:.., _, [start_ast, end_ast]} = ast) do
+    %__MODULE__{
+      kind: :literal,
+      name: nil,
+      ast: ast,
+      metadata: %{
+        literal_type: :range,
+        range_start: evaluate_literal(start_ast),
+        range_end: evaluate_literal(end_ast)
+      }
+    }
+  end
+
+  # Step range literal: 1..100//5
+  defp do_parse({:..//, _, [start_ast, end_ast, step_ast]} = ast) do
+    %__MODULE__{
+      kind: :literal,
+      name: nil,
+      ast: ast,
+      metadata: %{
+        literal_type: :range,
+        range_start: evaluate_literal(start_ast),
+        range_end: evaluate_literal(end_ast),
+        range_step: evaluate_literal(step_ast)
+      }
+    }
+  end
+
+  # Empty binary: <<>>
+  defp do_parse({:<<>>, _, []} = ast) do
+    %__MODULE__{
+      kind: :literal,
+      name: nil,
+      ast: ast,
+      metadata: %{literal_type: :binary, binary_size: 0}
+    }
+  end
+
+  # Binary with segments: <<_::8>>, <<_::binary>>, etc.
+  defp do_parse({:<<>>, _, segments} = ast) when is_list(segments) do
+    parsed_segments = Enum.map(segments, &parse_binary_segment/1)
+
+    %__MODULE__{
+      kind: :literal,
+      name: nil,
+      elements: parsed_segments,
+      ast: ast,
+      metadata: %{literal_type: :binary, segment_count: length(segments)}
+    }
+  end
+
   # ===========================================================================
   # Fallback
   # ===========================================================================
@@ -941,6 +993,100 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   def literal?(_), do: false
 
   @doc """
+  Returns the value of a literal type expression.
+
+  Returns the literal value for atom, integer, and float literals,
+  or `nil` for range/binary literals and non-literal types.
+
+  ## Examples
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(:ok)
+      iex> ElixirOntologies.Extractors.TypeExpression.literal_value(result)
+      :ok
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(42)
+      iex> ElixirOntologies.Extractors.TypeExpression.literal_value(result)
+      42
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:atom, [], []})
+      iex> ElixirOntologies.Extractors.TypeExpression.literal_value(result)
+      nil
+  """
+  @spec literal_value(t()) :: term() | nil
+  def literal_value(%__MODULE__{kind: :literal, name: value}), do: value
+  def literal_value(_), do: nil
+
+  @doc """
+  Returns true if the type expression is a range literal.
+
+  ## Examples
+
+      iex> ast = {:.., [], [1, 10]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> ElixirOntologies.Extractors.TypeExpression.range?(result)
+      true
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(:ok)
+      iex> ElixirOntologies.Extractors.TypeExpression.range?(result)
+      false
+  """
+  @spec range?(t()) :: boolean()
+  def range?(%__MODULE__{kind: :literal, metadata: %{literal_type: :range}}), do: true
+  def range?(_), do: false
+
+  @doc """
+  Returns true if the type expression is a binary literal.
+
+  ## Examples
+
+      iex> ast = {:<<>>, [], []}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> ElixirOntologies.Extractors.TypeExpression.binary_literal?(result)
+      true
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(:ok)
+      iex> ElixirOntologies.Extractors.TypeExpression.binary_literal?(result)
+      false
+  """
+  @spec binary_literal?(t()) :: boolean()
+  def binary_literal?(%__MODULE__{kind: :literal, metadata: %{literal_type: :binary}}), do: true
+  def binary_literal?(_), do: false
+
+  @doc """
+  Returns the range bounds for a range literal type.
+
+  Returns a map with `:start`, `:end`, and optionally `:step` keys,
+  or `nil` for non-range types.
+
+  ## Examples
+
+      iex> ast = {:.., [], [1, 10]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> ElixirOntologies.Extractors.TypeExpression.range_bounds(result)
+      %{start: 1, end: 10}
+
+      iex> ast = {:..//, [], [1, 100, 5]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> ElixirOntologies.Extractors.TypeExpression.range_bounds(result)
+      %{start: 1, end: 100, step: 5}
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(:ok)
+      iex> ElixirOntologies.Extractors.TypeExpression.range_bounds(result)
+      nil
+  """
+  @spec range_bounds(t()) :: %{start: integer(), end: integer(), step: integer()} | %{start: integer(), end: integer()} | nil
+  def range_bounds(%__MODULE__{kind: :literal, metadata: %{literal_type: :range} = metadata}) do
+    base = %{start: metadata[:range_start], end: metadata[:range_end]}
+
+    case metadata[:range_step] do
+      nil -> base
+      step -> Map.put(base, :step, step)
+    end
+  end
+
+  def range_bounds(_), do: nil
+
+  @doc """
   Returns true if the type expression is parameterized (has type parameters).
 
   ## Examples
@@ -1028,6 +1174,61 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   defp detect_required({:required, _, _}), do: true
   defp detect_required({:optional, _, _}), do: false
   defp detect_required(_), do: true
+
+  # Evaluate literal values from AST (handles negation)
+  defp evaluate_literal(int) when is_integer(int), do: int
+  defp evaluate_literal(float) when is_float(float), do: float
+  defp evaluate_literal({:-, _, [value]}) when is_integer(value), do: -value
+  defp evaluate_literal({:-, _, [value]}) when is_float(value), do: -value
+  defp evaluate_literal(_), do: nil
+
+  # Parse binary segment specifications
+  defp parse_binary_segment({:"::", _, [{:_, _, _}, size]}) when is_integer(size) do
+    %{type: :sized, size: size}
+  end
+
+  defp parse_binary_segment({:"::", _, [{:_, _, _}, {:binary, _, _}]}) do
+    %{type: :binary}
+  end
+
+  defp parse_binary_segment({:"::", _, [{:_, _, _}, {:bitstring, _, _}]}) do
+    %{type: :bitstring}
+  end
+
+  defp parse_binary_segment({:"::", _, [{:_, _, _}, {:bytes, _, _}]}) do
+    %{type: :bytes}
+  end
+
+  defp parse_binary_segment({:"::", _, [{:_, _, _}, {:integer, _, _}]}) do
+    %{type: :integer}
+  end
+
+  defp parse_binary_segment({:"::", _, [{:_, _, _}, {:float, _, _}]}) do
+    %{type: :float}
+  end
+
+  defp parse_binary_segment({:"::", _, [{:_, _, _}, {:utf8, _, _}]}) do
+    %{type: :utf8}
+  end
+
+  defp parse_binary_segment({:"::", _, [{:_, _, _}, {:utf16, _, _}]}) do
+    %{type: :utf16}
+  end
+
+  defp parse_binary_segment({:"::", _, [{:_, _, _}, {:utf32, _, _}]}) do
+    %{type: :utf32}
+  end
+
+  # Variable size: <<_::_*8>>
+  defp parse_binary_segment({:"::", _, [{:_, _, _}, {:*, _, [{:_, _, _}, unit]}]})
+       when is_integer(unit) do
+    %{type: :variable_size, unit: unit}
+  end
+
+  # Generic segment (fallback)
+  defp parse_binary_segment(segment) do
+    %{type: :unknown, ast: segment}
+  end
 
   # ===========================================================================
   # Constraint-Aware Parsing

@@ -177,6 +177,157 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert result.name == 3.14
       assert result.metadata.literal_type == :float
     end
+
+    test "parses range literal 1..10" do
+      ast = {:.., [], [1, 10]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.name == nil
+      assert result.metadata.literal_type == :range
+      assert result.metadata.range_start == 1
+      assert result.metadata.range_end == 10
+    end
+
+    test "parses step range literal 1..100//5" do
+      ast = {:..//, [], [1, 100, 5]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :range
+      assert result.metadata.range_start == 1
+      assert result.metadata.range_end == 100
+      assert result.metadata.range_step == 5
+    end
+
+    test "parses negative range literal -10..-1" do
+      # Negative numbers in AST are represented as {:-, _, [value]}
+      ast = {:.., [], [{:-, [], [10]}, {:-, [], [1]}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :range
+      assert result.metadata.range_start == -10
+      assert result.metadata.range_end == -1
+    end
+
+    test "parses empty binary literal <<>>" do
+      ast = {:<<>>, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :binary
+      assert result.metadata.binary_size == 0
+    end
+
+    test "parses binary with size <<_::8>>" do
+      ast = {:<<>>, [], [{:"::", [], [{:_, [], Elixir}, 8]}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :binary
+      assert result.metadata.segment_count == 1
+      assert length(result.elements) == 1
+      [segment] = result.elements
+      assert segment.type == :sized
+      assert segment.size == 8
+    end
+
+    test "parses binary with type <<_::binary>>" do
+      ast = {:<<>>, [], [{:"::", [], [{:_, [], Elixir}, {:binary, [], Elixir}]}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :binary
+      [segment] = result.elements
+      assert segment.type == :binary
+    end
+
+    test "parses bitstring with variable size <<_::_*8>>" do
+      ast =
+        {:<<>>, [],
+         [{:"::", [], [{:_, [], Elixir}, {:*, [], [{:_, [], Elixir}, 8]}]}]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :binary
+      [segment] = result.elements
+      assert segment.type == :variable_size
+      assert segment.unit == 8
+    end
+  end
+
+  describe "literal type helpers" do
+    test "literal_value/1 returns value for atom literal" do
+      {:ok, result} = TypeExpression.parse(:ok)
+      assert TypeExpression.literal_value(result) == :ok
+    end
+
+    test "literal_value/1 returns value for integer literal" do
+      {:ok, result} = TypeExpression.parse(42)
+      assert TypeExpression.literal_value(result) == 42
+    end
+
+    test "literal_value/1 returns nil for range literal" do
+      ast = {:.., [], [1, 10]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.literal_value(result) == nil
+    end
+
+    test "literal_value/1 returns nil for non-literal" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.literal_value(result) == nil
+    end
+
+    test "range?/1 returns true for range literal" do
+      ast = {:.., [], [1, 10]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.range?(result)
+    end
+
+    test "range?/1 returns true for step range literal" do
+      ast = {:..//, [], [1, 100, 5]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.range?(result)
+    end
+
+    test "range?/1 returns false for atom literal" do
+      {:ok, result} = TypeExpression.parse(:ok)
+      refute TypeExpression.range?(result)
+    end
+
+    test "range?/1 returns false for non-literal" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      refute TypeExpression.range?(result)
+    end
+
+    test "binary_literal?/1 returns true for empty binary" do
+      ast = {:<<>>, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.binary_literal?(result)
+    end
+
+    test "binary_literal?/1 returns true for sized binary" do
+      ast = {:<<>>, [], [{:"::", [], [{:_, [], Elixir}, 8]}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.binary_literal?(result)
+    end
+
+    test "binary_literal?/1 returns false for non-binary literal" do
+      {:ok, result} = TypeExpression.parse(:ok)
+      refute TypeExpression.binary_literal?(result)
+    end
+
+    test "range_bounds/1 returns bounds for range literal" do
+      ast = {:.., [], [1, 10]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.range_bounds(result) == %{start: 1, end: 10}
+    end
+
+    test "range_bounds/1 returns bounds with step for step range" do
+      ast = {:..//, [], [1, 100, 5]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.range_bounds(result) == %{start: 1, end: 100, step: 5}
+    end
+
+    test "range_bounds/1 returns nil for non-range" do
+      {:ok, result} = TypeExpression.parse(:ok)
+      assert TypeExpression.range_bounds(result) == nil
+    end
   end
 
   # ===========================================================================
