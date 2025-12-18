@@ -130,29 +130,27 @@ defmodule ElixirOntologies.SHACL.Writer do
   end
 
   def to_graph(%ValidationReport{} = report) do
-    try do
-      # Create blank node for report
-      report_node = RDF.bnode()
+    # Create blank node for report
+    report_node = RDF.bnode()
 
-      # Start with empty graph
-      graph = RDF.Graph.new()
+    # Start with empty graph
+    graph = RDF.Graph.new()
 
-      # Add report type and conforms
-      graph =
-        graph
-        |> RDF.Graph.add({report_node, SHACL.rdf_type(), SHACL.validation_report()})
-        |> RDF.Graph.add({report_node, SHACL.conforms(), report.conforms?})
+    # Add report type and conforms
+    graph =
+      graph
+      |> RDF.Graph.add({report_node, SHACL.rdf_type(), SHACL.validation_report()})
+      |> RDF.Graph.add({report_node, SHACL.conforms(), report.conforms?})
 
-      # Add all validation results
-      graph =
-        Enum.reduce(report.results, graph, fn result, acc_graph ->
-          add_validation_result(acc_graph, report_node, result)
-        end)
+    # Add all validation results
+    graph =
+      Enum.reduce(report.results, graph, fn result, acc_graph ->
+        add_validation_result(acc_graph, report_node, result)
+      end)
 
-      {:ok, graph}
-    rescue
-      error -> {:error, Exception.message(error)}
-    end
+    {:ok, graph}
+  rescue
+    error -> {:error, Exception.message(error)}
   end
 
   @doc """

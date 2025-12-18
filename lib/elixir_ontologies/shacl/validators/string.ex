@@ -132,37 +132,37 @@ defmodule ElixirOntologies.SHACL.Validators.String do
         # Check each value
         violations =
           Enum.reduce(values, [], fn value, acc ->
-            # Extract string content
-            case Helpers.extract_string(value) do
-              nil ->
-                # Not a literal with string content - skip (datatype validator handles this)
-                acc
-
-              str ->
-                # Test against pattern
-                if Regex.match?(pattern, str) do
-                  # Pattern matches
-                  acc
-                else
-                  # Violation: pattern doesn't match
-                  violation =
-                    Helpers.build_violation(
-                      focus_node,
-                      property_shape,
-                      "Value does not match required pattern #{inspect(pattern.source)}",
-                      %{
-                        constraint_component: ~I<http://www.w3.org/ns/shacl#PatternConstraintComponent>,
-                        pattern: pattern.source,
-                        actual_value: str
-                      }
-                    )
-
-                  [violation | acc]
-                end
-            end
+            check_pattern_value(value, pattern, focus_node, property_shape, acc)
           end)
 
         results ++ Enum.reverse(violations)
+    end
+  end
+
+  defp check_pattern_value(value, pattern, focus_node, property_shape, acc) do
+    case Helpers.extract_string(value) do
+      nil ->
+        # Not a literal with string content - skip (datatype validator handles this)
+        acc
+
+      str when is_binary(str) ->
+        if Regex.match?(pattern, str) do
+          acc
+        else
+          violation =
+            Helpers.build_violation(
+              focus_node,
+              property_shape,
+              "Value does not match required pattern #{inspect(pattern.source)}",
+              %{
+                constraint_component: ~I<http://www.w3.org/ns/shacl#PatternConstraintComponent>,
+                pattern: pattern.source,
+                actual_value: str
+              }
+            )
+
+          [violation | acc]
+        end
     end
   end
 
@@ -184,40 +184,40 @@ defmodule ElixirOntologies.SHACL.Validators.String do
         # Check each value
         violations =
           Enum.reduce(values, [], fn value, acc ->
-            # Extract string content
-            case Helpers.extract_string(value) do
-              nil ->
-                # Not a literal with string content - skip (datatype validator handles this)
-                acc
-
-              str ->
-                # Check length
-                actual_length = String.length(str)
-
-                if actual_length >= min_length do
-                  # Length is sufficient
-                  acc
-                else
-                  # Violation: string too short
-                  violation =
-                    Helpers.build_violation(
-                      focus_node,
-                      property_shape,
-                      "Value is too short (expected at least #{min_length} characters, found #{actual_length})",
-                      %{
-                        constraint_component: ~I<http://www.w3.org/ns/shacl#MinLengthConstraintComponent>,
-                        min_length: min_length,
-                        actual_length: actual_length,
-                        actual_value: str
-                      }
-                    )
-
-                  [violation | acc]
-                end
-            end
+            check_min_length_value(value, min_length, focus_node, property_shape, acc)
           end)
 
         results ++ Enum.reverse(violations)
+    end
+  end
+
+  defp check_min_length_value(value, min_length, focus_node, property_shape, acc) do
+    case Helpers.extract_string(value) do
+      nil ->
+        # Not a literal with string content - skip (datatype validator handles this)
+        acc
+
+      str ->
+        actual_length = String.length(str)
+
+        if actual_length >= min_length do
+          acc
+        else
+          violation =
+            Helpers.build_violation(
+              focus_node,
+              property_shape,
+              "Value is too short (expected at least #{min_length} characters, found #{actual_length})",
+              %{
+                constraint_component: ~I<http://www.w3.org/ns/shacl#MinLengthConstraintComponent>,
+                min_length: min_length,
+                actual_length: actual_length,
+                actual_value: str
+              }
+            )
+
+          [violation | acc]
+        end
     end
   end
 
@@ -390,57 +390,40 @@ defmodule ElixirOntologies.SHACL.Validators.String do
         results
 
       allowed_languages ->
-        # Check if focus node is a literal
-        if match?(%RDF.Literal{}, focus_node) do
-          # Check if literal has a language tag
-          case RDF.Literal.language(focus_node) do
-            nil ->
-              # Plain literal without language tag - violation
-              violation =
-                Helpers.build_node_violation(
-                  focus_node,
-                  node_shape,
-                  "Focus node must have a language tag",
-                  %{
-                    constraint_component: ~I<http://www.w3.org/ns/shacl#LanguageInConstraintComponent>,
-                    allowed_languages: allowed_languages,
-                    actual_value: focus_node
-                  }
-                )
+        check_language_in_constraint(results, focus_node, node_shape, allowed_languages)
+    end
+  end
 
-              [violation | results]
+  defp check_language_in_constraint(results, %RDF.Literal{} = focus_node, node_shape, allowed_languages) do
+    case RDF.Literal.language(focus_node) do
+      nil ->
+        violation =
+          Helpers.build_node_violation(
+            focus_node,
+            node_shape,
+            "Focus node must have a language tag",
+            %{
+              constraint_component: ~I<http://www.w3.org/ns/shacl#LanguageInConstraintComponent>,
+              allowed_languages: allowed_languages,
+              actual_value: focus_node
+            }
+          )
 
-            lang when is_binary(lang) ->
-              # Literal has language tag - check if it's allowed
-              if lang in allowed_languages do
-                results
-              else
-                violation =
-                  Helpers.build_node_violation(
-                    focus_node,
-                    node_shape,
-                    "Language tag '#{lang}' is not in the allowed list",
-                    %{
-                      constraint_component: ~I<http://www.w3.org/ns/shacl#LanguageInConstraintComponent>,
-                      allowed_languages: allowed_languages,
-                      actual_language: lang,
-                      actual_value: focus_node
-                    }
-                  )
+        [violation | results]
 
-                [violation | results]
-              end
-          end
+      lang ->
+        if lang in allowed_languages do
+          results
         else
-          # Not a literal - violation
           violation =
             Helpers.build_node_violation(
               focus_node,
               node_shape,
-              "Focus node must be a literal with a language tag",
+              "Language tag '#{lang}' is not in the allowed list",
               %{
                 constraint_component: ~I<http://www.w3.org/ns/shacl#LanguageInConstraintComponent>,
                 allowed_languages: allowed_languages,
+                actual_language: lang,
                 actual_value: focus_node
               }
             )
@@ -448,5 +431,22 @@ defmodule ElixirOntologies.SHACL.Validators.String do
           [violation | results]
         end
     end
+  end
+
+  defp check_language_in_constraint(results, focus_node, node_shape, allowed_languages) do
+    # Not a literal - violation
+    violation =
+      Helpers.build_node_violation(
+        focus_node,
+        node_shape,
+        "Focus node must be a literal with a language tag",
+        %{
+          constraint_component: ~I<http://www.w3.org/ns/shacl#LanguageInConstraintComponent>,
+          allowed_languages: allowed_languages,
+          actual_value: focus_node
+        }
+      )
+
+    [violation | results]
   end
 end

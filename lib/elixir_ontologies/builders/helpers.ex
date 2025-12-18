@@ -97,7 +97,7 @@ defmodule ElixirOntologies.Builders.Helpers do
     literal =
       if datatype_module do
         # Use the datatype module's constructor (e.g., RDF.XSD.String.new/1)
-        apply(datatype_module, :new, [value])
+        datatype_module.new(value)
       else
         RDF.literal(value)
       end

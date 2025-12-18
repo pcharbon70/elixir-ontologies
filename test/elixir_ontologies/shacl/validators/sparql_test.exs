@@ -333,7 +333,7 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
     # `SELECT (COUNT(?param) AS ?paramCount) WHERE { ?head struct:hasParameter ?param }`
     # This pattern is valid SPARQL 1.1 but not fully supported by the SPARQL.ex library.
     # Error: "unknown prefix in 'struct:arity' on line 7"
-    # TODO: Either upgrade SPARQL.ex to support subqueries or rewrite constraint to avoid subqueries
+    # Planned: Either upgrade SPARQL.ex to support subqueries or rewrite constraint to avoid subqueries
     # See: Phase 11.4.4 Review Fixes - SPARQL Limitations Documentation
     @tag :pending
     test "FunctionArityMatchShape: invalid function (arity != parameter count)" do
@@ -428,7 +428,7 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
     # This pattern is valid SPARQL 1.1 but not fully supported by the SPARQL.ex library.
     # The library doesn't correctly handle complex FILTER NOT EXISTS patterns with multiple
     # triple patterns inside the NOT EXISTS block.
-    # TODO: Either upgrade SPARQL.ex to support FILTER NOT EXISTS or rewrite constraint
+    # Planned: Either upgrade SPARQL.ex to support FILTER NOT EXISTS or rewrite constraint
     # See: Phase 11.4.4 Review Fixes - SPARQL Limitations Documentation
     @tag :pending
     test "ProtocolComplianceShape: invalid implementation (missing protocol function)" do

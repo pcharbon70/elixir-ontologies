@@ -464,7 +464,7 @@ defmodule ElixirOntologies.SHACL.Validators.ValueTest do
       graph =
         RDF.Graph.new([
           {@function_iri, @arity_prop,
-           RDF.Literal.new(999999, datatype: @xsd_non_negative_integer)}
+           RDF.Literal.new(999_999, datatype: @xsd_non_negative_integer)}
         ])
 
       # Should pass (no constraint)

@@ -251,35 +251,40 @@ defmodule ElixirOntologies.SHACL.W3CTestRunner do
         {:ok, fallback_graph}
 
       %RDF.IRI{} = iri ->
-        ref_str = to_string(iri)
-
-        # Check if it's a relative file reference (e.g., file:///path/xone-duplicate-data.ttl)
-        if String.ends_with?(ref_str, ".ttl") do
-          # Resolve relative to manifest file directory
-          manifest_dir = Path.dirname(manifest_file_path)
-          # Extract filename from IRI
-          filename = Path.basename(ref_str)
-          external_file_path = Path.join(manifest_dir, filename)
-
-          if File.exists?(external_file_path) do
-            # Load the external file
-            base_iri = "file://#{Path.expand(external_file_path)}"
-            case RDF.Turtle.read_file(external_file_path, base_iri: base_iri) do
-              {:ok, graph} -> {:ok, graph}
-              {:error, _} -> {:ok, fallback_graph}  # Fall back on error
-            end
-          else
-            # File doesn't exist, use fallback
-            {:ok, fallback_graph}
-          end
-        else
-          # Not a file reference, use fallback
-          {:ok, fallback_graph}
-        end
+        load_external_graph_from_iri(iri, manifest_file_path, fallback_graph)
 
       _ ->
         # Unknown type, use fallback
         {:ok, fallback_graph}
+    end
+  end
+
+  defp load_external_graph_from_iri(iri, manifest_file_path, fallback_graph) do
+    ref_str = to_string(iri)
+
+    # Check if it's a relative file reference (e.g., file:///path/xone-duplicate-data.ttl)
+    if String.ends_with?(ref_str, ".ttl") do
+      load_ttl_file(ref_str, manifest_file_path, fallback_graph)
+    else
+      {:ok, fallback_graph}
+    end
+  end
+
+  defp load_ttl_file(ref_str, manifest_file_path, fallback_graph) do
+    # Resolve relative to manifest file directory
+    manifest_dir = Path.dirname(manifest_file_path)
+    filename = Path.basename(ref_str)
+    external_file_path = Path.join(manifest_dir, filename)
+
+    if File.exists?(external_file_path) do
+      base_iri = "file://#{Path.expand(external_file_path)}"
+
+      case RDF.Turtle.read_file(external_file_path, base_iri: base_iri) do
+        {:ok, graph} -> {:ok, graph}
+        {:error, _} -> {:ok, fallback_graph}
+      end
+    else
+      {:ok, fallback_graph}
     end
   end
 
@@ -333,17 +338,19 @@ defmodule ElixirOntologies.SHACL.W3CTestRunner do
         type_iri = Enum.find(types, fn t -> String.ends_with?(to_string(t), "Validate") end) || List.first(types)
         type_str = to_string(type_iri)
 
-        cond do
-          String.ends_with?(type_str, "Validate") -> {:ok, :validate}
-          true -> {:ok, :unknown}
+        if String.ends_with?(type_str, "Validate") do
+          {:ok, :validate}
+        else
+          {:ok, :unknown}
         end
 
       type_iri ->
         type_str = to_string(type_iri)
 
-        cond do
-          String.ends_with?(type_str, "Validate") -> {:ok, :validate}
-          true -> {:ok, :unknown}
+        if String.ends_with?(type_str, "Validate") do
+          {:ok, :validate}
+        else
+          {:ok, :unknown}
         end
     end
   end

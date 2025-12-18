@@ -239,8 +239,7 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
 
     test "parses bitstring with variable size <<_::_*8>>" do
       ast =
-        {:<<>>, [],
-         [{:"::", [], [{:_, [], Elixir}, {:*, [], [{:_, [], Elixir}, 8]}]}]}
+        {:<<>>, [], [{:"::", [], [{:_, [], Elixir}, {:*, [], [{:_, [], Elixir}, 8]}]}]}
 
       {:ok, result} = TypeExpression.parse(ast)
       assert result.kind == :literal
@@ -891,8 +890,7 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
     test "parses remote type with multiple parameters" do
       # Map.t(key, value) equivalent
       ast =
-        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [],
-         [{:key, [], nil}, {:value, [], nil}]}
+        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [], [{:key, [], nil}, {:value, [], nil}]}
 
       {:ok, result} = TypeExpression.parse(ast)
       assert result.kind == :remote
@@ -922,8 +920,7 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
 
     test "multi-param remote type has correct arity" do
       ast =
-        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [],
-         [{:key, [], nil}, {:value, [], nil}]}
+        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [], [{:key, [], nil}, {:value, [], nil}]}
 
       {:ok, result} = TypeExpression.parse(ast)
       assert result.metadata.arity == 2
@@ -960,8 +957,7 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
 
     test "type_iri/1 handles multi-param types" do
       ast =
-        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [],
-         [{:key, [], nil}, {:value, [], nil}]}
+        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [], [{:key, [], nil}, {:value, [], nil}]}
 
       {:ok, result} = TypeExpression.parse(ast)
       assert TypeExpression.type_iri(result) == "Elixir.Map#t/2"
@@ -1412,7 +1408,9 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
     end
 
     test "returns false for unconstrained type variable" do
-      {:ok, result} = TypeExpression.parse_with_constraints({:b, [], nil}, %{a: {:integer, [], []}})
+      {:ok, result} =
+        TypeExpression.parse_with_constraints({:b, [], nil}, %{a: {:integer, [], []}})
+
       refute TypeExpression.constrained?(result)
     end
 
@@ -1438,7 +1436,9 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
     end
 
     test "returns nil for unconstrained type variable" do
-      {:ok, result} = TypeExpression.parse_with_constraints({:b, [], nil}, %{a: {:integer, [], []}})
+      {:ok, result} =
+        TypeExpression.parse_with_constraints({:b, [], nil}, %{a: {:integer, [], []}})
+
       assert TypeExpression.constraint_type(result) == nil
     end
 
