@@ -119,16 +119,18 @@ Note: Basic literal types (atoms, integers, floats) were already implemented. Th
 - [x] 14.2.3.6 Add literal type tests (21 new tests + 10 doctests)
 
 ### 14.2.4 Tuple Types
-- [ ] **Task 14.2.4 Pending**
+- [x] **Task 14.2.4 Complete**
 
 Extract tuple types with specific element types like `{:ok, result}` and `{atom(), integer(), binary()}`.
 
-- [ ] 14.2.4.1 Implement `extract_tuple_type/1` for fixed-arity tuples
-- [ ] 14.2.4.2 Extract element types in order
-- [ ] 14.2.4.3 Handle tagged tuples (e.g., `{:ok, t}`, `{:error, reason}`)
-- [ ] 14.2.4.4 Distinguish from generic `tuple()` type
-- [ ] 14.2.4.5 Create `%TypeExpression{kind: :tuple, elements: [...]}` struct
-- [ ] 14.2.4.6 Add tuple type tests
+Note: Tuple type parsing was already comprehensive (empty, 2-tuple, N-tuple, tagged). This task added helper functions for tuple introspection and comprehensive tests for edge cases.
+
+- [x] 14.2.4.1 Implement `extract_tuple_type/1` for fixed-arity tuples (existing)
+- [x] 14.2.4.2 Extract element types in order (existing, via `tuple_elements/1` helper)
+- [x] 14.2.4.3 Handle tagged tuples (existing, via `tagged_tuple?/1` and `tuple_tag/1` helpers)
+- [x] 14.2.4.4 Distinguish from generic `tuple()` type (generic is `kind: :basic`)
+- [x] 14.2.4.5 Create `%TypeExpression{kind: :tuple, elements: [...]}` struct (existing)
+- [x] 14.2.4.6 Add tuple type tests (20 new tests + 11 doctests)
 
 **Section 14.2 Unit Tests:**
 - [x] Test function type extraction `(integer() -> atom())` (existing)
@@ -137,8 +139,8 @@ Extract tuple types with specific element types like `{:ok, result}` and `{atom(
 - [x] Test struct type with field constraints (14.2.2)
 - [x] Test literal atom type `:ok` (existing)
 - [x] Test literal range type `1..10` (14.2.3)
-- [ ] Test tuple type `{atom(), integer()}`
-- [ ] Test tagged tuple patterns
+- [x] Test tuple type `{atom(), integer()}` (14.2.4)
+- [x] Test tagged tuple patterns (14.2.4)
 
 ## 14.3 Type System Builder Enhancement
 

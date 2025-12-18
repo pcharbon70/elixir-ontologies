@@ -656,6 +656,99 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   def tuple?(_), do: false
 
   @doc """
+  Returns the arity of a tuple type expression.
+
+  Returns the number of elements in the tuple, or `nil` for non-tuple types.
+
+  ## Examples
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      iex> ElixirOntologies.Extractors.TypeExpression.tuple_arity(result)
+      2
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:{}, [], [{:atom, [], []}, {:integer, [], []}, {:binary, [], []}]})
+      iex> ElixirOntologies.Extractors.TypeExpression.tuple_arity(result)
+      3
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:atom, [], []})
+      iex> ElixirOntologies.Extractors.TypeExpression.tuple_arity(result)
+      nil
+  """
+  @spec tuple_arity(t()) :: non_neg_integer() | nil
+  def tuple_arity(%__MODULE__{kind: :tuple, metadata: %{arity: arity}}), do: arity
+  def tuple_arity(_), do: nil
+
+  @doc """
+  Returns the element types for a tuple type expression.
+
+  Returns a list of TypeExpression structs for each element, or `nil` for non-tuple types.
+
+  ## Examples
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      iex> elements = ElixirOntologies.Extractors.TypeExpression.tuple_elements(result)
+      iex> length(elements)
+      2
+      iex> hd(elements).name
+      :atom
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:atom, [], []})
+      iex> ElixirOntologies.Extractors.TypeExpression.tuple_elements(result)
+      nil
+  """
+  @spec tuple_elements(t()) :: [t()] | nil
+  def tuple_elements(%__MODULE__{kind: :tuple, elements: elements}), do: elements
+  def tuple_elements(_), do: nil
+
+  @doc """
+  Returns true if the type expression is a tagged tuple.
+
+  Tagged tuples are 2-tuples where the first element is a literal atom,
+  commonly used in Elixir for result types like `{:ok, value}` or `{:error, reason}`.
+
+  ## Examples
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:ok, {:term, [], []}})
+      iex> ElixirOntologies.Extractors.TypeExpression.tagged_tuple?(result)
+      true
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      iex> ElixirOntologies.Extractors.TypeExpression.tagged_tuple?(result)
+      false
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:atom, [], []})
+      iex> ElixirOntologies.Extractors.TypeExpression.tagged_tuple?(result)
+      false
+  """
+  @spec tagged_tuple?(t()) :: boolean()
+  def tagged_tuple?(%__MODULE__{kind: :tuple, metadata: %{tagged: true}}), do: true
+  def tagged_tuple?(_), do: false
+
+  @doc """
+  Returns the tag from a tagged tuple type expression.
+
+  Returns the atom tag from tagged tuples like `{:ok, value}`, or `nil` for
+  non-tagged tuples and non-tuple types.
+
+  ## Examples
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:ok, {:term, [], []}})
+      iex> ElixirOntologies.Extractors.TypeExpression.tuple_tag(result)
+      :ok
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:error, {:binary, [], []}})
+      iex> ElixirOntologies.Extractors.TypeExpression.tuple_tag(result)
+      :error
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      iex> ElixirOntologies.Extractors.TypeExpression.tuple_tag(result)
+      nil
+  """
+  @spec tuple_tag(t()) :: atom() | nil
+  def tuple_tag(%__MODULE__{kind: :tuple, metadata: %{tag: tag}}), do: tag
+  def tuple_tag(_), do: nil
+
+  @doc """
   Returns true if the type expression is a list type.
 
   ## Examples

@@ -437,6 +437,157 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert length(result.elements) == 3
       assert result.metadata.arity == 3
     end
+
+    test "parses nested tuple {{atom(), integer()}, binary()}" do
+      inner_tuple = {{:atom, [], []}, {:integer, [], []}}
+      ast = {inner_tuple, {:binary, [], []}}
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :tuple
+      assert result.metadata.arity == 2
+
+      [first, second] = result.elements
+      assert first.kind == :tuple
+      assert first.metadata.arity == 2
+      assert second.kind == :basic
+      assert second.name == :binary
+    end
+
+    test "parses tuple with union element {atom(), :ok | :error}" do
+      union = {:|, [], [:ok, :error]}
+      ast = {{:atom, [], []}, union}
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :tuple
+      assert result.metadata.arity == 2
+
+      [first, second] = result.elements
+      assert first.kind == :basic
+      assert second.kind == :union
+      assert length(second.elements) == 2
+    end
+
+    test "parses tuple with remote type {String.t(), integer()}" do
+      remote = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      ast = {remote, {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :tuple
+      assert result.metadata.arity == 2
+
+      [first, second] = result.elements
+      assert first.kind == :remote
+      assert first.name == :t
+      assert second.kind == :basic
+    end
+
+    test "parses tagged tuple {:error, reason} with error tag" do
+      {:ok, result} = TypeExpression.parse({:error, {:term, [], []}})
+      assert result.kind == :tuple
+      assert result.metadata.tagged == true
+      assert result.metadata.tag == :error
+    end
+
+    test "parses 4-tuple" do
+      {:ok, result} =
+        TypeExpression.parse(
+          {:{}, [], [{:atom, [], []}, {:integer, [], []}, {:binary, [], []}, {:float, [], []}]}
+        )
+
+      assert result.kind == :tuple
+      assert length(result.elements) == 4
+      assert result.metadata.arity == 4
+    end
+
+    test "distinguishes generic tuple() from fixed-arity tuple" do
+      # generic tuple() is a basic type
+      {:ok, generic} = TypeExpression.parse({:tuple, [], []})
+      assert generic.kind == :basic
+      assert generic.name == :tuple
+
+      # fixed-arity tuple is a tuple type
+      {:ok, fixed} = TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      assert fixed.kind == :tuple
+      assert fixed.metadata.arity == 2
+    end
+  end
+
+  describe "tuple type helpers" do
+    test "tuple_arity/1 returns arity for 2-tuple" do
+      {:ok, result} = TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      assert TypeExpression.tuple_arity(result) == 2
+    end
+
+    test "tuple_arity/1 returns arity for 3-tuple" do
+      {:ok, result} =
+        TypeExpression.parse({:{}, [], [{:atom, [], []}, {:integer, [], []}, {:binary, [], []}]})
+
+      assert TypeExpression.tuple_arity(result) == 3
+    end
+
+    test "tuple_arity/1 returns 0 for empty tuple" do
+      {:ok, result} = TypeExpression.parse({:{}, [], []})
+      assert TypeExpression.tuple_arity(result) == 0
+    end
+
+    test "tuple_arity/1 returns nil for non-tuple" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.tuple_arity(result) == nil
+    end
+
+    test "tuple_elements/1 returns elements for tuple" do
+      {:ok, result} = TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      elements = TypeExpression.tuple_elements(result)
+
+      assert length(elements) == 2
+      assert Enum.at(elements, 0).name == :atom
+      assert Enum.at(elements, 1).name == :integer
+    end
+
+    test "tuple_elements/1 returns empty list for empty tuple" do
+      {:ok, result} = TypeExpression.parse({:{}, [], []})
+      assert TypeExpression.tuple_elements(result) == []
+    end
+
+    test "tuple_elements/1 returns nil for non-tuple" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.tuple_elements(result) == nil
+    end
+
+    test "tagged_tuple?/1 returns true for tagged tuple" do
+      {:ok, result} = TypeExpression.parse({:ok, {:term, [], []}})
+      assert TypeExpression.tagged_tuple?(result)
+    end
+
+    test "tagged_tuple?/1 returns false for untagged tuple" do
+      {:ok, result} = TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      refute TypeExpression.tagged_tuple?(result)
+    end
+
+    test "tagged_tuple?/1 returns false for non-tuple" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      refute TypeExpression.tagged_tuple?(result)
+    end
+
+    test "tuple_tag/1 returns tag for tagged tuple" do
+      {:ok, result} = TypeExpression.parse({:ok, {:term, [], []}})
+      assert TypeExpression.tuple_tag(result) == :ok
+    end
+
+    test "tuple_tag/1 returns :error for error tuple" do
+      {:ok, result} = TypeExpression.parse({:error, {:binary, [], []}})
+      assert TypeExpression.tuple_tag(result) == :error
+    end
+
+    test "tuple_tag/1 returns nil for untagged tuple" do
+      {:ok, result} = TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      assert TypeExpression.tuple_tag(result) == nil
+    end
+
+    test "tuple_tag/1 returns nil for non-tuple" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.tuple_tag(result) == nil
+    end
   end
 
   # ===========================================================================
