@@ -175,16 +175,18 @@ Note: The ontology does not define `hasBaseType` or `hasTypeParameter` propertie
 - [x] 14.3.2.6 Add parameterized type builder tests (5 tests: basic, name, keyword, nested, deeply nested)
 
 ### 14.3.3 Remote Type Builder
-- [ ] **Task 14.3.3 Pending**
+- [x] **Task 14.3.3 Complete**
 
 Generate RDF triples for remote type references linking to external modules.
 
-- [ ] 14.3.3.1 Implement `build_remote_type/3` generating remote type IRI
-- [ ] 14.3.3.2 Generate `rdf:type structure:RemoteType` triple
-- [ ] 14.3.3.3 Generate `structure:referencesModule` linking to module IRI
-- [ ] 14.3.3.4 Generate `structure:referencesType` with type name
-- [ ] 14.3.3.5 Handle remote types that may not be in current analysis scope
-- [ ] 14.3.3.6 Add remote type builder tests
+Note: The ontology does not define `RemoteType` class or `referencesModule` property. Implementation uses `BasicType` with fully qualified name string (e.g., "String.t"). This was already implemented in Phase 14.3.1 via `build_remote_type/3`.
+
+- [x] 14.3.3.1 Implement `build_remote_type/3` generating remote type IRI (already exists from 14.3.1)
+- [x] 14.3.3.2 Generate `rdf:type structure:RemoteType` triple (using `BasicType` - RemoteType doesn't exist)
+- [x] 14.3.3.3 Generate `structure:referencesModule` linking to module IRI (using qualified name in `typeName`)
+- [x] 14.3.3.4 Generate `structure:referencesType` with type name (type name included in qualified name)
+- [x] 14.3.3.5 Handle remote types that may not be in current analysis scope (uses string representation)
+- [x] 14.3.3.6 Add remote type builder tests (4 tests: simple, nested module, different name, in union)
 
 ### 14.3.4 Type Variable Builder
 - [ ] **Task 14.3.4 Pending**

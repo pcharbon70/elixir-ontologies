@@ -776,6 +776,107 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
     end
   end
 
+  describe "build_type_expression/2 - remote types" do
+    test "builds simple remote type String.t()" do
+      context = build_test_context()
+      # AST for `String.t()`
+      remote_ast = {{:., [], [{:__aliases__, [alias: false], [:String]}, :t]}, [], []}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(remote_ast, context)
+
+      # Verify basic type class (remote types use BasicType since RemoteType doesn't exist)
+      assert {node, RDF.type(), Structure.BasicType} in triples
+
+      # Verify qualified type name
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "String.t"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds remote type with nested module MyApp.Users.t()" do
+      context = build_test_context()
+      # AST for `MyApp.Users.t()`
+      remote_ast = {{:., [], [{:__aliases__, [alias: false], [:MyApp, :Users]}, :t]}, [], []}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(remote_ast, context)
+
+      # Verify basic type class
+      assert {node, RDF.type(), Structure.BasicType} in triples
+
+      # Verify qualified type name with nested modules
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "MyApp.Users.t"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds remote type with different type name" do
+      context = build_test_context()
+      # AST for `Enum.result()`
+      remote_ast = {{:., [], [{:__aliases__, [alias: false], [:Enum]}, :result]}, [], []}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(remote_ast, context)
+
+      # Verify type name includes type name (not just "t")
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "Enum.result"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds remote type in union" do
+      context = build_test_context()
+      # AST for `String.t() | atom()`
+      union_ast =
+        {:|, [],
+         [
+           {{:., [], [{:__aliases__, [alias: false], [:String]}, :t]}, [], []},
+           {:atom, [], []}
+         ]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {node, RDF.type(), Structure.UnionType} in triples
+
+      # Verify both BasicType instances exist (one for String.t, one for atom)
+      basic_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.BasicType
+          _ -> false
+        end)
+
+      assert basic_count == 2
+
+      # Verify String.t name exists in triples
+      assert Enum.any?(triples, fn
+               {_, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "String.t"
+
+               _ ->
+                 false
+             end)
+    end
+  end
+
   describe "build_type_definition/3 - with type expression" do
     test "type definition includes expression triples" do
       # Type with union expression: @type result :: :ok | :error
