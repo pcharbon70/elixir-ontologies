@@ -198,6 +198,59 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
     result
   end
 
+  @doc """
+  Parses a type expression AST with type variable constraints.
+
+  The constraints map associates type variable names with their constraint type ASTs.
+  When a type variable is encountered, its constraint (if present) is parsed and
+  stored in the metadata. This enables full semantic understanding of polymorphic
+  type expressions.
+
+  ## Examples
+
+      iex> constraints = %{a: {:integer, [], []}}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+      iex> result.kind
+      :variable
+      iex> result.metadata.constraint.kind
+      :basic
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse_with_constraints({:atom, [], []}, %{})
+      iex> result.kind
+      :basic
+
+      iex> constraints = %{a: {:integer, [], []}, b: {:atom, [], []}}
+      iex> ast = {:|, [], [{:a, [], nil}, {:b, [], nil}]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse_with_constraints(ast, constraints)
+      iex> result.kind
+      :union
+      iex> [first, second] = result.elements
+      iex> first.metadata.constraint.name
+      :integer
+      iex> second.metadata.constraint.name
+      :atom
+  """
+  @spec parse_with_constraints(Macro.t(), map()) :: {:ok, t()}
+  def parse_with_constraints(ast, constraints) when is_map(constraints) do
+    {:ok, do_parse_with_constraints(ast, constraints)}
+  end
+
+  @doc """
+  Parses a type expression AST with constraints, raising on error.
+
+  ## Examples
+
+      iex> constraints = %{a: {:integer, [], []}}
+      iex> result = ElixirOntologies.Extractors.TypeExpression.parse_with_constraints!({:a, [], nil}, constraints)
+      iex> result.metadata.constraint.kind
+      :basic
+  """
+  @spec parse_with_constraints!(Macro.t(), map()) :: t()
+  def parse_with_constraints!(ast, constraints) when is_map(constraints) do
+    {:ok, result} = parse_with_constraints(ast, constraints)
+    result
+  end
+
   # ===========================================================================
   # Union Types
   # ===========================================================================
@@ -671,6 +724,56 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   def variable?(_), do: false
 
   @doc """
+  Returns true if the type variable has a constraint.
+
+  Only returns true for type variables parsed with `parse_with_constraints/2`
+  that have an associated constraint type.
+
+  ## Examples
+
+      iex> constraints = %{a: {:integer, [], []}}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+      iex> ElixirOntologies.Extractors.TypeExpression.constrained?(result)
+      true
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse_with_constraints({:b, [], nil}, %{a: {:integer, [], []}})
+      iex> ElixirOntologies.Extractors.TypeExpression.constrained?(result)
+      false
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:a, [], nil})
+      iex> ElixirOntologies.Extractors.TypeExpression.constrained?(result)
+      false
+  """
+  @spec constrained?(t()) :: boolean()
+  def constrained?(%__MODULE__{kind: :variable, metadata: %{constrained: true}}), do: true
+  def constrained?(_), do: false
+
+  @doc """
+  Returns the constraint type expression for a constrained type variable.
+
+  Returns `nil` if the type expression is not a constrained type variable.
+
+  ## Examples
+
+      iex> constraints = %{a: {:integer, [], []}}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+      iex> constraint = ElixirOntologies.Extractors.TypeExpression.constraint_type(result)
+      iex> constraint.kind
+      :basic
+      iex> constraint.name
+      :integer
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:a, [], nil})
+      iex> ElixirOntologies.Extractors.TypeExpression.constraint_type(result)
+      nil
+  """
+  @spec constraint_type(t()) :: t() | nil
+  def constraint_type(%__MODULE__{kind: :variable, metadata: %{constraint: constraint}}),
+    do: constraint
+
+  def constraint_type(_), do: nil
+
+  @doc """
   Returns true if the type expression is a literal type.
 
   ## Examples
@@ -775,4 +878,308 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   defp detect_required({:required, _, _}), do: true
   defp detect_required({:optional, _, _}), do: false
   defp detect_required(_), do: true
+
+  # ===========================================================================
+  # Constraint-Aware Parsing
+  # ===========================================================================
+
+  # Delegate to regular parsing when no constraints
+  defp do_parse_with_constraints(ast, constraints) when map_size(constraints) == 0 do
+    do_parse(ast)
+  end
+
+  # Union types - propagate constraints to elements
+  defp do_parse_with_constraints({:|, _, [_left, _right]} = ast, constraints) do
+    elements = flatten_union(ast)
+
+    parsed_elements =
+      elements
+      |> Enum.with_index()
+      |> Enum.map(fn {element, index} ->
+        parsed = do_parse_with_constraints(element, constraints)
+        %{parsed | metadata: Map.put(parsed.metadata, :union_position, index)}
+      end)
+
+    %__MODULE__{
+      kind: :union,
+      elements: parsed_elements,
+      ast: ast,
+      metadata: %{element_count: length(elements)}
+    }
+  end
+
+  # Tuple types - propagate constraints to elements
+  defp do_parse_with_constraints({:{}, _, []} = ast, _constraints) do
+    %__MODULE__{
+      kind: :tuple,
+      elements: [],
+      ast: ast,
+      metadata: %{arity: 0}
+    }
+  end
+
+  defp do_parse_with_constraints({:{}, _, elements} = ast, constraints) when is_list(elements) do
+    %__MODULE__{
+      kind: :tuple,
+      elements: Enum.map(elements, &do_parse_with_constraints(&1, constraints)),
+      ast: ast,
+      metadata: %{arity: length(elements)}
+    }
+  end
+
+  defp do_parse_with_constraints({left, right} = ast, constraints)
+       when not is_list(right) and not is_atom(left) do
+    %__MODULE__{
+      kind: :tuple,
+      elements: [
+        do_parse_with_constraints(left, constraints),
+        do_parse_with_constraints(right, constraints)
+      ],
+      ast: ast,
+      metadata: %{arity: 2}
+    }
+  end
+
+  defp do_parse_with_constraints({tag, right} = ast, constraints)
+       when is_atom(tag) and not is_list(right) do
+    %__MODULE__{
+      kind: :tuple,
+      elements: [do_parse(tag), do_parse_with_constraints(right, constraints)],
+      ast: ast,
+      metadata: %{arity: 2, tagged: true, tag: tag}
+    }
+  end
+
+  # Function types - propagate constraints
+  defp do_parse_with_constraints([{:->, _, [params, return_type]}] = ast, constraints) do
+    param_types =
+      case params do
+        [{:..., _, _}] -> :any
+        params when is_list(params) -> Enum.map(params, &do_parse_with_constraints(&1, constraints))
+      end
+
+    %__MODULE__{
+      kind: :function,
+      param_types: param_types,
+      return_type: do_parse_with_constraints(return_type, constraints),
+      ast: ast,
+      metadata: %{
+        arity: if(param_types == :any, do: :any, else: length(param_types))
+      }
+    }
+  end
+
+  # List types - propagate constraints
+  defp do_parse_with_constraints([] = ast, _constraints) do
+    %__MODULE__{
+      kind: :list,
+      elements: [],
+      ast: ast,
+      metadata: %{empty: true}
+    }
+  end
+
+  defp do_parse_with_constraints([{:..., _, _}] = ast, _constraints) do
+    %__MODULE__{
+      kind: :list,
+      elements: [],
+      ast: ast,
+      metadata: %{nonempty: true}
+    }
+  end
+
+  defp do_parse_with_constraints([element] = ast, constraints) do
+    %__MODULE__{
+      kind: :list,
+      elements: [do_parse_with_constraints(element, constraints)],
+      ast: ast,
+      metadata: %{}
+    }
+  end
+
+  # Map types - propagate constraints
+  defp do_parse_with_constraints({:%{}, _, []} = ast, _constraints) do
+    %__MODULE__{
+      kind: :map,
+      elements: [],
+      ast: ast,
+      metadata: %{empty: true}
+    }
+  end
+
+  defp do_parse_with_constraints({:%{}, _, pairs} = ast, constraints) when is_list(pairs) do
+    parsed_pairs = parse_map_pairs_with_constraints(pairs, constraints)
+
+    %__MODULE__{
+      kind: :map,
+      elements: parsed_pairs,
+      ast: ast,
+      metadata: %{pair_count: length(parsed_pairs)}
+    }
+  end
+
+  # Struct types
+  defp do_parse_with_constraints(
+         {:%, _, [{:__aliases__, _, module_parts}, {:%{}, _, _fields}]} = ast,
+         _constraints
+       ) do
+    %__MODULE__{
+      kind: :struct,
+      module: module_parts,
+      ast: ast,
+      metadata: %{}
+    }
+  end
+
+  # Remote types - propagate constraints to params
+  defp do_parse_with_constraints(
+         {{:., _, [{:__aliases__, _, module_parts}, type_name]}, _, args} = ast,
+         constraints
+       )
+       when is_list(args) do
+    parsed_params =
+      if args == [] do
+        nil
+      else
+        args
+        |> Enum.with_index()
+        |> Enum.map(fn {arg, index} ->
+          parsed = do_parse_with_constraints(arg, constraints)
+          %{parsed | metadata: Map.put(parsed.metadata, :param_position, index)}
+        end)
+      end
+
+    metadata =
+      if args == [] do
+        %{parameterized: false, arity: 0}
+      else
+        %{parameterized: true, param_count: length(args), arity: length(args)}
+      end
+
+    %__MODULE__{
+      kind: :remote,
+      name: type_name,
+      module: module_parts,
+      elements: parsed_params,
+      ast: ast,
+      metadata: metadata
+    }
+  end
+
+  # Basic type call with no args
+  defp do_parse_with_constraints({name, _, []} = ast, _constraints) when name in @basic_types do
+    %__MODULE__{
+      kind: :basic,
+      name: name,
+      ast: ast,
+      metadata: %{}
+    }
+  end
+
+  # Parameterized basic types - propagate constraints
+  defp do_parse_with_constraints({name, _, args} = ast, constraints)
+       when name in @basic_types and is_list(args) and args != [] do
+    parsed_params =
+      args
+      |> Enum.with_index()
+      |> Enum.map(fn {arg, index} ->
+        parsed = do_parse_with_constraints(arg, constraints)
+        %{parsed | metadata: Map.put(parsed.metadata, :param_position, index)}
+      end)
+
+    %__MODULE__{
+      kind: :basic,
+      name: name,
+      elements: parsed_params,
+      ast: ast,
+      metadata: %{parameterized: true, param_count: length(args)}
+    }
+  end
+
+  # Type variable with constraint - THE KEY CASE
+  defp do_parse_with_constraints({name, _, context} = ast, constraints)
+       when is_atom(name) and is_atom(context) do
+    case Map.get(constraints, name) do
+      nil ->
+        # No constraint for this variable
+        %__MODULE__{
+          kind: :variable,
+          name: name,
+          ast: ast,
+          metadata: %{constrained: false}
+        }
+
+      constraint_ast ->
+        # Parse the constraint type
+        constraint = do_parse(constraint_ast)
+
+        %__MODULE__{
+          kind: :variable,
+          name: name,
+          ast: ast,
+          metadata: %{constrained: true, constraint: constraint}
+        }
+    end
+  end
+
+  # Literal atoms
+  defp do_parse_with_constraints(atom, _constraints) when is_atom(atom) do
+    do_parse(atom)
+  end
+
+  # Literal integers
+  defp do_parse_with_constraints(int, _constraints) when is_integer(int) do
+    do_parse(int)
+  end
+
+  # Literal floats
+  defp do_parse_with_constraints(float, _constraints) when is_float(float) do
+    do_parse(float)
+  end
+
+  # Fallback
+  defp do_parse_with_constraints(ast, _constraints) do
+    do_parse(ast)
+  end
+
+  # Helper for parsing map pairs with constraints
+  defp parse_map_pairs_with_constraints(pairs, constraints) do
+    Enum.map(pairs, fn
+      {key, value} when is_atom(key) ->
+        %{
+          key: do_parse(key),
+          value: do_parse_with_constraints(value, constraints),
+          required: true,
+          keyword_style: true
+        }
+
+      {{key_type, value_type}} ->
+        %{
+          key: do_parse_with_constraints(key_type, constraints),
+          value: do_parse_with_constraints(value_type, constraints),
+          required: detect_required(key_type)
+        }
+
+      {{:required, _, [key_type]}, value_type} ->
+        %{
+          key: do_parse_with_constraints(key_type, constraints),
+          value: do_parse_with_constraints(value_type, constraints),
+          required: true
+        }
+
+      {{:optional, _, [key_type]}, value_type} ->
+        %{
+          key: do_parse_with_constraints(key_type, constraints),
+          value: do_parse_with_constraints(value_type, constraints),
+          required: false
+        }
+
+      {key, value} ->
+        %{
+          key: do_parse_with_constraints(key, constraints),
+          value: do_parse_with_constraints(value, constraints),
+          required: detect_required(key)
+        }
+    end)
+  end
 end

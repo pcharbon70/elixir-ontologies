@@ -49,26 +49,28 @@ Note: Remote type detection was already implemented. This task enhanced it with 
 - [x] 14.1.3.6 Add remote type tests (11 new tests)
 
 ### 14.1.4 Type Variables and Constraints
-- [ ] **Task 14.1.4 Pending**
+- [x] **Task 14.1.4 Complete**
 
 Extract type variables used in polymorphic type definitions and their `when` constraints.
 
-- [ ] 14.1.4.1 Implement `extract_type_variable/1` for lowercase type names in specs
-- [ ] 14.1.4.2 Parse `when` clauses to extract type variable constraints
-- [ ] 14.1.4.3 Track type variable scope (function-level vs type-level)
-- [ ] 14.1.4.4 Extract constraint relationships (e.g., `when a: integer()`)
-- [ ] 14.1.4.5 Create `%TypeVariable{name: ..., constraints: [...]}` struct
-- [ ] 14.1.4.6 Add type variable and constraint tests
+Note: Type variable detection was already implemented (`kind: :variable`). This task added constraint-aware parsing via `parse_with_constraints/2` and helper functions for constraint introspection.
+
+- [x] 14.1.4.1 Implement `extract_type_variable/1` for lowercase type names in specs (existing)
+- [x] 14.1.4.2 Parse `when` clauses to extract type variable constraints (via `parse_with_constraints/2`)
+- [x] 14.1.4.3 Track type variable scope (function-level via constraint map parameter)
+- [x] 14.1.4.4 Extract constraint relationships (e.g., `when a: integer()`) (constraints parsed to TypeExpression)
+- [x] 14.1.4.5 Create `%TypeVariable{name: ..., constraints: [...]}` struct (using existing struct with `constraint` in metadata)
+- [x] 14.1.4.6 Add type variable and constraint tests (20 new tests + 9 doctests)
 
 **Section 14.1 Unit Tests:**
-- [ ] Test union type extraction for `integer() | atom()`
-- [ ] Test nested union flattening
-- [ ] Test parameterized type extraction for `list(integer())`
-- [ ] Test nested parameterized types
-- [ ] Test remote type extraction for `String.t()`
-- [ ] Test type variable detection
-- [ ] Test `when` constraint parsing
-- [ ] Test complex type expressions combining all forms
+- [x] Test union type extraction for `integer() | atom()` (existing)
+- [x] Test nested union flattening (existing)
+- [x] Test parameterized type extraction for `list(integer())` (existing)
+- [x] Test nested parameterized types (existing)
+- [x] Test remote type extraction for `String.t()` (existing)
+- [x] Test type variable detection (existing)
+- [x] Test `when` constraint parsing (20 new tests)
+- [x] Test complex type expressions combining all forms (constraint propagation tests)
 
 ## 14.2 Special Type Forms
 

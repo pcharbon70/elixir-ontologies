@@ -581,6 +581,214 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
   end
 
   # ===========================================================================
+  # Type Variable Constraint Tests
+  # ===========================================================================
+
+  describe "parse_with_constraints/2" do
+    test "parses type variable with constraint" do
+      constraints = %{a: {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+
+      assert result.kind == :variable
+      assert result.name == :a
+      assert result.metadata.constrained == true
+      assert result.metadata.constraint.kind == :basic
+      assert result.metadata.constraint.name == :integer
+    end
+
+    test "parses type variable without matching constraint" do
+      constraints = %{a: {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:b, [], nil}, constraints)
+
+      assert result.kind == :variable
+      assert result.name == :b
+      assert result.metadata.constrained == false
+      refute Map.has_key?(result.metadata, :constraint)
+    end
+
+    test "parses basic type unchanged with constraints" do
+      constraints = %{a: {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:atom, [], []}, constraints)
+
+      assert result.kind == :basic
+      assert result.name == :atom
+    end
+
+    test "propagates constraints through union types" do
+      constraints = %{a: {:integer, [], []}, b: {:atom, [], []}}
+      ast = {:|, [], [{:a, [], nil}, {:b, [], nil}]}
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :union
+      [first, second] = result.elements
+
+      assert first.kind == :variable
+      assert first.metadata.constrained == true
+      assert first.metadata.constraint.name == :integer
+
+      assert second.kind == :variable
+      assert second.metadata.constrained == true
+      assert second.metadata.constraint.name == :atom
+    end
+
+    test "propagates constraints through tuple types" do
+      constraints = %{a: {:integer, [], []}}
+      ast = {{:a, [], nil}, {:string, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :tuple
+      [first, second] = result.elements
+
+      assert first.kind == :variable
+      assert first.metadata.constrained == true
+
+      assert second.kind == :basic
+      assert second.name == :string
+    end
+
+    test "propagates constraints through list types" do
+      constraints = %{element: {:integer, [], []}}
+      ast = [{:element, [], nil}]
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :list
+      [element] = result.elements
+
+      assert element.kind == :variable
+      assert element.metadata.constrained == true
+      assert element.metadata.constraint.name == :integer
+    end
+
+    test "propagates constraints through function types" do
+      constraints = %{a: {:integer, [], []}, b: {:atom, [], []}}
+      # (a) -> b
+      ast = [{:->, [], [[{:a, [], nil}], {:b, [], nil}]}]
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :function
+      [param] = result.param_types
+
+      assert param.kind == :variable
+      assert param.metadata.constrained == true
+      assert param.metadata.constraint.name == :integer
+
+      assert result.return_type.kind == :variable
+      assert result.return_type.metadata.constrained == true
+      assert result.return_type.metadata.constraint.name == :atom
+    end
+
+    test "propagates constraints through parameterized types" do
+      constraints = %{a: {:integer, [], []}}
+      # list(a)
+      ast = {:list, [], [{:a, [], nil}]}
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :basic
+      assert result.name == :list
+      [param] = result.elements
+
+      assert param.kind == :variable
+      assert param.metadata.constrained == true
+      assert param.metadata.constraint.name == :integer
+    end
+
+    test "handles empty constraints map" do
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, %{})
+
+      assert result.kind == :variable
+      assert result.name == :a
+      # Empty constraints map delegates to regular parse
+    end
+
+    test "parses remote type with constrained parameters" do
+      constraints = %{element: {:integer, [], []}}
+      # Enumerable.t(element)
+      ast = {{:., [], [{:__aliases__, [], [:Enumerable]}, :t]}, [], [{:element, [], nil}]}
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :remote
+      assert result.name == :t
+      [param] = result.elements
+
+      assert param.kind == :variable
+      assert param.metadata.constrained == true
+      assert param.metadata.constraint.name == :integer
+    end
+
+    test "constraint type can be a union" do
+      # when a: atom() | integer()
+      constraints = %{a: {:|, [], [{:atom, [], []}, {:integer, [], []}]}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+
+      assert result.kind == :variable
+      assert result.metadata.constrained == true
+      assert result.metadata.constraint.kind == :union
+      assert length(result.metadata.constraint.elements) == 2
+    end
+
+    test "constraint type can be a remote type" do
+      # when a: String.t()
+      constraints = %{a: {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+
+      assert result.kind == :variable
+      assert result.metadata.constrained == true
+      assert result.metadata.constraint.kind == :remote
+      assert result.metadata.constraint.name == :t
+      assert result.metadata.constraint.module == [:String]
+    end
+  end
+
+  describe "constrained?/1" do
+    test "returns true for constrained type variable" do
+      constraints = %{a: {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+      assert TypeExpression.constrained?(result)
+    end
+
+    test "returns false for unconstrained type variable" do
+      {:ok, result} = TypeExpression.parse_with_constraints({:b, [], nil}, %{a: {:integer, [], []}})
+      refute TypeExpression.constrained?(result)
+    end
+
+    test "returns false for regular parse" do
+      {:ok, result} = TypeExpression.parse({:a, [], nil})
+      refute TypeExpression.constrained?(result)
+    end
+
+    test "returns false for non-variable types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      refute TypeExpression.constrained?(result)
+    end
+  end
+
+  describe "constraint_type/1" do
+    test "returns constraint for constrained type variable" do
+      constraints = %{a: {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+      constraint = TypeExpression.constraint_type(result)
+
+      assert constraint.kind == :basic
+      assert constraint.name == :integer
+    end
+
+    test "returns nil for unconstrained type variable" do
+      {:ok, result} = TypeExpression.parse_with_constraints({:b, [], nil}, %{a: {:integer, [], []}})
+      assert TypeExpression.constraint_type(result) == nil
+    end
+
+    test "returns nil for regular parse" do
+      {:ok, result} = TypeExpression.parse({:a, [], nil})
+      assert TypeExpression.constraint_type(result) == nil
+    end
+
+    test "returns nil for non-variable types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.constraint_type(result) == nil
+    end
+  end
+
+  # ===========================================================================
   # Helper Function Tests
   # ===========================================================================
 
