@@ -147,16 +147,18 @@ Note: Tuple type parsing was already comprehensive (empty, 2-tuple, N-tuple, tag
 This section enhances the TypeSystemBuilder to generate RDF triples for all extracted type information, linking to the appropriate ontology classes.
 
 ### 14.3.1 Union Type Builder
-- [ ] **Task 14.3.1 Pending**
+- [x] **Task 14.3.1 Complete**
 
-Generate RDF triples for union types using the structure:UnionType class and hasUnionMember property.
+Generate RDF triples for union types using the structure:UnionType class and unionOf property.
 
-- [ ] 14.3.1.1 Update `lib/elixir_ontologies/builders/type_system_builder.ex`
-- [ ] 14.3.1.2 Implement `build_union_type/3` generating union type IRI
-- [ ] 14.3.1.3 Generate `rdf:type structure:UnionType` triple
-- [ ] 14.3.1.4 Generate `structure:hasUnionMember` triples for each member type
-- [ ] 14.3.1.5 Handle recursive building for nested type expressions
-- [ ] 14.3.1.6 Add union type builder tests
+Note: The ontology uses `structure:unionOf` property (not `hasUnionMember`). Implementation also includes builders for all other type expression kinds (basic, literal, tuple, list, map, function, remote, struct, variable) via the `build_type_expression/2` public API.
+
+- [x] 14.3.1.1 Update `lib/elixir_ontologies/builders/type_system_builder.ex` (added build_type_expression/2 and all type builders)
+- [x] 14.3.1.2 Implement `build_union_type/3` generating union type blank node
+- [x] 14.3.1.3 Generate `rdf:type structure:UnionType` triple
+- [x] 14.3.1.4 Generate `structure:unionOf` triples for each member type
+- [x] 14.3.1.5 Handle recursive building for nested type expressions (all type kinds supported)
+- [x] 14.3.1.6 Add union type builder tests (12 new tests covering union, basic, tuple, function, variable types)
 
 ### 14.3.2 Parameterized Type Builder
 - [ ] **Task 14.3.2 Pending**

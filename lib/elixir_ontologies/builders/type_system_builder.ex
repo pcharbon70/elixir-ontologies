@@ -79,7 +79,7 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
 
   alias ElixirOntologies.Builders.{Context, Helpers}
   alias ElixirOntologies.{IRI, NS}
-  alias ElixirOntologies.Extractors.{TypeDefinition, FunctionSpec}
+  alias ElixirOntologies.Extractors.{TypeDefinition, FunctionSpec, TypeExpression}
   alias NS.{Structure, Core}
 
   # ===========================================================================
@@ -218,6 +218,43 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
   end
 
   # ===========================================================================
+  # Public API - Type Expression Building
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for a type expression AST.
+
+  Takes a type expression AST (from @type definitions or @spec) and builds
+  RDF triples representing the type structure. Returns a blank node representing
+  the type expression and all associated triples.
+
+  ## Parameters
+
+  - `type_ast` - The type expression AST from Elixir's quote
+  - `context` - Builder context with base IRI and configuration
+
+  ## Returns
+
+  A tuple `{type_node, triples}` where:
+  - `type_node` - An RDF blank node representing the type expression
+  - `triples` - List of RDF triples describing the type
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{TypeSystemBuilder, Context}
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {node, triples} = TypeSystemBuilder.build_type_expression({:|, [], [:ok, :error]}, context)
+      iex> Enum.any?(triples, fn {^node, pred, _} -> pred == RDF.type() end)
+      true
+  """
+  @spec build_type_expression(Macro.t(), Context.t()) :: {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  def build_type_expression(type_ast, context) do
+    # TypeExpression.parse always succeeds (returns {:ok, result})
+    {:ok, type_expr} = TypeExpression.parse(type_ast)
+    build_from_type_expression(type_expr, context)
+  end
+
+  # ===========================================================================
   # Type Definition Triple Generation
   # ===========================================================================
 
@@ -316,39 +353,355 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
   # ===========================================================================
 
   # Build triples for type expression (the body of a type definition)
-  defp build_type_expression_triples(_type_iri, _expression, _context) do
-    # TODO: Implement recursive type expression building
-    # For now, return empty list
-    []
+  # Note: Type definitions reference their body expression via referencesType
+  defp build_type_expression_triples(type_iri, expression, context) do
+    {expr_node, expr_triples} = build_type_expression(expression, context)
+
+    # Link type definition to its expression (only if we got triples)
+    if Enum.empty?(expr_triples) do
+      []
+    else
+      link_triple = Helpers.object_property(type_iri, Structure.referencesType(), expr_node)
+      [link_triple | expr_triples]
+    end
+  end
+
+  # ===========================================================================
+  # Type Expression Builders (Internal)
+  # ===========================================================================
+
+  # Build RDF from parsed TypeExpression struct
+  @spec build_from_type_expression(TypeExpression.t(), Context.t()) ::
+          {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  defp build_from_type_expression(%TypeExpression{kind: :union} = type_expr, context) do
+    build_union_type(type_expr, context)
+  end
+
+  defp build_from_type_expression(%TypeExpression{kind: :basic} = type_expr, context) do
+    build_basic_type(type_expr, context)
+  end
+
+  defp build_from_type_expression(%TypeExpression{kind: :literal} = type_expr, context) do
+    build_literal_type(type_expr, context)
+  end
+
+  defp build_from_type_expression(%TypeExpression{kind: :tuple} = type_expr, context) do
+    build_tuple_type(type_expr, context)
+  end
+
+  defp build_from_type_expression(%TypeExpression{kind: :list} = type_expr, context) do
+    build_list_type(type_expr, context)
+  end
+
+  defp build_from_type_expression(%TypeExpression{kind: :map} = type_expr, context) do
+    build_map_type(type_expr, context)
+  end
+
+  defp build_from_type_expression(%TypeExpression{kind: :function} = type_expr, context) do
+    build_function_type_expr(type_expr, context)
+  end
+
+  defp build_from_type_expression(%TypeExpression{kind: :remote} = type_expr, context) do
+    build_remote_type(type_expr, context)
+  end
+
+  defp build_from_type_expression(%TypeExpression{kind: :struct} = type_expr, context) do
+    build_struct_type(type_expr, context)
+  end
+
+  defp build_from_type_expression(%TypeExpression{kind: :variable} = type_expr, context) do
+    build_variable_type(type_expr, context)
+  end
+
+  defp build_from_type_expression(%TypeExpression{kind: :any}, _context) do
+    # Any type - basic type with name "any"
+    node = RDF.BlankNode.new()
+
+    triples = [
+      Helpers.type_triple(node, Structure.BasicType),
+      Helpers.datatype_property(node, Structure.typeName(), "any", RDF.XSD.String)
+    ]
+
+    {node, triples}
+  end
+
+  defp build_from_type_expression(_type_expr, _context) do
+    # Fallback for unknown kinds
+    {RDF.BlankNode.new(), []}
+  end
+
+  # Build union type: structure:UnionType with structure:unionOf links
+  @spec build_union_type(TypeExpression.t(), Context.t()) :: {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  defp build_union_type(%TypeExpression{kind: :union, elements: elements}, context) do
+    union_node = RDF.BlankNode.new()
+
+    # Type triple
+    type_triple = Helpers.type_triple(union_node, Structure.UnionType)
+
+    # Build each member type recursively and link with unionOf
+    {member_triples, all_member_triples} =
+      elements
+      |> Enum.map(fn member_expr ->
+        {member_node, member_triples} = build_from_type_expression(member_expr, context)
+        union_of_triple = Helpers.object_property(union_node, Structure.unionOf(), member_node)
+        {union_of_triple, member_triples}
+      end)
+      |> Enum.unzip()
+
+    all_triples = [type_triple | member_triples] ++ List.flatten(all_member_triples)
+    {union_node, all_triples}
+  end
+
+  # Build basic type: structure:BasicType with structure:typeName
+  # For parameterized types like list(integer()), uses ParameterizedType class
+  @spec build_basic_type(TypeExpression.t(), Context.t()) :: {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  defp build_basic_type(%TypeExpression{kind: :basic, name: name, elements: elements}, context) do
+    node = RDF.BlankNode.new()
+
+    # Determine if parameterized
+    is_parameterized = elements && not Enum.empty?(elements)
+
+    # Type triple - use ParameterizedType for parameterized, BasicType otherwise
+    type_triple =
+      if is_parameterized do
+        Helpers.type_triple(node, Structure.ParameterizedType)
+      else
+        Helpers.type_triple(node, Structure.BasicType)
+      end
+
+    # Name triple
+    name_str = if name, do: Atom.to_string(name), else: "unknown"
+    name_triple = Helpers.datatype_property(node, Structure.typeName(), name_str, RDF.XSD.String)
+
+    base_triples = [type_triple, name_triple]
+
+    # If parameterized, add element types using elementType property
+    param_triples =
+      if is_parameterized do
+        elements
+        |> Enum.flat_map(fn element_expr ->
+          {param_node, param_triples} = build_from_type_expression(element_expr, context)
+          # Use elementType for type parameters (reusing list type property)
+          param_link = Helpers.object_property(node, Structure.elementType(), param_node)
+          [param_link | param_triples]
+        end)
+      else
+        []
+      end
+
+    {node, base_triples ++ param_triples}
+  end
+
+  # Build literal type: structure:BasicType with literal value
+  @spec build_literal_type(TypeExpression.t(), Context.t()) ::
+          {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  defp build_literal_type(%TypeExpression{kind: :literal, name: name, metadata: metadata}, _context) do
+    node = RDF.BlankNode.new()
+
+    # Type triple - literals are represented as BasicType with literal value
+    type_triple = Helpers.type_triple(node, Structure.BasicType)
+
+    # For literal types, use the literal_type from metadata or the name
+    literal_type = Map.get(metadata, :literal_type, :atom)
+
+    name_triple =
+      case literal_type do
+        :atom when is_atom(name) ->
+          Helpers.datatype_property(node, Structure.typeName(), Atom.to_string(name), RDF.XSD.String)
+
+        :integer when is_integer(name) ->
+          Helpers.datatype_property(node, Structure.typeName(), Integer.to_string(name), RDF.XSD.String)
+
+        :range ->
+          # For ranges, format as "start..end"
+          range_start = Map.get(metadata, :range_start, 0)
+          range_end = Map.get(metadata, :range_end, 0)
+          Helpers.datatype_property(node, Structure.typeName(), "#{range_start}..#{range_end}", RDF.XSD.String)
+
+        _ ->
+          name_str = if name, do: to_string(name), else: "literal"
+          Helpers.datatype_property(node, Structure.typeName(), name_str, RDF.XSD.String)
+      end
+
+    {node, [type_triple, name_triple]}
+  end
+
+  # Build tuple type: structure:TupleType with element types
+  # Note: Using elementType property (same as ListType) for tuple elements
+  @spec build_tuple_type(TypeExpression.t(), Context.t()) :: {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  defp build_tuple_type(%TypeExpression{kind: :tuple, elements: elements}, context) do
+    node = RDF.BlankNode.new()
+
+    type_triple = Helpers.type_triple(node, Structure.TupleType)
+
+    element_triples =
+      (elements || [])
+      |> Enum.flat_map(fn element_expr ->
+        {element_node, element_triples} = build_from_type_expression(element_expr, context)
+        # Note: Using elementType for tuples (same as lists)
+        element_link = Helpers.object_property(node, Structure.elementType(), element_node)
+        [element_link | element_triples]
+      end)
+
+    {node, [type_triple | element_triples]}
+  end
+
+  # Build list type: structure:ListType with element type
+  @spec build_list_type(TypeExpression.t(), Context.t()) :: {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  defp build_list_type(%TypeExpression{kind: :list, elements: elements}, context) do
+    node = RDF.BlankNode.new()
+
+    type_triple = Helpers.type_triple(node, Structure.ListType)
+
+    element_triples =
+      case elements do
+        [element_expr | _] ->
+          {element_node, element_triples} = build_from_type_expression(element_expr, context)
+          element_link = Helpers.object_property(node, Structure.elementType(), element_node)
+          [element_link | element_triples]
+
+        _ ->
+          []
+      end
+
+    {node, [type_triple | element_triples]}
+  end
+
+  # Build map type: structure:MapType with key/value types
+  @spec build_map_type(TypeExpression.t(), Context.t()) :: {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  defp build_map_type(%TypeExpression{kind: :map, key_type: key_type, value_type: value_type}, context) do
+    node = RDF.BlankNode.new()
+
+    type_triple = Helpers.type_triple(node, Structure.MapType)
+
+    key_triples =
+      if key_type do
+        {key_node, key_type_triples} = build_from_type_expression(key_type, context)
+        key_link = Helpers.object_property(node, Structure.keyType(), key_node)
+        [key_link | key_type_triples]
+      else
+        []
+      end
+
+    value_triples =
+      if value_type do
+        {value_node, value_type_triples} = build_from_type_expression(value_type, context)
+        value_link = Helpers.object_property(node, Structure.valueType(), value_node)
+        [value_link | value_type_triples]
+      else
+        []
+      end
+
+    {node, [type_triple] ++ key_triples ++ value_triples}
+  end
+
+  # Build function type: structure:FunctionType with param/return types
+  @spec build_function_type_expr(TypeExpression.t(), Context.t()) ::
+          {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  defp build_function_type_expr(
+         %TypeExpression{kind: :function, param_types: param_types, return_type: return_type},
+         context
+       ) do
+    node = RDF.BlankNode.new()
+
+    type_triple = Helpers.type_triple(node, Structure.FunctionType)
+
+    param_triples =
+      (param_types || [])
+      |> Enum.flat_map(fn param_expr ->
+        {param_node, param_type_triples} = build_from_type_expression(param_expr, context)
+        param_link = Helpers.object_property(node, Structure.hasParameterType(), param_node)
+        [param_link | param_type_triples]
+      end)
+
+    return_triples =
+      if return_type do
+        {return_node, return_type_triples} = build_from_type_expression(return_type, context)
+        return_link = Helpers.object_property(node, Structure.hasReturnType(), return_node)
+        [return_link | return_type_triples]
+      else
+        []
+      end
+
+    {node, [type_triple] ++ param_triples ++ return_triples}
+  end
+
+  # Build remote type: references external module type
+  @spec build_remote_type(TypeExpression.t(), Context.t()) ::
+          {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  defp build_remote_type(%TypeExpression{kind: :remote, module: module, name: name}, _context) do
+    node = RDF.BlankNode.new()
+
+    # Use BasicType for now - ParameterizedType would be for generic remote types
+    type_triple = Helpers.type_triple(node, Structure.BasicType)
+
+    # Format module.type name
+    module_str = if module, do: Enum.map_join(module, ".", &Atom.to_string/1), else: ""
+    name_str = if name, do: Atom.to_string(name), else: "t"
+    full_name = "#{module_str}.#{name_str}"
+
+    name_triple = Helpers.datatype_property(node, Structure.typeName(), full_name, RDF.XSD.String)
+
+    {node, [type_triple, name_triple]}
+  end
+
+  # Build struct type: structure:StructType
+  @spec build_struct_type(TypeExpression.t(), Context.t()) ::
+          {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  defp build_struct_type(%TypeExpression{kind: :struct, module: module}, _context) do
+    node = RDF.BlankNode.new()
+
+    # Use BasicType with struct name for now
+    type_triple = Helpers.type_triple(node, Structure.BasicType)
+
+    module_str =
+      case module do
+        nil -> "%{}"
+        mods when is_list(mods) -> "%" <> Enum.map_join(mods, ".", &Atom.to_string/1) <> "{}"
+        mod when is_atom(mod) -> "%" <> Atom.to_string(mod) <> "{}"
+      end
+
+    name_triple = Helpers.datatype_property(node, Structure.typeName(), module_str, RDF.XSD.String)
+
+    {node, [type_triple, name_triple]}
+  end
+
+  # Build type variable: structure:TypeVariable
+  # Note: Using typeName property for variable name (variableName not in ontology)
+  @spec build_variable_type(TypeExpression.t(), Context.t()) ::
+          {RDF.BlankNode.t(), [RDF.Triple.t()]}
+  defp build_variable_type(%TypeExpression{kind: :variable, name: name}, _context) do
+    node = RDF.BlankNode.new()
+
+    type_triple = Helpers.type_triple(node, Structure.TypeVariable)
+    name_str = if name, do: Atom.to_string(name), else: "var"
+    # Using typeName for variable name since variableName doesn't exist in ontology
+    name_triple = Helpers.datatype_property(node, Structure.typeName(), name_str, RDF.XSD.String)
+
+    {node, [type_triple, name_triple]}
   end
 
   # Build triples for parameter types in a function spec
+  # Planned for Phase 14.3: Create RDF list for ordered parameter types
   defp build_parameter_types_triples(_spec_iri, parameter_types, _context) do
-    # Build type expression for each parameter type
     _param_type_nodes =
       parameter_types
       |> Enum.map(fn _param_type_ast ->
-        # For now, create blank nodes for type expressions
-        # TODO: Implement full type expression building
         RDF.BlankNode.new()
       end)
 
-    # TODO: Create RDF list for ordered parameter types
-    # For now, return empty list
     []
   end
 
   # Build triples for return type in a function spec
+  # Planned for Phase 14.3: Build type expression for return type
   defp build_return_type_triples(_spec_iri, _return_type_ast, _context) do
-    # TODO: Build type expression for return type
-    # For now, return empty list
     []
   end
 
   # Build triples for type constraints from `when` clause
+  # Planned for Phase 14.3: Build type constraint triples
   defp build_type_constraints_triples(_spec_iri, _type_constraints, _context) do
-    # TODO: Build type constraint triples
-    # For now, return empty list
     []
   end
 

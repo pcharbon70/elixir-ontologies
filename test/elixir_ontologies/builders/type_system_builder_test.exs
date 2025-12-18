@@ -452,6 +452,269 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
   end
 
   # ===========================================================================
+  # Type Expression Building Tests
+  # ===========================================================================
+
+  describe "build_type_expression/2 - union types" do
+    test "builds simple union type with two members" do
+      context = build_test_context()
+      # AST for `integer() | atom()`
+      union_ast = {:|, [], [{:integer, [], []}, {:atom, [], []}]}
+
+      {union_node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {union_node, RDF.type(), Structure.UnionType} in triples
+
+      # Count unionOf triples (should be 2)
+      union_of_count =
+        Enum.count(triples, fn
+          {^union_node, pred, _} -> pred == Structure.unionOf()
+          _ -> false
+        end)
+
+      assert union_of_count == 2
+
+      # Verify member types are BasicType
+      basic_type_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.BasicType
+          _ -> false
+        end)
+
+      assert basic_type_count == 2
+    end
+
+    test "builds union type with three members" do
+      context = build_test_context()
+      # AST for `integer() | atom() | binary()`
+      # Unions are right-associative in AST
+      union_ast = {:|, [], [{:integer, [], []}, {:|, [], [{:atom, [], []}, {:binary, [], []}]}]}
+
+      {union_node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {union_node, RDF.type(), Structure.UnionType} in triples
+
+      # Count unionOf triples - nested unions should be flattened
+      union_of_count =
+        Enum.count(triples, fn
+          {^union_node, pred, _} -> pred == Structure.unionOf()
+          _ -> false
+        end)
+
+      # Should have 3 members (flattened)
+      assert union_of_count == 3
+    end
+
+    test "builds union type with literal atom members" do
+      context = build_test_context()
+      # AST for `:ok | :error`
+      union_ast = {:|, [], [:ok, :error]}
+
+      {union_node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {union_node, RDF.type(), Structure.UnionType} in triples
+
+      # Verify we have unionOf links
+      union_of_count =
+        Enum.count(triples, fn
+          {^union_node, pred, _} -> pred == Structure.unionOf()
+          _ -> false
+        end)
+
+      assert union_of_count == 2
+    end
+
+    test "builds nested union with complex types" do
+      context = build_test_context()
+      # AST for `{:ok, integer()} | {:error, binary()}`
+      # This is a union of tuple types
+      union_ast =
+        {:|, [],
+         [
+           {:{}, [], [:ok, {:integer, [], []}]},
+           {:{}, [], [:error, {:binary, [], []}]}
+         ]}
+
+      {union_node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {union_node, RDF.type(), Structure.UnionType} in triples
+
+      # Verify tuple types are created
+      tuple_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.TupleType
+          _ -> false
+        end)
+
+      assert tuple_count == 2
+    end
+  end
+
+  describe "build_type_expression/2 - basic types" do
+    test "builds simple basic type" do
+      context = build_test_context()
+      # AST for `integer()`
+      basic_ast = {:integer, [], []}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(basic_ast, context)
+
+      # Verify basic type class
+      assert {node, RDF.type(), Structure.BasicType} in triples
+
+      # Verify type name
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "integer"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds parameterized type" do
+      context = build_test_context()
+      # AST for `list(integer())`
+      param_ast = {:list, [], [[{:integer, [], []}]]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(param_ast, context)
+
+      # Verify parameterized type class
+      assert {node, RDF.type(), Structure.ParameterizedType} in triples
+
+      # Verify has element type link
+      has_element =
+        Enum.any?(triples, fn
+          {^node, pred, _} -> pred == Structure.elementType()
+          _ -> false
+        end)
+
+      assert has_element
+    end
+  end
+
+  describe "build_type_expression/2 - tuple types" do
+    test "builds tuple type with element types" do
+      context = build_test_context()
+      # AST for `{atom(), integer()}`
+      tuple_ast = {:{}, [], [{:atom, [], []}, {:integer, [], []}]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(tuple_ast, context)
+
+      # Verify tuple type class
+      assert {node, RDF.type(), Structure.TupleType} in triples
+
+      # Verify element type links
+      element_count =
+        Enum.count(triples, fn
+          {^node, pred, _} -> pred == Structure.elementType()
+          _ -> false
+        end)
+
+      assert element_count == 2
+    end
+  end
+
+  describe "build_type_expression/2 - function types" do
+    test "builds function type with params and return" do
+      context = build_test_context()
+      # AST for `(integer() -> atom())`
+      # Function types in AST are: [{:->, [], [[param_types], return_type]}]
+      func_ast = [{:->, [], [[{:integer, [], []}], {:atom, [], []}]}]
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(func_ast, context)
+
+      # Verify function type class
+      assert {node, RDF.type(), Structure.FunctionType} in triples
+
+      # Verify has parameter type
+      has_param =
+        Enum.any?(triples, fn
+          {^node, pred, _} -> pred == Structure.hasParameterType()
+          _ -> false
+        end)
+
+      assert has_param
+
+      # Verify has return type
+      has_return =
+        Enum.any?(triples, fn
+          {^node, pred, _} -> pred == Structure.hasReturnType()
+          _ -> false
+        end)
+
+      assert has_return
+    end
+  end
+
+  describe "build_type_expression/2 - variable types" do
+    test "builds type variable" do
+      context = build_test_context()
+      # AST for type variable `t`
+      var_ast = {:t, [], nil}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(var_ast, context)
+
+      # Verify type variable class
+      assert {node, RDF.type(), Structure.TypeVariable} in triples
+
+      # Verify variable name
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "t"
+
+               _ ->
+                 false
+             end)
+    end
+  end
+
+  describe "build_type_definition/3 - with type expression" do
+    test "type definition includes expression triples" do
+      # Type with union expression: @type result :: :ok | :error
+      type_def =
+        build_test_type_definition(
+          name: :result,
+          arity: 0,
+          expression: {:|, [], [:ok, :error]}
+        )
+
+      context = build_test_context()
+      module_iri = build_test_module_iri()
+
+      {type_iri, triples} = TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
+
+      # Verify type definition
+      assert {type_iri, RDF.type(), Structure.PublicType} in triples
+
+      # Verify union type is created (triples contain UnionType)
+      has_union =
+        Enum.any?(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.UnionType
+          _ -> false
+        end)
+
+      assert has_union
+
+      # Verify referencesType link exists
+      has_ref =
+        Enum.any?(triples, fn
+          {^type_iri, pred, _} -> pred == Structure.referencesType()
+          _ -> false
+        end)
+
+      assert has_ref
+    end
+  end
+
+  # ===========================================================================
   # Integration Tests
   # ===========================================================================
 

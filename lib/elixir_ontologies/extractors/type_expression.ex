@@ -922,7 +922,12 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
       "Elixir.Enumerable#t/1"
   """
   @spec type_iri(t()) :: String.t() | nil
-  def type_iri(%__MODULE__{kind: :remote, module: module_parts, name: type_name, metadata: metadata})
+  def type_iri(%__MODULE__{
+        kind: :remote,
+        module: module_parts,
+        name: type_name,
+        metadata: metadata
+      })
       when is_list(module_parts) do
     arity = Map.get(metadata, :arity, 0)
     "Elixir." <> Enum.join(module_parts, ".") <> "##{type_name}/#{arity}"
@@ -967,7 +972,8 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
       nil
   """
   @spec struct_module(t()) :: String.t() | nil
-  def struct_module(%__MODULE__{kind: :struct, module: module_parts}) when is_list(module_parts) do
+  def struct_module(%__MODULE__{kind: :struct, module: module_parts})
+      when is_list(module_parts) do
     "Elixir." <> Enum.join(module_parts, ".")
   end
 
@@ -1167,7 +1173,10 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
       iex> ElixirOntologies.Extractors.TypeExpression.range_bounds(result)
       nil
   """
-  @spec range_bounds(t()) :: %{start: integer(), end: integer(), step: integer()} | %{start: integer(), end: integer()} | nil
+  @spec range_bounds(t()) ::
+          %{start: integer(), end: integer(), step: integer()}
+          | %{start: integer(), end: integer()}
+          | nil
   def range_bounds(%__MODULE__{kind: :literal, metadata: %{literal_type: :range} = metadata}) do
     base = %{start: metadata[:range_start], end: metadata[:range_end]}
 
@@ -1398,8 +1407,11 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   defp do_parse_with_constraints([{:->, _, [params, return_type]}] = ast, constraints) do
     param_types =
       case params do
-        [{:..., _, _}] -> :any
-        params when is_list(params) -> Enum.map(params, &do_parse_with_constraints(&1, constraints))
+        [{:..., _, _}] ->
+          :any
+
+        params when is_list(params) ->
+          Enum.map(params, &do_parse_with_constraints(&1, constraints))
       end
 
     %__MODULE__{
