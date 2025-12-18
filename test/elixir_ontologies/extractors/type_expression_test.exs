@@ -395,6 +395,147 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert result.param_types == :any
       assert result.metadata.arity == :any
     end
+
+    test "parses union of function types (multiple arities)" do
+      # (-> atom()) | (integer() -> atom())
+      ast =
+        {:|, [],
+         [
+           [{:->, [], [[], {:atom, [], []}]}],
+           [{:->, [], [[{:integer, [], []}], {:atom, [], []}]}]
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :union
+      assert length(result.elements) == 2
+
+      [zero_arity, one_arity] = result.elements
+
+      assert zero_arity.kind == :function
+      assert TypeExpression.function_arity(zero_arity) == 0
+
+      assert one_arity.kind == :function
+      assert TypeExpression.function_arity(one_arity) == 1
+    end
+
+    test "parses nested function type (function returning function)" do
+      # (integer() -> (atom() -> binary()))
+      inner_func = [{:->, [], [[{:atom, [], []}], {:binary, [], []}]}]
+      ast = [{:->, [], [[{:integer, [], []}], inner_func]}]
+
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :function
+      assert length(result.param_types) == 1
+      assert hd(result.param_types).kind == :basic
+      assert hd(result.param_types).name == :integer
+
+      # Return type is also a function
+      assert result.return_type.kind == :function
+      assert TypeExpression.function_arity(result.return_type) == 1
+      assert result.return_type.return_type.name == :binary
+    end
+
+    test "parses function type with complex parameter types" do
+      # ({integer(), atom()} -> [binary()])
+      tuple_param = {{:integer, [], []}, {:atom, [], []}}
+      list_return = [{:binary, [], []}]
+      ast = [{:->, [], [[tuple_param], list_return]}]
+
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :function
+      [param] = result.param_types
+      assert param.kind == :tuple
+      assert length(param.elements) == 2
+
+      assert result.return_type.kind == :list
+    end
+
+    test "parses function type with union parameter" do
+      # (integer() | atom() -> binary())
+      union_param = {:|, [], [{:integer, [], []}, {:atom, [], []}]}
+      ast = [{:->, [], [[union_param], {:binary, [], []}]}]
+
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :function
+      [param] = result.param_types
+      assert param.kind == :union
+      assert length(param.elements) == 2
+    end
+
+    test "parses function type with union return" do
+      # (integer() -> :ok | :error)
+      ast = [{:->, [], [[{:integer, [], []}], {:|, [], [:ok, :error]}]}]
+
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :function
+      assert result.return_type.kind == :union
+      assert length(result.return_type.elements) == 2
+    end
+  end
+
+  describe "function type helpers" do
+    test "param_types/1 returns parameter list for function" do
+      {:ok, result} =
+        TypeExpression.parse([
+          {:->, [], [[{:integer, [], []}, {:atom, [], []}], {:binary, [], []}]}
+        ])
+
+      params = TypeExpression.param_types(result)
+      assert length(params) == 2
+      assert Enum.at(params, 0).name == :integer
+      assert Enum.at(params, 1).name == :atom
+    end
+
+    test "param_types/1 returns :any for any-arity function" do
+      {:ok, result} = TypeExpression.parse([{:->, [], [[{:..., [], nil}], {:atom, [], []}]}])
+      assert TypeExpression.param_types(result) == :any
+    end
+
+    test "param_types/1 returns nil for non-function" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.param_types(result) == nil
+    end
+
+    test "return_type/1 returns return type for function" do
+      {:ok, result} = TypeExpression.parse([{:->, [], [[{:integer, [], []}], {:atom, [], []}]}])
+      return = TypeExpression.return_type(result)
+      assert return.kind == :basic
+      assert return.name == :atom
+    end
+
+    test "return_type/1 returns nil for non-function" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.return_type(result) == nil
+    end
+
+    test "function_arity/1 returns arity for fixed-arity function" do
+      {:ok, result} =
+        TypeExpression.parse([
+          {:->, [], [[{:integer, [], []}, {:atom, [], []}], {:binary, [], []}]}
+        ])
+
+      assert TypeExpression.function_arity(result) == 2
+    end
+
+    test "function_arity/1 returns 0 for zero-arity function" do
+      {:ok, result} = TypeExpression.parse([{:->, [], [[], {:atom, [], []}]}])
+      assert TypeExpression.function_arity(result) == 0
+    end
+
+    test "function_arity/1 returns :any for any-arity function" do
+      {:ok, result} = TypeExpression.parse([{:->, [], [[{:..., [], nil}], {:atom, [], []}]}])
+      assert TypeExpression.function_arity(result) == :any
+    end
+
+    test "function_arity/1 returns nil for non-function" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.function_arity(result) == nil
+    end
   end
 
   # ===========================================================================

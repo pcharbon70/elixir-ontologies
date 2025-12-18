@@ -77,16 +77,18 @@ Note: Type variable detection was already implemented (`kind: :variable`). This 
 This section handles special type forms defined in the ontology including function types, struct types, tuple types with specific arities, and literal types.
 
 ### 14.2.1 Function Types
-- [ ] **Task 14.2.1 Pending**
+- [x] **Task 14.2.1 Complete**
 
 Extract function type signatures like `(integer() -> atom())` used in higher-order function specs.
 
-- [ ] 14.2.1.1 Implement `extract_function_type/1` for arrow syntax in types
-- [ ] 14.2.1.2 Extract parameter types list
-- [ ] 14.2.1.3 Extract return type
-- [ ] 14.2.1.4 Handle multiple arities (e.g., `(-> atom()) | (integer() -> atom())`)
-- [ ] 14.2.1.5 Create `%TypeExpression{kind: :function_type, params: [...], return: ...}` struct
-- [ ] 14.2.1.6 Add function type tests
+Note: Function type extraction was already implemented (`kind: :function`). This task added helper functions for introspection and comprehensive tests for edge cases.
+
+- [x] 14.2.1.1 Implement `extract_function_type/1` for arrow syntax in types (existing)
+- [x] 14.2.1.2 Extract parameter types list (existing `param_types` field + new `param_types/1` helper)
+- [x] 14.2.1.3 Extract return type (existing `return_type` field + new `return_type/1` helper)
+- [x] 14.2.1.4 Handle multiple arities (e.g., `(-> atom()) | (integer() -> atom())`) (works via union parsing)
+- [x] 14.2.1.5 Create `%TypeExpression{kind: :function, ...}` struct (existing, uses `kind: :function`)
+- [x] 14.2.1.6 Add function type tests (14 new tests + 9 doctests)
 
 ### 14.2.2 Struct Types
 - [ ] **Task 14.2.2 Pending**

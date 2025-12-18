@@ -631,6 +631,83 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   def function?(_), do: false
 
   @doc """
+  Returns the parameter types for a function type expression.
+
+  Returns `:any` for any-arity functions (`(... -> return)`), a list of
+  TypeExpression structs for fixed-arity functions, or `nil` for non-function types.
+
+  ## Examples
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse([{:->, [], [[{:integer, [], []}], {:atom, [], []}]}])
+      iex> params = ElixirOntologies.Extractors.TypeExpression.param_types(result)
+      iex> length(params)
+      1
+      iex> hd(params).name
+      :integer
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse([{:->, [], [[{:..., [], nil}], {:atom, [], []}]}])
+      iex> ElixirOntologies.Extractors.TypeExpression.param_types(result)
+      :any
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:atom, [], []})
+      iex> ElixirOntologies.Extractors.TypeExpression.param_types(result)
+      nil
+  """
+  @spec param_types(t()) :: [t()] | :any | nil
+  def param_types(%__MODULE__{kind: :function, param_types: params}), do: params
+  def param_types(_), do: nil
+
+  @doc """
+  Returns the return type for a function type expression.
+
+  Returns the TypeExpression for the return type, or `nil` for non-function types.
+
+  ## Examples
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse([{:->, [], [[{:integer, [], []}], {:atom, [], []}]}])
+      iex> return = ElixirOntologies.Extractors.TypeExpression.return_type(result)
+      iex> return.kind
+      :basic
+      iex> return.name
+      :atom
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:atom, [], []})
+      iex> ElixirOntologies.Extractors.TypeExpression.return_type(result)
+      nil
+  """
+  @spec return_type(t()) :: t() | nil
+  def return_type(%__MODULE__{kind: :function, return_type: return}), do: return
+  def return_type(_), do: nil
+
+  @doc """
+  Returns the arity of a function type expression.
+
+  Returns `:any` for any-arity functions, the number of parameters for
+  fixed-arity functions, or `nil` for non-function types.
+
+  ## Examples
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse([{:->, [], [[{:integer, [], []}], {:atom, [], []}]}])
+      iex> ElixirOntologies.Extractors.TypeExpression.function_arity(result)
+      1
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse([{:->, [], [[], {:atom, [], []}]}])
+      iex> ElixirOntologies.Extractors.TypeExpression.function_arity(result)
+      0
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse([{:->, [], [[{:..., [], nil}], {:atom, [], []}]}])
+      iex> ElixirOntologies.Extractors.TypeExpression.function_arity(result)
+      :any
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:atom, [], []})
+      iex> ElixirOntologies.Extractors.TypeExpression.function_arity(result)
+      nil
+  """
+  @spec function_arity(t()) :: non_neg_integer() | :any | nil
+  def function_arity(%__MODULE__{kind: :function, metadata: %{arity: arity}}), do: arity
+  def function_arity(_), do: nil
+
+  @doc """
   Returns true if the type expression is a remote type.
 
   ## Examples
