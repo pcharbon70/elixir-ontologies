@@ -405,12 +405,24 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   # Struct Types
   # ===========================================================================
 
-  defp do_parse({:%, _, [{:__aliases__, _, module_parts}, {:%{}, _, _fields}]} = ast) do
+  defp do_parse({:%, _, [{:__aliases__, _, module_parts}, {:%{}, _, fields}]} = ast) do
+    parsed_fields =
+      if fields == [] do
+        nil
+      else
+        Enum.map(fields, fn {field_name, field_type} ->
+          %{name: field_name, type: do_parse(field_type)}
+        end)
+      end
+
     %__MODULE__{
       kind: :struct,
       module: module_parts,
+      elements: parsed_fields,
       ast: ast,
-      metadata: %{}
+      metadata: %{
+        field_count: if(parsed_fields, do: length(parsed_fields), else: 0)
+      }
     }
   end
 
@@ -788,6 +800,67 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   def struct?(_), do: false
 
   @doc """
+  Returns the struct module as an IRI-compatible string.
+
+  Returns the module path in the format used by Elixir's module system,
+  with "Elixir." prefix and dot-separated segments.
+
+  ## Examples
+
+      iex> ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], []}]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> ElixirOntologies.Extractors.TypeExpression.struct_module(result)
+      "Elixir.User"
+
+      iex> ast = {:%, [], [{:__aliases__, [], [:MyApp, :Accounts, :User]}, {:%{}, [], []}]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> ElixirOntologies.Extractors.TypeExpression.struct_module(result)
+      "Elixir.MyApp.Accounts.User"
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:atom, [], []})
+      iex> ElixirOntologies.Extractors.TypeExpression.struct_module(result)
+      nil
+  """
+  @spec struct_module(t()) :: String.t() | nil
+  def struct_module(%__MODULE__{kind: :struct, module: module_parts}) when is_list(module_parts) do
+    "Elixir." <> Enum.join(module_parts, ".")
+  end
+
+  def struct_module(_), do: nil
+
+  @doc """
+  Returns the field type constraints for a struct type.
+
+  Returns a list of maps with `:name` (atom) and `:type` (TypeExpression) keys
+  for each field constraint, or `nil` if the struct has no field constraints
+  or if the type expression is not a struct type.
+
+  ## Examples
+
+      iex> ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], [name: {:binary, [], []}, age: {:integer, [], []}]}]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> fields = ElixirOntologies.Extractors.TypeExpression.struct_fields(result)
+      iex> length(fields)
+      2
+      iex> hd(fields).name
+      :name
+      iex> hd(fields).type.name
+      :binary
+
+      iex> ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], []}]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse(ast)
+      iex> ElixirOntologies.Extractors.TypeExpression.struct_fields(result)
+      nil
+
+      iex> {:ok, result} = ElixirOntologies.Extractors.TypeExpression.parse({:atom, [], []})
+      iex> ElixirOntologies.Extractors.TypeExpression.struct_fields(result)
+      nil
+  """
+  @spec struct_fields(t()) :: [%{name: atom(), type: t()}] | nil
+  def struct_fields(%__MODULE__{kind: :struct, elements: fields}) when is_list(fields), do: fields
+  def struct_fields(_), do: nil
+
+  @doc """
   Returns true if the type expression is a type variable.
 
   ## Examples
@@ -1095,16 +1168,28 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
     }
   end
 
-  # Struct types
+  # Struct types - propagate constraints to field types
   defp do_parse_with_constraints(
-         {:%, _, [{:__aliases__, _, module_parts}, {:%{}, _, _fields}]} = ast,
-         _constraints
+         {:%, _, [{:__aliases__, _, module_parts}, {:%{}, _, fields}]} = ast,
+         constraints
        ) do
+    parsed_fields =
+      if fields == [] do
+        nil
+      else
+        Enum.map(fields, fn {field_name, field_type} ->
+          %{name: field_name, type: do_parse_with_constraints(field_type, constraints)}
+        end)
+      end
+
     %__MODULE__{
       kind: :struct,
       module: module_parts,
+      elements: parsed_fields,
       ast: ast,
-      metadata: %{}
+      metadata: %{
+        field_count: if(parsed_fields, do: length(parsed_fields), else: 0)
+      }
     }
   end
 

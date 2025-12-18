@@ -91,16 +91,18 @@ Note: Function type extraction was already implemented (`kind: :function`). This
 - [x] 14.2.1.6 Add function type tests (14 new tests + 9 doctests)
 
 ### 14.2.2 Struct Types
-- [ ] **Task 14.2.2 Pending**
+- [x] **Task 14.2.2 Complete**
 
 Extract struct type references like `%User{}` and `%User{name: String.t()}` in typespecs.
 
-- [ ] 14.2.2.1 Implement `extract_struct_type/1` for struct pattern in types
-- [ ] 14.2.2.2 Extract struct module reference
-- [ ] 14.2.2.3 Extract optional field type constraints
-- [ ] 14.2.2.4 Handle `t()` convention for struct types
-- [ ] 14.2.2.5 Create `%TypeExpression{kind: :struct_type, module: ..., fields: [...]}` struct
-- [ ] 14.2.2.6 Add struct type tests
+Note: Struct type detection was already implemented (`kind: :struct`). This task enhanced it with field type constraint extraction and helper functions for IRI-compatible module references and field introspection.
+
+- [x] 14.2.2.1 Implement `extract_struct_type/1` for struct pattern in types (existing)
+- [x] 14.2.2.2 Extract struct module reference (via `struct_module/1` helper)
+- [x] 14.2.2.3 Extract optional field type constraints (via `elements` field with parsed fields)
+- [x] 14.2.2.4 Handle `t()` convention for struct types (handled at type definition level)
+- [x] 14.2.2.5 Create `%TypeExpression{kind: :struct, module: ..., elements: [...]}` struct (uses `kind: :struct`)
+- [x] 14.2.2.6 Add struct type tests (17 new tests + 6 doctests)
 
 ### 14.2.3 Literal Types
 - [ ] **Task 14.2.3 Pending**
@@ -127,10 +129,10 @@ Extract tuple types with specific element types like `{:ok, result}` and `{atom(
 - [ ] 14.2.4.6 Add tuple type tests
 
 **Section 14.2 Unit Tests:**
-- [ ] Test function type extraction `(integer() -> atom())`
-- [ ] Test multi-arity function types
-- [ ] Test struct type extraction `%User{}`
-- [ ] Test struct type with field constraints
+- [x] Test function type extraction `(integer() -> atom())` (existing)
+- [x] Test multi-arity function types (14.2.1)
+- [x] Test struct type extraction `%User{}` (existing)
+- [x] Test struct type with field constraints (14.2.2)
 - [ ] Test literal atom type `:ok`
 - [ ] Test literal range type `1..10`
 - [ ] Test tuple type `{atom(), integer()}`

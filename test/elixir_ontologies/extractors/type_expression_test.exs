@@ -695,6 +695,228 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert result.kind == :struct
       assert result.module == [:MyApp, :Accounts, :User]
     end
+
+    test "struct without fields has nil elements" do
+      ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], []}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.elements == nil
+      assert result.metadata.field_count == 0
+    end
+
+    test "parses struct with field type constraints" do
+      # %User{name: binary(), age: integer()}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:User]},
+           {:%{}, [], [name: {:binary, [], []}, age: {:integer, [], []}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.module == [:User]
+      assert result.metadata.field_count == 2
+      assert is_list(result.elements)
+      assert length(result.elements) == 2
+
+      [name_field, age_field] = result.elements
+      assert name_field.name == :name
+      assert name_field.type.kind == :basic
+      assert name_field.type.name == :binary
+
+      assert age_field.name == :age
+      assert age_field.type.kind == :basic
+      assert age_field.type.name == :integer
+    end
+
+    test "parses struct with remote type field" do
+      # %User{email: String.t()}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:User]},
+           {:%{}, [], [email: {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [email_field] = result.elements
+      assert email_field.name == :email
+      assert email_field.type.kind == :remote
+      assert email_field.type.name == :t
+      assert email_field.type.module == [:String]
+    end
+
+    test "parses struct with union type field" do
+      # %Response{status: :ok | :error}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:Response]},
+           {:%{}, [], [status: {:|, [], [:ok, :error]}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [status_field] = result.elements
+      assert status_field.name == :status
+      assert status_field.type.kind == :union
+      assert length(status_field.type.elements) == 2
+    end
+
+    test "parses struct with nested struct field" do
+      # %Order{user: %User{}}
+      user_struct = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], []}]}
+
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:Order]},
+           {:%{}, [], [user: user_struct]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [user_field] = result.elements
+      assert user_field.name == :user
+      assert user_field.type.kind == :struct
+      assert user_field.type.module == [:User]
+    end
+
+    test "parses struct with list type field" do
+      # %User{roles: [atom()]}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:User]},
+           {:%{}, [], [roles: [{:atom, [], []}]]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [roles_field] = result.elements
+      assert roles_field.name == :roles
+      assert roles_field.type.kind == :list
+    end
+
+    test "parses struct with complex nested types in fields" do
+      # %User{settings: %{theme: atom(), notifications: boolean()}}
+      map_type = {:%{}, [], [theme: {:atom, [], []}, notifications: {:boolean, [], []}]}
+
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:User]},
+           {:%{}, [], [settings: map_type]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [settings_field] = result.elements
+      assert settings_field.name == :settings
+      assert settings_field.type.kind == :map
+    end
+  end
+
+  describe "struct type helpers" do
+    test "struct_module/1 returns IRI for simple module" do
+      ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], []}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.struct_module(result) == "Elixir.User"
+    end
+
+    test "struct_module/1 returns IRI for nested module" do
+      ast = {:%, [], [{:__aliases__, [], [:MyApp, :Accounts, :User]}, {:%{}, [], []}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.struct_module(result) == "Elixir.MyApp.Accounts.User"
+    end
+
+    test "struct_module/1 returns nil for non-struct types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.struct_module(result) == nil
+    end
+
+    test "struct_fields/1 returns field list for struct with fields" do
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:User]},
+           {:%{}, [], [name: {:binary, [], []}, age: {:integer, [], []}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      fields = TypeExpression.struct_fields(result)
+
+      assert is_list(fields)
+      assert length(fields) == 2
+
+      assert Enum.at(fields, 0).name == :name
+      assert Enum.at(fields, 1).name == :age
+    end
+
+    test "struct_fields/1 returns nil for struct without fields" do
+      ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], []}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.struct_fields(result) == nil
+    end
+
+    test "struct_fields/1 returns nil for non-struct types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.struct_fields(result) == nil
+    end
+  end
+
+  describe "parse_with_constraints/2 struct types" do
+    test "propagates constraints through struct field types" do
+      constraints = %{a: {:integer, [], []}}
+      # %Result{value: a}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:Result]},
+           {:%{}, [], [value: {:a, [], nil}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [value_field] = result.elements
+      assert value_field.name == :value
+      assert value_field.type.kind == :variable
+      assert value_field.type.metadata.constrained == true
+      assert value_field.type.metadata.constraint.name == :integer
+    end
+
+    test "handles struct with multiple constrained fields" do
+      constraints = %{a: {:integer, [], []}, b: {:atom, [], []}}
+      # %Pair{first: a, second: b}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:Pair]},
+           {:%{}, [], [first: {:a, [], nil}, second: {:b, [], nil}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :struct
+      [first_field, second_field] = result.elements
+
+      assert first_field.type.metadata.constraint.name == :integer
+      assert second_field.type.metadata.constraint.name == :atom
+    end
   end
 
   # ===========================================================================
