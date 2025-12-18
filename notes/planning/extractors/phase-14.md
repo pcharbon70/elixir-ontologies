@@ -189,16 +189,18 @@ Note: The ontology does not define `RemoteType` class or `referencesModule` prop
 - [x] 14.3.3.6 Add remote type builder tests (4 tests: simple, nested module, different name, in union)
 
 ### 14.3.4 Type Variable Builder
-- [ ] **Task 14.3.4 Pending**
+- [x] **Task 14.3.4 Complete**
 
 Generate RDF triples for type variables and their constraints.
 
-- [ ] 14.3.4.1 Implement `build_type_variable/3` generating variable IRI
-- [ ] 14.3.4.2 Generate `rdf:type structure:TypeVariable` triple
-- [ ] 14.3.4.3 Generate `structure:variableName` with variable name
-- [ ] 14.3.4.4 Generate `structure:hasConstraint` triples for each constraint
-- [ ] 14.3.4.5 Link constraints to their type expressions
-- [ ] 14.3.4.6 Add type variable builder tests
+Note: The ontology does not define `variableName` or `hasConstraint` properties. Implementation uses `typeName` for variable name (same as other types). Constraint handling would require ontology enhancement. This was already implemented in Phase 14.3.1 via `build_variable_type/3`.
+
+- [x] 14.3.4.1 Implement `build_type_variable/3` generating variable IRI (`build_variable_type/3` exists from 14.3.1)
+- [x] 14.3.4.2 Generate `rdf:type structure:TypeVariable` triple (line 676)
+- [x] 14.3.4.3 Generate `structure:variableName` with variable name (using `typeName` - variableName doesn't exist)
+- [x] 14.3.4.4 Generate `structure:hasConstraint` triples for each constraint (N/A - property doesn't exist)
+- [x] 14.3.4.5 Link constraints to their type expressions (N/A - no constraint linking available)
+- [x] 14.3.4.6 Add type variable builder tests (5 tests: simple, different name, in union, in function, multiple vars)
 
 **Section 14.3 Unit Tests:**
 - [ ] Test union type RDF generation

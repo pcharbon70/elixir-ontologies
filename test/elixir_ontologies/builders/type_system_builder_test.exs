@@ -774,6 +774,128 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
                  false
              end)
     end
+
+    test "builds type variable with different name" do
+      context = build_test_context()
+      # AST for type variable `element`
+      var_ast = {:element, [], nil}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(var_ast, context)
+
+      # Verify type variable class
+      assert {node, RDF.type(), Structure.TypeVariable} in triples
+
+      # Verify variable name is "element"
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "element"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds type variable in union type" do
+      context = build_test_context()
+      # AST for `t | nil` (common pattern for optional type variable)
+      union_ast = {:|, [], [{:t, [], nil}, nil]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {node, RDF.type(), Structure.UnionType} in triples
+
+      # Verify TypeVariable exists in triples
+      assert Enum.any?(triples, fn
+               {_, pred, obj} -> pred == RDF.type() and obj == Structure.TypeVariable
+               _ -> false
+             end)
+
+      # Verify variable name "t" exists
+      assert Enum.any?(triples, fn
+               {_, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "t"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds type variable in function type" do
+      context = build_test_context()
+      # AST for `(t -> t)` - identity function type
+      func_ast = [{:->, [], [[{:t, [], nil}], {:t, [], nil}]}]
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(func_ast, context)
+
+      # Verify function type class
+      assert {node, RDF.type(), Structure.FunctionType} in triples
+
+      # Verify we have 2 TypeVariable instances (param and return both use `t`)
+      type_var_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.TypeVariable
+          _ -> false
+        end)
+
+      assert type_var_count == 2
+
+      # Verify hasParameterType and hasReturnType exist
+      assert Enum.any?(triples, fn
+               {^node, pred, _} -> pred == Structure.hasParameterType()
+               _ -> false
+             end)
+
+      assert Enum.any?(triples, fn
+               {^node, pred, _} -> pred == Structure.hasReturnType()
+               _ -> false
+             end)
+    end
+
+    test "builds multiple different type variables" do
+      context = build_test_context()
+      # AST for `{a, b}` - tuple with two type variables
+      tuple_ast = {:{}, [], [{:a, [], nil}, {:b, [], nil}]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(tuple_ast, context)
+
+      # Verify tuple type class
+      assert {node, RDF.type(), Structure.TupleType} in triples
+
+      # Verify we have 2 TypeVariable instances
+      type_var_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.TypeVariable
+          _ -> false
+        end)
+
+      assert type_var_count == 2
+
+      # Verify both variable names exist
+      assert Enum.any?(triples, fn
+               {_, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "a"
+
+               _ ->
+                 false
+             end)
+
+      assert Enum.any?(triples, fn
+               {_, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "b"
+
+               _ ->
+                 false
+             end)
+    end
   end
 
   describe "build_type_expression/2 - remote types" do
