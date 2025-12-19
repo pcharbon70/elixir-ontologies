@@ -1191,4 +1191,505 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
       assert Attribute.doc_hidden?(attr)
     end
   end
+
+  # ===========================================================================
+  # CompileOptions Struct Tests (15.2.3)
+  # ===========================================================================
+
+  describe "CompileOptions struct" do
+    alias Attribute.CompileOptions
+
+    test "new/1 creates struct with all fields" do
+      opts = CompileOptions.new(
+        inline: [{:foo, 1}],
+        no_warn_undefined: [SomeModule],
+        warnings_as_errors: true,
+        debug_info: true,
+        raw_options: [:inline, :debug_info]
+      )
+
+      assert opts.inline == [{:foo, 1}]
+      assert opts.no_warn_undefined == [SomeModule]
+      assert opts.warnings_as_errors == true
+      assert opts.debug_info == true
+      assert opts.raw_options == [:inline, :debug_info]
+    end
+
+    test "new/0 creates empty struct with defaults" do
+      opts = CompileOptions.new()
+
+      assert opts.inline == nil
+      assert opts.no_warn_undefined == nil
+      assert opts.warnings_as_errors == nil
+      assert opts.debug_info == nil
+      assert opts.raw_options == []
+    end
+
+    test "inline?/1 returns true for inline: true" do
+      assert CompileOptions.inline?(CompileOptions.new(inline: true))
+    end
+
+    test "inline?/1 returns true for inline functions list" do
+      assert CompileOptions.inline?(CompileOptions.new(inline: [{:foo, 1}]))
+    end
+
+    test "inline?/1 returns false for nil" do
+      refute CompileOptions.inline?(CompileOptions.new(inline: nil))
+    end
+
+    test "inline?/1 returns false for empty list" do
+      refute CompileOptions.inline?(CompileOptions.new(inline: []))
+    end
+  end
+
+  # ===========================================================================
+  # CallbackSpec Struct Tests (15.2.3)
+  # ===========================================================================
+
+  describe "CallbackSpec struct" do
+    alias Attribute.CallbackSpec
+
+    test "new/1 creates struct with all fields" do
+      spec = CallbackSpec.new(
+        module: MyModule,
+        function: :callback,
+        is_current_module: false
+      )
+
+      assert spec.module == MyModule
+      assert spec.function == :callback
+      assert spec.is_current_module == false
+    end
+
+    test "new/0 creates empty struct with defaults" do
+      spec = CallbackSpec.new()
+
+      assert spec.module == nil
+      assert spec.function == nil
+      assert spec.is_current_module == false
+    end
+
+    test "has_function?/1 returns true when function is set" do
+      assert CallbackSpec.has_function?(CallbackSpec.new(function: :foo))
+    end
+
+    test "has_function?/1 returns false when function is nil" do
+      refute CallbackSpec.has_function?(CallbackSpec.new(function: nil))
+    end
+  end
+
+  # ===========================================================================
+  # Compile Options Extraction Tests (15.2.3)
+  # ===========================================================================
+
+  describe "extract_compile_options/1" do
+    test "extracts @compile :inline as true" do
+      ast = {:@, [], [{:compile, [], [:inline]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      opts = Attribute.extract_compile_options(attr)
+
+      assert opts.inline == true
+      assert opts.raw_options == [:inline]
+    end
+
+    test "extracts @compile :debug_info" do
+      ast = {:@, [], [{:compile, [], [:debug_info]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      opts = Attribute.extract_compile_options(attr)
+
+      assert opts.debug_info == true
+      assert opts.raw_options == [:debug_info]
+    end
+
+    test "extracts @compile :warnings_as_errors" do
+      ast = {:@, [], [{:compile, [], [:warnings_as_errors]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      opts = Attribute.extract_compile_options(attr)
+
+      assert opts.warnings_as_errors == true
+    end
+
+    test "extracts @compile with inline function list" do
+      ast = {:@, [], [{:compile, [], [[inline: [{:foo, 1}, {:bar, 2}]]]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      opts = Attribute.extract_compile_options(attr)
+
+      assert opts.inline == [{:foo, 1}, {:bar, 2}]
+    end
+
+    test "extracts @compile with no_warn_undefined list" do
+      ast = {:@, [], [{:compile, [], [[no_warn_undefined: [SomeModule]]]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      opts = Attribute.extract_compile_options(attr)
+
+      assert opts.no_warn_undefined == [SomeModule]
+    end
+
+    test "extracts @compile with multiple options" do
+      ast = {:@, [], [{:compile, [], [[inline: true, debug_info: true]]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      opts = Attribute.extract_compile_options(attr)
+
+      assert opts.inline == true
+      assert opts.debug_info == true
+    end
+
+    test "returns nil for non-compile attributes" do
+      ast = {:@, [], [{:doc, [], ["docs"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.extract_compile_options(attr) == nil
+    end
+
+    test "extracts @compile from quoted code" do
+      ast =
+        quote do
+          @compile :inline
+        end
+
+      {:ok, attr} = Attribute.extract(ast)
+      opts = Attribute.extract_compile_options(attr)
+
+      assert opts.inline == true
+    end
+
+    test "extracts @compile with keyword list from quoted code" do
+      ast =
+        quote do
+          @compile inline: [{:my_func, 1}]
+        end
+
+      {:ok, attr} = Attribute.extract(ast)
+      opts = Attribute.extract_compile_options(attr)
+
+      assert opts.inline == [{:my_func, 1}]
+    end
+  end
+
+  describe "compile_inline?/1" do
+    test "returns true for @compile :inline" do
+      ast = {:@, [], [{:compile, [], [:inline]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.compile_inline?(attr)
+    end
+
+    test "returns true for @compile with inline list" do
+      ast = {:@, [], [{:compile, [], [[inline: [{:foo, 1}]]]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.compile_inline?(attr)
+    end
+
+    test "returns false for @compile without inline" do
+      ast = {:@, [], [{:compile, [], [:debug_info]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      refute Attribute.compile_inline?(attr)
+    end
+
+    test "returns false for non-compile attributes" do
+      ast = {:@, [], [{:doc, [], ["docs"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      refute Attribute.compile_inline?(attr)
+    end
+  end
+
+  describe "compile_inline_functions/1" do
+    test "returns true for @compile :inline" do
+      ast = {:@, [], [{:compile, [], [:inline]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.compile_inline_functions(attr) == true
+    end
+
+    test "returns function list for inline option" do
+      ast = {:@, [], [{:compile, [], [[inline: [{:foo, 1}, {:bar, 2}]]]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.compile_inline_functions(attr) == [{:foo, 1}, {:bar, 2}]
+    end
+
+    test "returns nil for non-inline compile" do
+      ast = {:@, [], [{:compile, [], [:debug_info]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.compile_inline_functions(attr) == nil
+    end
+
+    test "returns nil for non-compile attributes" do
+      ast = {:@, [], [{:doc, [], ["docs"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.compile_inline_functions(attr) == nil
+    end
+  end
+
+  # ===========================================================================
+  # Callback Spec Extraction Tests (15.2.3)
+  # ===========================================================================
+
+  describe "extract_callback_spec/1" do
+    test "extracts @before_compile with module" do
+      ast = {:@, [], [{:before_compile, [], [{:__aliases__, [], [:MyHooks]}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      spec = Attribute.extract_callback_spec(attr)
+
+      assert spec.module == MyHooks
+      assert spec.function == nil
+      assert spec.is_current_module == false
+    end
+
+    test "extracts @after_compile with module" do
+      ast = {:@, [], [{:after_compile, [], [{:__aliases__, [], [:Validator]}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      spec = Attribute.extract_callback_spec(attr)
+
+      assert spec.module == Validator
+    end
+
+    test "extracts @on_definition with module and function" do
+      ast = {:@, [], [{:on_definition, [], [{{:__aliases__, [], [:MyMod]}, :track}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      spec = Attribute.extract_callback_spec(attr)
+
+      assert spec.module == MyMod
+      assert spec.function == :track
+    end
+
+    test "extracts @before_compile with __MODULE__" do
+      ast = {:@, [], [{:before_compile, [], [{:__MODULE__, [], nil}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      spec = Attribute.extract_callback_spec(attr)
+
+      assert spec.is_current_module == true
+      assert spec.module == nil
+    end
+
+    test "extracts @after_compile with {__MODULE__, :function}" do
+      ast = {:@, [], [{:after_compile, [], [{{:__MODULE__, [], nil}, :validate}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      spec = Attribute.extract_callback_spec(attr)
+
+      assert spec.is_current_module == true
+      assert spec.function == :validate
+    end
+
+    test "extracts @before_compile with atom module" do
+      ast = {:@, [], [{:before_compile, [], [:some_module]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      spec = Attribute.extract_callback_spec(attr)
+
+      assert spec.module == :some_module
+    end
+
+    test "extracts @on_definition with {atom_module, :function}" do
+      ast = {:@, [], [{:on_definition, [], [{:tracer, :log}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      spec = Attribute.extract_callback_spec(attr)
+
+      assert spec.module == :tracer
+      assert spec.function == :log
+    end
+
+    test "returns nil for non-callback attributes" do
+      ast = {:@, [], [{:doc, [], ["docs"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.extract_callback_spec(attr) == nil
+    end
+
+    test "returns nil for @compile attributes" do
+      ast = {:@, [], [{:compile, [], [:inline]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.extract_callback_spec(attr) == nil
+    end
+  end
+
+  describe "callback_module/1" do
+    test "returns module from @before_compile" do
+      ast = {:@, [], [{:before_compile, [], [{:__aliases__, [], [:Hooks]}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.callback_module(attr) == Hooks
+    end
+
+    test "returns nil for __MODULE__ reference" do
+      ast = {:@, [], [{:before_compile, [], [{:__MODULE__, [], nil}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.callback_module(attr) == nil
+    end
+
+    test "returns nil for non-callback attributes" do
+      ast = {:@, [], [{:doc, [], ["docs"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.callback_module(attr) == nil
+    end
+  end
+
+  describe "callback_function/1" do
+    test "returns function from @on_definition" do
+      ast = {:@, [], [{:on_definition, [], [{{:__aliases__, [], [:M]}, :track}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.callback_function(attr) == :track
+    end
+
+    test "returns nil when no function specified" do
+      ast = {:@, [], [{:before_compile, [], [{:__aliases__, [], [:Hooks]}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.callback_function(attr) == nil
+    end
+
+    test "returns nil for non-callback attributes" do
+      ast = {:@, [], [{:doc, [], ["docs"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.callback_function(attr) == nil
+    end
+  end
+
+  describe "callback_is_current_module?/1" do
+    test "returns true for __MODULE__ reference" do
+      ast = {:@, [], [{:before_compile, [], [{:__MODULE__, [], nil}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.callback_is_current_module?(attr)
+    end
+
+    test "returns true for {__MODULE__, :function}" do
+      ast = {:@, [], [{:after_compile, [], [{{:__MODULE__, [], nil}, :hook}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.callback_is_current_module?(attr)
+    end
+
+    test "returns false for external module" do
+      ast = {:@, [], [{:before_compile, [], [{:__aliases__, [], [:Hooks]}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      refute Attribute.callback_is_current_module?(attr)
+    end
+
+    test "returns false for non-callback attributes" do
+      ast = {:@, [], [{:doc, [], ["docs"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      refute Attribute.callback_is_current_module?(attr)
+    end
+  end
+
+  describe "callback extraction from quoted code" do
+    test "extracts @before_compile from quoted" do
+      ast =
+        quote do
+          @before_compile MyHooks
+        end
+
+      {:ok, attr} = Attribute.extract(ast)
+      spec = Attribute.extract_callback_spec(attr)
+
+      assert spec.module == MyHooks
+    end
+
+    test "extracts @after_compile with function from quoted" do
+      ast =
+        quote do
+          @after_compile {MyValidator, :check}
+        end
+
+      {:ok, attr} = Attribute.extract(ast)
+      spec = Attribute.extract_callback_spec(attr)
+
+      assert spec.module == MyValidator
+      assert spec.function == :check
+    end
+
+    test "extracts @on_definition from quoted" do
+      ast =
+        quote do
+          @on_definition {Tracer, :trace}
+        end
+
+      {:ok, attr} = Attribute.extract(ast)
+      spec = Attribute.extract_callback_spec(attr)
+
+      assert spec.module == Tracer
+      assert spec.function == :trace
+    end
+  end
+
+  # ===========================================================================
+  # External Resource Extraction Tests (15.2.3)
+  # ===========================================================================
+
+  describe "extract_external_resources/1" do
+    test "extracts single @external_resource" do
+      body = {:__block__, [], [
+        {:@, [], [{:external_resource, [], ["priv/data.json"]}]}
+      ]}
+
+      result = Attribute.extract_external_resources(body)
+      assert result == ["priv/data.json"]
+    end
+
+    test "extracts multiple @external_resource" do
+      body = {:__block__, [], [
+        {:@, [], [{:external_resource, [], ["priv/data.json"]}]},
+        {:@, [], [{:external_resource, [], ["priv/config.yml"]}]},
+        {:@, [], [{:external_resource, [], ["priv/schema.xsd"]}]}
+      ]}
+
+      result = Attribute.extract_external_resources(body)
+      assert result == ["priv/data.json", "priv/config.yml", "priv/schema.xsd"]
+    end
+
+    test "ignores non-external_resource attributes" do
+      body = {:__block__, [], [
+        {:@, [], [{:external_resource, [], ["priv/data.json"]}]},
+        {:@, [], [{:doc, [], ["docs"]}]},
+        {:@, [], [{:moduledoc, [], ["module docs"]}]}
+      ]}
+
+      result = Attribute.extract_external_resources(body)
+      assert result == ["priv/data.json"]
+    end
+
+    test "returns empty list for no external resources" do
+      body = {:__block__, [], [
+        {:@, [], [{:doc, [], ["docs"]}]}
+      ]}
+
+      result = Attribute.extract_external_resources(body)
+      assert result == []
+    end
+
+    test "returns empty list for empty body" do
+      body = {:__block__, [], []}
+
+      result = Attribute.extract_external_resources(body)
+      assert result == []
+    end
+  end
+
+  describe "external_resource_path/1" do
+    test "returns path from @external_resource" do
+      ast = {:@, [], [{:external_resource, [], ["priv/data.json"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.external_resource_path(attr) == "priv/data.json"
+    end
+
+    test "returns nil for non-external_resource attributes" do
+      ast = {:@, [], [{:doc, [], ["docs"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.external_resource_path(attr) == nil
+    end
+  end
 end

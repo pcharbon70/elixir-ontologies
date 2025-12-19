@@ -81,16 +81,16 @@ Extract documentation content from @moduledoc, @doc, and @typedoc attributes.
 - [x] 15.2.2.6 Add documentation value tests
 
 ### 15.2.3 Compile Attribute Values
-- [ ] **Task 15.2.3 Pending**
+- [x] **Task 15.2.3 Complete**
 
 Extract values from compile-time attributes like @compile, @on_definition, @before_compile.
 
-- [ ] 15.2.3.1 Extract @compile directive values (inline, no_warn, etc.)
-- [ ] 15.2.3.2 Extract @on_definition callback module/function
-- [ ] 15.2.3.3 Extract @before_compile callback specification
-- [ ] 15.2.3.4 Extract @after_compile callback specification
-- [ ] 15.2.3.5 Extract @external_resource file paths
-- [ ] 15.2.3.6 Add compile attribute value tests
+- [x] 15.2.3.1 Extract @compile directive values (inline, no_warn, etc.)
+- [x] 15.2.3.2 Extract @on_definition callback module/function
+- [x] 15.2.3.3 Extract @before_compile callback specification
+- [x] 15.2.3.4 Extract @after_compile callback specification
+- [x] 15.2.3.5 Extract @external_resource file paths
+- [x] 15.2.3.6 Add compile attribute value tests
 
 **Section 15.2 Unit Tests:**
 - [x] Test literal attribute value extraction
@@ -99,8 +99,8 @@ Extract values from compile-time attributes like @compile, @on_definition, @befo
 - [x] Test @moduledoc content extraction
 - [x] Test @doc content extraction
 - [x] Test @doc false handling
-- [ ] Test @compile option extraction
-- [ ] Test @before_compile/@after_compile extraction
+- [x] Test @compile option extraction
+- [x] Test @before_compile/@after_compile extraction
 
 ## 15.3 Quote/Unquote Semantics
 

@@ -402,6 +402,180 @@ defmodule ElixirOntologies.Extractors.Attribute do
   end
 
   # ===========================================================================
+  # CompileOptions Struct
+  # ===========================================================================
+
+  defmodule CompileOptions do
+    @moduledoc """
+    Represents parsed @compile directive options.
+
+    This struct normalizes the various formats of @compile directives into
+    a structured representation.
+
+    ## Fields
+
+    - `:inline` - Functions to inline (list of `{name, arity}`) or `true` for all
+    - `:no_warn_undefined` - Modules/MFAs to suppress undefined warnings
+    - `:warnings_as_errors` - Whether to treat warnings as errors
+    - `:debug_info` - Whether to include debug info
+    - `:raw_options` - The original options for reference
+
+    ## Usage
+
+        iex> alias ElixirOntologies.Extractors.Attribute.CompileOptions
+        iex> opts = CompileOptions.new(inline: [{:foo, 1}], debug_info: true)
+        iex> opts.inline
+        [{:foo, 1}]
+        iex> opts.debug_info
+        true
+    """
+
+    @type t :: %__MODULE__{
+            inline: [{atom(), non_neg_integer()}] | true | nil,
+            no_warn_undefined: [module()] | [{module(), atom(), non_neg_integer()}] | true | nil,
+            warnings_as_errors: boolean() | nil,
+            debug_info: boolean() | nil,
+            raw_options: keyword() | [atom()]
+          }
+
+    defstruct [
+      :inline,
+      :no_warn_undefined,
+      :warnings_as_errors,
+      :debug_info,
+      raw_options: []
+    ]
+
+    @doc """
+    Creates a new CompileOptions with the given options.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.CompileOptions
+        iex> opts = CompileOptions.new(inline: true, raw_options: [:inline])
+        iex> opts.inline
+        true
+
+        iex> alias ElixirOntologies.Extractors.Attribute.CompileOptions
+        iex> opts = CompileOptions.new(no_warn_undefined: [SomeModule])
+        iex> opts.no_warn_undefined
+        [SomeModule]
+    """
+    @spec new(keyword()) :: t()
+    def new(opts \\ []) do
+      %__MODULE__{
+        inline: Keyword.get(opts, :inline),
+        no_warn_undefined: Keyword.get(opts, :no_warn_undefined),
+        warnings_as_errors: Keyword.get(opts, :warnings_as_errors),
+        debug_info: Keyword.get(opts, :debug_info),
+        raw_options: Keyword.get(opts, :raw_options, [])
+      }
+    end
+
+    @doc """
+    Checks if inline compilation is enabled.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.CompileOptions
+        iex> CompileOptions.inline?(CompileOptions.new(inline: true))
+        true
+
+        iex> alias ElixirOntologies.Extractors.Attribute.CompileOptions
+        iex> CompileOptions.inline?(CompileOptions.new(inline: [{:foo, 1}]))
+        true
+
+        iex> alias ElixirOntologies.Extractors.Attribute.CompileOptions
+        iex> CompileOptions.inline?(CompileOptions.new())
+        false
+    """
+    @spec inline?(t()) :: boolean()
+    def inline?(%__MODULE__{inline: nil}), do: false
+    def inline?(%__MODULE__{inline: []}), do: false
+    def inline?(%__MODULE__{}), do: true
+  end
+
+  # ===========================================================================
+  # CallbackSpec Struct
+  # ===========================================================================
+
+  defmodule CallbackSpec do
+    @moduledoc """
+    Represents a callback specification for @on_definition, @before_compile, @after_compile.
+
+    This struct captures the target module and optional function for compile-time callbacks.
+
+    ## Fields
+
+    - `:module` - The target module (atom or `__MODULE__`)
+    - `:function` - The function name (atom) if specified
+    - `:is_current_module` - Whether it references `__MODULE__`
+
+    ## Usage
+
+        iex> alias ElixirOntologies.Extractors.Attribute.CallbackSpec
+        iex> spec = CallbackSpec.new(module: MyModule, function: :on_def)
+        iex> spec.module
+        MyModule
+        iex> spec.function
+        :on_def
+    """
+
+    @type t :: %__MODULE__{
+            module: module() | nil,
+            function: atom() | nil,
+            is_current_module: boolean()
+          }
+
+    defstruct [
+      :module,
+      :function,
+      is_current_module: false
+    ]
+
+    @doc """
+    Creates a new CallbackSpec with the given options.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.CallbackSpec
+        iex> spec = CallbackSpec.new(module: SomeModule)
+        iex> spec.module
+        SomeModule
+
+        iex> alias ElixirOntologies.Extractors.Attribute.CallbackSpec
+        iex> spec = CallbackSpec.new(is_current_module: true, function: :callback)
+        iex> spec.is_current_module
+        true
+    """
+    @spec new(keyword()) :: t()
+    def new(opts \\ []) do
+      %__MODULE__{
+        module: Keyword.get(opts, :module),
+        function: Keyword.get(opts, :function),
+        is_current_module: Keyword.get(opts, :is_current_module, false)
+      }
+    end
+
+    @doc """
+    Checks if the callback has a specific function specified.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.CallbackSpec
+        iex> CallbackSpec.has_function?(CallbackSpec.new(module: M, function: :foo))
+        true
+
+        iex> alias ElixirOntologies.Extractors.Attribute.CallbackSpec
+        iex> CallbackSpec.has_function?(CallbackSpec.new(module: M))
+        false
+    """
+    @spec has_function?(t()) :: boolean()
+    def has_function?(%__MODULE__{function: nil}), do: false
+    def has_function?(%__MODULE__{}), do: true
+  end
+
+  # ===========================================================================
   # Known Attributes
   # ===========================================================================
 
@@ -1236,6 +1410,367 @@ defmodule ElixirOntologies.Extractors.Attribute do
   defp sigil_to_type(:sigil_S), do: :S
   defp sigil_to_type(:sigil_s), do: :s
   defp sigil_to_type(_), do: nil
+
+  # ===========================================================================
+  # Compile Options Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts compile options from a @compile attribute.
+
+  Takes an extracted Attribute struct and returns a `CompileOptions` struct
+  with parsed compile directive values.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:compile, [], [:inline]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> opts = Attribute.extract_compile_options(attr)
+      iex> opts.inline
+      true
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:compile, [], [[inline: [{:foo, 1}, {:bar, 2}]]]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> opts = Attribute.extract_compile_options(attr)
+      iex> opts.inline
+      [{:foo, 1}, {:bar, 2}]
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:compile, [], [:debug_info]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> opts = Attribute.extract_compile_options(attr)
+      iex> opts.debug_info
+      true
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], ["docs"]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.extract_compile_options(attr)
+      nil
+  """
+  @spec extract_compile_options(t()) :: CompileOptions.t() | nil
+  def extract_compile_options(%__MODULE__{type: :compile_attribute, value: value}) do
+    parse_compile_options(value)
+  end
+
+  def extract_compile_options(_), do: nil
+
+  @doc """
+  Checks if an attribute has inline compilation enabled.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:compile, [], [:inline]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.compile_inline?(attr)
+      true
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:compile, [], [:debug_info]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.compile_inline?(attr)
+      false
+  """
+  @spec compile_inline?(t()) :: boolean()
+  def compile_inline?(%__MODULE__{} = attr) do
+    case extract_compile_options(attr) do
+      %CompileOptions{} = opts -> CompileOptions.inline?(opts)
+      nil -> false
+    end
+  end
+
+  @doc """
+  Gets the inline functions list from a compile attribute.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:compile, [], [[inline: [{:foo, 1}]]]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.compile_inline_functions(attr)
+      [{:foo, 1}]
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:compile, [], [:inline]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.compile_inline_functions(attr)
+      true
+  """
+  @spec compile_inline_functions(t()) :: [{atom(), non_neg_integer()}] | true | nil
+  def compile_inline_functions(%__MODULE__{} = attr) do
+    case extract_compile_options(attr) do
+      %CompileOptions{inline: inline} -> inline
+      nil -> nil
+    end
+  end
+
+  # Parse @compile value into CompileOptions struct
+  defp parse_compile_options(value) do
+    raw_options = normalize_compile_options(value)
+
+    CompileOptions.new(
+      inline: extract_inline_option(raw_options),
+      no_warn_undefined: extract_no_warn_undefined_option(raw_options),
+      warnings_as_errors: extract_boolean_option(raw_options, :warnings_as_errors),
+      debug_info: extract_boolean_option(raw_options, :debug_info),
+      raw_options: raw_options
+    )
+  end
+
+  # Normalize compile options to a consistent format
+  defp normalize_compile_options(value) when is_atom(value), do: [value]
+  defp normalize_compile_options(value) when is_list(value), do: List.flatten(value)
+  defp normalize_compile_options({_key, _value} = tuple), do: [tuple]
+  defp normalize_compile_options(_), do: []
+
+  # Extract :inline option
+  defp extract_inline_option(options) do
+    cond do
+      :inline in options -> true
+      Keyword.has_key?(options, :inline) -> Keyword.get(options, :inline)
+      true -> nil
+    end
+  end
+
+  # Extract :no_warn_undefined option
+  defp extract_no_warn_undefined_option(options) do
+    cond do
+      :no_warn_undefined in options ->
+        true
+
+      Keyword.has_key?(options, :no_warn_undefined) ->
+        Keyword.get(options, :no_warn_undefined)
+
+      true ->
+        # Check for tuple format {:no_warn_undefined, ...}
+        Enum.find_value(options, fn
+          {:no_warn_undefined, value} -> normalize_no_warn_value(value)
+          _ -> nil
+        end)
+    end
+  end
+
+  defp normalize_no_warn_value(value) when is_list(value), do: value
+  defp normalize_no_warn_value(value) when is_atom(value), do: [value]
+  defp normalize_no_warn_value({_m, _f, _a} = mfa), do: [mfa]
+  defp normalize_no_warn_value(_), do: nil
+
+  # Extract boolean options like :debug_info, :warnings_as_errors
+  defp extract_boolean_option(options, key) do
+    cond do
+      key in options -> true
+      Keyword.has_key?(options, key) -> Keyword.get(options, key)
+      true -> nil
+    end
+  end
+
+  # ===========================================================================
+  # Callback Spec Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts callback specification from @on_definition, @before_compile, or @after_compile.
+
+  Takes an extracted Attribute struct and returns a `CallbackSpec` struct
+  with the target module and function.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:before_compile, [], [{:__aliases__, [], [:MyHooks]}]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> spec = Attribute.extract_callback_spec(attr)
+      iex> spec.module
+      MyHooks
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:on_definition, [], [{{:__aliases__, [], [:MyMod]}, :track}]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> spec = Attribute.extract_callback_spec(attr)
+      iex> spec.module
+      MyMod
+      iex> spec.function
+      :track
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:after_compile, [], [{:__MODULE__, :validate}]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> spec = Attribute.extract_callback_spec(attr)
+      iex> spec.is_current_module
+      true
+      iex> spec.function
+      :validate
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], ["docs"]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.extract_callback_spec(attr)
+      nil
+  """
+  @spec extract_callback_spec(t()) :: CallbackSpec.t() | nil
+  def extract_callback_spec(%__MODULE__{type: type, value: value})
+      when type in [:on_definition_attribute, :before_compile_attribute, :after_compile_attribute] do
+    parse_callback_spec(value)
+  end
+
+  def extract_callback_spec(_), do: nil
+
+  @doc """
+  Gets the callback module from a callback attribute.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:before_compile, [], [{:__aliases__, [], [:Hooks]}]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.callback_module(attr)
+      Hooks
+  """
+  @spec callback_module(t()) :: module() | nil
+  def callback_module(%__MODULE__{} = attr) do
+    case extract_callback_spec(attr) do
+      %CallbackSpec{module: mod} -> mod
+      nil -> nil
+    end
+  end
+
+  @doc """
+  Gets the callback function from a callback attribute.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:on_definition, [], [{{:__aliases__, [], [:M]}, :track}]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.callback_function(attr)
+      :track
+  """
+  @spec callback_function(t()) :: atom() | nil
+  def callback_function(%__MODULE__{} = attr) do
+    case extract_callback_spec(attr) do
+      %CallbackSpec{function: func} -> func
+      nil -> nil
+    end
+  end
+
+  @doc """
+  Checks if a callback references __MODULE__.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:before_compile, [], [{:__MODULE__, :hook}]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.callback_is_current_module?(attr)
+      true
+  """
+  @spec callback_is_current_module?(t()) :: boolean()
+  def callback_is_current_module?(%__MODULE__{} = attr) do
+    case extract_callback_spec(attr) do
+      %CallbackSpec{is_current_module: true} -> true
+      _ -> false
+    end
+  end
+
+  # Parse callback value into CallbackSpec struct
+  # Format: Module
+  defp parse_callback_spec({:__aliases__, _, parts}) when is_list(parts) do
+    CallbackSpec.new(module: Module.concat(parts))
+  end
+
+  # Format: {Module, :function}
+  defp parse_callback_spec({{:__aliases__, _, parts}, func}) when is_list(parts) and is_atom(func) do
+    CallbackSpec.new(module: Module.concat(parts), function: func)
+  end
+
+  # Format: __MODULE__
+  defp parse_callback_spec({:__MODULE__, _, _}) do
+    CallbackSpec.new(is_current_module: true)
+  end
+
+  # Format: {:__MODULE__, :function}
+  defp parse_callback_spec({{:__MODULE__, _, _}, func}) when is_atom(func) do
+    CallbackSpec.new(is_current_module: true, function: func)
+  end
+
+  # Format: module atom directly
+  defp parse_callback_spec(module) when is_atom(module) and module != nil do
+    if module == :__MODULE__ do
+      CallbackSpec.new(is_current_module: true)
+    else
+      CallbackSpec.new(module: module)
+    end
+  end
+
+  # Format: {module_atom, :function}
+  defp parse_callback_spec({module, func}) when is_atom(module) and is_atom(func) do
+    if module == :__MODULE__ do
+      CallbackSpec.new(is_current_module: true, function: func)
+    else
+      CallbackSpec.new(module: module, function: func)
+    end
+  end
+
+  defp parse_callback_spec(_), do: CallbackSpec.new()
+
+  # ===========================================================================
+  # External Resource Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts all @external_resource file paths from a module body.
+
+  Returns a list of file path strings from all @external_resource attributes.
+
+  ## Examples
+
+      iex> body = {:__block__, [], [
+      ...>   {:@, [], [{:external_resource, [], ["priv/data.json"]}]},
+      ...>   {:@, [], [{:external_resource, [], ["priv/config.yml"]}]},
+      ...>   {:def, [], [{:foo, [], nil}]}
+      ...> ]}
+      iex> ElixirOntologies.Extractors.Attribute.extract_external_resources(body)
+      ["priv/data.json", "priv/config.yml"]
+
+      iex> body = {:__block__, [], []}
+      iex> ElixirOntologies.Extractors.Attribute.extract_external_resources(body)
+      []
+  """
+  @spec extract_external_resources(Macro.t()) :: [String.t()]
+  def extract_external_resources(body) do
+    body
+    |> extract_all()
+    |> Enum.filter(fn attr -> attr.type == :external_resource_attribute end)
+    |> Enum.map(fn attr -> attr.metadata[:path] end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  @doc """
+  Gets the file path from an @external_resource attribute.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:external_resource, [], ["priv/data.json"]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.external_resource_path(attr)
+      "priv/data.json"
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], ["docs"]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.external_resource_path(attr)
+      nil
+  """
+  @spec external_resource_path(t()) :: String.t() | nil
+  def external_resource_path(%__MODULE__{type: :external_resource_attribute, metadata: meta}) do
+    meta[:path]
+  end
+
+  def external_resource_path(_), do: nil
 
   # ===========================================================================
   # Private Helpers - Value Evaluation
