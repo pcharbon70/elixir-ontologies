@@ -6,6 +6,23 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
   and classifies them into appropriate TypeExpression kinds, enabling
   semantic understanding of type annotations.
 
+  ## Design Decision: Best-Effort Parsing
+
+  Unlike other extractors that return `{:ok, result} | {:error, reason}`,
+  this module's `parse/1` function always returns `{:ok, result}`. This is
+  an intentional design choice:
+
+  - **Rationale**: Type expressions can include arbitrary AST forms that may
+    not yet be explicitly supported. Rather than failing on unknown patterns,
+    the parser returns a fallback `%TypeExpression{kind: :any}` with metadata
+    indicating the expression was unrecognized.
+
+  - **Benefits**: Allows downstream code to handle partial type information
+    gracefully, and enables incremental enhancement of type support without
+    breaking existing code.
+
+  - **Detection**: Unrecognized expressions have `metadata: %{unrecognized: true}`.
+
   ## Ontology Classes
 
   From `elixir-structure.ttl`:

@@ -727,28 +727,16 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
   end
 
   # Build triples for parameter types in a function spec
-  # Planned for Phase 14.3: Create RDF list for ordered parameter types
-  defp build_parameter_types_triples(_spec_iri, parameter_types, _context) do
-    _param_type_nodes =
-      parameter_types
-      |> Enum.map(fn _param_type_ast ->
-        RDF.BlankNode.new()
-      end)
-
-    []
-  end
+  # Future enhancement: Create RDF list for ordered parameter types
+  defp build_parameter_types_triples(_spec_iri, _parameter_types, _context), do: []
 
   # Build triples for return type in a function spec
-  # Planned for Phase 14.3: Build type expression for return type
-  defp build_return_type_triples(_spec_iri, _return_type_ast, _context) do
-    []
-  end
+  # Future enhancement: Build type expression for return type
+  defp build_return_type_triples(_spec_iri, _return_type_ast, _context), do: []
 
   # Build triples for type constraints from `when` clause
-  # Planned for Phase 14.3: Build type constraint triples
-  defp build_type_constraints_triples(_spec_iri, _type_constraints, _context) do
-    []
-  end
+  # Future enhancement: Build type constraint triples
+  defp build_type_constraints_triples(_spec_iri, _type_constraints, _context), do: []
 
   # ===========================================================================
   # Helper Functions
