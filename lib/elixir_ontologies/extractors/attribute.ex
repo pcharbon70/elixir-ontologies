@@ -89,6 +89,206 @@ defmodule ElixirOntologies.Extractors.Attribute do
   ]
 
   # ===========================================================================
+  # AttributeValue Struct
+  # ===========================================================================
+
+  defmodule AttributeValue do
+    @moduledoc """
+    Represents a typed attribute value with classification and evaluation.
+
+    This struct captures the value assigned to a module attribute with type
+    information and evaluation status.
+
+    ## Fields
+
+    - `:type` - The value type classification
+    - `:value` - The extracted/evaluated value (for literals and simple structures)
+    - `:raw_ast` - Original AST for complex expressions
+    - `:accumulated` - Whether this attribute accumulates values
+
+    ## Value Types
+
+    - `:literal` - Atoms, integers, floats, strings, booleans
+    - `:list` - Regular lists `[a, b, c]`
+    - `:map` - Maps `%{key: value}`
+    - `:keyword_list` - Keyword lists `[key: value]`
+    - `:module_ref` - Module references `SomeModule`
+    - `:tuple` - Tuples `{a, b}`
+    - `:ast` - Complex AST expressions
+
+    ## Usage
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> val = AttributeValue.new(value: 42, type: :literal)
+        iex> val.type
+        :literal
+        iex> val.value
+        42
+    """
+
+    @type value_type ::
+            :literal
+            | :list
+            | :map
+            | :keyword_list
+            | :module_ref
+            | :tuple
+            | :ast
+            | :nil
+
+    @type t :: %__MODULE__{
+            type: value_type(),
+            value: term(),
+            raw_ast: Macro.t() | nil,
+            accumulated: boolean()
+          }
+
+    defstruct [
+      :type,
+      :value,
+      :raw_ast,
+      accumulated: false
+    ]
+
+    @doc """
+    Creates a new AttributeValue with the given options.
+
+    ## Options
+
+    - `:type` - The value type (required)
+    - `:value` - The extracted value
+    - `:raw_ast` - The original AST
+    - `:accumulated` - Whether the attribute accumulates (default: false)
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> val = AttributeValue.new(type: :literal, value: "hello")
+        iex> val.type
+        :literal
+        iex> val.value
+        "hello"
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> val = AttributeValue.new(type: :list, value: [1, 2, 3], accumulated: true)
+        iex> val.accumulated
+        true
+    """
+    @spec new(keyword()) :: t()
+    def new(opts \\ []) do
+      %__MODULE__{
+        type: Keyword.get(opts, :type),
+        value: Keyword.get(opts, :value),
+        raw_ast: Keyword.get(opts, :raw_ast),
+        accumulated: Keyword.get(opts, :accumulated, false)
+      }
+    end
+
+    @doc """
+    Checks if the value is a literal type.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> AttributeValue.literal?(AttributeValue.new(type: :literal, value: 42))
+        true
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> AttributeValue.literal?(AttributeValue.new(type: :list, value: [1, 2]))
+        false
+    """
+    @spec literal?(t()) :: boolean()
+    def literal?(%__MODULE__{type: :literal}), do: true
+    def literal?(_), do: false
+
+    @doc """
+    Checks if the value is a list type.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> AttributeValue.list?(AttributeValue.new(type: :list, value: [1, 2]))
+        true
+    """
+    @spec list?(t()) :: boolean()
+    def list?(%__MODULE__{type: :list}), do: true
+    def list?(_), do: false
+
+    @doc """
+    Checks if the value is a keyword list type.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> AttributeValue.keyword_list?(AttributeValue.new(type: :keyword_list, value: [a: 1]))
+        true
+    """
+    @spec keyword_list?(t()) :: boolean()
+    def keyword_list?(%__MODULE__{type: :keyword_list}), do: true
+    def keyword_list?(_), do: false
+
+    @doc """
+    Checks if the value is a map type.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> AttributeValue.map?(AttributeValue.new(type: :map, value: %{a: 1}))
+        true
+    """
+    @spec map?(t()) :: boolean()
+    def map?(%__MODULE__{type: :map}), do: true
+    def map?(_), do: false
+
+    @doc """
+    Checks if the value is a module reference.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> AttributeValue.module_ref?(AttributeValue.new(type: :module_ref, value: MyModule))
+        true
+    """
+    @spec module_ref?(t()) :: boolean()
+    def module_ref?(%__MODULE__{type: :module_ref}), do: true
+    def module_ref?(_), do: false
+
+    @doc """
+    Checks if the value is a complex AST that couldn't be evaluated.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> AttributeValue.ast?(AttributeValue.new(type: :ast, raw_ast: {:foo, [], []}))
+        true
+    """
+    @spec ast?(t()) :: boolean()
+    def ast?(%__MODULE__{type: :ast}), do: true
+    def ast?(_), do: false
+
+    @doc """
+    Checks if the value can be evaluated to a concrete term.
+
+    Returns true for literals, lists, maps, keyword lists, tuples, and module refs.
+    Returns false for complex AST expressions.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> AttributeValue.evaluable?(AttributeValue.new(type: :literal, value: 42))
+        true
+
+        iex> alias ElixirOntologies.Extractors.Attribute.AttributeValue
+        iex> AttributeValue.evaluable?(AttributeValue.new(type: :ast, raw_ast: {:foo, [], []}))
+        false
+    """
+    @spec evaluable?(t()) :: boolean()
+    def evaluable?(%__MODULE__{type: :ast}), do: false
+    def evaluable?(%__MODULE__{type: nil}), do: false
+    def evaluable?(_), do: true
+  end
+
+  # ===========================================================================
   # Known Attributes
   # ===========================================================================
 
@@ -480,4 +680,343 @@ defmodule ElixirOntologies.Extractors.Attribute do
   defp extract_derive_protocols(protocols) when is_list(protocols), do: protocols
   defp extract_derive_protocols({:__aliases__, _, parts}), do: [parts]
   defp extract_derive_protocols(protocol), do: [protocol]
+
+  # ===========================================================================
+  # Typed Value Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts a typed AttributeValue from an attribute's raw value.
+
+  Analyzes the value AST and returns an `AttributeValue` struct with
+  type classification and evaluated value where possible.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> val = Attribute.extract_typed_value(42)
+      iex> val.type
+      :literal
+      iex> val.value
+      42
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> val = Attribute.extract_typed_value("hello")
+      iex> val.type
+      :literal
+      iex> val.value
+      "hello"
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> val = Attribute.extract_typed_value([1, 2, 3])
+      iex> val.type
+      :list
+      iex> val.value
+      [1, 2, 3]
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> val = Attribute.extract_typed_value([a: 1, b: 2])
+      iex> val.type
+      :keyword_list
+      iex> val.value
+      [a: 1, b: 2]
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> val = Attribute.extract_typed_value({:__aliases__, [], [:MyModule]})
+      iex> val.type
+      :module_ref
+      iex> val.value
+      MyModule
+  """
+  @spec extract_typed_value(term()) :: AttributeValue.t()
+  def extract_typed_value(nil) do
+    AttributeValue.new(type: :nil, value: nil)
+  end
+
+  def extract_typed_value(value) when is_atom(value) do
+    AttributeValue.new(type: :literal, value: value)
+  end
+
+  def extract_typed_value(value) when is_binary(value) do
+    AttributeValue.new(type: :literal, value: value)
+  end
+
+  def extract_typed_value(value) when is_integer(value) do
+    AttributeValue.new(type: :literal, value: value)
+  end
+
+  def extract_typed_value(value) when is_float(value) do
+    AttributeValue.new(type: :literal, value: value)
+  end
+
+  def extract_typed_value(value) when is_boolean(value) do
+    AttributeValue.new(type: :literal, value: value)
+  end
+
+  # Module reference: {:__aliases__, _, [:Module, :Name]}
+  def extract_typed_value({:__aliases__, _, parts}) when is_list(parts) do
+    module = Module.concat(parts)
+    AttributeValue.new(type: :module_ref, value: module, raw_ast: {:__aliases__, [], parts})
+  end
+
+  # Map literal: %{...}
+  def extract_typed_value({:%{}, _, pairs}) when is_list(pairs) do
+    case try_evaluate_map(pairs) do
+      {:ok, map} ->
+        AttributeValue.new(type: :map, value: map, raw_ast: {:%{}, [], pairs})
+
+      :error ->
+        AttributeValue.new(type: :ast, raw_ast: {:%{}, [], pairs})
+    end
+  end
+
+  # Tuple: {a, b, c}
+  def extract_typed_value({:{}, _, elements}) when is_list(elements) do
+    case try_evaluate_list(elements) do
+      {:ok, evaluated} ->
+        AttributeValue.new(type: :tuple, value: List.to_tuple(evaluated), raw_ast: {:{}, [], elements})
+
+      :error ->
+        AttributeValue.new(type: :ast, raw_ast: {:{}, [], elements})
+    end
+  end
+
+  # Two-element tuple
+  def extract_typed_value({a, b}) do
+    case {try_evaluate_value(a), try_evaluate_value(b)} do
+      {{:ok, va}, {:ok, vb}} ->
+        AttributeValue.new(type: :tuple, value: {va, vb}, raw_ast: {a, b})
+
+      _ ->
+        AttributeValue.new(type: :ast, raw_ast: {a, b})
+    end
+  end
+
+  # List (including keyword lists)
+  def extract_typed_value(list) when is_list(list) do
+    cond do
+      list == [] ->
+        AttributeValue.new(type: :list, value: [])
+
+      keyword_list?(list) ->
+        case try_evaluate_keyword_list(list) do
+          {:ok, kw} ->
+            AttributeValue.new(type: :keyword_list, value: kw)
+
+          :error ->
+            AttributeValue.new(type: :ast, raw_ast: list)
+        end
+
+      true ->
+        case try_evaluate_list(list) do
+          {:ok, evaluated} ->
+            AttributeValue.new(type: :list, value: evaluated)
+
+          :error ->
+            AttributeValue.new(type: :ast, raw_ast: list)
+        end
+    end
+  end
+
+  # Complex AST (function calls, etc.)
+  def extract_typed_value(ast) do
+    AttributeValue.new(type: :ast, raw_ast: ast)
+  end
+
+  @doc """
+  Checks if a term is a keyword list (list of {atom, value} tuples).
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Attribute.keyword_list?([a: 1, b: 2])
+      true
+
+      iex> ElixirOntologies.Extractors.Attribute.keyword_list?([1, 2, 3])
+      false
+
+      iex> ElixirOntologies.Extractors.Attribute.keyword_list?([])
+      false
+
+      iex> ElixirOntologies.Extractors.Attribute.keyword_list?([{:a, 1}])
+      true
+  """
+  @spec keyword_list?(term()) :: boolean()
+  def keyword_list?([]), do: false
+
+  def keyword_list?(list) when is_list(list) do
+    Enum.all?(list, fn
+      {key, _value} when is_atom(key) -> true
+      _ -> false
+    end)
+  end
+
+  def keyword_list?(_), do: false
+
+  @doc """
+  Gets the typed value information for an extracted attribute.
+
+  Returns an `AttributeValue` struct from the attribute's value field.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:my_attr, [], [42]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> val_info = Attribute.value_info(attr)
+      iex> val_info.type
+      :literal
+      iex> val_info.value
+      42
+  """
+  @spec value_info(t()) :: AttributeValue.t()
+  def value_info(%__MODULE__{value: value}) do
+    extract_typed_value(value)
+  end
+
+  @doc """
+  Extracts all register_attribute calls from a module body.
+
+  Returns a list of attribute names that are registered with `accumulate: true`.
+
+  ## Examples
+
+      iex> code = "Module.register_attribute(__MODULE__, :my_attr, accumulate: true)"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> ElixirOntologies.Extractors.Attribute.extract_accumulated_attributes({:__block__, [], [ast]})
+      [:my_attr]
+
+      iex> code = "Module.register_attribute(__MODULE__, :other, [])"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> ElixirOntologies.Extractors.Attribute.extract_accumulated_attributes({:__block__, [], [ast]})
+      []
+  """
+  @spec extract_accumulated_attributes(Macro.t()) :: [atom()]
+  def extract_accumulated_attributes(body) do
+    body
+    |> Helpers.normalize_body()
+    |> Enum.flat_map(&extract_register_attribute_call/1)
+    |> Enum.filter(fn {_name, accumulated} -> accumulated end)
+    |> Enum.map(fn {name, _} -> name end)
+  end
+
+  @doc """
+  Checks if an attribute name is accumulated based on register_attribute calls.
+
+  ## Examples
+
+      iex> code = "Module.register_attribute(__MODULE__, :items, accumulate: true)"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> body = {:__block__, [], [ast]}
+      iex> ElixirOntologies.Extractors.Attribute.accumulated?(:items, body)
+      true
+
+      iex> ElixirOntologies.Extractors.Attribute.accumulated?(:other, {:__block__, [], []})
+      false
+  """
+  @spec accumulated?(atom(), Macro.t()) :: boolean()
+  def accumulated?(attr_name, body) do
+    attr_name in extract_accumulated_attributes(body)
+  end
+
+  # ===========================================================================
+  # Private Helpers - Value Evaluation
+  # ===========================================================================
+
+  defp try_evaluate_value(value) when is_atom(value), do: {:ok, value}
+  defp try_evaluate_value(value) when is_binary(value), do: {:ok, value}
+  defp try_evaluate_value(value) when is_integer(value), do: {:ok, value}
+  defp try_evaluate_value(value) when is_float(value), do: {:ok, value}
+  defp try_evaluate_value(value) when is_boolean(value), do: {:ok, value}
+
+  defp try_evaluate_value({:__aliases__, _, parts}) when is_list(parts) do
+    {:ok, Module.concat(parts)}
+  end
+
+  defp try_evaluate_value(list) when is_list(list) do
+    try_evaluate_list(list)
+  end
+
+  defp try_evaluate_value({:%{}, _, pairs}) when is_list(pairs) do
+    try_evaluate_map(pairs)
+  end
+
+  defp try_evaluate_value({:{}, _, elements}) when is_list(elements) do
+    case try_evaluate_list(elements) do
+      {:ok, evaluated} -> {:ok, List.to_tuple(evaluated)}
+      :error -> :error
+    end
+  end
+
+  defp try_evaluate_value({a, b}) do
+    case {try_evaluate_value(a), try_evaluate_value(b)} do
+      {{:ok, va}, {:ok, vb}} -> {:ok, {va, vb}}
+      _ -> :error
+    end
+  end
+
+  defp try_evaluate_value(_), do: :error
+
+  defp try_evaluate_list(list) do
+    results = Enum.map(list, &try_evaluate_value/1)
+
+    if Enum.all?(results, &match?({:ok, _}, &1)) do
+      {:ok, Enum.map(results, fn {:ok, v} -> v end)}
+    else
+      :error
+    end
+  end
+
+  defp try_evaluate_keyword_list(list) do
+    results =
+      Enum.map(list, fn
+        {key, value} when is_atom(key) ->
+          case try_evaluate_value(value) do
+            {:ok, v} -> {:ok, {key, v}}
+            :error -> :error
+          end
+
+        _ ->
+          :error
+      end)
+
+    if Enum.all?(results, &match?({:ok, _}, &1)) do
+      {:ok, Enum.map(results, fn {:ok, kv} -> kv end)}
+    else
+      :error
+    end
+  end
+
+  defp try_evaluate_map(pairs) do
+    results =
+      Enum.map(pairs, fn
+        {key, value} ->
+          case {try_evaluate_value(key), try_evaluate_value(value)} do
+            {{:ok, k}, {:ok, v}} -> {:ok, {k, v}}
+            _ -> :error
+          end
+      end)
+
+    if Enum.all?(results, &match?({:ok, _}, &1)) do
+      map = Enum.into(Enum.map(results, fn {:ok, kv} -> kv end), %{})
+      {:ok, map}
+    else
+      :error
+    end
+  end
+
+  # ===========================================================================
+  # Private Helpers - Register Attribute Extraction
+  # ===========================================================================
+
+  # Module.register_attribute(__MODULE__, :attr_name, accumulate: true)
+  defp extract_register_attribute_call(
+         {{:., _, [{:__aliases__, _, [:Module]}, :register_attribute]}, _,
+          [_module, attr_name, opts]}
+       )
+       when is_atom(attr_name) and is_list(opts) do
+    accumulated = Keyword.get(opts, :accumulate, false)
+    [{attr_name, accumulated}]
+  end
+
+  defp extract_register_attribute_call(_), do: []
 end

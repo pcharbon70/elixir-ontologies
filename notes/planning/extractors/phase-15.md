@@ -57,16 +57,16 @@ Capture the expansion context of macro invocations including the caller environm
 This section enhances attribute extraction to capture the actual values assigned to module attributes, not just their existence.
 
 ### 15.2.1 Compile-time Value Extraction
-- [ ] **Task 15.2.1 Pending**
+- [x] **Task 15.2.1 Complete**
 
 Extract the compile-time values assigned to module attributes, handling literals and simple expressions.
 
-- [ ] 15.2.1.1 Update `lib/elixir_ontologies/extractors/attribute.ex` for value extraction
-- [ ] 15.2.1.2 Extract literal values (atoms, integers, strings, lists, maps)
-- [ ] 15.2.1.3 Handle keyword list values for complex attributes
-- [ ] 15.2.1.4 Track attribute accumulation (`@attr` vs `Module.register_attribute(:attr, accumulate: true)`)
-- [ ] 15.2.1.5 Create `%AttributeValue{type: ..., value: ..., accumulated: boolean()}` struct
-- [ ] 15.2.1.6 Add attribute value extraction tests
+- [x] 15.2.1.1 Update `lib/elixir_ontologies/extractors/attribute.ex` for value extraction
+- [x] 15.2.1.2 Extract literal values (atoms, integers, strings, lists, maps)
+- [x] 15.2.1.3 Handle keyword list values for complex attributes
+- [x] 15.2.1.4 Track attribute accumulation (`@attr` vs `Module.register_attribute(:attr, accumulate: true)`)
+- [x] 15.2.1.5 Create `%AttributeValue{type: ..., value: ..., accumulated: boolean()}` struct
+- [x] 15.2.1.6 Add attribute value extraction tests
 
 ### 15.2.2 Documentation Attribute Values
 - [ ] **Task 15.2.2 Pending**
@@ -93,9 +93,9 @@ Extract values from compile-time attributes like @compile, @on_definition, @befo
 - [ ] 15.2.3.6 Add compile attribute value tests
 
 **Section 15.2 Unit Tests:**
-- [ ] Test literal attribute value extraction
-- [ ] Test complex attribute value extraction (lists, maps)
-- [ ] Test accumulated attribute handling
+- [x] Test literal attribute value extraction
+- [x] Test complex attribute value extraction (lists, maps)
+- [x] Test accumulated attribute handling
 - [ ] Test @moduledoc content extraction
 - [ ] Test @doc content extraction
 - [ ] Test @doc false handling

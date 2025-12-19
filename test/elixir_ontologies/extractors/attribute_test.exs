@@ -486,4 +486,389 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
       assert result.metadata.message == "Use new_function/1 instead"
     end
   end
+
+  # ===========================================================================
+  # AttributeValue Tests (15.2.1)
+  # ===========================================================================
+
+  describe "AttributeValue struct" do
+    alias Attribute.AttributeValue
+
+    test "new/1 creates struct with all fields" do
+      val = AttributeValue.new(
+        type: :literal,
+        value: 42,
+        raw_ast: nil,
+        accumulated: true
+      )
+
+      assert val.type == :literal
+      assert val.value == 42
+      assert val.raw_ast == nil
+      assert val.accumulated == true
+    end
+
+    test "new/0 creates empty struct with defaults" do
+      val = AttributeValue.new()
+
+      assert val.type == nil
+      assert val.value == nil
+      assert val.raw_ast == nil
+      assert val.accumulated == false
+    end
+
+    test "literal?/1 returns true for literal type" do
+      assert AttributeValue.literal?(AttributeValue.new(type: :literal))
+      refute AttributeValue.literal?(AttributeValue.new(type: :list))
+    end
+
+    test "list?/1 returns true for list type" do
+      assert AttributeValue.list?(AttributeValue.new(type: :list))
+      refute AttributeValue.list?(AttributeValue.new(type: :literal))
+    end
+
+    test "keyword_list?/1 returns true for keyword_list type" do
+      assert AttributeValue.keyword_list?(AttributeValue.new(type: :keyword_list))
+      refute AttributeValue.keyword_list?(AttributeValue.new(type: :list))
+    end
+
+    test "map?/1 returns true for map type" do
+      assert AttributeValue.map?(AttributeValue.new(type: :map))
+      refute AttributeValue.map?(AttributeValue.new(type: :literal))
+    end
+
+    test "module_ref?/1 returns true for module_ref type" do
+      assert AttributeValue.module_ref?(AttributeValue.new(type: :module_ref))
+      refute AttributeValue.module_ref?(AttributeValue.new(type: :literal))
+    end
+
+    test "ast?/1 returns true for ast type" do
+      assert AttributeValue.ast?(AttributeValue.new(type: :ast))
+      refute AttributeValue.ast?(AttributeValue.new(type: :literal))
+    end
+
+    test "evaluable?/1 returns true for evaluable types" do
+      assert AttributeValue.evaluable?(AttributeValue.new(type: :literal))
+      assert AttributeValue.evaluable?(AttributeValue.new(type: :list))
+      assert AttributeValue.evaluable?(AttributeValue.new(type: :map))
+      assert AttributeValue.evaluable?(AttributeValue.new(type: :keyword_list))
+      assert AttributeValue.evaluable?(AttributeValue.new(type: :tuple))
+      assert AttributeValue.evaluable?(AttributeValue.new(type: :module_ref))
+      refute AttributeValue.evaluable?(AttributeValue.new(type: :ast))
+      refute AttributeValue.evaluable?(AttributeValue.new(type: nil))
+    end
+  end
+
+  # ===========================================================================
+  # Typed Value Extraction Tests (15.2.1)
+  # ===========================================================================
+
+  describe "extract_typed_value/1 literals" do
+    test "extracts atom value" do
+      val = Attribute.extract_typed_value(:my_atom)
+      assert val.type == :literal
+      assert val.value == :my_atom
+    end
+
+    test "extracts string value" do
+      val = Attribute.extract_typed_value("hello")
+      assert val.type == :literal
+      assert val.value == "hello"
+    end
+
+    test "extracts integer value" do
+      val = Attribute.extract_typed_value(42)
+      assert val.type == :literal
+      assert val.value == 42
+    end
+
+    test "extracts float value" do
+      val = Attribute.extract_typed_value(3.14)
+      assert val.type == :literal
+      assert val.value == 3.14
+    end
+
+    test "extracts boolean true" do
+      val = Attribute.extract_typed_value(true)
+      assert val.type == :literal
+      assert val.value == true
+    end
+
+    test "extracts boolean false" do
+      val = Attribute.extract_typed_value(false)
+      assert val.type == :literal
+      assert val.value == false
+    end
+
+    test "extracts nil value" do
+      val = Attribute.extract_typed_value(nil)
+      assert val.type == :nil
+      assert val.value == nil
+    end
+  end
+
+  describe "extract_typed_value/1 lists" do
+    test "extracts empty list" do
+      val = Attribute.extract_typed_value([])
+      assert val.type == :list
+      assert val.value == []
+    end
+
+    test "extracts simple list" do
+      val = Attribute.extract_typed_value([1, 2, 3])
+      assert val.type == :list
+      assert val.value == [1, 2, 3]
+    end
+
+    test "extracts list with atoms" do
+      val = Attribute.extract_typed_value([:a, :b, :c])
+      assert val.type == :list
+      assert val.value == [:a, :b, :c]
+    end
+
+    test "extracts nested list" do
+      val = Attribute.extract_typed_value([[1, 2], [3, 4]])
+      assert val.type == :list
+      assert val.value == [[1, 2], [3, 4]]
+    end
+  end
+
+  describe "extract_typed_value/1 keyword lists" do
+    test "extracts keyword list" do
+      val = Attribute.extract_typed_value([a: 1, b: 2])
+      assert val.type == :keyword_list
+      assert val.value == [a: 1, b: 2]
+    end
+
+    test "extracts keyword list with complex values" do
+      val = Attribute.extract_typed_value([only: [:foo, :bar], except: [:baz]])
+      assert val.type == :keyword_list
+      assert val.value == [only: [:foo, :bar], except: [:baz]]
+    end
+
+    test "extracts keyword list as explicit tuples" do
+      val = Attribute.extract_typed_value([{:a, 1}, {:b, 2}])
+      assert val.type == :keyword_list
+      assert val.value == [a: 1, b: 2]
+    end
+  end
+
+  describe "extract_typed_value/1 maps" do
+    test "extracts map from AST" do
+      ast = {:%{}, [], [a: 1, b: 2]}
+      val = Attribute.extract_typed_value(ast)
+      assert val.type == :map
+      assert val.value == %{a: 1, b: 2}
+      assert val.raw_ast != nil
+    end
+
+    test "extracts map with string keys" do
+      ast = {:%{}, [], [{"key", "value"}]}
+      val = Attribute.extract_typed_value(ast)
+      assert val.type == :map
+      assert val.value == %{"key" => "value"}
+    end
+  end
+
+  describe "extract_typed_value/1 tuples" do
+    test "extracts two-element tuple" do
+      val = Attribute.extract_typed_value({:ok, 42})
+      assert val.type == :tuple
+      assert val.value == {:ok, 42}
+    end
+
+    test "extracts three-element tuple from AST" do
+      ast = {:{}, [], [:a, :b, :c]}
+      val = Attribute.extract_typed_value(ast)
+      assert val.type == :tuple
+      assert val.value == {:a, :b, :c}
+    end
+  end
+
+  describe "extract_typed_value/1 module references" do
+    test "extracts module reference" do
+      ast = {:__aliases__, [], [:MyModule]}
+      val = Attribute.extract_typed_value(ast)
+      assert val.type == :module_ref
+      assert val.value == MyModule
+    end
+
+    test "extracts nested module reference" do
+      ast = {:__aliases__, [], [:Some, :Nested, :Module]}
+      val = Attribute.extract_typed_value(ast)
+      assert val.type == :module_ref
+      assert val.value == Some.Nested.Module
+    end
+  end
+
+  describe "extract_typed_value/1 complex AST" do
+    test "returns ast type for function calls" do
+      ast = {:foo, [], [1, 2]}
+      val = Attribute.extract_typed_value(ast)
+      assert val.type == :ast
+      assert val.raw_ast == ast
+    end
+
+    test "returns ast type for complex expressions" do
+      ast = {:+, [], [1, {:x, [], nil}]}
+      val = Attribute.extract_typed_value(ast)
+      assert val.type == :ast
+      assert val.raw_ast == ast
+    end
+  end
+
+  # ===========================================================================
+  # Keyword List Detection Tests (15.2.1)
+  # ===========================================================================
+
+  describe "keyword_list?/1" do
+    test "returns true for keyword list" do
+      assert Attribute.keyword_list?([a: 1, b: 2])
+    end
+
+    test "returns true for explicit tuple keyword list" do
+      assert Attribute.keyword_list?([{:a, 1}, {:b, 2}])
+    end
+
+    test "returns false for empty list" do
+      refute Attribute.keyword_list?([])
+    end
+
+    test "returns false for regular list" do
+      refute Attribute.keyword_list?([1, 2, 3])
+    end
+
+    test "returns false for mixed list" do
+      refute Attribute.keyword_list?([{:a, 1}, 2])
+    end
+
+    test "returns false for non-atom keys" do
+      refute Attribute.keyword_list?([{"a", 1}])
+    end
+
+    test "returns false for non-list" do
+      refute Attribute.keyword_list?(:not_a_list)
+    end
+  end
+
+  # ===========================================================================
+  # Value Info Tests (15.2.1)
+  # ===========================================================================
+
+  describe "value_info/1" do
+    test "returns typed value for integer attribute" do
+      ast = {:@, [], [{:my_attr, [], [42]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      val_info = Attribute.value_info(attr)
+
+      assert val_info.type == :literal
+      assert val_info.value == 42
+    end
+
+    test "returns typed value for string attribute" do
+      ast = {:@, [], [{:my_attr, [], ["hello"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      val_info = Attribute.value_info(attr)
+
+      assert val_info.type == :literal
+      assert val_info.value == "hello"
+    end
+
+    test "returns typed value for list attribute" do
+      ast = {:@, [], [{:my_attr, [], [[1, 2, 3]]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      val_info = Attribute.value_info(attr)
+
+      assert val_info.type == :list
+      assert val_info.value == [1, 2, 3]
+    end
+
+    test "returns typed value for keyword list attribute" do
+      ast = {:@, [], [{:my_attr, [], [[a: 1, b: 2]]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      val_info = Attribute.value_info(attr)
+
+      assert val_info.type == :keyword_list
+      assert val_info.value == [a: 1, b: 2]
+    end
+
+    test "returns typed value for module reference attribute" do
+      ast = {:@, [], [{:behaviour, [], [{:__aliases__, [], [:GenServer]}]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      val_info = Attribute.value_info(attr)
+
+      assert val_info.type == :module_ref
+      assert val_info.value == GenServer
+    end
+  end
+
+  # ===========================================================================
+  # Accumulation Detection Tests (15.2.1)
+  # ===========================================================================
+
+  describe "extract_accumulated_attributes/1" do
+    test "extracts accumulated attributes" do
+      {:ok, ast} = Code.string_to_quoted(
+        "Module.register_attribute(__MODULE__, :items, accumulate: true)"
+      )
+      body = {:__block__, [], [ast]}
+
+      result = Attribute.extract_accumulated_attributes(body)
+      assert :items in result
+    end
+
+    test "ignores non-accumulated attributes" do
+      {:ok, ast} = Code.string_to_quoted(
+        "Module.register_attribute(__MODULE__, :other, [])"
+      )
+      body = {:__block__, [], [ast]}
+
+      result = Attribute.extract_accumulated_attributes(body)
+      assert result == []
+    end
+
+    test "ignores explicitly non-accumulated attributes" do
+      {:ok, ast} = Code.string_to_quoted(
+        "Module.register_attribute(__MODULE__, :single, accumulate: false)"
+      )
+      body = {:__block__, [], [ast]}
+
+      result = Attribute.extract_accumulated_attributes(body)
+      assert result == []
+    end
+
+    test "extracts multiple accumulated attributes" do
+      {:ok, ast1} = Code.string_to_quoted(
+        "Module.register_attribute(__MODULE__, :items, accumulate: true)"
+      )
+      {:ok, ast2} = Code.string_to_quoted(
+        "Module.register_attribute(__MODULE__, :callbacks, accumulate: true)"
+      )
+      body = {:__block__, [], [ast1, ast2]}
+
+      result = Attribute.extract_accumulated_attributes(body)
+      assert :items in result
+      assert :callbacks in result
+    end
+
+    test "returns empty for empty body" do
+      assert Attribute.extract_accumulated_attributes({:__block__, [], []}) == []
+    end
+  end
+
+  describe "accumulated?/2" do
+    test "returns true for accumulated attribute" do
+      {:ok, ast} = Code.string_to_quoted(
+        "Module.register_attribute(__MODULE__, :items, accumulate: true)"
+      )
+      body = {:__block__, [], [ast]}
+
+      assert Attribute.accumulated?(:items, body)
+    end
+
+    test "returns false for non-accumulated attribute" do
+      body = {:__block__, [], []}
+      refute Attribute.accumulated?(:other, body)
+    end
+  end
 end
