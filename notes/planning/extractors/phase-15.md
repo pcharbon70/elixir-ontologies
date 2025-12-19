@@ -19,16 +19,16 @@ Detect and extract macro invocations in module bodies, identifying calls to know
 - [x] 15.1.1.6 Add macro invocation detection tests
 
 ### 15.1.2 Custom Macro Invocation
-- [ ] **Task 15.1.2 Pending**
+- [x] **Task 15.1.2 Complete**
 
 Track invocations of user-defined macros, linking calls to their definitions when available.
 
-- [ ] 15.1.2.1 Implement `extract_custom_macro_call/2` detecting non-Kernel macro calls
-- [ ] 15.1.2.2 Track imported macros via `import Module, only: [macro: arity]`
-- [ ] 15.1.2.3 Track required macros via `require Module`
-- [ ] 15.1.2.4 Attempt to link invocations to definitions within same analysis scope
-- [ ] 15.1.2.5 Mark unresolved macro calls for cross-module analysis
-- [ ] 15.1.2.6 Add custom macro invocation tests
+- [x] 15.1.2.1 Implement `extract_custom_macro_call/2` detecting non-Kernel macro calls
+- [x] 15.1.2.2 Track imported macros via `import Module, only: [macro: arity]`
+- [x] 15.1.2.3 Track required macros via `require Module`
+- [x] 15.1.2.4 Attempt to link invocations to definitions within same analysis scope
+- [x] 15.1.2.5 Mark unresolved macro calls for cross-module analysis
+- [x] 15.1.2.6 Add custom macro invocation tests
 
 ### 15.1.3 Macro Expansion Context
 - [ ] **Task 15.1.3 Pending**
@@ -45,12 +45,12 @@ Capture the expansion context of macro invocations including the caller environm
 **Section 15.1 Unit Tests:**
 - [x] Test detection of `def`/`defp` as macro invocations
 - [x] Test detection of `if`/`unless`/`case` as macro invocations
-- [ ] Test custom macro invocation detection
-- [ ] Test imported macro tracking
-- [ ] Test required macro tracking
+- [x] Test custom macro invocation detection
+- [x] Test imported macro tracking
+- [x] Test required macro tracking
 - [x] Test macro call site location extraction
 - [ ] Test expansion context capture
-- [ ] Test unresolved macro call handling
+- [x] Test unresolved macro call handling
 
 ## 15.2 Module Attribute Values
 

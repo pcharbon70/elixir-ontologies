@@ -21,7 +21,17 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
   - **Control flow macros**: `if`, `unless`, `case`, `cond`, `with`, `for`, etc.
   - **Import macros**: `import`, `require`, `use`, `alias`
   - **Attribute macro**: `@` for module attributes
+  - **Library macros**: `Logger.debug`, `Ecto.Query.from`, etc.
   - **Other macros**: `quote`, `unquote`, `binding`, `var!`, etc.
+
+  ## Custom Macro Support
+
+  In addition to Kernel macros, this module detects:
+
+  - **Qualified calls**: `Logger.debug("msg")`, `Ecto.Query.from(q in Q, ...)`
+  - **Known library macros**: Common macros from Logger, Ecto, Phoenix, etc.
+  - **Import tracking**: Macros available via `import Module`
+  - **Require tracking**: Macros available via `require Module`
 
   ## Usage
 
@@ -55,7 +65,8 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
   - `:macro_name` - Macro name as atom
   - `:arity` - Number of arguments
   - `:arguments` - List of argument AST nodes
-  - `:category` - Category of macro (:definition, :control_flow, :import, :attribute, :other)
+  - `:category` - Category of macro (:definition, :control_flow, :import, :attribute, :library, :custom, :other)
+  - `:resolution_status` - Whether macro module was resolved (:resolved, :unresolved, :kernel)
   - `:location` - Source location if available
   - `:metadata` - Additional information
   """
@@ -65,21 +76,47 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
           arity: non_neg_integer(),
           arguments: [Macro.t()],
           category: category(),
+          resolution_status: resolution_status(),
           location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
           metadata: map()
         }
 
-  @type category :: :definition | :control_flow | :import | :attribute | :quote | :other
+  @type category :: :definition | :control_flow | :import | :attribute | :quote | :library | :custom | :other
+  @type resolution_status :: :resolved | :unresolved | :kernel
 
   defstruct [
     :macro_module,
     :macro_name,
     :arity,
     :category,
+    resolution_status: :kernel,
     arguments: [],
     location: nil,
     metadata: %{}
   ]
+
+  # ===========================================================================
+  # Import/Require Tracking Structs
+  # ===========================================================================
+
+  @typedoc """
+  Represents an import statement with optional filtering.
+  """
+  @type import_info :: %{
+          module: module(),
+          only: [{atom(), non_neg_integer()}] | nil,
+          except: [{atom(), non_neg_integer()}] | nil,
+          location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
+        }
+
+  @typedoc """
+  Represents a require statement.
+  """
+  @type require_info :: %{
+          module: module(),
+          as: module() | nil,
+          location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
+        }
 
   # ===========================================================================
   # Macro Classification Constants
@@ -163,6 +200,49 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
                        @other_kernel_macros
 
   # ===========================================================================
+  # Known Library Macros
+  # ===========================================================================
+
+  # Logger macros (require Logger)
+  @logger_macros [:debug, :info, :notice, :warning, :warn, :error, :critical, :alert, :emergency]
+
+  # Ecto.Query macros
+  @ecto_query_macros [
+    :from, :where, :select, :join, :order_by, :group_by, :having, :limit, :offset,
+    :preload, :distinct, :update, :exclude, :lock, :windows, :combinations,
+    :with_cte, :recursive_ctes, :subquery, :dynamic, :fragment, :type, :field,
+    :as, :parent_as
+  ]
+
+  # Phoenix macros
+  @phoenix_macros [
+    :get, :post, :put, :patch, :delete, :options, :head, :connect, :trace,
+    :resources, :resource, :scope, :pipe_through, :pipeline, :forward, :live,
+    :plug, :socket, :channel
+  ]
+
+  # ExUnit macros
+  @exunit_macros [
+    :test, :describe, :setup, :setup_all, :assert, :refute, :assert_raise,
+    :assert_receive, :refute_receive, :assert_received, :refute_received,
+    :flunk, :doctest
+  ]
+
+  # Map of known library modules to their macros
+  @known_library_macros %{
+    Logger => @logger_macros,
+    Ecto.Query => @ecto_query_macros,
+    Phoenix.Router => @phoenix_macros,
+    ExUnit.Case => @exunit_macros
+  }
+
+  # Flattened list of all known library macro names (for quick lookup)
+  @all_known_library_macro_names @logger_macros ++
+                                   @ecto_query_macros ++
+                                   @phoenix_macros ++
+                                   @exunit_macros
+
+  # ===========================================================================
   # Public API - Classification
   # ===========================================================================
 
@@ -233,6 +313,58 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
   @spec all_kernel_macros() :: [atom()]
   def all_kernel_macros, do: @all_kernel_macros
 
+  @doc """
+  Returns the map of known library modules to their macros.
+
+  ## Examples
+
+      iex> macros = ElixirOntologies.Extractors.MacroInvocation.known_library_macros()
+      iex> :debug in macros[Logger]
+      true
+  """
+  @spec known_library_macros() :: %{module() => [atom()]}
+  def known_library_macros, do: @known_library_macros
+
+  @doc """
+  Checks if a macro name is a known library macro.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.MacroInvocation.known_library_macro?(:debug)
+      true
+
+      iex> ElixirOntologies.Extractors.MacroInvocation.known_library_macro?(:from)
+      true
+
+      iex> ElixirOntologies.Extractors.MacroInvocation.known_library_macro?(:unknown)
+      false
+  """
+  @spec known_library_macro?(atom()) :: boolean()
+  def known_library_macro?(name) when is_atom(name), do: name in @all_known_library_macro_names
+  def known_library_macro?(_), do: false
+
+  @doc """
+  Returns the Logger macros.
+
+  ## Examples
+
+      iex> :debug in ElixirOntologies.Extractors.MacroInvocation.logger_macros()
+      true
+  """
+  @spec logger_macros() :: [atom()]
+  def logger_macros, do: @logger_macros
+
+  @doc """
+  Returns the Ecto.Query macros.
+
+  ## Examples
+
+      iex> :from in ElixirOntologies.Extractors.MacroInvocation.ecto_query_macros()
+      true
+  """
+  @spec ecto_query_macros() :: [atom()]
+  def ecto_query_macros, do: @ecto_query_macros
+
   # ===========================================================================
   # Macro Detection
   # ===========================================================================
@@ -240,8 +372,8 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
   @doc """
   Checks if an AST node represents a macro invocation.
 
-  Returns true for known macro calls from Kernel and for the `@` attribute
-  operator.
+  Returns true for known macro calls from Kernel, the `@` attribute operator,
+  and qualified calls to known library macros.
 
   ## Examples
 
@@ -263,7 +395,27 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
   @spec macro_invocation?(Macro.t()) :: boolean()
   def macro_invocation?({:@, _, _}), do: true
   def macro_invocation?({name, _, _}) when name in @all_kernel_macros, do: true
+
+  # Qualified calls: Module.macro(args) - e.g., Logger.debug("msg")
+  def macro_invocation?({{:., _, [_module, _name]}, _, _args}), do: true
+
   def macro_invocation?(_), do: false
+
+  @doc """
+  Checks if an AST node is a qualified macro call (Module.macro form).
+
+  ## Examples
+
+      iex> ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [], ["msg"]}
+      iex> ElixirOntologies.Extractors.MacroInvocation.qualified_call?(ast)
+      true
+
+      iex> ElixirOntologies.Extractors.MacroInvocation.qualified_call?({:if, [], [true, [do: :ok]]})
+      false
+  """
+  @spec qualified_call?(Macro.t()) :: boolean()
+  def qualified_call?({{:., _, [_module, name]}, _, _args}) when is_atom(name), do: true
+  def qualified_call?(_), do: false
 
   @doc """
   Checks if a macro name is a Kernel macro.
@@ -338,6 +490,7 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
        arity: length(args),
        arguments: args,
        category: :attribute,
+       resolution_status: :kernel,
        location: location,
        metadata: %{attribute_name: extract_attribute_name(args)}
      }}
@@ -356,8 +509,29 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
        arity: length(actual_args),
        arguments: actual_args,
        category: category,
+       resolution_status: :kernel,
        location: location,
        metadata: %{}
+     }}
+  end
+
+  # Handle qualified macro calls: Module.macro(args)
+  def extract({{:., _, [module_ast, name]}, _meta, args} = node, opts)
+      when is_atom(name) and is_list(args) do
+    location = Helpers.extract_location_if(node, opts)
+    module = extract_module(module_ast)
+    category = categorize_qualified_macro(module, name)
+
+    {:ok,
+     %__MODULE__{
+       macro_module: module,
+       macro_name: name,
+       arity: length(args),
+       arguments: args,
+       category: category,
+       resolution_status: :resolved,
+       location: location,
+       metadata: %{qualified: true}
      }}
   end
 
@@ -567,4 +741,220 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
 
   defp extract_attribute_name([{attr_name, _, _} | _]) when is_atom(attr_name), do: attr_name
   defp extract_attribute_name(_), do: nil
+
+  # Extract module from AST
+  defp extract_module({:__aliases__, _, parts}) when is_list(parts) do
+    Module.concat(parts)
+  end
+
+  defp extract_module(atom) when is_atom(atom), do: atom
+  defp extract_module(_), do: nil
+
+  # Categorize qualified macro calls
+  defp categorize_qualified_macro(Logger, name) when name in @logger_macros, do: :library
+  defp categorize_qualified_macro(Ecto.Query, name) when name in @ecto_query_macros, do: :library
+
+  defp categorize_qualified_macro(module, name) do
+    if known_library_macro_for_module?(module, name) do
+      :library
+    else
+      :custom
+    end
+  end
+
+  defp known_library_macro_for_module?(module, name) do
+    case Map.get(@known_library_macros, module) do
+      nil -> false
+      macros -> name in macros
+    end
+  end
+
+  # ===========================================================================
+  # Import/Require Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts all import statements from a module body.
+
+  Returns a list of import info maps with module, only, except filters.
+
+  ## Examples
+
+      iex> code = "import Enum, only: [map: 2]"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> [import_info] = ElixirOntologies.Extractors.MacroInvocation.extract_imports({:__block__, [], [ast]})
+      iex> import_info.module
+      Enum
+      iex> import_info.only
+      [map: 2]
+  """
+  @spec extract_imports(Macro.t()) :: [import_info()]
+  def extract_imports(body) do
+    body
+    |> Helpers.normalize_body()
+    |> Enum.filter(&import_statement?/1)
+    |> Enum.map(&extract_single_import/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  @doc """
+  Extracts all require statements from a module body.
+
+  Returns a list of require info maps with module and optional alias.
+
+  ## Examples
+
+      iex> code = "require Logger"
+      iex> {:ok, ast} = Code.string_to_quoted(code)
+      iex> [require_info] = ElixirOntologies.Extractors.MacroInvocation.extract_requires({:__block__, [], [ast]})
+      iex> require_info.module
+      Logger
+  """
+  @spec extract_requires(Macro.t()) :: [require_info()]
+  def extract_requires(body) do
+    body
+    |> Helpers.normalize_body()
+    |> Enum.filter(&require_statement?/1)
+    |> Enum.map(&extract_single_require/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp import_statement?({:import, _, _}), do: true
+  defp import_statement?(_), do: false
+
+  defp require_statement?({:require, _, _}), do: true
+  defp require_statement?(_), do: false
+
+  defp extract_single_import({:import, meta, [module_ast]}) do
+    %{
+      module: extract_module(module_ast),
+      only: nil,
+      except: nil,
+      location: Helpers.extract_location({:import, meta, []})
+    }
+  end
+
+  defp extract_single_import({:import, meta, [module_ast, opts]}) when is_list(opts) do
+    %{
+      module: extract_module(module_ast),
+      only: Keyword.get(opts, :only),
+      except: Keyword.get(opts, :except),
+      location: Helpers.extract_location({:import, meta, []})
+    }
+  end
+
+  defp extract_single_import(_), do: nil
+
+  defp extract_single_require({:require, meta, [module_ast]}) do
+    %{
+      module: extract_module(module_ast),
+      as: nil,
+      location: Helpers.extract_location({:require, meta, []})
+    }
+  end
+
+  defp extract_single_require({:require, meta, [module_ast, opts]}) when is_list(opts) do
+    %{
+      module: extract_module(module_ast),
+      as: Keyword.get(opts, :as) |> extract_module_if_ast(),
+      location: Helpers.extract_location({:require, meta, []})
+    }
+  end
+
+  defp extract_single_require(_), do: nil
+
+  defp extract_module_if_ast(nil), do: nil
+  defp extract_module_if_ast({:__aliases__, _, _} = ast), do: extract_module(ast)
+  defp extract_module_if_ast(atom) when is_atom(atom), do: atom
+
+  # ===========================================================================
+  # Resolution Helpers
+  # ===========================================================================
+
+  @doc """
+  Checks if a macro invocation is resolved.
+
+  ## Examples
+
+      iex> ast = {:if, [], [true, [do: :ok]]}
+      iex> {:ok, inv} = ElixirOntologies.Extractors.MacroInvocation.extract(ast)
+      iex> ElixirOntologies.Extractors.MacroInvocation.resolved?(inv)
+      true
+  """
+  @spec resolved?(t()) :: boolean()
+  def resolved?(%__MODULE__{resolution_status: :resolved}), do: true
+  def resolved?(%__MODULE__{resolution_status: :kernel}), do: true
+  def resolved?(_), do: false
+
+  @doc """
+  Checks if a macro invocation is unresolved.
+
+  ## Examples
+
+      iex> inv = %ElixirOntologies.Extractors.MacroInvocation{
+      ...>   macro_name: :custom,
+      ...>   macro_module: nil,
+      ...>   arity: 0,
+      ...>   category: :custom,
+      ...>   resolution_status: :unresolved
+      ...> }
+      iex> ElixirOntologies.Extractors.MacroInvocation.unresolved?(inv)
+      true
+  """
+  @spec unresolved?(t()) :: boolean()
+  def unresolved?(%__MODULE__{resolution_status: :unresolved}), do: true
+  def unresolved?(_), do: false
+
+  @doc """
+  Checks if a macro invocation is a qualified call (Module.function form).
+
+  ## Examples
+
+      iex> ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [], ["msg"]}
+      iex> {:ok, inv} = ElixirOntologies.Extractors.MacroInvocation.extract(ast)
+      iex> ElixirOntologies.Extractors.MacroInvocation.qualified?(inv)
+      true
+
+      iex> ast = {:if, [], [true, [do: :ok]]}
+      iex> {:ok, inv} = ElixirOntologies.Extractors.MacroInvocation.extract(ast)
+      iex> ElixirOntologies.Extractors.MacroInvocation.qualified?(inv)
+      false
+  """
+  @spec qualified?(t()) :: boolean()
+  def qualified?(%__MODULE__{metadata: %{qualified: true}}), do: true
+  def qualified?(_), do: false
+
+  @doc """
+  Checks if a macro invocation is a library macro.
+
+  ## Examples
+
+      iex> ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [], ["msg"]}
+      iex> {:ok, inv} = ElixirOntologies.Extractors.MacroInvocation.extract(ast)
+      iex> ElixirOntologies.Extractors.MacroInvocation.library?(inv)
+      true
+  """
+  @spec library?(t()) :: boolean()
+  def library?(%__MODULE__{category: :library}), do: true
+  def library?(_), do: false
+
+  @doc """
+  Filters a list of invocations to only unresolved ones.
+
+  ## Examples
+
+      iex> invs = [
+      ...>   %ElixirOntologies.Extractors.MacroInvocation{macro_name: :if, resolution_status: :kernel, arity: 2, category: :control_flow},
+      ...>   %ElixirOntologies.Extractors.MacroInvocation{macro_name: :custom, resolution_status: :unresolved, arity: 0, category: :custom}
+      ...> ]
+      iex> unresolved = ElixirOntologies.Extractors.MacroInvocation.filter_unresolved(invs)
+      iex> length(unresolved)
+      1
+      iex> hd(unresolved).macro_name
+      :custom
+  """
+  @spec filter_unresolved([t()]) :: [t()]
+  def filter_unresolved(invocations) do
+    Enum.filter(invocations, &unresolved?/1)
+  end
 end

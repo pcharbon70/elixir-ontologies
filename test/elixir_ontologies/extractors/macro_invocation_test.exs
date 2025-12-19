@@ -667,4 +667,341 @@ defmodule ElixirOntologies.Extractors.MacroInvocationTest do
       assert result.category == :other
     end
   end
+
+  # ===========================================================================
+  # Qualified Macro Call Tests (15.1.2)
+  # ===========================================================================
+
+  describe "qualified_call?/1" do
+    test "returns true for Module.function form" do
+      ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [], ["msg"]}
+      assert MacroInvocation.qualified_call?(ast)
+    end
+
+    test "returns false for unqualified call" do
+      ast = {:if, [], [true, [do: :ok]]}
+      refute MacroInvocation.qualified_call?(ast)
+    end
+  end
+
+  describe "extract/2 qualified macro calls" do
+    test "extracts Logger.debug call" do
+      ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [], ["message"]}
+
+      assert {:ok, result} = MacroInvocation.extract(ast)
+      assert result.macro_name == :debug
+      assert result.macro_module == Logger
+      assert result.category == :library
+      assert result.resolution_status == :resolved
+      assert result.metadata.qualified == true
+      assert result.arity == 1
+    end
+
+    test "extracts Logger.info call" do
+      ast = {{:., [], [{:__aliases__, [], [:Logger]}, :info]}, [], ["info msg"]}
+
+      assert {:ok, result} = MacroInvocation.extract(ast)
+      assert result.macro_name == :info
+      assert result.macro_module == Logger
+      assert result.category == :library
+    end
+
+    test "extracts Ecto.Query.from call" do
+      ast = {{:., [], [{:__aliases__, [], [:Ecto, :Query]}, :from]}, [], [{:u, [], nil}, {:in, [], [{:__aliases__, [], [:User]}]}]}
+
+      assert {:ok, result} = MacroInvocation.extract(ast)
+      assert result.macro_name == :from
+      assert result.macro_module == Ecto.Query
+      assert result.category == :library
+    end
+
+    test "extracts custom module macro call" do
+      ast = {{:., [], [{:__aliases__, [], [:MyMacros]}, :custom_macro]}, [], [1, 2]}
+
+      assert {:ok, result} = MacroInvocation.extract(ast)
+      assert result.macro_name == :custom_macro
+      assert result.macro_module == MyMacros
+      assert result.category == :custom
+      assert result.resolution_status == :resolved
+    end
+
+    test "extracts qualified call with atom module" do
+      ast = {{:., [], [:erlang, :is_atom]}, [], [{:x, [], nil}]}
+
+      assert {:ok, result} = MacroInvocation.extract(ast)
+      assert result.macro_name == :is_atom
+      assert result.macro_module == :erlang
+      assert result.category == :custom
+    end
+
+    test "extracts location for qualified call" do
+      # The outer tuple has the line info
+      ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [line: 15, column: 3], ["msg"]}
+
+      assert {:ok, result} = MacroInvocation.extract(ast)
+      assert result.location != nil
+      assert result.location.start_line == 15
+    end
+  end
+
+  # ===========================================================================
+  # Library Macro Classification Tests (15.1.2)
+  # ===========================================================================
+
+  describe "library macro classification" do
+    test "known_library_macros returns map" do
+      macros = MacroInvocation.known_library_macros()
+      assert is_map(macros)
+      assert :debug in macros[Logger]
+      assert :from in macros[Ecto.Query]
+    end
+
+    test "known_library_macro? returns true for Logger macros" do
+      assert MacroInvocation.known_library_macro?(:debug)
+      assert MacroInvocation.known_library_macro?(:info)
+      assert MacroInvocation.known_library_macro?(:warning)
+      assert MacroInvocation.known_library_macro?(:error)
+    end
+
+    test "known_library_macro? returns true for Ecto.Query macros" do
+      assert MacroInvocation.known_library_macro?(:from)
+      assert MacroInvocation.known_library_macro?(:where)
+      assert MacroInvocation.known_library_macro?(:select)
+    end
+
+    test "known_library_macro? returns false for unknown macros" do
+      refute MacroInvocation.known_library_macro?(:unknown_macro)
+      refute MacroInvocation.known_library_macro?(:my_custom)
+    end
+
+    test "logger_macros returns Logger macro list" do
+      macros = MacroInvocation.logger_macros()
+      assert :debug in macros
+      assert :info in macros
+      assert :error in macros
+    end
+
+    test "ecto_query_macros returns Ecto.Query macro list" do
+      macros = MacroInvocation.ecto_query_macros()
+      assert :from in macros
+      assert :where in macros
+      assert :select in macros
+      assert :join in macros
+    end
+  end
+
+  # ===========================================================================
+  # Import/Require Extraction Tests (15.1.2)
+  # ===========================================================================
+
+  describe "extract_imports/1" do
+    test "extracts simple import" do
+      {:ok, ast} = Code.string_to_quoted("import Enum")
+      body = {:__block__, [], [ast]}
+
+      [import_info] = MacroInvocation.extract_imports(body)
+      assert import_info.module == Enum
+      assert import_info.only == nil
+      assert import_info.except == nil
+    end
+
+    test "extracts import with only option" do
+      {:ok, ast} = Code.string_to_quoted("import Enum, only: [map: 2, filter: 2]")
+      body = {:__block__, [], [ast]}
+
+      [import_info] = MacroInvocation.extract_imports(body)
+      assert import_info.module == Enum
+      assert import_info.only == [map: 2, filter: 2]
+    end
+
+    test "extracts import with except option" do
+      {:ok, ast} = Code.string_to_quoted("import Enum, except: [map: 2]")
+      body = {:__block__, [], [ast]}
+
+      [import_info] = MacroInvocation.extract_imports(body)
+      assert import_info.module == Enum
+      assert import_info.except == [map: 2]
+    end
+
+    test "extracts multiple imports" do
+      {:ok, import1} = Code.string_to_quoted("import Enum")
+      {:ok, import2} = Code.string_to_quoted("import String")
+      body = {:__block__, [], [import1, import2]}
+
+      imports = MacroInvocation.extract_imports(body)
+      assert length(imports) == 2
+      modules = Enum.map(imports, & &1.module)
+      assert Enum in modules
+      assert String in modules
+    end
+
+    test "returns empty list for no imports" do
+      {:ok, ast} = Code.string_to_quoted("def foo, do: :ok")
+      body = {:__block__, [], [ast]}
+
+      assert MacroInvocation.extract_imports(body) == []
+    end
+  end
+
+  describe "extract_requires/1" do
+    test "extracts simple require" do
+      {:ok, ast} = Code.string_to_quoted("require Logger")
+      body = {:__block__, [], [ast]}
+
+      [require_info] = MacroInvocation.extract_requires(body)
+      assert require_info.module == Logger
+      assert require_info.as == nil
+    end
+
+    test "extracts require with as option" do
+      {:ok, ast} = Code.string_to_quoted("require Logger, as: L")
+      body = {:__block__, [], [ast]}
+
+      [require_info] = MacroInvocation.extract_requires(body)
+      assert require_info.module == Logger
+      assert require_info.as == L
+    end
+
+    test "extracts multiple requires" do
+      {:ok, req1} = Code.string_to_quoted("require Logger")
+      {:ok, req2} = Code.string_to_quoted("require Ecto.Query")
+      body = {:__block__, [], [req1, req2]}
+
+      requires = MacroInvocation.extract_requires(body)
+      assert length(requires) == 2
+      modules = Enum.map(requires, & &1.module)
+      assert Logger in modules
+      assert Ecto.Query in modules
+    end
+
+    test "returns empty list for no requires" do
+      {:ok, ast} = Code.string_to_quoted("def foo, do: :ok")
+      body = {:__block__, [], [ast]}
+
+      assert MacroInvocation.extract_requires(body) == []
+    end
+  end
+
+  # ===========================================================================
+  # Resolution Status Tests (15.1.2)
+  # ===========================================================================
+
+  describe "resolution status" do
+    test "kernel macros have :kernel resolution status" do
+      {:ok, inv} = MacroInvocation.extract({:if, [], [true, [do: :ok]]})
+      assert inv.resolution_status == :kernel
+    end
+
+    test "attribute macros have :kernel resolution status" do
+      {:ok, inv} = MacroInvocation.extract({:@, [], [{:doc, [], ["test"]}]})
+      assert inv.resolution_status == :kernel
+    end
+
+    test "qualified calls have :resolved status" do
+      ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [], ["msg"]}
+      {:ok, inv} = MacroInvocation.extract(ast)
+      assert inv.resolution_status == :resolved
+    end
+
+    test "resolved?/1 returns true for kernel macros" do
+      {:ok, inv} = MacroInvocation.extract({:if, [], [true, [do: :ok]]})
+      assert MacroInvocation.resolved?(inv)
+    end
+
+    test "resolved?/1 returns true for qualified calls" do
+      ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [], ["msg"]}
+      {:ok, inv} = MacroInvocation.extract(ast)
+      assert MacroInvocation.resolved?(inv)
+    end
+
+    test "unresolved?/1 returns true for unresolved status" do
+      inv = %MacroInvocation{
+        macro_name: :custom,
+        macro_module: nil,
+        arity: 0,
+        category: :custom,
+        resolution_status: :unresolved
+      }
+
+      assert MacroInvocation.unresolved?(inv)
+    end
+
+    test "filter_unresolved/1 filters to only unresolved" do
+      resolved = %MacroInvocation{
+        macro_name: :if,
+        resolution_status: :kernel,
+        arity: 2,
+        category: :control_flow
+      }
+
+      unresolved = %MacroInvocation{
+        macro_name: :custom,
+        resolution_status: :unresolved,
+        arity: 0,
+        category: :custom
+      }
+
+      result = MacroInvocation.filter_unresolved([resolved, unresolved])
+      assert length(result) == 1
+      assert hd(result).macro_name == :custom
+    end
+  end
+
+  # ===========================================================================
+  # Qualified Predicate Tests (15.1.2)
+  # ===========================================================================
+
+  describe "qualified?/1" do
+    test "returns true for qualified macro calls" do
+      ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [], ["msg"]}
+      {:ok, inv} = MacroInvocation.extract(ast)
+      assert MacroInvocation.qualified?(inv)
+    end
+
+    test "returns false for unqualified macro calls" do
+      {:ok, inv} = MacroInvocation.extract({:if, [], [true, [do: :ok]]})
+      refute MacroInvocation.qualified?(inv)
+    end
+  end
+
+  describe "library?/1" do
+    test "returns true for known library macro calls" do
+      ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [], ["msg"]}
+      {:ok, inv} = MacroInvocation.extract(ast)
+      assert MacroInvocation.library?(inv)
+    end
+
+    test "returns false for custom macro calls" do
+      ast = {{:., [], [{:__aliases__, [], [:MyModule]}, :my_macro]}, [], []}
+      {:ok, inv} = MacroInvocation.extract(ast)
+      refute MacroInvocation.library?(inv)
+    end
+
+    test "returns false for kernel macros" do
+      {:ok, inv} = MacroInvocation.extract({:if, [], [true, [do: :ok]]})
+      refute MacroInvocation.library?(inv)
+    end
+  end
+
+  # ===========================================================================
+  # Recursive Extraction with Qualified Calls (15.1.2)
+  # ===========================================================================
+
+  describe "extract_all_recursive with qualified calls" do
+    test "extracts qualified calls recursively" do
+      # Logger.debug inside a function
+      body =
+        {:def, [],
+         [
+           {:foo, [], []},
+           [do: {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [], ["msg"]}]
+         ]}
+
+      results = MacroInvocation.extract_all_recursive(body)
+      names = Enum.map(results, & &1.macro_name)
+
+      assert :def in names
+      assert :debug in names
+    end
+  end
 end
