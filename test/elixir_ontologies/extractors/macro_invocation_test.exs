@@ -707,7 +707,9 @@ defmodule ElixirOntologies.Extractors.MacroInvocationTest do
     end
 
     test "extracts Ecto.Query.from call" do
-      ast = {{:., [], [{:__aliases__, [], [:Ecto, :Query]}, :from]}, [], [{:u, [], nil}, {:in, [], [{:__aliases__, [], [:User]}]}]}
+      ast =
+        {{:., [], [{:__aliases__, [], [:Ecto, :Query]}, :from]}, [],
+         [{:u, [], nil}, {:in, [], [{:__aliases__, [], [:User]}]}]}
 
       assert {:ok, result} = MacroInvocation.extract(ast)
       assert result.macro_name == :from
@@ -1002,6 +1004,325 @@ defmodule ElixirOntologies.Extractors.MacroInvocationTest do
 
       assert :def in names
       assert :debug in names
+    end
+  end
+
+  # ===========================================================================
+  # Macro Context Tests (15.1.3)
+  # ===========================================================================
+
+  describe "MacroContext struct" do
+    alias MacroInvocation.MacroContext
+
+    test "new/1 creates context with all fields" do
+      ctx = MacroContext.new(
+        module: MyModule,
+        file: "lib/my_module.ex",
+        line: 42,
+        function: {:foo, 2},
+        aliases: [{A, Some.Module}]
+      )
+
+      assert ctx.module == MyModule
+      assert ctx.file == "lib/my_module.ex"
+      assert ctx.line == 42
+      assert ctx.function == {:foo, 2}
+      assert ctx.aliases == [{A, Some.Module}]
+    end
+
+    test "new/0 creates empty context" do
+      ctx = MacroContext.new()
+
+      assert ctx.module == nil
+      assert ctx.file == nil
+      assert ctx.line == nil
+      assert ctx.function == nil
+      assert ctx.aliases == []
+    end
+
+    test "from_meta/1 extracts context from AST metadata" do
+      meta = [line: 10, column: 5, file: "lib/test.ex"]
+      ctx = MacroContext.from_meta(meta)
+
+      assert ctx.line == 10
+      assert ctx.file == "lib/test.ex"
+      assert ctx.module == nil
+      assert ctx.function == nil
+    end
+
+    test "from_meta/1 handles missing metadata" do
+      ctx = MacroContext.from_meta([])
+
+      assert ctx.line == nil
+      assert ctx.file == nil
+    end
+
+    test "merge/2 combines context with options" do
+      ctx = MacroContext.new(line: 10, file: "lib/foo.ex")
+      merged = MacroContext.merge(ctx, module: MyModule, function: {:bar, 1})
+
+      assert merged.line == 10
+      assert merged.file == "lib/foo.ex"
+      assert merged.module == MyModule
+      assert merged.function == {:bar, 1}
+    end
+
+    test "merge/2 overrides with new values" do
+      ctx = MacroContext.new(line: 10, module: OldModule)
+      merged = MacroContext.merge(ctx, line: 20, module: NewModule)
+
+      assert merged.line == 20
+      assert merged.module == NewModule
+    end
+
+    test "populated?/1 returns true when any field is set" do
+      assert MacroContext.populated?(MacroContext.new(line: 10))
+      assert MacroContext.populated?(MacroContext.new(module: MyModule))
+      assert MacroContext.populated?(MacroContext.new(file: "lib/foo.ex"))
+      assert MacroContext.populated?(MacroContext.new(function: {:foo, 0}))
+      assert MacroContext.populated?(MacroContext.new(aliases: [{A, B}]))
+    end
+
+    test "populated?/1 returns false for empty context" do
+      refute MacroContext.populated?(MacroContext.new())
+    end
+  end
+
+  # ===========================================================================
+  # Context-Aware Extraction Tests (15.1.3)
+  # ===========================================================================
+
+  describe "extract_with_context/2" do
+    test "extracts macro with context from AST metadata" do
+      ast = {:if, [line: 10, column: 5], [true, [do: :ok]]}
+
+      assert {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyModule)
+      assert inv.macro_name == :if
+      assert MacroInvocation.has_context?(inv)
+
+      ctx = MacroInvocation.get_context(inv)
+      assert ctx.module == MyModule
+      assert ctx.line == 10
+    end
+
+    test "extracts macro with file from AST metadata" do
+      ast = {:def, [line: 5, file: "lib/foo.ex"], [{:bar, [], []}, [do: :ok]]}
+
+      assert {:ok, inv} = MacroInvocation.extract_with_context(ast, [])
+      ctx = MacroInvocation.get_context(inv)
+
+      assert ctx.line == 5
+      assert ctx.file == "lib/foo.ex"
+    end
+
+    test "merges context options with AST metadata" do
+      ast = {:case, [line: 15], [{:x, [], nil}, [do: [{:->, [], [[:_], :ok]}]]]}
+
+      assert {:ok, inv} = MacroInvocation.extract_with_context(ast, module: TestMod, function: {:baz, 2})
+      ctx = MacroInvocation.get_context(inv)
+
+      assert ctx.line == 15
+      assert ctx.module == TestMod
+      assert ctx.function == {:baz, 2}
+    end
+
+    test "works without AST metadata" do
+      ast = {:if, [], [true, [do: :ok]]}
+
+      assert {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyModule)
+      ctx = MacroInvocation.get_context(inv)
+
+      assert ctx.module == MyModule
+      assert ctx.line == nil
+    end
+
+    test "returns error for non-macro" do
+      ast = {:not_a_macro, [], [1, 2]}
+
+      assert {:error, _} = MacroInvocation.extract_with_context(ast, module: MyModule)
+    end
+  end
+
+  describe "extract_with_context!/2" do
+    test "returns result for valid macro" do
+      ast = {:def, [line: 10], [{:foo, [], []}, [do: :ok]]}
+
+      inv = MacroInvocation.extract_with_context!(ast, module: TestMod)
+      assert inv.macro_name == :def
+      assert MacroInvocation.context_module(inv) == TestMod
+    end
+
+    test "raises for invalid input" do
+      ast = {:not_a_macro, [], []}
+
+      assert_raise ArgumentError, fn ->
+        MacroInvocation.extract_with_context!(ast, module: MyModule)
+      end
+    end
+  end
+
+  describe "extract_all_recursive_with_context/2" do
+    test "extracts all macros with context" do
+      body = {:def, [line: 1], [{:foo, [], []}, [do: {:if, [line: 2], [true, [do: :ok]]}]]}
+
+      results = MacroInvocation.extract_all_recursive_with_context(body, module: MyMod)
+
+      assert length(results) == 2
+      assert Enum.all?(results, &MacroInvocation.has_context?/1)
+
+      modules = Enum.map(results, &MacroInvocation.context_module/1)
+      assert Enum.all?(modules, &(&1 == MyMod))
+    end
+
+    test "preserves individual line numbers" do
+      body = {:__block__, [], [
+        {:def, [line: 5], [{:foo, [], []}, [do: :ok]]},
+        {:if, [line: 10], [true, [do: :ok]]}
+      ]}
+
+      results = MacroInvocation.extract_all_recursive_with_context(body, module: TestMod)
+
+      lines = Enum.map(results, &MacroInvocation.context_line/1) |> Enum.sort()
+      assert 5 in lines
+      assert 10 in lines
+    end
+
+    test "applies function context to all invocations" do
+      body = {:with, [line: 20], [{:<-, [], [{:x, [], nil}, {:ok, 1}]}, [do: {:x, [], nil}]]}
+
+      results = MacroInvocation.extract_all_recursive_with_context(body, function: {:my_fn, 3})
+
+      assert length(results) > 0
+      assert Enum.all?(results, &(MacroInvocation.context_function(&1) == {:my_fn, 3}))
+    end
+  end
+
+  # ===========================================================================
+  # Context Helper Function Tests (15.1.3)
+  # ===========================================================================
+
+  describe "has_context?/1" do
+    test "returns true when context has data" do
+      ast = {:if, [line: 10], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyModule)
+
+      assert MacroInvocation.has_context?(inv)
+    end
+
+    test "returns false when no context" do
+      ast = {:if, [], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract(ast)
+
+      refute MacroInvocation.has_context?(inv)
+    end
+
+    test "returns false for empty context" do
+      ast = {:if, [], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, [])
+
+      refute MacroInvocation.has_context?(inv)
+    end
+  end
+
+  describe "get_context/1" do
+    test "returns context when present" do
+      ast = {:if, [line: 10], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyModule)
+
+      ctx = MacroInvocation.get_context(inv)
+      assert ctx != nil
+      assert ctx.module == MyModule
+    end
+
+    test "returns nil when no context" do
+      ast = {:if, [], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract(ast)
+
+      assert MacroInvocation.get_context(inv) == nil
+    end
+  end
+
+  describe "context_module/1" do
+    test "returns module from context" do
+      ast = {:if, [line: 10], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyModule)
+
+      assert MacroInvocation.context_module(inv) == MyModule
+    end
+
+    test "returns nil when no context" do
+      ast = {:if, [], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract(ast)
+
+      assert MacroInvocation.context_module(inv) == nil
+    end
+
+    test "returns nil when module not set" do
+      ast = {:if, [line: 10], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, [])
+
+      assert MacroInvocation.context_module(inv) == nil
+    end
+  end
+
+  describe "context_file/1" do
+    test "returns file from context" do
+      ast = {:if, [line: 10, file: "lib/test.ex"], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, [])
+
+      assert MacroInvocation.context_file(inv) == "lib/test.ex"
+    end
+
+    test "returns nil when no file" do
+      ast = {:if, [line: 10], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, [])
+
+      assert MacroInvocation.context_file(inv) == nil
+    end
+  end
+
+  describe "context_line/1" do
+    test "returns line from context" do
+      ast = {:if, [line: 42], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, [])
+
+      assert MacroInvocation.context_line(inv) == 42
+    end
+
+    test "returns nil when no line" do
+      ast = {:if, [], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, [])
+
+      assert MacroInvocation.context_line(inv) == nil
+    end
+  end
+
+  describe "context_function/1" do
+    test "returns function from context" do
+      ast = {:if, [line: 10], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, function: {:my_func, 2})
+
+      assert MacroInvocation.context_function(inv) == {:my_func, 2}
+    end
+
+    test "returns nil when no function context" do
+      ast = {:if, [line: 10], [true, [do: :ok]]}
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyModule)
+
+      assert MacroInvocation.context_function(inv) == nil
+    end
+  end
+
+  describe "context with qualified calls" do
+    test "qualified calls can have context" do
+      ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [line: 25], ["msg"]}
+
+      {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyMod, function: {:log_it, 1})
+
+      assert MacroInvocation.has_context?(inv)
+      assert MacroInvocation.context_module(inv) == MyMod
+      assert MacroInvocation.context_function(inv) == {:log_it, 1}
+      assert MacroInvocation.context_line(inv) == 25
     end
   end
 end

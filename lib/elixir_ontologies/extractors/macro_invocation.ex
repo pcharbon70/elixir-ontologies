@@ -119,6 +119,158 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
         }
 
   # ===========================================================================
+  # Macro Expansion Context
+  # ===========================================================================
+
+  defmodule MacroContext do
+    @moduledoc """
+    Represents the expansion context of a macro invocation.
+
+    Captures information about where and how a macro is being expanded,
+    similar to what `__CALLER__` provides at compile time.
+
+    ## Fields
+
+    - `:module` - The module where the macro is being expanded
+    - `:file` - The file path where expansion occurs
+    - `:line` - The line number of the invocation
+    - `:function` - The function context if inside a function `{name, arity}` or `nil`
+    - `:aliases` - Aliases in scope `[{alias, module}]`
+
+    ## Usage
+
+        iex> alias ElixirOntologies.Extractors.MacroInvocation.MacroContext
+        iex> ctx = MacroContext.new(module: MyModule, file: "lib/my_module.ex", line: 10)
+        iex> ctx.module
+        MyModule
+        iex> ctx.line
+        10
+    """
+
+    @type t :: %__MODULE__{
+            module: module() | nil,
+            file: String.t() | nil,
+            line: non_neg_integer() | nil,
+            function: {atom(), non_neg_integer()} | nil,
+            aliases: [{module(), module()}]
+          }
+
+    defstruct [
+      :module,
+      :file,
+      :line,
+      :function,
+      aliases: []
+    ]
+
+    @doc """
+    Creates a new MacroContext with the given options.
+
+    ## Options
+
+    - `:module` - The module where expansion occurs
+    - `:file` - The file path
+    - `:line` - The line number
+    - `:function` - Function context `{name, arity}`
+    - `:aliases` - Aliases in scope
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.MacroInvocation.MacroContext
+        iex> ctx = MacroContext.new(module: MyModule, line: 42)
+        iex> ctx.line
+        42
+
+        iex> alias ElixirOntologies.Extractors.MacroInvocation.MacroContext
+        iex> ctx = MacroContext.new(file: "lib/foo.ex", function: {:bar, 2})
+        iex> ctx.function
+        {:bar, 2}
+    """
+    @spec new(keyword()) :: t()
+    def new(opts \\ []) do
+      %__MODULE__{
+        module: Keyword.get(opts, :module),
+        file: Keyword.get(opts, :file),
+        line: Keyword.get(opts, :line),
+        function: Keyword.get(opts, :function),
+        aliases: Keyword.get(opts, :aliases, [])
+      }
+    end
+
+    @doc """
+    Creates a MacroContext from AST metadata.
+
+    Extracts available context information from the AST node's metadata.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.MacroInvocation.MacroContext
+        iex> ctx = MacroContext.from_meta([line: 10, column: 5, file: "lib/test.ex"])
+        iex> ctx.line
+        10
+        iex> ctx.file
+        "lib/test.ex"
+    """
+    @spec from_meta(keyword()) :: t()
+    def from_meta(meta) when is_list(meta) do
+      %__MODULE__{
+        module: nil,
+        file: Keyword.get(meta, :file),
+        line: Keyword.get(meta, :line),
+        function: nil,
+        aliases: []
+      }
+    end
+
+    @doc """
+    Merges context options into an existing MacroContext.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.MacroInvocation.MacroContext
+        iex> ctx = MacroContext.new(line: 10)
+        iex> ctx = MacroContext.merge(ctx, module: MyModule)
+        iex> ctx.module
+        MyModule
+        iex> ctx.line
+        10
+    """
+    @spec merge(t(), keyword()) :: t()
+    def merge(%__MODULE__{} = ctx, opts) when is_list(opts) do
+      %__MODULE__{
+        module: Keyword.get(opts, :module, ctx.module),
+        file: Keyword.get(opts, :file, ctx.file),
+        line: Keyword.get(opts, :line, ctx.line),
+        function: Keyword.get(opts, :function, ctx.function),
+        aliases: Keyword.get(opts, :aliases, ctx.aliases)
+      }
+    end
+
+    @doc """
+    Checks if the context has any meaningful information.
+
+    Returns true if at least one field is populated.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.MacroInvocation.MacroContext
+        iex> MacroContext.populated?(MacroContext.new(line: 10))
+        true
+
+        iex> alias ElixirOntologies.Extractors.MacroInvocation.MacroContext
+        iex> MacroContext.populated?(MacroContext.new())
+        false
+    """
+    @spec populated?(t()) :: boolean()
+    def populated?(%__MODULE__{} = ctx) do
+      ctx.module != nil or ctx.file != nil or ctx.line != nil or
+        ctx.function != nil or ctx.aliases != []
+    end
+  end
+
+  @type macro_context :: MacroContext.t()
+
+  # ===========================================================================
   # Macro Classification Constants
   # ===========================================================================
 
@@ -957,4 +1109,251 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
   def filter_unresolved(invocations) do
     Enum.filter(invocations, &unresolved?/1)
   end
+
+  # ===========================================================================
+  # Context-Aware Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts a macro invocation with expansion context.
+
+  Accepts context options that are merged with AST metadata to create
+  a `MacroContext` that's stored in the invocation's metadata.
+
+  ## Options
+
+  - `:module` - The module where the macro is being expanded
+  - `:file` - The file path
+  - `:function` - The function context `{name, arity}` if inside a function
+  - `:aliases` - Aliases in scope `[{alias, module}]`
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:if, [line: 10], [true, [do: :ok]]}
+      iex> {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyModule)
+      iex> inv.macro_name
+      :if
+      iex> MacroInvocation.has_context?(inv)
+      true
+      iex> MacroInvocation.get_context(inv).module
+      MyModule
+      iex> MacroInvocation.get_context(inv).line
+      10
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:def, [line: 5, file: "lib/foo.ex"], [{:bar, [], []}, [do: :ok]]}
+      iex> {:ok, inv} = MacroInvocation.extract_with_context(ast, function: {:baz, 2})
+      iex> ctx = MacroInvocation.get_context(inv)
+      iex> ctx.line
+      5
+      iex> ctx.file
+      "lib/foo.ex"
+      iex> ctx.function
+      {:baz, 2}
+  """
+  @spec extract_with_context(Macro.t(), keyword()) :: {:ok, t()} | {:error, String.t()}
+  def extract_with_context(node, context_opts) when is_list(context_opts) do
+    case extract(node) do
+      {:ok, invocation} ->
+        context = build_context(node, context_opts)
+        updated = %{invocation | metadata: Map.put(invocation.metadata, :context, context)}
+        {:ok, updated}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc """
+  Extracts a macro invocation with expansion context, raising on error.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:case, [line: 15], [{:x, [], nil}, [do: [{:->, [], [[:_], :ok]}]]]}
+      iex> inv = MacroInvocation.extract_with_context!(ast, module: TestMod)
+      iex> MacroInvocation.get_context(inv).module
+      TestMod
+  """
+  @spec extract_with_context!(Macro.t(), keyword()) :: t()
+  def extract_with_context!(node, context_opts) do
+    case extract_with_context(node, context_opts) do
+      {:ok, result} -> result
+      {:error, message} -> raise ArgumentError, message
+    end
+  end
+
+  @doc """
+  Recursively extracts all macro invocations with context.
+
+  Similar to `extract_all_recursive/2` but includes context information
+  for each invocation.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> body = {:def, [line: 1], [{:foo, [], []}, [do: {:if, [line: 2], [true, [do: :ok]]}]]}
+      iex> results = MacroInvocation.extract_all_recursive_with_context(body, module: MyMod)
+      iex> length(results)
+      2
+      iex> Enum.all?(results, &MacroInvocation.has_context?/1)
+      true
+  """
+  @spec extract_all_recursive_with_context(Macro.t(), keyword()) :: [t()]
+  def extract_all_recursive_with_context(ast, context_opts \\ []) do
+    {_, invocations} =
+      Macro.prewalk(ast, [], fn
+        node, acc when is_tuple(node) and tuple_size(node) == 3 ->
+          if macro_invocation?(node) do
+            case extract_with_context(node, context_opts) do
+              {:ok, result} -> {node, [result | acc]}
+              {:error, _} -> {node, acc}
+            end
+          else
+            {node, acc}
+          end
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    Enum.reverse(invocations)
+  end
+
+  # Build context from AST metadata and provided options
+  defp build_context({_, meta, _}, opts) when is_list(meta) do
+    MacroContext.from_meta(meta)
+    |> MacroContext.merge(opts)
+  end
+
+  defp build_context(_, opts) do
+    MacroContext.new(opts)
+  end
+
+  # ===========================================================================
+  # Context Helper Functions
+  # ===========================================================================
+
+  @doc """
+  Checks if a macro invocation has context information.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:if, [line: 10], [true, [do: :ok]]}
+      iex> {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyModule)
+      iex> MacroInvocation.has_context?(inv)
+      true
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:if, [], [true, [do: :ok]]}
+      iex> {:ok, inv} = MacroInvocation.extract(ast)
+      iex> MacroInvocation.has_context?(inv)
+      false
+  """
+  @spec has_context?(t()) :: boolean()
+  def has_context?(%__MODULE__{metadata: %{context: %MacroContext{} = ctx}}) do
+    MacroContext.populated?(ctx)
+  end
+
+  def has_context?(_), do: false
+
+  @doc """
+  Gets the context from a macro invocation.
+
+  Returns `nil` if no context is present.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:if, [line: 10], [true, [do: :ok]]}
+      iex> {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyModule)
+      iex> ctx = MacroInvocation.get_context(inv)
+      iex> ctx.module
+      MyModule
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:if, [], [true, [do: :ok]]}
+      iex> {:ok, inv} = MacroInvocation.extract(ast)
+      iex> MacroInvocation.get_context(inv)
+      nil
+  """
+  @spec get_context(t()) :: MacroContext.t() | nil
+  def get_context(%__MODULE__{metadata: %{context: %MacroContext{} = ctx}}), do: ctx
+  def get_context(_), do: nil
+
+  @doc """
+  Gets the module from the context of a macro invocation.
+
+  Returns `nil` if no context or no module in context.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:if, [line: 10], [true, [do: :ok]]}
+      iex> {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyModule)
+      iex> MacroInvocation.context_module(inv)
+      MyModule
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:if, [], [true, [do: :ok]]}
+      iex> {:ok, inv} = MacroInvocation.extract(ast)
+      iex> MacroInvocation.context_module(inv)
+      nil
+  """
+  @spec context_module(t()) :: module() | nil
+  def context_module(%__MODULE__{metadata: %{context: %MacroContext{module: module}}}), do: module
+  def context_module(_), do: nil
+
+  @doc """
+  Gets the file path from the context of a macro invocation.
+
+  Returns `nil` if no context or no file in context.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:if, [line: 10, file: "lib/test.ex"], [true, [do: :ok]]}
+      iex> {:ok, inv} = MacroInvocation.extract_with_context(ast, [])
+      iex> MacroInvocation.context_file(inv)
+      "lib/test.ex"
+  """
+  @spec context_file(t()) :: String.t() | nil
+  def context_file(%__MODULE__{metadata: %{context: %MacroContext{file: file}}}), do: file
+  def context_file(_), do: nil
+
+  @doc """
+  Gets the line number from the context of a macro invocation.
+
+  Returns `nil` if no context or no line in context.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:if, [line: 42], [true, [do: :ok]]}
+      iex> {:ok, inv} = MacroInvocation.extract_with_context(ast, [])
+      iex> MacroInvocation.context_line(inv)
+      42
+  """
+  @spec context_line(t()) :: non_neg_integer() | nil
+  def context_line(%__MODULE__{metadata: %{context: %MacroContext{line: line}}}), do: line
+  def context_line(_), do: nil
+
+  @doc """
+  Gets the function context from a macro invocation.
+
+  Returns `nil` if no context or not inside a function.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.MacroInvocation
+      iex> ast = {:if, [line: 10], [true, [do: :ok]]}
+      iex> {:ok, inv} = MacroInvocation.extract_with_context(ast, function: {:my_func, 2})
+      iex> MacroInvocation.context_function(inv)
+      {:my_func, 2}
+  """
+  @spec context_function(t()) :: {atom(), non_neg_integer()} | nil
+  def context_function(%__MODULE__{metadata: %{context: %MacroContext{function: func}}}), do: func
+  def context_function(_), do: nil
 end

@@ -31,16 +31,16 @@ Track invocations of user-defined macros, linking calls to their definitions whe
 - [x] 15.1.2.6 Add custom macro invocation tests
 
 ### 15.1.3 Macro Expansion Context
-- [ ] **Task 15.1.3 Pending**
+- [x] **Task 15.1.3 Complete**
 
 Capture the expansion context of macro invocations including the caller environment.
 
-- [ ] 15.1.3.1 Extract `__CALLER__` context information when available
-- [ ] 15.1.3.2 Track expansion module (where macro expands)
-- [ ] 15.1.3.3 Track expansion file and line
-- [ ] 15.1.3.4 Create `%MacroContext{module: ..., file: ..., line: ...}` struct
-- [ ] 15.1.3.5 Associate context with macro invocations
-- [ ] 15.1.3.6 Add macro context tests
+- [x] 15.1.3.1 Extract `__CALLER__` context information when available
+- [x] 15.1.3.2 Track expansion module (where macro expands)
+- [x] 15.1.3.3 Track expansion file and line
+- [x] 15.1.3.4 Create `%MacroContext{module: ..., file: ..., line: ...}` struct
+- [x] 15.1.3.5 Associate context with macro invocations
+- [x] 15.1.3.6 Add macro context tests
 
 **Section 15.1 Unit Tests:**
 - [x] Test detection of `def`/`defp` as macro invocations
@@ -49,7 +49,7 @@ Capture the expansion context of macro invocations including the caller environm
 - [x] Test imported macro tracking
 - [x] Test required macro tracking
 - [x] Test macro call site location extraction
-- [ ] Test expansion context capture
+- [x] Test expansion context capture
 - [x] Test unresolved macro call handling
 
 ## 15.2 Module Attribute Values
