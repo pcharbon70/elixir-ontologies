@@ -7,16 +7,16 @@ This phase implements comprehensive extraction and building for Elixir's metapro
 This section implements extraction of macro invocations (calls to macros from other modules), distinguishing them from regular function calls and tracking their expansion sites.
 
 ### 15.1.1 Macro Call Detection
-- [ ] **Task 15.1.1 Pending**
+- [x] **Task 15.1.1 Complete**
 
 Detect and extract macro invocations in module bodies, identifying calls to known macros from standard library and external modules.
 
-- [ ] 15.1.1.1 Create `lib/elixir_ontologies/extractors/macro_invocation.ex`
-- [ ] 15.1.1.2 Define `%MacroInvocation{}` struct with fields: macro_module, macro_name, arity, arguments, location
-- [ ] 15.1.1.3 Implement detection of standard library macros (defmodule, def, defmacro, etc.)
-- [ ] 15.1.1.4 Implement detection of Kernel macros (if, unless, case, cond, with, for, etc.)
-- [ ] 15.1.1.5 Track call site location for each macro invocation
-- [ ] 15.1.1.6 Add macro invocation detection tests
+- [x] 15.1.1.1 Create `lib/elixir_ontologies/extractors/macro_invocation.ex`
+- [x] 15.1.1.2 Define `%MacroInvocation{}` struct with fields: macro_module, macro_name, arity, arguments, location
+- [x] 15.1.1.3 Implement detection of standard library macros (defmodule, def, defmacro, etc.)
+- [x] 15.1.1.4 Implement detection of Kernel macros (if, unless, case, cond, with, for, etc.)
+- [x] 15.1.1.5 Track call site location for each macro invocation
+- [x] 15.1.1.6 Add macro invocation detection tests
 
 ### 15.1.2 Custom Macro Invocation
 - [ ] **Task 15.1.2 Pending**
@@ -43,12 +43,12 @@ Capture the expansion context of macro invocations including the caller environm
 - [ ] 15.1.3.6 Add macro context tests
 
 **Section 15.1 Unit Tests:**
-- [ ] Test detection of `def`/`defp` as macro invocations
-- [ ] Test detection of `if`/`unless`/`case` as macro invocations
+- [x] Test detection of `def`/`defp` as macro invocations
+- [x] Test detection of `if`/`unless`/`case` as macro invocations
 - [ ] Test custom macro invocation detection
 - [ ] Test imported macro tracking
 - [ ] Test required macro tracking
-- [ ] Test macro call site location extraction
+- [x] Test macro call site location extraction
 - [ ] Test expansion context capture
 - [ ] Test unresolved macro call handling
 
