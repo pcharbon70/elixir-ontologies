@@ -289,6 +289,119 @@ defmodule ElixirOntologies.Extractors.Attribute do
   end
 
   # ===========================================================================
+  # DocContent Struct
+  # ===========================================================================
+
+  defmodule DocContent do
+    @moduledoc """
+    Represents extracted documentation content from @doc, @moduledoc, or @typedoc.
+
+    This struct captures the documentation text along with format information
+    and hidden status.
+
+    ## Fields
+
+    - `:content` - The documentation text (string or nil)
+    - `:format` - The documentation format (:string, :heredoc, :sigil, :false, :nil)
+    - `:sigil_type` - For sigil format, the sigil character (:S, :s, etc.)
+    - `:hidden` - Whether the documentation is hidden (@doc false)
+
+    ## Usage
+
+        iex> alias ElixirOntologies.Extractors.Attribute.DocContent
+        iex> doc = DocContent.new(content: "Hello", format: :string)
+        iex> doc.content
+        "Hello"
+        iex> doc.hidden
+        false
+    """
+
+    @type format :: :string | :heredoc | :sigil | :false | :nil
+    @type sigil_type :: :S | :s | :D | :W | :w | nil
+
+    @type t :: %__MODULE__{
+            content: String.t() | nil,
+            format: format(),
+            sigil_type: sigil_type(),
+            hidden: boolean()
+          }
+
+    defstruct [
+      :content,
+      :format,
+      :sigil_type,
+      hidden: false
+    ]
+
+    @doc """
+    Creates a new DocContent with the given options.
+
+    ## Options
+
+    - `:content` - The documentation text
+    - `:format` - The format (:string, :heredoc, :sigil, :false, :nil)
+    - `:sigil_type` - For sigils, the type (:S, :s, etc.)
+    - `:hidden` - Whether hidden (default: false)
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.DocContent
+        iex> doc = DocContent.new(content: "My docs", format: :string)
+        iex> doc.format
+        :string
+
+        iex> alias ElixirOntologies.Extractors.Attribute.DocContent
+        iex> doc = DocContent.new(format: :false, hidden: true)
+        iex> doc.hidden
+        true
+    """
+    @spec new(keyword()) :: t()
+    def new(opts \\ []) do
+      %__MODULE__{
+        content: Keyword.get(opts, :content),
+        format: Keyword.get(opts, :format),
+        sigil_type: Keyword.get(opts, :sigil_type),
+        hidden: Keyword.get(opts, :hidden, false)
+      }
+    end
+
+    @doc """
+    Checks if the documentation has content.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.DocContent
+        iex> DocContent.has_content?(DocContent.new(content: "docs", format: :string))
+        true
+
+        iex> alias ElixirOntologies.Extractors.Attribute.DocContent
+        iex> DocContent.has_content?(DocContent.new(format: :false, hidden: true))
+        false
+    """
+    @spec has_content?(t()) :: boolean()
+    def has_content?(%__MODULE__{content: nil}), do: false
+    def has_content?(%__MODULE__{content: ""}), do: false
+    def has_content?(%__MODULE__{}), do: true
+
+    @doc """
+    Checks if the documentation is a sigil format.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Attribute.DocContent
+        iex> DocContent.sigil?(DocContent.new(format: :sigil, sigil_type: :S))
+        true
+
+        iex> alias ElixirOntologies.Extractors.Attribute.DocContent
+        iex> DocContent.sigil?(DocContent.new(format: :string))
+        false
+    """
+    @spec sigil?(t()) :: boolean()
+    def sigil?(%__MODULE__{format: :sigil}), do: true
+    def sigil?(_), do: false
+  end
+
+  # ===========================================================================
   # Known Attributes
   # ===========================================================================
 
@@ -917,6 +1030,212 @@ defmodule ElixirOntologies.Extractors.Attribute do
   def accumulated?(attr_name, body) do
     attr_name in extract_accumulated_attributes(body)
   end
+
+  # ===========================================================================
+  # Documentation Content Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts documentation content from a documentation attribute.
+
+  Takes an extracted Attribute struct and returns a `DocContent` struct
+  with the parsed documentation text and format information.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], ["Simple documentation"]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> doc = Attribute.extract_doc_content(attr)
+      iex> doc.content
+      "Simple documentation"
+      iex> doc.format
+      :string
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], [false]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> doc = Attribute.extract_doc_content(attr)
+      iex> doc.hidden
+      true
+      iex> doc.format
+      :false
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:custom, [], [42]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.extract_doc_content(attr)
+      nil
+  """
+  @spec extract_doc_content(t()) :: DocContent.t() | nil
+  def extract_doc_content(%__MODULE__{name: name, value: value})
+      when name in [:doc, :moduledoc, :typedoc] do
+    parse_doc_value(value)
+  end
+
+  def extract_doc_content(_), do: nil
+
+  @doc """
+  Gets the documentation content string from an attribute.
+
+  Returns the documentation text or nil if not a doc attribute or if hidden.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], ["Hello world"]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.doc_content(attr)
+      "Hello world"
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], [false]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.doc_content(attr)
+      nil
+  """
+  @spec doc_content(t()) :: String.t() | nil
+  def doc_content(%__MODULE__{} = attr) do
+    case extract_doc_content(attr) do
+      %DocContent{content: content} -> content
+      nil -> nil
+    end
+  end
+
+  @doc """
+  Checks if a documentation attribute is hidden (@doc false).
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], [false]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.doc_hidden?(attr)
+      true
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], ["visible"]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.doc_hidden?(attr)
+      false
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:custom, [], [42]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.doc_hidden?(attr)
+      false
+  """
+  @spec doc_hidden?(t()) :: boolean()
+  def doc_hidden?(%__MODULE__{} = attr) do
+    case extract_doc_content(attr) do
+      %DocContent{hidden: true} -> true
+      _ -> false
+    end
+  end
+
+  @doc """
+  Checks if an attribute has documentation content.
+
+  Returns true if the attribute is a doc attribute with non-empty content.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], ["Some docs"]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.has_doc?(attr)
+      true
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], [false]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.has_doc?(attr)
+      false
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:custom, [], [42]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.has_doc?(attr)
+      false
+  """
+  @spec has_doc?(t()) :: boolean()
+  def has_doc?(%__MODULE__{} = attr) do
+    case extract_doc_content(attr) do
+      %DocContent{} = doc -> DocContent.has_content?(doc)
+      nil -> false
+    end
+  end
+
+  @doc """
+  Gets the documentation format from an attribute.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], ["docs"]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.doc_format(attr)
+      :string
+
+      iex> alias ElixirOntologies.Extractors.Attribute
+      iex> ast = {:@, [], [{:doc, [], [false]}]}
+      iex> {:ok, attr} = Attribute.extract(ast)
+      iex> Attribute.doc_format(attr)
+      :false
+  """
+  @spec doc_format(t()) :: DocContent.format() | nil
+  def doc_format(%__MODULE__{} = attr) do
+    case extract_doc_content(attr) do
+      %DocContent{format: format} -> format
+      nil -> nil
+    end
+  end
+
+  # Parse documentation value into DocContent
+  defp parse_doc_value(false) do
+    DocContent.new(format: :false, hidden: true)
+  end
+
+  defp parse_doc_value(nil) do
+    DocContent.new(format: :nil)
+  end
+
+  defp parse_doc_value(content) when is_binary(content) do
+    format = detect_doc_format(content)
+    DocContent.new(content: content, format: format)
+  end
+
+  # Handle sigil AST: {:sigil_S, _, [{:<<>>, _, [content]}, []]}
+  defp parse_doc_value({sigil, _, [{:<<>>, _, [content]}, _modifiers]})
+       when sigil in [:sigil_S, :sigil_s] and is_binary(content) do
+    sigil_type = sigil_to_type(sigil)
+    DocContent.new(content: content, format: :sigil, sigil_type: sigil_type)
+  end
+
+  # Handle other sigil forms
+  defp parse_doc_value({sigil, _, [content, _modifiers]})
+       when sigil in [:sigil_S, :sigil_s] and is_binary(content) do
+    sigil_type = sigil_to_type(sigil)
+    DocContent.new(content: content, format: :sigil, sigil_type: sigil_type)
+  end
+
+  # Handle complex/unknown values
+  defp parse_doc_value(_) do
+    DocContent.new(format: :nil)
+  end
+
+  # Detect if content is heredoc format (contains newlines suggesting multi-line)
+  defp detect_doc_format(content) when is_binary(content) do
+    if String.contains?(content, "\n") do
+      :heredoc
+    else
+      :string
+    end
+  end
+
+  defp sigil_to_type(:sigil_S), do: :S
+  defp sigil_to_type(:sigil_s), do: :s
+  defp sigil_to_type(_), do: nil
 
   # ===========================================================================
   # Private Helpers - Value Evaluation

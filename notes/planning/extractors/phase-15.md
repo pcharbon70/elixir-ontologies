@@ -69,16 +69,16 @@ Extract the compile-time values assigned to module attributes, handling literals
 - [x] 15.2.1.6 Add attribute value extraction tests
 
 ### 15.2.2 Documentation Attribute Values
-- [ ] **Task 15.2.2 Pending**
+- [x] **Task 15.2.2 Complete**
 
 Extract documentation content from @moduledoc, @doc, and @typedoc attributes.
 
-- [ ] 15.2.2.1 Implement `extract_doc_content/1` for @moduledoc values
-- [ ] 15.2.2.2 Implement `extract_doc_content/1` for @doc values
-- [ ] 15.2.2.3 Implement `extract_doc_content/1` for @typedoc values
-- [ ] 15.2.2.4 Handle heredoc strings and sigils
-- [ ] 15.2.2.5 Extract @doc false markers
-- [ ] 15.2.2.6 Add documentation value tests
+- [x] 15.2.2.1 Implement `extract_doc_content/1` for @moduledoc values
+- [x] 15.2.2.2 Implement `extract_doc_content/1` for @doc values
+- [x] 15.2.2.3 Implement `extract_doc_content/1` for @typedoc values
+- [x] 15.2.2.4 Handle heredoc strings and sigils
+- [x] 15.2.2.5 Extract @doc false markers
+- [x] 15.2.2.6 Add documentation value tests
 
 ### 15.2.3 Compile Attribute Values
 - [ ] **Task 15.2.3 Pending**
@@ -96,9 +96,9 @@ Extract values from compile-time attributes like @compile, @on_definition, @befo
 - [x] Test literal attribute value extraction
 - [x] Test complex attribute value extraction (lists, maps)
 - [x] Test accumulated attribute handling
-- [ ] Test @moduledoc content extraction
-- [ ] Test @doc content extraction
-- [ ] Test @doc false handling
+- [x] Test @moduledoc content extraction
+- [x] Test @doc content extraction
+- [x] Test @doc false handling
 - [ ] Test @compile option extraction
 - [ ] Test @before_compile/@after_compile extraction
 

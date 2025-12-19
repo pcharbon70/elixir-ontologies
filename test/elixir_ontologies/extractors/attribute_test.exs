@@ -871,4 +871,324 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
       refute Attribute.accumulated?(:other, body)
     end
   end
+
+  # ===========================================================================
+  # DocContent Struct Tests (15.2.2)
+  # ===========================================================================
+
+  describe "DocContent struct" do
+    alias Attribute.DocContent
+
+    test "new/1 creates struct with all fields" do
+      doc = DocContent.new(
+        content: "My docs",
+        format: :string,
+        sigil_type: nil,
+        hidden: false
+      )
+
+      assert doc.content == "My docs"
+      assert doc.format == :string
+      assert doc.sigil_type == nil
+      assert doc.hidden == false
+    end
+
+    test "new/0 creates empty struct with defaults" do
+      doc = DocContent.new()
+
+      assert doc.content == nil
+      assert doc.format == nil
+      assert doc.sigil_type == nil
+      assert doc.hidden == false
+    end
+
+    test "has_content?/1 returns true for non-empty content" do
+      assert DocContent.has_content?(DocContent.new(content: "docs", format: :string))
+      refute DocContent.has_content?(DocContent.new(content: nil, format: :nil))
+      refute DocContent.has_content?(DocContent.new(content: "", format: :string))
+    end
+
+    test "sigil?/1 returns true for sigil format" do
+      assert DocContent.sigil?(DocContent.new(format: :sigil, sigil_type: :S))
+      refute DocContent.sigil?(DocContent.new(format: :string))
+    end
+  end
+
+  # ===========================================================================
+  # Documentation Content Extraction Tests (15.2.2)
+  # ===========================================================================
+
+  describe "extract_doc_content/1" do
+    test "extracts @doc string content" do
+      ast = {:@, [], [{:doc, [], ["Simple documentation"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      doc = Attribute.extract_doc_content(attr)
+
+      assert doc.content == "Simple documentation"
+      assert doc.format == :string
+      assert doc.hidden == false
+    end
+
+    test "extracts @moduledoc string content" do
+      ast = {:@, [], [{:moduledoc, [], ["Module documentation"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      doc = Attribute.extract_doc_content(attr)
+
+      assert doc.content == "Module documentation"
+      assert doc.format == :string
+    end
+
+    test "extracts @typedoc string content" do
+      ast = {:@, [], [{:typedoc, [], ["Type documentation"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      doc = Attribute.extract_doc_content(attr)
+
+      assert doc.content == "Type documentation"
+      assert doc.format == :string
+    end
+
+    test "extracts @doc false as hidden" do
+      ast = {:@, [], [{:doc, [], [false]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      doc = Attribute.extract_doc_content(attr)
+
+      assert doc.hidden == true
+      assert doc.format == :false
+      assert doc.content == nil
+    end
+
+    test "extracts @moduledoc false as hidden" do
+      ast = {:@, [], [{:moduledoc, [], [false]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      doc = Attribute.extract_doc_content(attr)
+
+      assert doc.hidden == true
+      assert doc.format == :false
+    end
+
+    test "returns nil for non-doc attributes" do
+      ast = {:@, [], [{:custom, [], [42]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.extract_doc_content(attr) == nil
+    end
+
+    test "detects heredoc format for multiline strings" do
+      content = "Line 1\nLine 2\nLine 3"
+      ast = {:@, [], [{:doc, [], [content]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      doc = Attribute.extract_doc_content(attr)
+
+      assert doc.content == content
+      assert doc.format == :heredoc
+    end
+
+    test "extracts @doc with quoted heredoc" do
+      ast =
+        quote do
+          @doc """
+          This is a multi-line
+          documentation string.
+          """
+        end
+
+      {:ok, attr} = Attribute.extract(ast)
+      doc = Attribute.extract_doc_content(attr)
+
+      assert doc.format == :heredoc
+      assert String.contains?(doc.content, "multi-line")
+    end
+  end
+
+  describe "extract_doc_content/1 with sigils" do
+    test "extracts @doc ~S sigil" do
+      # Sigil AST structure
+      sigil_ast = {:sigil_S, [], [{:<<>>, [], ["Docs with \\n literal"]}, []]}
+      ast = {:@, [], [{:doc, [], [sigil_ast]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      doc = Attribute.extract_doc_content(attr)
+
+      assert doc.content == "Docs with \\n literal"
+      assert doc.format == :sigil
+      assert doc.sigil_type == :S
+    end
+
+    test "extracts @doc ~s sigil" do
+      sigil_ast = {:sigil_s, [], [{:<<>>, [], ["Interpolated docs"]}, []]}
+      ast = {:@, [], [{:doc, [], [sigil_ast]}]}
+      {:ok, attr} = Attribute.extract(ast)
+      doc = Attribute.extract_doc_content(attr)
+
+      assert doc.content == "Interpolated docs"
+      assert doc.format == :sigil
+      assert doc.sigil_type == :s
+    end
+  end
+
+  # ===========================================================================
+  # Documentation Helper Tests (15.2.2)
+  # ===========================================================================
+
+  describe "doc_content/1" do
+    test "returns documentation string" do
+      ast = {:@, [], [{:doc, [], ["Hello world"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.doc_content(attr) == "Hello world"
+    end
+
+    test "returns nil for @doc false" do
+      ast = {:@, [], [{:doc, [], [false]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.doc_content(attr) == nil
+    end
+
+    test "returns nil for non-doc attributes" do
+      ast = {:@, [], [{:custom, [], [42]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.doc_content(attr) == nil
+    end
+  end
+
+  describe "doc_hidden?/1" do
+    test "returns true for @doc false" do
+      ast = {:@, [], [{:doc, [], [false]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.doc_hidden?(attr)
+    end
+
+    test "returns true for @moduledoc false" do
+      ast = {:@, [], [{:moduledoc, [], [false]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.doc_hidden?(attr)
+    end
+
+    test "returns false for visible documentation" do
+      ast = {:@, [], [{:doc, [], ["visible"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      refute Attribute.doc_hidden?(attr)
+    end
+
+    test "returns false for non-doc attributes" do
+      ast = {:@, [], [{:custom, [], [42]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      refute Attribute.doc_hidden?(attr)
+    end
+  end
+
+  describe "has_doc?/1" do
+    test "returns true for doc with content" do
+      ast = {:@, [], [{:doc, [], ["Some docs"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.has_doc?(attr)
+    end
+
+    test "returns false for @doc false" do
+      ast = {:@, [], [{:doc, [], [false]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      refute Attribute.has_doc?(attr)
+    end
+
+    test "returns false for non-doc attributes" do
+      ast = {:@, [], [{:custom, [], [42]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      refute Attribute.has_doc?(attr)
+    end
+
+    test "returns true for multiline docs" do
+      ast = {:@, [], [{:doc, [], ["Line 1\nLine 2"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.has_doc?(attr)
+    end
+  end
+
+  describe "doc_format/1" do
+    test "returns :string for single-line docs" do
+      ast = {:@, [], [{:doc, [], ["simple"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.doc_format(attr) == :string
+    end
+
+    test "returns :heredoc for multiline docs" do
+      ast = {:@, [], [{:doc, [], ["line1\nline2"]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.doc_format(attr) == :heredoc
+    end
+
+    test "returns :false for hidden docs" do
+      ast = {:@, [], [{:doc, [], [false]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.doc_format(attr) == :false
+    end
+
+    test "returns nil for non-doc attributes" do
+      ast = {:@, [], [{:custom, [], [42]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.doc_format(attr) == nil
+    end
+
+    test "returns :sigil for sigil docs" do
+      sigil_ast = {:sigil_S, [], [{:<<>>, [], ["content"]}, []]}
+      ast = {:@, [], [{:doc, [], [sigil_ast]}]}
+      {:ok, attr} = Attribute.extract(ast)
+
+      assert Attribute.doc_format(attr) == :sigil
+    end
+  end
+
+  describe "documentation extraction from quoted code" do
+    test "extracts @moduledoc from quoted module" do
+      ast =
+        quote do
+          @moduledoc "Module documentation"
+        end
+
+      {:ok, attr} = Attribute.extract(ast)
+      assert Attribute.doc_content(attr) == "Module documentation"
+    end
+
+    test "extracts @doc from quoted function" do
+      ast =
+        quote do
+          @doc "Function documentation"
+        end
+
+      {:ok, attr} = Attribute.extract(ast)
+      assert Attribute.doc_content(attr) == "Function documentation"
+    end
+
+    test "extracts @typedoc from quoted type" do
+      ast =
+        quote do
+          @typedoc "Type documentation"
+        end
+
+      {:ok, attr} = Attribute.extract(ast)
+      assert Attribute.doc_content(attr) == "Type documentation"
+    end
+
+    test "extracts hidden @doc from quoted code" do
+      ast =
+        quote do
+          @doc false
+        end
+
+      {:ok, attr} = Attribute.extract(ast)
+      assert Attribute.doc_hidden?(attr)
+    end
+  end
 end
