@@ -1083,3 +1083,45 @@
     owl:cardinality 1
 ] .
 
+# ==============================================================================
+# Macro Invocations
+# ==============================================================================
+
+:MacroInvocation a owl:Class ;
+    rdfs:label "Macro Invocation"@en ;
+    rdfs:comment """A call to a macro at a specific location in the source code.
+    Tracks where macros are invoked and which macro is being called."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+# Macro invocation properties
+
+:macroCategory a owl:DatatypeProperty ;
+    rdfs:label "macro category"@en ;
+    rdfs:comment "The category of macro (definition, control_flow, import, attribute, quote, library, custom, other)."@en ;
+    rdfs:domain :MacroInvocation ;
+    rdfs:range xsd:string .
+
+:macroModule a owl:DatatypeProperty ;
+    rdfs:label "macro module"@en ;
+    rdfs:comment "The module containing the invoked macro."@en ;
+    rdfs:domain :MacroInvocation ;
+    rdfs:range xsd:string .
+
+:resolutionStatus a owl:DatatypeProperty ;
+    rdfs:label "resolution status"@en ;
+    rdfs:comment "Whether the macro module was resolved (resolved, unresolved, kernel)."@en ;
+    rdfs:domain :MacroInvocation ;
+    rdfs:range xsd:string .
+
+:invokesMacro a owl:ObjectProperty ;
+    rdfs:label "invokes macro"@en ;
+    rdfs:comment "Links a macro invocation to the macro definition it calls."@en ;
+    rdfs:domain :MacroInvocation ;
+    rdfs:range :Macro .
+
+:invokedAt a owl:ObjectProperty ;
+    rdfs:label "invoked at"@en ;
+    rdfs:comment "Links a macro invocation to its source location."@en ;
+    rdfs:domain :MacroInvocation ;
+    rdfs:range core:SourceLocation .
+

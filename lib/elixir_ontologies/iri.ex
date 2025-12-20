@@ -233,6 +233,39 @@ defmodule ElixirOntologies.IRI do
   end
 
   @doc """
+  Generates an IRI for a macro invocation.
+
+  Macro invocations are identified by module, macro identifier, and index.
+
+  ## Parameters
+
+  - `base_iri` - The base IRI
+  - `module` - The module where the invocation occurs
+  - `macro_id` - Identifier for the macro (e.g., "Kernel.def")
+  - `index` - Index or line number to uniquely identify the invocation
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.for_macro_invocation("https://example.org/code#", "MyApp.Users", "Kernel.def", 15)
+      ~I<https://example.org/code#MyApp.Users/invocation/Kernel.def/15>
+
+      iex> ElixirOntologies.IRI.for_macro_invocation("https://example.org/code#", "MyApp", "Logger.debug", 0)
+      ~I<https://example.org/code#MyApp/invocation/Logger.debug/0>
+  """
+  @spec for_macro_invocation(
+          String.t() | RDF.IRI.t(),
+          String.t() | atom(),
+          String.t(),
+          non_neg_integer()
+        ) :: RDF.IRI.t()
+  def for_macro_invocation(base_iri, module, macro_id, index)
+      when is_integer(index) and index >= 0 do
+    mod = module |> module_to_string() |> escape_name()
+    macro = escape_name(macro_id)
+    build_iri(base_iri, "#{mod}/invocation/#{macro}/#{index}")
+  end
+
+  @doc """
   Generates an IRI for a source file.
 
   ## Parameters

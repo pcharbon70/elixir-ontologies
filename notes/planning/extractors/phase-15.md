@@ -157,16 +157,16 @@ Analyze macro hygiene aspects including var!/2 usage and context manipulation.
 This section implements RDF builders for all metaprogramming constructs.
 
 ### 15.4.1 Macro Invocation Builder
-- [ ] **Task 15.4.1 Pending**
+- [x] **Task 15.4.1 Complete**
 
 Generate RDF triples for macro invocations and their relationships.
 
-- [ ] 15.4.1.1 Create `lib/elixir_ontologies/builders/macro_builder.ex` (rename/extend existing)
-- [ ] 15.4.1.2 Implement `build_macro_invocation/3` generating invocation IRI
-- [ ] 15.4.1.3 Generate `rdf:type structure:MacroInvocation` triple
-- [ ] 15.4.1.4 Generate `structure:invokesMacro` linking to macro definition
-- [ ] 15.4.1.5 Generate `structure:invokedAt` with source location
-- [ ] 15.4.1.6 Add macro invocation builder tests
+- [x] 15.4.1.1 Create `lib/elixir_ontologies/builders/macro_builder.ex` (rename/extend existing)
+- [x] 15.4.1.2 Implement `build_macro_invocation/3` generating invocation IRI
+- [x] 15.4.1.3 Generate `rdf:type structure:MacroInvocation` triple
+- [x] 15.4.1.4 Generate `structure:invokesMacro` linking to macro definition
+- [x] 15.4.1.5 Generate `structure:invokedAt` with source location
+- [x] 15.4.1.6 Add macro invocation builder tests
 
 ### 15.4.2 Attribute Value Builder
 - [ ] **Task 15.4.2 Pending**
@@ -193,8 +193,8 @@ Generate RDF triples for quote blocks and unquote expressions.
 - [ ] 15.4.3.6 Add quote builder tests
 
 **Section 15.4 Unit Tests:**
-- [ ] Test macro invocation RDF generation
-- [ ] Test macro-to-definition linking
+- [x] Test macro invocation RDF generation
+- [x] Test macro-to-definition linking
 - [ ] Test attribute value RDF generation
 - [ ] Test accumulated attribute RDF
 - [ ] Test documentation attribute RDF
