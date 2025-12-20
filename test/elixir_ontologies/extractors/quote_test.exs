@@ -234,14 +234,41 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
       assert hd(results).kind == :unquote_splicing
     end
 
-    test "does not descend into nested quotes" do
+    test "does not descend into nested quotes when descend_into_quotes: false" do
       # The inner quote contains an unquote that should not be found
       inner_quote = {:quote, [], [[do: {:unquote, [], [{:hidden, [], nil}]}]]}
       ast = {:+, [], [{:unquote, [], [{:x, [], nil}]}, inner_quote]}
 
-      results = Quote.find_unquotes(ast)
+      results = Quote.find_unquotes(ast, descend_into_quotes: false)
       assert length(results) == 1
       assert hd(results).value == {:x, [], nil}
+    end
+
+    test "descends into nested quotes by default and tracks depth" do
+      # The inner quote contains an unquote that should be found at depth 2
+      inner_quote = {:quote, [], [[do: {:unquote, [], [{:hidden, [], nil}]}]]}
+      ast = {:+, [], [{:unquote, [], [{:x, [], nil}]}, inner_quote]}
+
+      results = Quote.find_unquotes(ast)
+      assert length(results) == 2
+
+      # First unquote at depth 1
+      depth_1_results = Enum.filter(results, &(&1.depth == 1))
+      assert length(depth_1_results) == 1
+      assert hd(depth_1_results).value == {:x, [], nil}
+
+      # Second unquote at depth 2 (inside nested quote)
+      depth_2_results = Enum.filter(results, &(&1.depth == 2))
+      assert length(depth_2_results) == 1
+      assert hd(depth_2_results).value == {:hidden, [], nil}
+    end
+
+    test "sets depth to 1 for unquotes at top level" do
+      ast = {:unquote, [], [{:x, [], nil}]}
+
+      results = Quote.find_unquotes(ast)
+      assert length(results) == 1
+      assert hd(results).depth == 1
     end
 
     test "returns empty list for no unquotes" do
@@ -668,6 +695,247 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
 
       assert {:ok, result} = Quote.extract(ast)
       assert result.options.context == :match
+    end
+  end
+
+  # ===========================================================================
+  # UnquoteExpression Helper Function Tests
+  # ===========================================================================
+
+  describe "UnquoteExpression.splicing?/1" do
+    alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+
+    test "returns true for unquote_splicing" do
+      expr = %UnquoteExpression{kind: :unquote_splicing, value: {:x, [], nil}}
+      assert UnquoteExpression.splicing?(expr)
+    end
+
+    test "returns false for unquote" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}}
+      refute UnquoteExpression.splicing?(expr)
+    end
+  end
+
+  describe "UnquoteExpression.nested?/1" do
+    alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+
+    test "returns true for depth > 1" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 2}
+      assert UnquoteExpression.nested?(expr)
+    end
+
+    test "returns true for deeply nested" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 5}
+      assert UnquoteExpression.nested?(expr)
+    end
+
+    test "returns false for depth == 1" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 1}
+      refute UnquoteExpression.nested?(expr)
+    end
+  end
+
+  describe "UnquoteExpression.at_depth?/2" do
+    alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+
+    test "returns true when depth matches" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 3}
+      assert UnquoteExpression.at_depth?(expr, 3)
+    end
+
+    test "returns false when depth doesn't match" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 2}
+      refute UnquoteExpression.at_depth?(expr, 3)
+    end
+  end
+
+  # ===========================================================================
+  # Unquote Depth Tracking Tests
+  # ===========================================================================
+
+  describe "find_unquotes/2 depth tracking" do
+    test "tracks depth through multiple nested quotes" do
+      # quote do quote do quote do unquote(x) end end end
+      triple_nested =
+        {:quote, [],
+         [
+           [
+             do:
+               {:quote, [],
+                [[do: {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}]]}
+           ]
+         ]}
+
+      results = Quote.find_unquotes(triple_nested)
+      assert length(results) == 1
+      assert hd(results).depth == 3
+    end
+
+    test "tracks different depths for multiple unquotes" do
+      # Structure: quote { unquote(a), quote { unquote(b), quote { unquote(c) } } }
+      deeply_nested =
+        {:quote, [],
+         [
+           [
+             do:
+               {:__block__, [],
+                [
+                  {:unquote, [], [{:a, [], nil}]},
+                  {:quote, [],
+                   [
+                     [
+                       do:
+                         {:__block__, [],
+                          [
+                            {:unquote, [], [{:b, [], nil}]},
+                            {:quote, [],
+                             [[do: {:unquote, [], [{:c, [], nil}]}]]}
+                          ]}
+                     ]
+                   ]}
+                ]}
+           ]
+         ]}
+
+      results = Quote.find_unquotes(deeply_nested)
+      assert length(results) == 3
+
+      depths = Enum.map(results, & &1.depth) |> Enum.sort()
+      assert depths == [1, 2, 3]
+    end
+
+    test "respects custom starting depth" do
+      ast = {:unquote, [], [{:x, [], nil}]}
+
+      results = Quote.find_unquotes(ast, depth: 5)
+      assert length(results) == 1
+      assert hd(results).depth == 5
+    end
+  end
+
+  describe "extract_unquotes/1" do
+    test "is an alias for find_unquotes" do
+      ast = {:unquote, [], [{:x, [], nil}]}
+
+      find_results = Quote.find_unquotes(ast)
+      extract_results = Quote.extract_unquotes(ast)
+
+      assert find_results == extract_results
+    end
+  end
+
+  describe "find_unquotes_at_depth/2" do
+    test "filters unquotes by specific depth" do
+      # Two unquotes at depth 1, one at depth 2
+      ast =
+        {:__block__, [],
+         [
+           {:unquote, [], [{:a, [], nil}]},
+           {:unquote, [], [{:b, [], nil}]},
+           {:quote, [], [[do: {:unquote, [], [{:c, [], nil}]}]]}
+         ]}
+
+      depth_1 = Quote.find_unquotes_at_depth(ast, 1)
+      assert length(depth_1) == 2
+
+      depth_2 = Quote.find_unquotes_at_depth(ast, 2)
+      assert length(depth_2) == 1
+      assert hd(depth_2).value == {:c, [], nil}
+    end
+
+    test "returns empty list when no unquotes at depth" do
+      ast = {:unquote, [], [{:x, [], nil}]}
+
+      assert Quote.find_unquotes_at_depth(ast, 5) == []
+    end
+  end
+
+  describe "max_unquote_depth/1" do
+    test "returns maximum depth" do
+      ast =
+        {:quote, [],
+         [
+           [
+             do:
+               {:quote, [],
+                [[do: {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}]]}
+           ]
+         ]}
+
+      assert Quote.max_unquote_depth(ast) == 3
+    end
+
+    test "returns 0 when no unquotes" do
+      ast = {:+, [], [1, 2]}
+      assert Quote.max_unquote_depth(ast) == 0
+    end
+
+    test "finds max among multiple depths" do
+      ast =
+        {:__block__, [],
+         [
+           {:unquote, [], [{:a, [], nil}]},
+           {:quote, [], [[do: {:unquote, [], [{:b, [], nil}]}]]}
+         ]}
+
+      assert Quote.max_unquote_depth(ast) == 2
+    end
+  end
+
+  describe "has_nested_unquotes?/1" do
+    test "returns true when has depth > 1" do
+      # Nested quote: quote do quote do unquote(x) end end - unquote at depth 2
+      ast = {:quote, [], [[do: {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}]]}
+      assert Quote.has_nested_unquotes?(ast)
+    end
+
+    test "returns false when all depth == 1" do
+      # Single quote: quote do unquote(x) end - unquote at depth 1
+      ast = {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}
+      refute Quote.has_nested_unquotes?(ast)
+    end
+
+    test "returns false when called on unquote directly" do
+      # Unquote directly (not in a quote) has depth 1
+      ast = {:unquote, [], [{:x, [], nil}]}
+      refute Quote.has_nested_unquotes?(ast)
+    end
+
+    test "returns false for no unquotes" do
+      ast = {:+, [], [1, 2]}
+      refute Quote.has_nested_unquotes?(ast)
+    end
+  end
+
+  describe "count_unquotes_by_kind/1" do
+    test "counts both types" do
+      ast =
+        {:__block__, [],
+         [
+           {:unquote, [], [{:a, [], nil}]},
+           {:unquote, [], [{:b, [], nil}]},
+           {:unquote_splicing, [], [{:c, [], nil}]}
+         ]}
+
+      counts = Quote.count_unquotes_by_kind(ast)
+      assert counts == %{unquote: 2, unquote_splicing: 1}
+    end
+
+    test "returns zeros when no unquotes" do
+      ast = {:+, [], [1, 2]}
+      assert Quote.count_unquotes_by_kind(ast) == %{unquote: 0, unquote_splicing: 0}
+    end
+
+    test "handles only splicing" do
+      ast =
+        {:__block__, [],
+         [
+           {:unquote_splicing, [], [{:a, [], nil}]},
+           {:unquote_splicing, [], [{:b, [], nil}]}
+         ]}
+
+      counts = Quote.count_unquotes_by_kind(ast)
+      assert counts == %{unquote: 0, unquote_splicing: 2}
     end
   end
 end

@@ -119,16 +119,16 @@ Enhance quote block extraction to capture options and the quoted AST structure.
 - [x] 15.3.1.6 Add quote option tests
 
 ### 15.3.2 Unquote Detection
-- [ ] **Task 15.3.2 Pending**
+- [x] **Task 15.3.2 Complete**
 
 Detect and extract unquote and unquote_splicing calls within quote blocks.
 
-- [ ] 15.3.2.1 Implement `extract_unquotes/1` finding all unquote calls in AST
-- [ ] 15.3.2.2 Extract unquoted expression for each unquote call
-- [ ] 15.3.2.3 Detect `unquote_splicing` calls
-- [ ] 15.3.2.4 Track unquote nesting depth (for nested quotes)
-- [ ] 15.3.2.5 Create `%Unquote{expression: ..., splicing: boolean(), depth: ...}` struct
-- [ ] 15.3.2.6 Add unquote detection tests
+- [x] 15.3.2.1 Implement `extract_unquotes/1` finding all unquote calls in AST
+- [x] 15.3.2.2 Extract unquoted expression for each unquote call
+- [x] 15.3.2.3 Detect `unquote_splicing` calls
+- [x] 15.3.2.4 Track unquote nesting depth (for nested quotes)
+- [x] 15.3.2.5 Create `%Unquote{expression: ..., splicing: boolean(), depth: ...}` struct
+- [x] 15.3.2.6 Add unquote detection tests
 
 ### 15.3.3 Macro Hygiene Analysis
 - [ ] **Task 15.3.3 Pending**
@@ -145,9 +145,9 @@ Analyze macro hygiene aspects including var!/2 usage and context manipulation.
 **Section 15.3 Unit Tests:**
 - [x] Test quote block option extraction
 - [x] Test bind_quoted extraction
-- [ ] Test unquote detection
-- [ ] Test unquote_splicing detection
-- [ ] Test nested quote/unquote handling
+- [x] Test unquote detection
+- [x] Test unquote_splicing detection
+- [x] Test nested quote/unquote handling
 - [ ] Test var! detection
 - [ ] Test Macro.escape detection
 - [ ] Test hygiene violation tracking

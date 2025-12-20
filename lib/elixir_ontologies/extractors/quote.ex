@@ -286,11 +286,29 @@ defmodule ElixirOntologies.Extractors.Quote do
   defmodule UnquoteExpression do
     @moduledoc """
     Represents an unquote or unquote_splicing extraction result.
+
+    ## Fields
+
+    - `:kind` - Either `:unquote` or `:unquote_splicing`
+    - `:value` - The AST expression being unquoted
+    - `:depth` - Nesting depth (1 = inside one quote, 2 = inside nested quote, etc.)
+    - `:location` - Source location if available
+    - `:metadata` - Additional metadata
+
+    ## Usage
+
+        iex> alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+        iex> expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 1}
+        iex> UnquoteExpression.splicing?(expr)
+        false
+        iex> UnquoteExpression.nested?(expr)
+        false
     """
 
     @type t :: %__MODULE__{
             kind: :unquote | :unquote_splicing,
             value: Macro.t(),
+            depth: pos_integer(),
             location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
             metadata: map()
           }
@@ -299,8 +317,61 @@ defmodule ElixirOntologies.Extractors.Quote do
       :kind,
       :value,
       :location,
+      depth: 1,
       metadata: %{}
     ]
+
+    @doc """
+    Checks if this is an unquote_splicing expression.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+        iex> UnquoteExpression.splicing?(%UnquoteExpression{kind: :unquote_splicing, value: {:x, [], nil}})
+        true
+
+        iex> alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+        iex> UnquoteExpression.splicing?(%UnquoteExpression{kind: :unquote, value: {:x, [], nil}})
+        false
+    """
+    @spec splicing?(t()) :: boolean()
+    def splicing?(%__MODULE__{kind: :unquote_splicing}), do: true
+    def splicing?(%__MODULE__{}), do: false
+
+    @doc """
+    Checks if this unquote is nested (depth > 1).
+
+    A nested unquote occurs inside a quote that is itself inside another quote.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+        iex> UnquoteExpression.nested?(%UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 2})
+        true
+
+        iex> alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+        iex> UnquoteExpression.nested?(%UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 1})
+        false
+    """
+    @spec nested?(t()) :: boolean()
+    def nested?(%__MODULE__{depth: depth}) when depth > 1, do: true
+    def nested?(%__MODULE__{}), do: false
+
+    @doc """
+    Checks if this unquote is at a specific depth.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+        iex> UnquoteExpression.at_depth?(%UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 2}, 2)
+        true
+
+        iex> alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+        iex> UnquoteExpression.at_depth?(%UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 1}, 2)
+        false
+    """
+    @spec at_depth?(t(), pos_integer()) :: boolean()
+    def at_depth?(%__MODULE__{depth: depth}, target_depth), do: depth == target_depth
   end
 
   # ===========================================================================
@@ -513,7 +584,13 @@ defmodule ElixirOntologies.Extractors.Quote do
   @doc """
   Finds all unquote and unquote_splicing expressions within an AST.
 
-  Does not descend into nested quote blocks.
+  Tracks nesting depth when descending into nested quote blocks.
+  Each unquote includes a `depth` field indicating how many quote levels deep it is.
+
+  ## Options
+
+  - `:depth` - Starting depth (default: 1, meaning inside one quote)
+  - `:descend_into_quotes` - Whether to descend into nested quotes (default: true)
 
   ## Examples
 
@@ -523,6 +600,8 @@ defmodule ElixirOntologies.Extractors.Quote do
       1
       iex> hd(results).kind
       :unquote
+      iex> hd(results).depth
+      1
 
       iex> ast = [{:unquote_splicing, [], [{:list, [], nil}]}, :end]
       iex> results = ElixirOntologies.Extractors.Quote.find_unquotes(ast)
@@ -531,21 +610,48 @@ defmodule ElixirOntologies.Extractors.Quote do
       iex> hd(results).kind
       :unquote_splicing
   """
-  @spec find_unquotes(Macro.t()) :: [UnquoteExpression.t()]
-  def find_unquotes(ast) do
-    {_, unquotes} = do_find_unquotes(ast, [])
+  @spec find_unquotes(Macro.t(), keyword()) :: [UnquoteExpression.t()]
+  def find_unquotes(ast, opts \\ []) do
+    # If starting on a quote node and no explicit depth given, start at 0
+    # so the first quote increments to depth 1
+    default_depth = if quote?(ast), do: 0, else: 1
+    depth = Keyword.get(opts, :depth, default_depth)
+    descend = Keyword.get(opts, :descend_into_quotes, true)
+    {_, unquotes} = do_find_unquotes(ast, [], depth, descend)
     Enum.reverse(unquotes)
   end
 
-  defp do_find_unquotes({:quote, _, _} = _node, acc) do
+  @doc """
+  Alias for `find_unquotes/1` for clearer naming.
+
+  ## Examples
+
+      iex> ast = {:+, [], [{:unquote, [], [{:x, [], nil}]}, 1]}
+      iex> results = ElixirOntologies.Extractors.Quote.extract_unquotes(ast)
+      iex> length(results)
+      1
+  """
+  @spec extract_unquotes(Macro.t(), keyword()) :: [UnquoteExpression.t()]
+  def extract_unquotes(ast, opts \\ []), do: find_unquotes(ast, opts)
+
+  # Quote node - descend with incremented depth if allowed
+  defp do_find_unquotes({:quote, _, args} = _node, acc, depth, true = _descend)
+       when is_list(args) do
+    # Extract body from quote and continue with incremented depth
+    body = extract_quote_body(args)
+    do_find_unquotes(body, acc, depth + 1, true)
+  end
+
+  defp do_find_unquotes({:quote, _, _} = _node, acc, _depth, false = _descend) do
     # Don't descend into nested quotes
     {nil, acc}
   end
 
-  defp do_find_unquotes({:unquote, meta, [value]} = _node, acc) do
+  defp do_find_unquotes({:unquote, meta, [value]} = _node, acc, depth, _descend) do
     unquote_expr = %UnquoteExpression{
       kind: :unquote,
       value: value,
+      depth: depth,
       location: Helpers.extract_location({:unquote, meta, []}),
       metadata: %{}
     }
@@ -553,10 +659,11 @@ defmodule ElixirOntologies.Extractors.Quote do
     {nil, [unquote_expr | acc]}
   end
 
-  defp do_find_unquotes({:unquote_splicing, meta, [value]} = _node, acc) do
+  defp do_find_unquotes({:unquote_splicing, meta, [value]} = _node, acc, depth, _descend) do
     unquote_expr = %UnquoteExpression{
       kind: :unquote_splicing,
       value: value,
+      depth: depth,
       location: Helpers.extract_location({:unquote_splicing, meta, []}),
       metadata: %{}
     }
@@ -564,28 +671,35 @@ defmodule ElixirOntologies.Extractors.Quote do
     {nil, [unquote_expr | acc]}
   end
 
-  defp do_find_unquotes({_form, _meta, args} = _node, acc) when is_list(args) do
+  defp do_find_unquotes({_form, _meta, args} = _node, acc, depth, descend) when is_list(args) do
     {_, new_acc} =
-      Enum.reduce(args, {nil, acc}, fn arg, {_, acc} -> do_find_unquotes(arg, acc) end)
+      Enum.reduce(args, {nil, acc}, fn arg, {_, a} -> do_find_unquotes(arg, a, depth, descend) end)
 
     {nil, new_acc}
   end
 
-  defp do_find_unquotes(list, acc) when is_list(list) do
+  defp do_find_unquotes(list, acc, depth, descend) when is_list(list) do
     {_, new_acc} =
-      Enum.reduce(list, {nil, acc}, fn item, {_, acc} -> do_find_unquotes(item, acc) end)
+      Enum.reduce(list, {nil, acc}, fn item, {_, a} ->
+        do_find_unquotes(item, a, depth, descend)
+      end)
 
     {nil, new_acc}
   end
 
-  defp do_find_unquotes({left, right}, acc) do
-    {_, acc} = do_find_unquotes(left, acc)
-    do_find_unquotes(right, acc)
+  defp do_find_unquotes({left, right}, acc, depth, descend) do
+    {_, acc} = do_find_unquotes(left, acc, depth, descend)
+    do_find_unquotes(right, acc, depth, descend)
   end
 
-  defp do_find_unquotes(_other, acc) do
+  defp do_find_unquotes(_other, acc, _depth, _descend) do
     {nil, acc}
   end
+
+  # Helper to extract body from quote args
+  defp extract_quote_body([[do: body]]), do: body
+  defp extract_quote_body([_options, [do: body]]), do: body
+  defp extract_quote_body(_), do: nil
 
   # ===========================================================================
   # Bulk Extraction
@@ -862,5 +976,95 @@ defmodule ElixirOntologies.Extractors.Quote do
   @spec get_file(QuotedExpression.t()) :: String.t() | nil
   def get_file(%QuotedExpression{options: %QuoteOptions{file: file}}) do
     file
+  end
+
+  # ===========================================================================
+  # Unquote Depth Helper Functions
+  # ===========================================================================
+
+  @doc """
+  Finds unquotes at a specific nesting depth.
+
+  ## Examples
+
+      iex> ast = {:+, [], [{:unquote, [], [{:x, [], nil}]}, 1]}
+      iex> results = ElixirOntologies.Extractors.Quote.find_unquotes_at_depth(ast, 1)
+      iex> length(results)
+      1
+
+      iex> ast = {:+, [], [{:unquote, [], [{:x, [], nil}]}, 1]}
+      iex> results = ElixirOntologies.Extractors.Quote.find_unquotes_at_depth(ast, 2)
+      iex> length(results)
+      0
+  """
+  @spec find_unquotes_at_depth(Macro.t(), pos_integer()) :: [UnquoteExpression.t()]
+  def find_unquotes_at_depth(ast, target_depth) do
+    ast
+    |> find_unquotes()
+    |> Enum.filter(&UnquoteExpression.at_depth?(&1, target_depth))
+  end
+
+  @doc """
+  Gets the maximum nesting depth of unquotes in an AST.
+
+  Returns 0 if there are no unquotes.
+
+  ## Examples
+
+      iex> ast = {:+, [], [{:unquote, [], [{:x, [], nil}]}, 1]}
+      iex> ElixirOntologies.Extractors.Quote.max_unquote_depth(ast)
+      1
+
+      iex> ast = {:+, [], [1, 2]}
+      iex> ElixirOntologies.Extractors.Quote.max_unquote_depth(ast)
+      0
+  """
+  @spec max_unquote_depth(Macro.t()) :: non_neg_integer()
+  def max_unquote_depth(ast) do
+    ast
+    |> find_unquotes()
+    |> Enum.map(& &1.depth)
+    |> Enum.max(fn -> 0 end)
+  end
+
+  @doc """
+  Checks if an AST has any nested unquotes (depth > 1).
+
+  ## Examples
+
+      iex> ast = {:+, [], [{:unquote, [], [{:x, [], nil}]}, 1]}
+      iex> ElixirOntologies.Extractors.Quote.has_nested_unquotes?(ast)
+      false
+  """
+  @spec has_nested_unquotes?(Macro.t()) :: boolean()
+  def has_nested_unquotes?(ast) do
+    ast
+    |> find_unquotes()
+    |> Enum.any?(&UnquoteExpression.nested?/1)
+  end
+
+  @doc """
+  Counts unquotes by kind (:unquote vs :unquote_splicing).
+
+  Returns a map with counts for each kind.
+
+  ## Examples
+
+      iex> ast = {:+, [], [{:unquote, [], [{:x, [], nil}]}, {:unquote_splicing, [], [{:list, [], nil}]}]}
+      iex> ElixirOntologies.Extractors.Quote.count_unquotes_by_kind(ast)
+      %{unquote: 1, unquote_splicing: 1}
+
+      iex> ast = {:+, [], [1, 2]}
+      iex> ElixirOntologies.Extractors.Quote.count_unquotes_by_kind(ast)
+      %{unquote: 0, unquote_splicing: 0}
+  """
+  @spec count_unquotes_by_kind(Macro.t()) :: %{unquote: non_neg_integer(), unquote_splicing: non_neg_integer()}
+  def count_unquotes_by_kind(ast) do
+    unquotes = find_unquotes(ast)
+
+    %{
+      unquote: Enum.count(unquotes, &(&1.kind == :unquote)),
+      unquote_splicing: Enum.count(unquotes, &(&1.kind == :unquote_splicing))
+    }
   end
 end
