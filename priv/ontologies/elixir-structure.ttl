@@ -982,6 +982,66 @@
     rdfs:domain :QuotedExpression ;
     rdfs:range xsd:string .
 
+:hasBindQuoted a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "has bind quoted"@en ;
+    rdfs:comment "Whether the quote has bind_quoted option set."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range xsd:boolean .
+
+:locationKeep a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "location keep"@en ;
+    rdfs:comment "Whether the quote has location: :keep option set."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range xsd:boolean .
+
+:unquoteEnabled a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "unquote enabled"@en ;
+    rdfs:comment "Whether unquoting is enabled in this quote block (default true)."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range xsd:boolean .
+
+:isGenerated a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is generated"@en ;
+    rdfs:comment "Whether the quote is marked as compiler-generated."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range xsd:boolean .
+
+:containsUnquote a owl:ObjectProperty ;
+    rdfs:label "contains unquote"@en ;
+    rdfs:comment "Links a quote block to an unquote expression it contains."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range :UnquoteExpression .
+
+:unquoteDepth a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "unquote depth"@en ;
+    rdfs:comment "The nesting depth of an unquote (1 = inside one quote)."@en ;
+    rdfs:domain :UnquoteExpression ;
+    rdfs:range xsd:positiveInteger .
+
+:hasHygieneViolation a owl:ObjectProperty ;
+    rdfs:label "has hygiene violation"@en ;
+    rdfs:comment "Links a quote block to a hygiene violation it contains."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range :Hygiene .
+
+:violationType a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "violation type"@en ;
+    rdfs:comment "The type of hygiene violation: var_bang or macro_escape."@en ;
+    rdfs:domain :Hygiene ;
+    rdfs:range xsd:string .
+
+:unhygienicVariable a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "unhygienic variable"@en ;
+    rdfs:comment "The name of the variable used with var!."@en ;
+    rdfs:domain :Hygiene ;
+    rdfs:range xsd:string .
+
+:hygieneContext a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "hygiene context"@en ;
+    rdfs:comment "The context parameter for var!/2 calls."@en ;
+    rdfs:domain :Hygiene ;
+    rdfs:range xsd:string .
+
 # =============================================================================
 # OWL Axioms
 # =============================================================================

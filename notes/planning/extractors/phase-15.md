@@ -181,16 +181,16 @@ Generate RDF triples for module attribute values.
 - [x] 15.4.2.6 Add attribute value builder tests
 
 ### 15.4.3 Quote Builder
-- [ ] **Task 15.4.3 Pending**
+- [x] **Task 15.4.3 Complete**
 
 Generate RDF triples for quote blocks and unquote expressions.
 
-- [ ] 15.4.3.1 Implement `build_quote_block/3` generating quote IRI
-- [ ] 15.4.3.2 Generate `rdf:type structure:QuoteBlock` triple
-- [ ] 15.4.3.3 Generate `structure:hasQuoteOption` for each option
-- [ ] 15.4.3.4 Generate `structure:containsUnquote` linking to unquote expressions
-- [ ] 15.4.3.5 Generate `structure:hasHygieneViolation` for var! usage
-- [ ] 15.4.3.6 Add quote builder tests
+- [x] 15.4.3.1 Implement `build_quote_block/3` generating quote IRI
+- [x] 15.4.3.2 Generate `rdf:type structure:QuotedExpression` triple
+- [x] 15.4.3.3 Generate `structure:hasQuoteOption` for each option
+- [x] 15.4.3.4 Generate `structure:containsUnquote` linking to unquote expressions
+- [x] 15.4.3.5 Generate `structure:hasHygieneViolation` for var! usage
+- [x] 15.4.3.6 Add quote builder tests
 
 **Section 15.4 Unit Tests:**
 - [x] Test macro invocation RDF generation
@@ -198,9 +198,9 @@ Generate RDF triples for quote blocks and unquote expressions.
 - [x] Test attribute value RDF generation
 - [x] Test accumulated attribute RDF
 - [x] Test documentation attribute RDF
-- [ ] Test quote block RDF generation
-- [ ] Test unquote RDF generation
-- [ ] Test hygiene violation RDF
+- [x] Test quote block RDF generation
+- [x] Test unquote RDF generation
+- [x] Test hygiene violation RDF
 
 ## Phase 15 Integration Tests
 

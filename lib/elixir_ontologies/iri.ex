@@ -307,6 +307,73 @@ defmodule ElixirOntologies.IRI do
   end
 
   @doc """
+  Generates an IRI for a quote block.
+
+  Quote blocks are identified by module and index.
+
+  ## Parameters
+
+  - `base_iri` - The base IRI
+  - `module` - The module containing the quote
+  - `index` - Index to uniquely identify the quote within the module
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.for_quote("https://example.org/code#", "MyApp.Macros", 0)
+      ~I<https://example.org/code#MyApp.Macros/quote/0>
+
+      iex> ElixirOntologies.IRI.for_quote("https://example.org/code#", "MyApp", 5)
+      ~I<https://example.org/code#MyApp/quote/5>
+  """
+  @spec for_quote(
+          String.t() | RDF.IRI.t(),
+          String.t() | atom(),
+          non_neg_integer()
+        ) :: RDF.IRI.t()
+  def for_quote(base_iri, module, index) when is_integer(index) and index >= 0 do
+    mod = module |> module_to_string() |> escape_name()
+    build_iri(base_iri, "#{mod}/quote/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for an unquote expression within a quote block.
+
+  ## Parameters
+
+  - `quote_iri` - The IRI of the containing quote block
+  - `index` - Index of the unquote within the quote
+
+  ## Examples
+
+      iex> quote_iri = RDF.iri("https://example.org/code#MyApp.Macros/quote/0")
+      iex> ElixirOntologies.IRI.for_unquote(quote_iri, 0)
+      ~I<https://example.org/code#MyApp.Macros/quote/0/unquote/0>
+  """
+  @spec for_unquote(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_unquote(quote_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(quote_iri, "unquote/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for a hygiene violation within a quote block.
+
+  ## Parameters
+
+  - `quote_iri` - The IRI of the containing quote block
+  - `index` - Index of the hygiene violation within the quote
+
+  ## Examples
+
+      iex> quote_iri = RDF.iri("https://example.org/code#MyApp.Macros/quote/0")
+      iex> ElixirOntologies.IRI.for_hygiene_violation(quote_iri, 0)
+      ~I<https://example.org/code#MyApp.Macros/quote/0/hygiene/0>
+  """
+  @spec for_hygiene_violation(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_hygiene_violation(quote_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(quote_iri, "hygiene/#{index}")
+  end
+
+  @doc """
   Generates an IRI for a source file.
 
   ## Parameters
