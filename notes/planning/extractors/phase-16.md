@@ -119,16 +119,16 @@ Extract require directives needed for macro availability.
 - [x] 16.3.1.6 Add require extraction tests
 
 ### 16.3.2 Use Extraction
-- [ ] **Task 16.3.2 Pending**
+- [x] **Task 16.3.2 Complete**
 
 Extract use directives with their options, which invoke __using__ macros.
 
-- [ ] 16.3.2.1 Create `lib/elixir_ontologies/extractors/directive/use.ex`
-- [ ] 16.3.2.2 Define `%UseDirective{module: ..., options: [...], location: ..., scope: ...}` struct
-- [ ] 16.3.2.3 Extract `use Module` form
-- [ ] 16.3.2.4 Extract `use Module, option: value` form with all options
-- [ ] 16.3.2.5 Track use as macro invocation of __using__/1
-- [ ] 16.3.2.6 Add use extraction tests
+- [x] 16.3.2.1 Create `lib/elixir_ontologies/extractors/directive/use.ex`
+- [x] 16.3.2.2 Define `%UseDirective{module: ..., options: [...], location: ..., scope: ...}` struct
+- [x] 16.3.2.3 Extract `use Module` form
+- [x] 16.3.2.4 Extract `use Module, option: value` form with all options
+- [x] 16.3.2.5 Track use as macro invocation of __using__/1 (noted in metadata - options passed to __using__/1)
+- [x] 16.3.2.6 Add use extraction tests
 
 ### 16.3.3 Use Option Analysis
 - [ ] **Task 16.3.3 Pending**
