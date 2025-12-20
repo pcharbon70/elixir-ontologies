@@ -169,16 +169,16 @@ Generate RDF triples for macro invocations and their relationships.
 - [x] 15.4.1.6 Add macro invocation builder tests
 
 ### 15.4.2 Attribute Value Builder
-- [ ] **Task 15.4.2 Pending**
+- [x] **Task 15.4.2 Complete**
 
 Generate RDF triples for module attribute values.
 
-- [ ] 15.4.2.1 Update or create attribute builder for values
-- [ ] 15.4.2.2 Generate `structure:hasAttributeValue` with literal values
-- [ ] 15.4.2.3 Generate `structure:isAccumulating` boolean flag
-- [ ] 15.4.2.4 Generate `structure:hasDocumentation` for doc attributes
-- [ ] 15.4.2.5 Handle complex values (serialize to RDF-compatible format)
-- [ ] 15.4.2.6 Add attribute value builder tests
+- [x] 15.4.2.1 Update or create attribute builder for values
+- [x] 15.4.2.2 Generate `structure:hasAttributeValue` with literal values
+- [x] 15.4.2.3 Generate `structure:isAccumulating` boolean flag
+- [x] 15.4.2.4 Generate `structure:hasDocumentation` for doc attributes
+- [x] 15.4.2.5 Handle complex values (serialize to RDF-compatible format)
+- [x] 15.4.2.6 Add attribute value builder tests
 
 ### 15.4.3 Quote Builder
 - [ ] **Task 15.4.3 Pending**
@@ -195,9 +195,9 @@ Generate RDF triples for quote blocks and unquote expressions.
 **Section 15.4 Unit Tests:**
 - [x] Test macro invocation RDF generation
 - [x] Test macro-to-definition linking
-- [ ] Test attribute value RDF generation
-- [ ] Test accumulated attribute RDF
-- [ ] Test documentation attribute RDF
+- [x] Test attribute value RDF generation
+- [x] Test accumulated attribute RDF
+- [x] Test documentation attribute RDF
 - [ ] Test quote block RDF generation
 - [ ] Test unquote RDF generation
 - [ ] Test hygiene violation RDF

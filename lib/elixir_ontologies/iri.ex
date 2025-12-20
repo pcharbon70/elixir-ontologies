@@ -266,6 +266,47 @@ defmodule ElixirOntologies.IRI do
   end
 
   @doc """
+  Generates an IRI for a module attribute.
+
+  Attributes are identified by module and attribute name. For accumulated
+  attributes or multiple instances, an optional index can be provided.
+
+  ## Parameters
+
+  - `base_iri` - The base IRI
+  - `module` - The module name
+  - `attr_name` - The attribute name
+  - `index` - Optional index for accumulated/multiple attributes (default: nil)
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.for_attribute("https://example.org/code#", "MyApp.Users", "moduledoc")
+      ~I<https://example.org/code#MyApp.Users/attribute/moduledoc>
+
+      iex> ElixirOntologies.IRI.for_attribute("https://example.org/code#", "MyApp", "my_attr", 0)
+      ~I<https://example.org/code#MyApp/attribute/my_attr/0>
+
+      iex> ElixirOntologies.IRI.for_attribute("https://example.org/code#", "MyApp", :doc)
+      ~I<https://example.org/code#MyApp/attribute/doc>
+  """
+  @spec for_attribute(
+          String.t() | RDF.IRI.t(),
+          String.t() | atom(),
+          String.t() | atom(),
+          non_neg_integer() | nil
+        ) :: RDF.IRI.t()
+  def for_attribute(base_iri, module, attr_name, index \\ nil) do
+    mod = module |> module_to_string() |> escape_name()
+    attr = escape_name(attr_name)
+
+    if index do
+      build_iri(base_iri, "#{mod}/attribute/#{attr}/#{index}")
+    else
+      build_iri(base_iri, "#{mod}/attribute/#{attr}")
+    end
+  end
+
+  @doc """
   Generates an IRI for a source file.
 
   ## Parameters
