@@ -57,16 +57,16 @@ Track the lexical scope of alias directives (module-level, function-level, block
 This section implements detailed extraction of import directives including selective imports with only/except options.
 
 ### 16.2.1 Basic Import Extraction
-- [ ] **Task 16.2.1 Pending**
+- [x] **Task 16.2.1 Complete**
 
 Extract basic import directives with their module references.
 
-- [ ] 16.2.1.1 Create `lib/elixir_ontologies/extractors/directive/import.ex`
-- [ ] 16.2.1.2 Define `%ImportDirective{module: ..., only: ..., except: ..., location: ..., scope: ...}` struct
-- [ ] 16.2.1.3 Extract `import Module` full import form
-- [ ] 16.2.1.4 Extract imported module reference
-- [ ] 16.2.1.5 Track import location
-- [ ] 16.2.1.6 Add basic import tests
+- [x] 16.2.1.1 Create `lib/elixir_ontologies/extractors/directive/import.ex`
+- [x] 16.2.1.2 Define `%ImportDirective{module: ..., only: ..., except: ..., location: ..., scope: ...}` struct
+- [x] 16.2.1.3 Extract `import Module` full import form
+- [x] 16.2.1.4 Extract imported module reference
+- [x] 16.2.1.5 Track import location
+- [x] 16.2.1.6 Add basic import tests
 
 ### 16.2.2 Selective Import Extraction
 - [ ] **Task 16.2.2 Pending**
@@ -93,14 +93,14 @@ Detect potential import conflicts where multiple imports define the same functio
 - [ ] 16.2.3.6 Add conflict detection tests
 
 **Section 16.2 Unit Tests:**
-- [ ] Test full import extraction
-- [ ] Test `only:` selective import
-- [ ] Test `except:` selective import
-- [ ] Test `only: :functions` type import
-- [ ] Test `only: :macros` type import
+- [x] Test full import extraction
+- [x] Test `only:` selective import
+- [x] Test `except:` selective import
+- [x] Test `only: :functions` type import
+- [x] Test `only: :macros` type import
 - [ ] Test import conflict detection
 - [ ] Test import scope tracking
-- [ ] Test multi-arity function imports
+- [x] Test multi-arity function imports
 
 ## 16.3 Require and Use Directive Extraction
 
