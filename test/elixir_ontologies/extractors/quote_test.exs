@@ -378,6 +378,241 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
   end
 
   # ===========================================================================
+  # QuoteOptions Struct Tests (15.3.1)
+  # ===========================================================================
+
+  describe "QuoteOptions struct" do
+    alias Quote.QuoteOptions
+
+    test "new/1 creates struct with all fields" do
+      opts = QuoteOptions.new(
+        bind_quoted: [x: 1],
+        context: :match,
+        location: :keep,
+        unquote: false,
+        line: 42,
+        file: "test.ex",
+        generated: true
+      )
+
+      assert opts.bind_quoted == [x: 1]
+      assert opts.context == :match
+      assert opts.location == :keep
+      assert opts.unquote == false
+      assert opts.line == 42
+      assert opts.file == "test.ex"
+      assert opts.generated == true
+    end
+
+    test "new/0 creates struct with defaults" do
+      opts = QuoteOptions.new()
+
+      assert opts.bind_quoted == nil
+      assert opts.context == nil
+      assert opts.location == nil
+      assert opts.unquote == true
+      assert opts.line == nil
+      assert opts.file == nil
+      assert opts.generated == nil
+    end
+
+    test "location_keep?/1 returns true for location: :keep" do
+      assert QuoteOptions.location_keep?(QuoteOptions.new(location: :keep))
+      refute QuoteOptions.location_keep?(QuoteOptions.new())
+    end
+
+    test "unquoting_disabled?/1 returns true for unquote: false" do
+      assert QuoteOptions.unquoting_disabled?(QuoteOptions.new(unquote: false))
+      refute QuoteOptions.unquoting_disabled?(QuoteOptions.new())
+    end
+
+    test "has_bind_quoted?/1 checks for bind_quoted" do
+      assert QuoteOptions.has_bind_quoted?(QuoteOptions.new(bind_quoted: [x: 1]))
+      refute QuoteOptions.has_bind_quoted?(QuoteOptions.new(bind_quoted: []))
+      refute QuoteOptions.has_bind_quoted?(QuoteOptions.new())
+    end
+
+    test "bind_quoted_vars/1 gets variable names" do
+      assert QuoteOptions.bind_quoted_vars(QuoteOptions.new(bind_quoted: [x: 1, y: 2])) == [:x, :y]
+      assert QuoteOptions.bind_quoted_vars(QuoteOptions.new()) == []
+    end
+
+    test "has_context?/1 checks for context" do
+      assert QuoteOptions.has_context?(QuoteOptions.new(context: :match))
+      refute QuoteOptions.has_context?(QuoteOptions.new())
+    end
+
+    test "generated?/1 checks for generated" do
+      assert QuoteOptions.generated?(QuoteOptions.new(generated: true))
+      refute QuoteOptions.generated?(QuoteOptions.new(generated: false))
+      refute QuoteOptions.generated?(QuoteOptions.new())
+    end
+
+    test "has_line?/1 checks for line" do
+      assert QuoteOptions.has_line?(QuoteOptions.new(line: 42))
+      refute QuoteOptions.has_line?(QuoteOptions.new())
+    end
+
+    test "has_file?/1 checks for file" do
+      assert QuoteOptions.has_file?(QuoteOptions.new(file: "test.ex"))
+      refute QuoteOptions.has_file?(QuoteOptions.new())
+    end
+  end
+
+  # ===========================================================================
+  # Quote Option Extraction Tests (15.3.1)
+  # ===========================================================================
+
+  describe "extract/2 additional options" do
+    test "extracts line option" do
+      ast = {:quote, [], [[line: 42], [do: :ok]]}
+
+      assert {:ok, result} = Quote.extract(ast)
+      assert result.options.line == 42
+    end
+
+    test "extracts file option" do
+      ast = {:quote, [], [[file: "my_macro.ex"], [do: :ok]]}
+
+      assert {:ok, result} = Quote.extract(ast)
+      assert result.options.file == "my_macro.ex"
+    end
+
+    test "extracts generated option" do
+      ast = {:quote, [], [[generated: true], [do: :ok]]}
+
+      assert {:ok, result} = Quote.extract(ast)
+      assert result.options.generated == true
+    end
+
+    test "extracts combined options" do
+      ast = {:quote, [], [[
+        bind_quoted: [x: 1],
+        context: :match,
+        location: :keep,
+        line: 100,
+        generated: true
+      ], [do: :ok]]}
+
+      assert {:ok, result} = Quote.extract(ast)
+      assert result.options.bind_quoted == [x: 1]
+      assert result.options.context == :match
+      assert result.options.location == :keep
+      assert result.options.line == 100
+      assert result.options.generated == true
+    end
+
+    test "returns QuoteOptions struct" do
+      ast = {:quote, [], [[do: :ok]]}
+
+      assert {:ok, result} = Quote.extract(ast)
+      assert %Quote.QuoteOptions{} = result.options
+    end
+  end
+
+  # ===========================================================================
+  # New Helper Function Tests (15.3.1)
+  # ===========================================================================
+
+  describe "location_keep?/1" do
+    test "returns true when location: :keep is set" do
+      ast = {:quote, [], [[location: :keep], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.location_keep?(result)
+    end
+
+    test "returns false when location is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      refute Quote.location_keep?(result)
+    end
+  end
+
+  describe "unquoting_disabled?/1" do
+    test "returns true when unquote: false" do
+      ast = {:quote, [], [[unquote: false], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.unquoting_disabled?(result)
+    end
+
+    test "returns false by default" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      refute Quote.unquoting_disabled?(result)
+    end
+  end
+
+  describe "bind_quoted_vars/1" do
+    test "returns variable names when bind_quoted is set" do
+      ast = {:quote, [], [[bind_quoted: [x: 1, y: 2, z: 3]], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.bind_quoted_vars(result) == [:x, :y, :z]
+    end
+
+    test "returns empty list when bind_quoted is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.bind_quoted_vars(result) == []
+    end
+  end
+
+  describe "get_context/1" do
+    test "returns context when set" do
+      ast = {:quote, [], [[context: :match], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_context(result) == :match
+    end
+
+    test "returns nil when context is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_context(result) == nil
+    end
+  end
+
+  describe "generated?/1" do
+    test "returns true when generated: true" do
+      ast = {:quote, [], [[generated: true], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.generated?(result)
+    end
+
+    test "returns false when generated is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      refute Quote.generated?(result)
+    end
+  end
+
+  describe "get_line/1" do
+    test "returns line when set" do
+      ast = {:quote, [], [[line: 42], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_line(result) == 42
+    end
+
+    test "returns nil when line is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_line(result) == nil
+    end
+  end
+
+  describe "get_file/1" do
+    test "returns file when set" do
+      ast = {:quote, [], [[file: "test.ex"], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_file(result) == "test.ex"
+    end
+
+    test "returns nil when file is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_file(result) == nil
+    end
+  end
+
+  # ===========================================================================
   # Integration Tests with quote
   # ===========================================================================
 

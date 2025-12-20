@@ -107,16 +107,16 @@ Extract values from compile-time attributes like @compile, @on_definition, @befo
 This section enhances the Quote extractor to capture the full semantics of Elixir's quote/unquote system.
 
 ### 15.3.1 Quote Block Analysis
-- [ ] **Task 15.3.1 Pending**
+- [x] **Task 15.3.1 Complete**
 
 Enhance quote block extraction to capture options and the quoted AST structure.
 
-- [ ] 15.3.1.1 Update `lib/elixir_ontologies/extractors/quote.ex` for quote options
-- [ ] 15.3.1.2 Extract `quote bind_quoted: [...]` bindings
-- [ ] 15.3.1.3 Extract `quote unquote: false` option
-- [ ] 15.3.1.4 Extract `quote location: :keep` option
-- [ ] 15.3.1.5 Extract `quote context: Module` option
-- [ ] 15.3.1.6 Add quote option tests
+- [x] 15.3.1.1 Update `lib/elixir_ontologies/extractors/quote.ex` for quote options
+- [x] 15.3.1.2 Extract `quote bind_quoted: [...]` bindings
+- [x] 15.3.1.3 Extract `quote unquote: false` option
+- [x] 15.3.1.4 Extract `quote location: :keep` option
+- [x] 15.3.1.5 Extract `quote context: Module` option
+- [x] 15.3.1.6 Add quote option tests
 
 ### 15.3.2 Unquote Detection
 - [ ] **Task 15.3.2 Pending**
@@ -143,8 +143,8 @@ Analyze macro hygiene aspects including var!/2 usage and context manipulation.
 - [ ] 15.3.3.6 Add hygiene analysis tests
 
 **Section 15.3 Unit Tests:**
-- [ ] Test quote block option extraction
-- [ ] Test bind_quoted extraction
+- [x] Test quote block option extraction
+- [x] Test bind_quoted extraction
 - [ ] Test unquote detection
 - [ ] Test unquote_splicing detection
 - [ ] Test nested quote/unquote handling
