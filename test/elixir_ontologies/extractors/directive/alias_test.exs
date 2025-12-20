@@ -2,7 +2,7 @@ defmodule ElixirOntologies.Extractors.Directive.AliasTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.Directive.Alias
-  alias ElixirOntologies.Extractors.Directive.Alias.AliasDirective
+  alias ElixirOntologies.Extractors.Directive.Alias.{AliasDirective, MultiAliasGroup}
 
   doctest Alias
 
@@ -45,6 +45,81 @@ defmodule ElixirOntologies.Extractors.Directive.AliasTest do
       refute Alias.alias?(:atom)
       refute Alias.alias?({:def, [], []})
       refute Alias.alias?(nil)
+    end
+
+    test "returns true for multi-alias" do
+      ast =
+        {:alias, [],
+         [
+           {{:., [], [{:__aliases__, [], [:MyApp]}, :{}]}, [],
+            [{:__aliases__, [], [:Users]}, {:__aliases__, [], [:Accounts]}]}
+         ]}
+
+      assert Alias.alias?(ast)
+    end
+  end
+
+  # ===========================================================================
+  # multi_alias?/1 Tests
+  # ===========================================================================
+
+  describe "multi_alias?/1" do
+    test "returns true for basic multi-alias" do
+      ast =
+        {:alias, [],
+         [
+           {{:., [], [{:__aliases__, [], [:MyApp]}, :{}]}, [],
+            [{:__aliases__, [], [:Users]}, {:__aliases__, [], [:Accounts]}]}
+         ]}
+
+      assert Alias.multi_alias?(ast)
+    end
+
+    test "returns true for nested multi-alias" do
+      ast =
+        {:alias, [],
+         [
+           {{:., [], [{:__aliases__, [], [:MyApp]}, :{}]}, [],
+            [
+              {{:., [], [{:__aliases__, [], [:Sub]}, :{}]}, [],
+               [{:__aliases__, [], [:A]}, {:__aliases__, [], [:B]}]},
+              {:__aliases__, [], [:Other]}
+            ]}
+         ]}
+
+      assert Alias.multi_alias?(ast)
+    end
+
+    test "returns false for simple alias" do
+      ast = {:alias, [], [{:__aliases__, [], [:MyApp, :Users]}]}
+      refute Alias.multi_alias?(ast)
+    end
+
+    test "returns false for non-alias" do
+      refute Alias.multi_alias?({:import, [], [{:__aliases__, [], [:MyApp]}]})
+      refute Alias.multi_alias?(:atom)
+    end
+  end
+
+  # ===========================================================================
+  # simple_alias?/1 Tests
+  # ===========================================================================
+
+  describe "simple_alias?/1" do
+    test "returns true for simple alias" do
+      ast = {:alias, [], [{:__aliases__, [], [:MyApp, :Users]}]}
+      assert Alias.simple_alias?(ast)
+    end
+
+    test "returns false for multi-alias" do
+      ast =
+        {:alias, [],
+         [
+           {{:., [], [{:__aliases__, [], [:MyApp]}, :{}]}, [],
+            [{:__aliases__, [], [:Users]}]}
+         ]}
+
+      refute Alias.simple_alias?(ast)
     end
   end
 
@@ -382,6 +457,197 @@ defmodule ElixirOntologies.Extractors.Directive.AliasTest do
       directives = Alias.extract_all(body)
       assert length(directives) == 3
       assert Enum.map(directives, & &1.as) == [:Users, :Acc, :Products]
+    end
+  end
+
+  # ===========================================================================
+  # extract_multi_alias/2 Tests
+  # ===========================================================================
+
+  describe "extract_multi_alias/2" do
+    test "extracts basic multi-alias" do
+      ast =
+        quote do
+          alias MyApp.{Users, Accounts}
+        end
+
+      assert {:ok, directives} = Alias.extract_multi_alias(ast)
+      assert length(directives) == 2
+
+      [users, accounts] = directives
+      assert users.source == [:MyApp, :Users]
+      assert users.as == :Users
+      assert accounts.source == [:MyApp, :Accounts]
+      assert accounts.as == :Accounts
+    end
+
+    test "extracts multi-alias with three modules" do
+      ast =
+        quote do
+          alias MyApp.{Users, Accounts, Products}
+        end
+
+      assert {:ok, directives} = Alias.extract_multi_alias(ast)
+      assert length(directives) == 3
+      assert Enum.map(directives, & &1.as) == [:Users, :Accounts, :Products]
+    end
+
+    test "extracts multi-alias with nested prefix" do
+      ast =
+        quote do
+          alias MyApp.Sub.{A, B}
+        end
+
+      assert {:ok, directives} = Alias.extract_multi_alias(ast)
+      assert length(directives) == 2
+
+      [a, b] = directives
+      assert a.source == [:MyApp, :Sub, :A]
+      assert a.as == :A
+      assert b.source == [:MyApp, :Sub, :B]
+      assert b.as == :B
+    end
+
+    test "extracts multi-alias with nested suffixes" do
+      ast =
+        quote do
+          alias MyApp.{Sub.A, Sub.B}
+        end
+
+      assert {:ok, directives} = Alias.extract_multi_alias(ast)
+      assert length(directives) == 2
+
+      [a, b] = directives
+      assert a.source == [:MyApp, :Sub, :A]
+      assert a.as == :A
+      assert b.source == [:MyApp, :Sub, :B]
+      assert b.as == :B
+    end
+
+    test "extracts deeply nested multi-alias" do
+      ast =
+        quote do
+          alias MyApp.{Sub.{A, B}, Other}
+        end
+
+      assert {:ok, directives} = Alias.extract_multi_alias(ast)
+      assert length(directives) == 3
+
+      [a, b, other] = directives
+      assert a.source == [:MyApp, :Sub, :A]
+      assert a.as == :A
+      assert b.source == [:MyApp, :Sub, :B]
+      assert b.as == :B
+      assert other.source == [:MyApp, :Other]
+      assert other.as == :Other
+    end
+
+    test "sets from_multi_alias metadata" do
+      ast =
+        quote do
+          alias MyApp.{Users, Accounts}
+        end
+
+      assert {:ok, directives} = Alias.extract_multi_alias(ast)
+
+      for directive <- directives do
+        assert directive.metadata.from_multi_alias == true
+        assert directive.metadata.multi_alias_prefix == [:MyApp]
+      end
+
+      [users, accounts] = directives
+      assert users.metadata.multi_alias_index == 0
+      assert accounts.metadata.multi_alias_index == 1
+    end
+
+    test "returns error for simple alias" do
+      ast = {:alias, [], [{:__aliases__, [], [:MyApp, :Users]}]}
+
+      assert {:error, {:not_a_multi_alias, _msg}} = Alias.extract_multi_alias(ast)
+    end
+  end
+
+  # ===========================================================================
+  # extract_multi_alias_group/2 Tests
+  # ===========================================================================
+
+  describe "extract_multi_alias_group/2" do
+    test "extracts group with prefix and aliases" do
+      ast =
+        quote do
+          alias MyApp.{Users, Accounts}
+        end
+
+      assert {:ok, %MultiAliasGroup{} = group} = Alias.extract_multi_alias_group(ast)
+      assert group.prefix == [:MyApp]
+      assert length(group.aliases) == 2
+      assert Enum.map(group.aliases, & &1.as) == [:Users, :Accounts]
+    end
+
+    test "extracts group with nested prefix" do
+      ast =
+        quote do
+          alias MyApp.Sub.{A, B, C}
+        end
+
+      assert {:ok, group} = Alias.extract_multi_alias_group(ast)
+      assert group.prefix == [:MyApp, :Sub]
+      assert length(group.aliases) == 3
+    end
+
+    test "returns error for simple alias" do
+      ast = {:alias, [], [{:__aliases__, [], [:MyApp, :Users]}]}
+
+      assert {:error, {:not_a_multi_alias, _msg}} = Alias.extract_multi_alias_group(ast)
+    end
+  end
+
+  # ===========================================================================
+  # extract_all/2 with Multi-Alias Tests
+  # ===========================================================================
+
+  describe "extract_all/2 with multi-alias" do
+    test "expands multi-alias in extract_all" do
+      ast =
+        quote do
+          alias MyApp.{Users, Accounts}
+        end
+
+      directives = Alias.extract_all(ast)
+      assert length(directives) == 2
+      assert Enum.map(directives, & &1.as) == [:Users, :Accounts]
+    end
+
+    test "handles mixed simple and multi-alias" do
+      {:defmodule, _, [_, [do: {:__block__, _, body}]]} =
+        quote do
+          defmodule TestModule do
+            alias MyApp.Users
+            alias MyApp.{Accounts, Products}
+            alias MyApp.Other
+
+            def foo, do: :ok
+          end
+        end
+
+      directives = Alias.extract_all(body)
+      assert length(directives) == 4
+      assert Enum.map(directives, & &1.as) == [:Users, :Accounts, :Products, :Other]
+    end
+
+    test "handles deeply nested multi-alias in extract_all" do
+      ast =
+        quote do
+          alias MyApp.{Sub.{A, B}, Other}
+        end
+
+      directives = Alias.extract_all(ast)
+      assert length(directives) == 3
+      assert Enum.map(directives, & &1.source) == [
+               [:MyApp, :Sub, :A],
+               [:MyApp, :Sub, :B],
+               [:MyApp, :Other]
+             ]
     end
   end
 end

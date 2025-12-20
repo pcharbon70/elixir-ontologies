@@ -19,16 +19,16 @@ Extract basic alias directives with their source and target module names.
 - [x] 16.1.1.6 Add basic alias tests
 
 ### 16.1.2 Multi-Alias Extraction
-- [ ] **Task 16.1.2 Pending**
+- [x] **Task 16.1.2 Complete**
 
 Extract multi-alias forms using the curly brace syntax.
 
-- [ ] 16.1.2.1 Implement `extract_multi_alias/1` for `alias Module.{A, B, C}` syntax
-- [ ] 16.1.2.2 Expand multi-alias into individual alias directives
-- [ ] 16.1.2.3 Track source location for each expanded alias
-- [ ] 16.1.2.4 Handle nested multi-alias (e.g., `alias Module.{Sub.{A, B}, C}`)
-- [ ] 16.1.2.5 Preserve relationship to original multi-alias form
-- [ ] 16.1.2.6 Add multi-alias tests
+- [x] 16.1.2.1 Implement `extract_multi_alias/1` for `alias Module.{A, B, C}` syntax
+- [x] 16.1.2.2 Expand multi-alias into individual alias directives
+- [x] 16.1.2.3 Track source location for each expanded alias
+- [x] 16.1.2.4 Handle nested multi-alias (e.g., `alias Module.{Sub.{A, B}, C}`)
+- [x] 16.1.2.5 Preserve relationship to original multi-alias form
+- [x] 16.1.2.6 Add multi-alias tests
 
 ### 16.1.3 Alias Scope Tracking
 - [ ] **Task 16.1.3 Pending**
@@ -45,8 +45,8 @@ Track the lexical scope of alias directives (module-level, function-level, block
 **Section 16.1 Unit Tests:**
 - [x] Test simple alias extraction
 - [x] Test alias with explicit `as:` option
-- [ ] Test multi-alias expansion
-- [ ] Test nested multi-alias
+- [x] Test multi-alias expansion
+- [x] Test nested multi-alias
 - [ ] Test module-level alias scope
 - [ ] Test function-level alias scope
 - [x] Test alias source location extraction

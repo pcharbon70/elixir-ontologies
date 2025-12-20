@@ -18,6 +18,12 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
       # Erlang module alias
       alias :crypto, as: Crypto
 
+      # Multi-alias - expands to multiple aliases
+      alias MyApp.{Users, Accounts}
+
+      # Nested multi-alias
+      alias MyApp.{Sub.{A, B}, Other}
+
   ## Examples
 
       iex> ast = {:alias, [line: 1], [{:__aliases__, [line: 1], [:MyApp, :Users]}]}
@@ -69,12 +75,39 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
     defstruct [:source, :as, explicit_as: false, location: nil, scope: nil, metadata: %{}]
   end
 
+  defmodule MultiAliasGroup do
+    @moduledoc """
+    Represents a multi-alias group (e.g., `alias MyApp.{Users, Accounts}`).
+
+    This struct preserves the relationship between the expanded aliases
+    and their original grouped form.
+
+    ## Fields
+
+    - `:prefix` - The common prefix for all aliases in the group
+    - `:aliases` - List of expanded AliasDirective structs
+    - `:location` - Source location of the multi-alias directive
+    - `:metadata` - Additional metadata
+    """
+
+    alias ElixirOntologies.Extractors.Directive.Alias.AliasDirective
+
+    @type t :: %__MODULE__{
+            prefix: [atom()],
+            aliases: [AliasDirective.t()],
+            location: SourceLocation.t() | nil,
+            metadata: map()
+          }
+
+    defstruct prefix: [], aliases: [], location: nil, metadata: %{}
+  end
+
   # ===========================================================================
   # Type Detection
   # ===========================================================================
 
   @doc """
-  Checks if the given AST node represents an alias directive.
+  Checks if the given AST node represents an alias directive (simple or multi-alias).
 
   ## Examples
 
@@ -90,6 +123,43 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
   @spec alias?(Macro.t()) :: boolean()
   def alias?({:alias, _meta, [_ | _]}), do: true
   def alias?(_), do: false
+
+  @doc """
+  Checks if the given AST node represents a multi-alias directive.
+
+  Multi-alias uses the curly brace syntax: `alias MyApp.{Users, Accounts}`.
+
+  ## Examples
+
+      iex> ast = {:alias, [],
+      ...>  [{{:., [], [{:__aliases__, [], [:MyApp]}, :{}]}, [],
+      ...>    [{:__aliases__, [], [:Users]}, {:__aliases__, [], [:Accounts]}]}]}
+      iex> ElixirOntologies.Extractors.Directive.Alias.multi_alias?(ast)
+      true
+
+      iex> ElixirOntologies.Extractors.Directive.Alias.multi_alias?({:alias, [], [{:__aliases__, [], [:MyApp]}]})
+      false
+  """
+  @spec multi_alias?(Macro.t()) :: boolean()
+  def multi_alias?({:alias, _meta, [{{:., _, [_prefix, :{}]}, _, _suffixes}]}), do: true
+  def multi_alias?(_), do: false
+
+  @doc """
+  Checks if the given AST node represents a simple (non-multi) alias directive.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Directive.Alias.simple_alias?({:alias, [], [{:__aliases__, [], [:MyApp]}]})
+      true
+
+      iex> ast = {:alias, [],
+      ...>  [{{:., [], [{:__aliases__, [], [:MyApp]}, :{}]}, [],
+      ...>    [{:__aliases__, [], [:Users]}]}]}
+      iex> ElixirOntologies.Extractors.Directive.Alias.simple_alias?(ast)
+      false
+  """
+  @spec simple_alias?(Macro.t()) :: boolean()
+  def simple_alias?(ast), do: alias?(ast) and not multi_alias?(ast)
 
   # ===========================================================================
   # Extraction Functions
@@ -170,6 +240,87 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
       {:ok, directive} -> directive
       {:error, reason} -> raise ArgumentError, "Failed to extract alias: #{inspect(reason)}"
     end
+  end
+
+  # ===========================================================================
+  # Multi-Alias Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts a multi-alias directive into a list of individual AliasDirective structs.
+
+  Returns `{:ok, [%AliasDirective{}]}` on success, `{:error, reason}` on failure.
+
+  ## Options
+
+  - `:include_location` - Whether to extract source location (default: true)
+
+  ## Examples
+
+      iex> ast = {:alias, [],
+      ...>  [{{:., [], [{:__aliases__, [], [:MyApp]}, :{}]}, [],
+      ...>    [{:__aliases__, [], [:Users]}, {:__aliases__, [], [:Accounts]}]}]}
+      iex> {:ok, directives} = ElixirOntologies.Extractors.Directive.Alias.extract_multi_alias(ast)
+      iex> length(directives)
+      2
+      iex> Enum.map(directives, & &1.source)
+      [[:MyApp, :Users], [:MyApp, :Accounts]]
+  """
+  @spec extract_multi_alias(Macro.t(), keyword()) ::
+          {:ok, [AliasDirective.t()]} | {:error, term()}
+  def extract_multi_alias(ast, opts \\ [])
+
+  def extract_multi_alias(
+        {:alias, _meta, [{{:., _, [{:__aliases__, _, prefix}, :{}]}, _, suffixes}]} = node,
+        opts
+      ) do
+    location = Helpers.extract_location_if(node, opts)
+    directives = expand_multi_alias(prefix, suffixes, location, 0)
+    {:ok, directives}
+  end
+
+  def extract_multi_alias(ast, _opts) do
+    {:error, {:not_a_multi_alias, Helpers.format_error("Not a multi-alias directive", ast)}}
+  end
+
+  @doc """
+  Extracts a multi-alias directive into a MultiAliasGroup struct.
+
+  This preserves the original group structure along with the expanded aliases.
+
+  ## Examples
+
+      iex> ast = {:alias, [],
+      ...>  [{{:., [], [{:__aliases__, [], [:MyApp]}, :{}]}, [],
+      ...>    [{:__aliases__, [], [:Users]}, {:__aliases__, [], [:Accounts]}]}]}
+      iex> {:ok, group} = ElixirOntologies.Extractors.Directive.Alias.extract_multi_alias_group(ast)
+      iex> group.prefix
+      [:MyApp]
+      iex> length(group.aliases)
+      2
+  """
+  @spec extract_multi_alias_group(Macro.t(), keyword()) ::
+          {:ok, MultiAliasGroup.t()} | {:error, term()}
+  def extract_multi_alias_group(ast, opts \\ [])
+
+  def extract_multi_alias_group(
+        {:alias, _meta, [{{:., _, [{:__aliases__, _, prefix}, :{}]}, _, suffixes}]} = node,
+        opts
+      ) do
+    location = Helpers.extract_location_if(node, opts)
+    directives = expand_multi_alias(prefix, suffixes, location, 0)
+
+    {:ok,
+     %MultiAliasGroup{
+       prefix: prefix,
+       aliases: directives,
+       location: location,
+       metadata: %{}
+     }}
+  end
+
+  def extract_multi_alias_group(ast, _opts) do
+    {:error, {:not_a_multi_alias, Helpers.format_error("Not a multi-alias directive", ast)}}
   end
 
   @doc """
@@ -296,9 +447,67 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
   end
 
   defp do_extract_all(ast, opts) do
-    case extract(ast, opts) do
-      {:ok, directive} -> [directive]
-      {:error, _} -> []
+    if multi_alias?(ast) do
+      case extract_multi_alias(ast, opts) do
+        {:ok, directives} -> directives
+        {:error, _} -> []
+      end
+    else
+      case extract(ast, opts) do
+        {:ok, directive} -> [directive]
+        {:error, _} -> []
+      end
     end
+  end
+
+  # Expands multi-alias suffixes into individual AliasDirective structs
+  defp expand_multi_alias(prefix, suffixes, location, start_index) do
+    {directives, _} =
+      Enum.reduce(suffixes, {[], start_index}, fn suffix, {acc, idx} ->
+        case expand_suffix(prefix, suffix, location, idx) do
+          {:simple, directive, new_idx} ->
+            {[directive | acc], new_idx}
+
+          {:nested, nested_directives, new_idx} ->
+            {Enum.reverse(nested_directives) ++ acc, new_idx}
+        end
+      end)
+
+    Enum.reverse(directives)
+  end
+
+  # Handle simple suffix: {:__aliases__, _, parts}
+  defp expand_suffix(prefix, {:__aliases__, _, suffix_parts}, location, idx) do
+    full_source = prefix ++ suffix_parts
+    alias_name = compute_alias_name(full_source)
+
+    directive = %AliasDirective{
+      source: full_source,
+      as: alias_name,
+      explicit_as: false,
+      location: location,
+      metadata: %{
+        from_multi_alias: true,
+        multi_alias_prefix: prefix,
+        multi_alias_index: idx
+      }
+    }
+
+    {:simple, directive, idx + 1}
+  end
+
+  # Handle nested multi-alias: {{:., _, [nested_prefix, :{}]}, _, nested_suffixes}
+  defp expand_suffix(
+         prefix,
+         {{:., _, [{:__aliases__, _, nested_prefix_parts}, :{}]}, _, nested_suffixes},
+         location,
+         idx
+       ) do
+    # Combine the outer prefix with the nested prefix
+    combined_prefix = prefix ++ nested_prefix_parts
+    # Recursively expand the nested suffixes
+    nested_directives = expand_multi_alias(combined_prefix, nested_suffixes, location, idx)
+    new_idx = idx + length(nested_directives)
+    {:nested, nested_directives, new_idx}
   end
 end
