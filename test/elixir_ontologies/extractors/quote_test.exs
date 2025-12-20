@@ -938,4 +938,302 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
       assert counts == %{unquote: 0, unquote_splicing: 2}
     end
   end
+
+  # ===========================================================================
+  # HygieneViolation Struct Tests
+  # ===========================================================================
+
+  describe "HygieneViolation struct" do
+    alias ElixirOntologies.Extractors.Quote.HygieneViolation
+
+    test "var_bang? returns true for var_bang type" do
+      violation = %HygieneViolation{type: :var_bang, variable: :x}
+      assert HygieneViolation.var_bang?(violation)
+    end
+
+    test "var_bang? returns false for macro_escape type" do
+      violation = %HygieneViolation{type: :macro_escape}
+      refute HygieneViolation.var_bang?(violation)
+    end
+
+    test "macro_escape? returns true for macro_escape type" do
+      violation = %HygieneViolation{type: :macro_escape}
+      assert HygieneViolation.macro_escape?(violation)
+    end
+
+    test "macro_escape? returns false for var_bang type" do
+      violation = %HygieneViolation{type: :var_bang, variable: :x}
+      refute HygieneViolation.macro_escape?(violation)
+    end
+
+    test "has_context? returns true when context is set" do
+      violation = %HygieneViolation{type: :var_bang, variable: :x, context: :match}
+      assert HygieneViolation.has_context?(violation)
+    end
+
+    test "has_context? returns false when context is nil" do
+      violation = %HygieneViolation{type: :var_bang, variable: :x, context: nil}
+      refute HygieneViolation.has_context?(violation)
+    end
+  end
+
+  # ===========================================================================
+  # Hygiene Detection Tests
+  # ===========================================================================
+
+  describe "var_bang?/1" do
+    test "returns true for var!/1" do
+      ast = {:var!, [], [{:x, [], nil}]}
+      assert Quote.var_bang?(ast)
+    end
+
+    test "returns true for var!/2" do
+      ast = {:var!, [], [{:x, [], nil}, :match]}
+      assert Quote.var_bang?(ast)
+    end
+
+    test "returns false for regular variable" do
+      ast = {:x, [], nil}
+      refute Quote.var_bang?(ast)
+    end
+
+    test "returns false for other function calls" do
+      ast = {:foo, [], [{:x, [], nil}]}
+      refute Quote.var_bang?(ast)
+    end
+  end
+
+  describe "macro_escape?/1" do
+    test "returns true for Macro.escape/1 with alias" do
+      ast = {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:x, [], nil}]}
+      assert Quote.macro_escape?(ast)
+    end
+
+    test "returns true for Macro.escape/1 with module atom" do
+      ast = {{:., [], [Macro, :escape]}, [], [{:x, [], nil}]}
+      assert Quote.macro_escape?(ast)
+    end
+
+    test "returns false for regular variable" do
+      ast = {:x, [], nil}
+      refute Quote.macro_escape?(ast)
+    end
+
+    test "returns false for other Macro functions" do
+      ast = {{:., [], [{:__aliases__, [], [:Macro]}, :to_string]}, [], [{:x, [], nil}]}
+      refute Quote.macro_escape?(ast)
+    end
+  end
+
+  describe "find_var_bang/1" do
+    test "finds var!/1 calls" do
+      ast = {:var!, [], [{:x, [], nil}]}
+      results = Quote.find_var_bang(ast)
+
+      assert length(results) == 1
+      assert hd(results).type == :var_bang
+      assert hd(results).variable == :x
+      assert hd(results).metadata.arity == 1
+    end
+
+    test "finds var!/2 calls with context" do
+      ast = {:var!, [], [{:y, [], nil}, :match]}
+      results = Quote.find_var_bang(ast)
+
+      assert length(results) == 1
+      assert hd(results).variable == :y
+      assert hd(results).context == :match
+      assert hd(results).metadata.arity == 2
+    end
+
+    test "finds multiple var! calls" do
+      ast =
+        {:__block__, [],
+         [
+           {:var!, [], [{:x, [], nil}]},
+           {:var!, [], [{:y, [], nil}]},
+           {:var!, [], [{:z, [], nil}, SomeModule]}
+         ]}
+
+      results = Quote.find_var_bang(ast)
+      assert length(results) == 3
+
+      variables = Enum.map(results, & &1.variable)
+      assert :x in variables
+      assert :y in variables
+      assert :z in variables
+    end
+
+    test "finds nested var! calls" do
+      ast = {:if, [], [{:var!, [], [{:cond, [], nil}]}, [do: {:var!, [], [{:x, [], nil}]}]]}
+
+      results = Quote.find_var_bang(ast)
+      assert length(results) == 2
+    end
+
+    test "returns empty list when no var! calls" do
+      ast = {:+, [], [{:x, [], nil}, {:y, [], nil}]}
+      assert Quote.find_var_bang(ast) == []
+    end
+  end
+
+  describe "find_macro_escapes/1" do
+    test "finds Macro.escape/1 with alias" do
+      ast = {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:x, [], nil}]}
+      results = Quote.find_macro_escapes(ast)
+
+      assert length(results) == 1
+      assert hd(results).type == :macro_escape
+      assert hd(results).metadata.escaped_value == {:x, [], nil}
+    end
+
+    test "finds Macro.escape/1 with module atom" do
+      ast = {{:., [], [Macro, :escape]}, [], [[1, 2, 3]]}
+      results = Quote.find_macro_escapes(ast)
+
+      assert length(results) == 1
+      assert hd(results).type == :macro_escape
+    end
+
+    test "finds multiple Macro.escape calls" do
+      ast =
+        {:__block__, [],
+         [
+           {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:x, [], nil}]},
+           {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:y, [], nil}]}
+         ]}
+
+      results = Quote.find_macro_escapes(ast)
+      assert length(results) == 2
+    end
+
+    test "returns empty list when no Macro.escape calls" do
+      ast = {:+, [], [1, 2]}
+      assert Quote.find_macro_escapes(ast) == []
+    end
+  end
+
+  describe "find_hygiene_violations/1" do
+    test "finds both var! and Macro.escape" do
+      ast =
+        {:__block__, [],
+         [
+           {:var!, [], [{:x, [], nil}]},
+           {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:y, [], nil}]}
+         ]}
+
+      results = Quote.find_hygiene_violations(ast)
+      assert length(results) == 2
+
+      types = Enum.map(results, & &1.type)
+      assert :var_bang in types
+      assert :macro_escape in types
+    end
+
+    test "returns empty list when no violations" do
+      ast = {:+, [], [1, 2]}
+      assert Quote.find_hygiene_violations(ast) == []
+    end
+  end
+
+  describe "has_hygiene_violations?/1" do
+    test "returns true when has var!" do
+      ast = {:var!, [], [{:x, [], nil}]}
+      assert Quote.has_hygiene_violations?(ast)
+    end
+
+    test "returns true when has Macro.escape" do
+      ast = {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:x, [], nil}]}
+      assert Quote.has_hygiene_violations?(ast)
+    end
+
+    test "returns false when no violations" do
+      ast = {:x, [], nil}
+      refute Quote.has_hygiene_violations?(ast)
+    end
+  end
+
+  describe "count_hygiene_violations/1" do
+    test "counts both types correctly" do
+      ast =
+        {:__block__, [],
+         [
+           {:var!, [], [{:x, [], nil}]},
+           {:var!, [], [{:y, [], nil}]},
+           {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:z, [], nil}]}
+         ]}
+
+      counts = Quote.count_hygiene_violations(ast)
+      assert counts == %{var_bang: 2, macro_escape: 1}
+    end
+
+    test "returns zeros when no violations" do
+      ast = {:x, [], nil}
+      assert Quote.count_hygiene_violations(ast) == %{var_bang: 0, macro_escape: 0}
+    end
+  end
+
+  describe "get_unhygienic_variables/1" do
+    test "returns variable names from var! calls" do
+      ast =
+        {:__block__, [],
+         [
+           {:var!, [], [{:x, [], nil}]},
+           {:var!, [], [{:y, [], nil}]},
+           {:var!, [], [{:x, [], nil}]}
+         ]}
+
+      variables = Quote.get_unhygienic_variables(ast)
+      assert length(variables) == 2
+      assert :x in variables
+      assert :y in variables
+    end
+
+    test "returns empty list when no var! calls" do
+      ast = {:x, [], nil}
+      assert Quote.get_unhygienic_variables(ast) == []
+    end
+  end
+
+  describe "hygiene analysis with quoted code" do
+    test "detects var! in quoted defmacro" do
+      {:defmacro, _, _} =
+        ast =
+        quote do
+          defmacro my_macro do
+            quote do
+              var!(result) = 42
+              var!(result)
+            end
+          end
+        end
+
+      results = Quote.find_var_bang(ast)
+      assert length(results) == 2
+      assert Enum.all?(results, &(&1.variable == :result))
+    end
+
+    test "detects Macro.escape in quoted code" do
+      {:def, _, _} =
+        ast =
+        quote do
+          def my_function(list) do
+            quote do
+              unquote(Macro.escape(list))
+            end
+          end
+        end
+
+      results = Quote.find_macro_escapes(ast)
+      assert length(results) == 1
+    end
+
+    test "detects var!/2 with module context" do
+      ast = {:var!, [], [{:x, [], nil}, MyModule]}
+      results = Quote.find_var_bang(ast)
+
+      assert length(results) == 1
+      assert hd(results).context == MyModule
+    end
+  end
 end

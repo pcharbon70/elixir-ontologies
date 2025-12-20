@@ -375,6 +375,106 @@ defmodule ElixirOntologies.Extractors.Quote do
   end
 
   # ===========================================================================
+  # HygieneViolation Struct
+  # ===========================================================================
+
+  defmodule HygieneViolation do
+    @moduledoc """
+    Represents a macro hygiene violation or intentional hygiene bypass.
+
+    This struct captures uses of `var!/1`, `var!/2`, and `Macro.escape/1`
+    which are legitimate but break the default hygiene of Elixir macros.
+
+    ## Fields
+
+    - `:type` - The type of violation (`:var_bang`, `:macro_escape`)
+    - `:variable` - The variable name for var! calls (nil for Macro.escape)
+    - `:context` - The context for var!/2 calls (nil for var!/1 or Macro.escape)
+    - `:expression` - The full AST expression
+    - `:location` - Source location if available
+    - `:metadata` - Additional metadata
+
+    ## Usage
+
+        iex> alias ElixirOntologies.Extractors.Quote.HygieneViolation
+        iex> v = %HygieneViolation{type: :var_bang, variable: :x}
+        iex> HygieneViolation.var_bang?(v)
+        true
+    """
+
+    @type violation_type :: :var_bang | :macro_escape
+
+    @type t :: %__MODULE__{
+            type: violation_type(),
+            variable: atom() | nil,
+            context: atom() | module() | nil,
+            expression: Macro.t() | nil,
+            location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
+            metadata: map()
+          }
+
+    defstruct [
+      :type,
+      :variable,
+      :context,
+      :expression,
+      :location,
+      metadata: %{}
+    ]
+
+    @doc """
+    Checks if this violation is a var! usage.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Quote.HygieneViolation
+        iex> HygieneViolation.var_bang?(%HygieneViolation{type: :var_bang, variable: :x})
+        true
+
+        iex> alias ElixirOntologies.Extractors.Quote.HygieneViolation
+        iex> HygieneViolation.var_bang?(%HygieneViolation{type: :macro_escape})
+        false
+    """
+    @spec var_bang?(t()) :: boolean()
+    def var_bang?(%__MODULE__{type: :var_bang}), do: true
+    def var_bang?(%__MODULE__{}), do: false
+
+    @doc """
+    Checks if this violation is a Macro.escape usage.
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Quote.HygieneViolation
+        iex> HygieneViolation.macro_escape?(%HygieneViolation{type: :macro_escape})
+        true
+
+        iex> alias ElixirOntologies.Extractors.Quote.HygieneViolation
+        iex> HygieneViolation.macro_escape?(%HygieneViolation{type: :var_bang})
+        false
+    """
+    @spec macro_escape?(t()) :: boolean()
+    def macro_escape?(%__MODULE__{type: :macro_escape}), do: true
+    def macro_escape?(%__MODULE__{}), do: false
+
+    @doc """
+    Checks if this var! violation has an explicit context (var!/2).
+
+    ## Examples
+
+        iex> alias ElixirOntologies.Extractors.Quote.HygieneViolation
+        iex> HygieneViolation.has_context?(%HygieneViolation{type: :var_bang, variable: :x, context: :match})
+        true
+
+        iex> alias ElixirOntologies.Extractors.Quote.HygieneViolation
+        iex> HygieneViolation.has_context?(%HygieneViolation{type: :var_bang, variable: :x, context: nil})
+        false
+    """
+    @spec has_context?(t()) :: boolean()
+    def has_context?(%__MODULE__{context: nil}), do: false
+    def has_context?(%__MODULE__{}), do: true
+  end
+
+  # ===========================================================================
   # Quote Detection
   # ===========================================================================
 
@@ -1066,5 +1166,291 @@ defmodule ElixirOntologies.Extractors.Quote do
       unquote: Enum.count(unquotes, &(&1.kind == :unquote)),
       unquote_splicing: Enum.count(unquotes, &(&1.kind == :unquote_splicing))
     }
+  end
+
+  # ===========================================================================
+  # Hygiene Detection
+  # ===========================================================================
+
+  @doc """
+  Checks if an AST node represents a var!/1 or var!/2 call.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Quote.var_bang?({:var!, [], [{:x, [], nil}]})
+      true
+
+      iex> ElixirOntologies.Extractors.Quote.var_bang?({:var!, [], [{:x, [], nil}, :match]})
+      true
+
+      iex> ElixirOntologies.Extractors.Quote.var_bang?({:x, [], nil})
+      false
+  """
+  @spec var_bang?(Macro.t()) :: boolean()
+  def var_bang?({:var!, _, [_]}), do: true
+  def var_bang?({:var!, _, [_, _]}), do: true
+  def var_bang?(_), do: false
+
+  @doc """
+  Checks if an AST node represents a Macro.escape/1 call.
+
+  ## Examples
+
+      iex> ast = {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:x, [], nil}]}
+      iex> ElixirOntologies.Extractors.Quote.macro_escape?(ast)
+      true
+
+      iex> ElixirOntologies.Extractors.Quote.macro_escape?({:x, [], nil})
+      false
+  """
+  @spec macro_escape?(Macro.t()) :: boolean()
+  def macro_escape?({{:., _, [{:__aliases__, _, [:Macro]}, :escape]}, _, [_]}), do: true
+  def macro_escape?({{:., _, [Macro, :escape]}, _, [_]}), do: true
+  def macro_escape?(_), do: false
+
+  @doc """
+  Finds all var!/1 and var!/2 calls in an AST.
+
+  Returns a list of `HygieneViolation` structs.
+
+  ## Examples
+
+      iex> ast = {:var!, [], [{:x, [], nil}]}
+      iex> results = ElixirOntologies.Extractors.Quote.find_var_bang(ast)
+      iex> length(results)
+      1
+      iex> hd(results).variable
+      :x
+
+      iex> ast = {:var!, [], [{:y, [], nil}, :match]}
+      iex> results = ElixirOntologies.Extractors.Quote.find_var_bang(ast)
+      iex> hd(results).context
+      :match
+  """
+  @spec find_var_bang(Macro.t()) :: [HygieneViolation.t()]
+  def find_var_bang(ast) do
+    {_, violations} = do_find_var_bang(ast, [])
+    Enum.reverse(violations)
+  end
+
+  # var!/1
+  defp do_find_var_bang({:var!, meta, [{var_name, _, var_context}]} = node, acc)
+       when is_atom(var_name) do
+    violation = %HygieneViolation{
+      type: :var_bang,
+      variable: var_name,
+      context: if(is_atom(var_context), do: var_context, else: nil),
+      expression: node,
+      location: Helpers.extract_location({:var!, meta, []}),
+      metadata: %{arity: 1}
+    }
+
+    {nil, [violation | acc]}
+  end
+
+  # var!/2
+  defp do_find_var_bang({:var!, meta, [{var_name, _, _}, context]} = node, acc)
+       when is_atom(var_name) do
+    violation = %HygieneViolation{
+      type: :var_bang,
+      variable: var_name,
+      context: context,
+      expression: node,
+      location: Helpers.extract_location({:var!, meta, []}),
+      metadata: %{arity: 2}
+    }
+
+    {nil, [violation | acc]}
+  end
+
+  defp do_find_var_bang({_form, _meta, args} = _node, acc) when is_list(args) do
+    {_, new_acc} =
+      Enum.reduce(args, {nil, acc}, fn arg, {_, a} -> do_find_var_bang(arg, a) end)
+
+    {nil, new_acc}
+  end
+
+  defp do_find_var_bang(list, acc) when is_list(list) do
+    {_, new_acc} =
+      Enum.reduce(list, {nil, acc}, fn item, {_, a} -> do_find_var_bang(item, a) end)
+
+    {nil, new_acc}
+  end
+
+  defp do_find_var_bang({left, right}, acc) do
+    {_, acc} = do_find_var_bang(left, acc)
+    do_find_var_bang(right, acc)
+  end
+
+  defp do_find_var_bang(_other, acc) do
+    {nil, acc}
+  end
+
+  @doc """
+  Finds all Macro.escape/1 calls in an AST.
+
+  Returns a list of `HygieneViolation` structs.
+
+  ## Examples
+
+      iex> ast = {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:x, [], nil}]}
+      iex> results = ElixirOntologies.Extractors.Quote.find_macro_escapes(ast)
+      iex> length(results)
+      1
+      iex> hd(results).type
+      :macro_escape
+  """
+  @spec find_macro_escapes(Macro.t()) :: [HygieneViolation.t()]
+  def find_macro_escapes(ast) do
+    {_, violations} = do_find_macro_escapes(ast, [])
+    Enum.reverse(violations)
+  end
+
+  # Macro.escape/1 with alias
+  defp do_find_macro_escapes(
+         {{:., meta, [{:__aliases__, _, [:Macro]}, :escape]}, _, [value]} = node,
+         acc
+       ) do
+    violation = %HygieneViolation{
+      type: :macro_escape,
+      variable: nil,
+      context: nil,
+      expression: node,
+      location: Helpers.extract_location({{:., meta, []}, [], []}),
+      metadata: %{escaped_value: value}
+    }
+
+    {nil, [violation | acc]}
+  end
+
+  # Macro.escape/1 with module atom
+  defp do_find_macro_escapes(
+         {{:., meta, [Macro, :escape]}, _, [value]} = node,
+         acc
+       ) do
+    violation = %HygieneViolation{
+      type: :macro_escape,
+      variable: nil,
+      context: nil,
+      expression: node,
+      location: Helpers.extract_location({{:., meta, []}, [], []}),
+      metadata: %{escaped_value: value}
+    }
+
+    {nil, [violation | acc]}
+  end
+
+  defp do_find_macro_escapes({_form, _meta, args} = _node, acc) when is_list(args) do
+    {_, new_acc} =
+      Enum.reduce(args, {nil, acc}, fn arg, {_, a} -> do_find_macro_escapes(arg, a) end)
+
+    {nil, new_acc}
+  end
+
+  defp do_find_macro_escapes(list, acc) when is_list(list) do
+    {_, new_acc} =
+      Enum.reduce(list, {nil, acc}, fn item, {_, a} -> do_find_macro_escapes(item, a) end)
+
+    {nil, new_acc}
+  end
+
+  defp do_find_macro_escapes({left, right}, acc) do
+    {_, acc} = do_find_macro_escapes(left, acc)
+    do_find_macro_escapes(right, acc)
+  end
+
+  defp do_find_macro_escapes(_other, acc) do
+    {nil, acc}
+  end
+
+  @doc """
+  Finds all hygiene violations (var! and Macro.escape) in an AST.
+
+  Returns a list of `HygieneViolation` structs.
+
+  ## Examples
+
+      iex> ast = {:__block__, [], [
+      ...>   {:var!, [], [{:x, [], nil}]},
+      ...>   {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:y, [], nil}]}
+      ...> ]}
+      iex> results = ElixirOntologies.Extractors.Quote.find_hygiene_violations(ast)
+      iex> length(results)
+      2
+  """
+  @spec find_hygiene_violations(Macro.t()) :: [HygieneViolation.t()]
+  def find_hygiene_violations(ast) do
+    var_bangs = find_var_bang(ast)
+    macro_escapes = find_macro_escapes(ast)
+    var_bangs ++ macro_escapes
+  end
+
+  @doc """
+  Checks if an AST contains any hygiene violations.
+
+  ## Examples
+
+      iex> ast = {:var!, [], [{:x, [], nil}]}
+      iex> ElixirOntologies.Extractors.Quote.has_hygiene_violations?(ast)
+      true
+
+      iex> ast = {:x, [], nil}
+      iex> ElixirOntologies.Extractors.Quote.has_hygiene_violations?(ast)
+      false
+  """
+  @spec has_hygiene_violations?(Macro.t()) :: boolean()
+  def has_hygiene_violations?(ast) do
+    find_hygiene_violations(ast) != []
+  end
+
+  @doc """
+  Counts hygiene violations by type.
+
+  Returns a map with counts for each violation type.
+
+  ## Examples
+
+      iex> ast = {:__block__, [], [
+      ...>   {:var!, [], [{:x, [], nil}]},
+      ...>   {:var!, [], [{:y, [], nil}]},
+      ...>   {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:z, [], nil}]}
+      ...> ]}
+      iex> ElixirOntologies.Extractors.Quote.count_hygiene_violations(ast)
+      %{var_bang: 2, macro_escape: 1}
+
+      iex> ElixirOntologies.Extractors.Quote.count_hygiene_violations({:x, [], nil})
+      %{var_bang: 0, macro_escape: 0}
+  """
+  @spec count_hygiene_violations(Macro.t()) :: %{var_bang: non_neg_integer(), macro_escape: non_neg_integer()}
+  def count_hygiene_violations(ast) do
+    violations = find_hygiene_violations(ast)
+
+    %{
+      var_bang: Enum.count(violations, &(&1.type == :var_bang)),
+      macro_escape: Enum.count(violations, &(&1.type == :macro_escape))
+    }
+  end
+
+  @doc """
+  Gets all variable names used in var! calls.
+
+  ## Examples
+
+      iex> ast = {:__block__, [], [
+      ...>   {:var!, [], [{:x, [], nil}]},
+      ...>   {:var!, [], [{:y, [], nil}]}
+      ...> ]}
+      iex> ElixirOntologies.Extractors.Quote.get_unhygienic_variables(ast)
+      [:x, :y]
+
+      iex> ElixirOntologies.Extractors.Quote.get_unhygienic_variables({:x, [], nil})
+      []
+  """
+  @spec get_unhygienic_variables(Macro.t()) :: [atom()]
+  def get_unhygienic_variables(ast) do
+    ast
+    |> find_var_bang()
+    |> Enum.map(& &1.variable)
+    |> Enum.uniq()
   end
 end
