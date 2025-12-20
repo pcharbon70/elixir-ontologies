@@ -7,16 +7,16 @@ This phase implements comprehensive extraction for module directives (alias, imp
 This section implements detailed extraction of alias directives including multi-alias forms, as options, and scope tracking.
 
 ### 16.1.1 Basic Alias Extraction
-- [ ] **Task 16.1.1 Pending**
+- [x] **Task 16.1.1 Complete**
 
 Extract basic alias directives with their source and target module names.
 
-- [ ] 16.1.1.1 Create `lib/elixir_ontologies/extractors/directive/alias.ex`
-- [ ] 16.1.1.2 Define `%AliasDirective{source: ..., as: ..., location: ..., scope: ...}` struct
-- [ ] 16.1.1.3 Extract `alias Module.Name` simple form
-- [ ] 16.1.1.4 Extract `alias Module.Name, as: Short` explicit form
-- [ ] 16.1.1.5 Extract computed alias name when `as:` not specified
-- [ ] 16.1.1.6 Add basic alias tests
+- [x] 16.1.1.1 Create `lib/elixir_ontologies/extractors/directive/alias.ex`
+- [x] 16.1.1.2 Define `%AliasDirective{source: ..., as: ..., location: ..., scope: ...}` struct
+- [x] 16.1.1.3 Extract `alias Module.Name` simple form
+- [x] 16.1.1.4 Extract `alias Module.Name, as: Short` explicit form
+- [x] 16.1.1.5 Extract computed alias name when `as:` not specified
+- [x] 16.1.1.6 Add basic alias tests
 
 ### 16.1.2 Multi-Alias Extraction
 - [ ] **Task 16.1.2 Pending**
@@ -43,14 +43,14 @@ Track the lexical scope of alias directives (module-level, function-level, block
 - [ ] 16.1.3.6 Add scope tracking tests
 
 **Section 16.1 Unit Tests:**
-- [ ] Test simple alias extraction
-- [ ] Test alias with explicit `as:` option
+- [x] Test simple alias extraction
+- [x] Test alias with explicit `as:` option
 - [ ] Test multi-alias expansion
 - [ ] Test nested multi-alias
 - [ ] Test module-level alias scope
 - [ ] Test function-level alias scope
-- [ ] Test alias source location extraction
-- [ ] Test computed alias name derivation
+- [x] Test alias source location extraction
+- [x] Test computed alias name derivation
 
 ## 16.2 Import Directive Extraction
 
