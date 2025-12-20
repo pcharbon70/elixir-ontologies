@@ -650,4 +650,254 @@ defmodule ElixirOntologies.Extractors.Directive.AliasTest do
              ]
     end
   end
+
+  # ===========================================================================
+  # extract_all_with_scope/2 Tests
+  # ===========================================================================
+
+  describe "extract_all_with_scope/2" do
+    test "tags module-level aliases with :module scope" do
+      {:defmodule, _, [_, [do: {:__block__, _, body}]]} =
+        quote do
+          defmodule Test do
+            alias MyApp.Users
+            alias MyApp.Accounts
+
+            def foo, do: :ok
+          end
+        end
+
+      directives = Alias.extract_all_with_scope(body)
+      assert length(directives) == 2
+
+      for directive <- directives do
+        assert directive.scope == :module
+      end
+    end
+
+    test "tags function-level aliases with :function scope" do
+      {:defmodule, _, [_, [do: {:__block__, _, body}]]} =
+        quote do
+          defmodule Test do
+            def foo do
+              alias MyApp.Users
+              :ok
+            end
+
+            defp bar do
+              alias MyApp.Accounts
+              :ok
+            end
+          end
+        end
+
+      directives = Alias.extract_all_with_scope(body)
+      assert length(directives) == 2
+
+      for directive <- directives do
+        assert directive.scope == :function
+      end
+    end
+
+    test "distinguishes module-level from function-level aliases" do
+      {:defmodule, _, [_, [do: {:__block__, _, body}]]} =
+        quote do
+          defmodule Test do
+            alias MyApp.ModuleLevel
+
+            def foo do
+              alias MyApp.FunctionLevel
+              :ok
+            end
+          end
+        end
+
+      directives = Alias.extract_all_with_scope(body)
+      assert length(directives) == 2
+
+      [module_alias, function_alias] = directives
+      assert module_alias.as == :ModuleLevel
+      assert module_alias.scope == :module
+      assert function_alias.as == :FunctionLevel
+      assert function_alias.scope == :function
+    end
+
+    test "handles aliases in defmacro" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            defmacro my_macro do
+              alias MyApp.MacroAlias
+              quote do: :ok
+            end
+          end
+        end
+
+      # Wrap single statement in list for extract_all_with_scope
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Alias.extract_all_with_scope(body_list)
+      assert length(directives) == 1
+      assert hd(directives).scope == :function
+    end
+
+    test "handles aliases in if block inside function" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            def foo(x) do
+              if x do
+                alias MyApp.InBlock
+                :ok
+              end
+            end
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Alias.extract_all_with_scope(body_list)
+      assert length(directives) == 1
+      assert hd(directives).scope == :block
+    end
+
+    test "handles aliases in case block inside function" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            def foo(x) do
+              case x do
+                :a ->
+                  alias MyApp.CaseA
+                  :ok
+
+                :b ->
+                  alias MyApp.CaseB
+                  :ok
+              end
+            end
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Alias.extract_all_with_scope(body_list)
+      assert length(directives) == 2
+
+      for directive <- directives do
+        assert directive.scope == :block
+      end
+    end
+
+    test "handles multi-alias with scope tracking" do
+      {:defmodule, _, [_, [do: {:__block__, _, body}]]} =
+        quote do
+          defmodule Test do
+            alias MyApp.{Users, Accounts}
+
+            def foo do
+              alias MyApp.{Products, Orders}
+              :ok
+            end
+          end
+        end
+
+      directives = Alias.extract_all_with_scope(body)
+      assert length(directives) == 4
+
+      module_aliases = Enum.filter(directives, &(&1.scope == :module))
+      function_aliases = Enum.filter(directives, &(&1.scope == :function))
+
+      assert length(module_aliases) == 2
+      assert length(function_aliases) == 2
+      assert Enum.map(module_aliases, & &1.as) == [:Users, :Accounts]
+      assert Enum.map(function_aliases, & &1.as) == [:Products, :Orders]
+    end
+
+    test "handles function with guard clause" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            def foo(x) when is_integer(x) do
+              alias MyApp.WithGuard
+              :ok
+            end
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Alias.extract_all_with_scope(body_list)
+      assert length(directives) == 1
+      assert hd(directives).scope == :function
+      assert hd(directives).as == :WithGuard
+    end
+
+    test "handles nested functions (anonymous functions)" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            def foo do
+              alias MyApp.InFunction
+
+              fn ->
+                alias MyApp.InAnon
+                :ok
+              end
+            end
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Alias.extract_all_with_scope(body_list)
+      # The alias in the anonymous function should still be found
+      # Both are at function scope since we're inside a def
+      assert length(directives) >= 1
+      assert hd(directives).scope == :function
+    end
+
+    test "handles empty module body" do
+      body = []
+      directives = Alias.extract_all_with_scope(body)
+      assert directives == []
+    end
+
+    test "handles module with no aliases" do
+      {:defmodule, _, [_, [do: {:__block__, _, body}]]} =
+        quote do
+          defmodule Test do
+            def foo, do: :ok
+            def bar, do: :ok
+          end
+        end
+
+      directives = Alias.extract_all_with_scope(body)
+      assert directives == []
+    end
+  end
+
+  # ===========================================================================
+  # LexicalScope Struct Tests
+  # ===========================================================================
+
+  describe "LexicalScope struct" do
+    alias ElixirOntologies.Extractors.Directive.Alias.LexicalScope
+
+    test "can create module scope" do
+      scope = %LexicalScope{type: :module, start_line: 1}
+      assert scope.type == :module
+      assert scope.start_line == 1
+      assert scope.name == nil
+    end
+
+    test "can create function scope with name" do
+      scope = %LexicalScope{type: :function, name: :my_func, start_line: 5}
+      assert scope.type == :function
+      assert scope.name == :my_func
+    end
+
+    test "can create nested scope with parent" do
+      parent = %LexicalScope{type: :function, name: :foo, start_line: 5}
+      child = %LexicalScope{type: :block, start_line: 7, parent: parent}
+      assert child.type == :block
+      assert child.parent.type == :function
+      assert child.parent.name == :foo
+    end
+  end
 end

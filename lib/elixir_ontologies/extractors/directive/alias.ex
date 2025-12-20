@@ -102,6 +102,32 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
     defstruct prefix: [], aliases: [], location: nil, metadata: %{}
   end
 
+  defmodule LexicalScope do
+    @moduledoc """
+    Represents the lexical scope where an alias directive is defined.
+
+    ## Fields
+
+    - `:type` - The scope type: `:module`, `:function`, or `:block`
+    - `:name` - The name of the function for function scope, nil otherwise
+    - `:start_line` - Start line of the scope
+    - `:end_line` - End line of the scope (nil if unknown)
+    - `:parent` - Parent scope for nested scopes
+    """
+
+    @type scope_type :: :module | :function | :block
+
+    @type t :: %__MODULE__{
+            type: scope_type(),
+            name: atom() | nil,
+            start_line: pos_integer() | nil,
+            end_line: pos_integer() | nil,
+            parent: t() | nil
+          }
+
+    defstruct [:type, :name, :start_line, :end_line, :parent]
+  end
+
   # ===========================================================================
   # Type Detection
   # ===========================================================================
@@ -361,6 +387,40 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
   end
 
   # ===========================================================================
+  # Scope-Aware Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts all alias directives from a module body with scope tracking.
+
+  This function walks the AST and tracks the lexical scope of each alias,
+  setting the `:scope` field to `:module`, `:function`, or `:block`.
+
+  ## Examples
+
+      iex> {:defmodule, _, [_, [do: {:__block__, _, body}]]} = quote do
+      ...>   defmodule Test do
+      ...>     alias MyApp.Users
+      ...>     def foo do
+      ...>       alias MyApp.Accounts
+      ...>     end
+      ...>   end
+      ...> end
+      iex> directives = ElixirOntologies.Extractors.Directive.Alias.extract_all_with_scope(body)
+      iex> length(directives)
+      2
+      iex> [users, accounts] = directives
+      iex> users.scope
+      :module
+      iex> accounts.scope
+      :function
+  """
+  @spec extract_all_with_scope(Macro.t(), keyword()) :: [AliasDirective.t()]
+  def extract_all_with_scope(ast, opts \\ []) do
+    extract_with_scope(ast, :module, opts)
+  end
+
+  # ===========================================================================
   # Convenience Functions
   # ===========================================================================
 
@@ -509,5 +569,103 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
     nested_directives = expand_multi_alias(combined_prefix, nested_suffixes, location, idx)
     new_idx = idx + length(nested_directives)
     {:nested, nested_directives, new_idx}
+  end
+
+  # ===========================================================================
+  # Scope Tracking Helpers
+  # ===========================================================================
+
+  # Extract aliases with scope tracking
+  defp extract_with_scope(ast, current_scope, opts)
+
+  # Handle list of statements
+  defp extract_with_scope(statements, current_scope, opts) when is_list(statements) do
+    Enum.flat_map(statements, &extract_with_scope(&1, current_scope, opts))
+  end
+
+  # Handle __block__
+  defp extract_with_scope({:__block__, _meta, statements}, current_scope, opts) do
+    extract_with_scope(statements, current_scope, opts)
+  end
+
+  # Handle function definitions - switch to function scope
+  defp extract_with_scope({def_type, _meta, [{name, _, _args}, body_opts]}, _current_scope, opts)
+       when def_type in [:def, :defp, :defmacro, :defmacrop] and is_atom(name) do
+    body = Keyword.get(body_opts, :do, nil)
+
+    if body do
+      extract_with_scope(body, :function, opts)
+    else
+      []
+    end
+  end
+
+  # Handle function definitions with when clause
+  defp extract_with_scope(
+         {def_type, _meta, [{:when, _, [{name, _, _args}, _guard]}, body_opts]},
+         _current_scope,
+         opts
+       )
+       when def_type in [:def, :defp, :defmacro, :defmacrop] and is_atom(name) do
+    body = Keyword.get(body_opts, :do, nil)
+
+    if body do
+      extract_with_scope(body, :function, opts)
+    else
+      []
+    end
+  end
+
+  # Handle block constructs - switch to block scope
+  defp extract_with_scope({block_type, _meta, args}, current_scope, opts)
+       when block_type in [:if, :unless, :case, :cond, :with, :for, :try, :receive] and
+              is_list(args) do
+    # For block constructs inside module scope, they're still module scope
+    # For block constructs inside function scope, switch to block scope
+    new_scope = if current_scope == :module, do: :module, else: :block
+
+    # Extract from all parts of the block construct
+    args
+    |> Enum.flat_map(fn
+      clauses when is_list(clauses) ->
+        Enum.flat_map(clauses, fn
+          {_key, body} -> extract_with_scope(body, new_scope, opts)
+          other -> extract_with_scope(other, new_scope, opts)
+        end)
+
+      other ->
+        extract_with_scope(other, new_scope, opts)
+    end)
+  end
+
+  # Handle alias - extract with current scope
+  defp extract_with_scope({:alias, _meta, _args} = ast, current_scope, opts) do
+    if multi_alias?(ast) do
+      case extract_multi_alias(ast, opts) do
+        {:ok, directives} ->
+          Enum.map(directives, &%{&1 | scope: current_scope})
+
+        {:error, _} ->
+          []
+      end
+    else
+      case extract(ast, opts) do
+        {:ok, directive} ->
+          [%{directive | scope: current_scope}]
+
+        {:error, _} ->
+          []
+      end
+    end
+  end
+
+  # Handle other tuple forms - recurse into arguments
+  defp extract_with_scope({_form, _meta, args}, current_scope, opts) when is_list(args) do
+    extract_with_scope(args, current_scope, opts)
+  end
+
+  # Ignore atoms, literals, and other non-tuple forms
+  defp extract_with_scope(_other, _current_scope, _opts) do
+    []
   end
 end

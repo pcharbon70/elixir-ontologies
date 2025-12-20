@@ -31,24 +31,24 @@ Extract multi-alias forms using the curly brace syntax.
 - [x] 16.1.2.6 Add multi-alias tests
 
 ### 16.1.3 Alias Scope Tracking
-- [ ] **Task 16.1.3 Pending**
+- [x] **Task 16.1.3 Complete**
 
 Track the lexical scope of alias directives (module-level, function-level, block-level).
 
-- [ ] 16.1.3.1 Implement scope detection for alias directives
-- [ ] 16.1.3.2 Track module-level aliases (top of module)
-- [ ] 16.1.3.3 Track function-level aliases (inside function bodies)
-- [ ] 16.1.3.4 Track block-level aliases (inside blocks, comprehensions)
-- [ ] 16.1.3.5 Create `%LexicalScope{type: ..., start_line: ..., end_line: ...}` struct
-- [ ] 16.1.3.6 Add scope tracking tests
+- [x] 16.1.3.1 Implement scope detection for alias directives
+- [x] 16.1.3.2 Track module-level aliases (top of module)
+- [x] 16.1.3.3 Track function-level aliases (inside function bodies)
+- [x] 16.1.3.4 Track block-level aliases (inside blocks, comprehensions)
+- [x] 16.1.3.5 Create `%LexicalScope{type: ..., start_line: ..., end_line: ...}` struct
+- [x] 16.1.3.6 Add scope tracking tests
 
 **Section 16.1 Unit Tests:**
 - [x] Test simple alias extraction
 - [x] Test alias with explicit `as:` option
 - [x] Test multi-alias expansion
 - [x] Test nested multi-alias
-- [ ] Test module-level alias scope
-- [ ] Test function-level alias scope
+- [x] Test module-level alias scope
+- [x] Test function-level alias scope
 - [x] Test alias source location extraction
 - [x] Test computed alias name derivation
 
