@@ -81,16 +81,16 @@ Extract selective imports using only/except options.
 - [x] 16.2.2.6 Add selective import tests
 
 ### 16.2.3 Import Conflict Detection
-- [ ] **Task 16.2.3 Pending**
+- [x] **Task 16.2.3 Complete**
 
 Detect potential import conflicts where multiple imports define the same function.
 
-- [ ] 16.2.3.1 Implement `detect_import_conflicts/1` analyzing all imports
-- [ ] 16.2.3.2 Track function names imported from each module
-- [ ] 16.2.3.3 Identify overlapping function definitions
-- [ ] 16.2.3.4 Create `%ImportConflict{function: ..., modules: [...]}` struct
-- [ ] 16.2.3.5 Report conflicts with their locations
-- [ ] 16.2.3.6 Add conflict detection tests
+- [x] 16.2.3.1 Implement `detect_import_conflicts/1` analyzing all imports
+- [x] 16.2.3.2 Track function names imported from each module
+- [x] 16.2.3.3 Identify overlapping function definitions
+- [x] 16.2.3.4 Create `%ImportConflict{function: ..., modules: [...]}` struct
+- [x] 16.2.3.5 Report conflicts with their locations
+- [x] 16.2.3.6 Add conflict detection tests
 
 **Section 16.2 Unit Tests:**
 - [x] Test full import extraction
@@ -98,7 +98,7 @@ Detect potential import conflicts where multiple imports define the same functio
 - [x] Test `except:` selective import
 - [x] Test `only: :functions` type import
 - [x] Test `only: :macros` type import
-- [ ] Test import conflict detection
+- [x] Test import conflict detection
 - [x] Test import scope tracking
 - [x] Test multi-arity function imports
 

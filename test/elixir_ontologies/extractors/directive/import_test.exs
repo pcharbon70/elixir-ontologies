@@ -3,6 +3,7 @@ defmodule ElixirOntologies.Extractors.Directive.ImportTest do
 
   alias ElixirOntologies.Extractors.Directive.Import
   alias ElixirOntologies.Extractors.Directive.Import.ImportDirective
+  alias ElixirOntologies.Extractors.Directive.Import.ImportConflict
 
   doctest ElixirOntologies.Extractors.Directive.Import
 
@@ -485,6 +486,173 @@ defmodule ElixirOntologies.Extractors.Directive.ImportTest do
       assert enum_import.only == [map: 2]
       assert string_import.scope == :function
       assert string_import.except == [upcase: 1]
+    end
+  end
+
+  describe "explicit_imports/1" do
+    test "returns function list for only: imports" do
+      directive = %ImportDirective{module: [:Enum], only: [map: 2, filter: 2]}
+      assert Import.explicit_imports(directive) == [{:map, 2}, {:filter, 2}]
+    end
+
+    test "returns empty list for full imports" do
+      directive = %ImportDirective{module: [:Enum]}
+      assert Import.explicit_imports(directive) == []
+    end
+
+    test "returns empty list for type-based imports" do
+      directive = %ImportDirective{module: [:Kernel], only: :macros}
+      assert Import.explicit_imports(directive) == []
+    end
+
+    test "returns empty list for imports with only except" do
+      directive = %ImportDirective{module: [:Enum], except: [reduce: 3]}
+      assert Import.explicit_imports(directive) == []
+    end
+  end
+
+  describe "detect_import_conflicts/1" do
+    test "returns empty list for no imports" do
+      assert Import.detect_import_conflicts([]) == []
+    end
+
+    test "returns empty list for single import" do
+      imports = [%ImportDirective{module: [:Enum], only: [map: 2]}]
+      assert Import.detect_import_conflicts(imports) == []
+    end
+
+    test "returns empty list for disjoint imports" do
+      imports = [
+        %ImportDirective{module: [:Enum], only: [map: 2]},
+        %ImportDirective{module: [:String], only: [upcase: 1]}
+      ]
+
+      assert Import.detect_import_conflicts(imports) == []
+    end
+
+    test "detects explicit conflict with same function from different modules" do
+      imports = [
+        %ImportDirective{module: [:Enum], only: [map: 2]},
+        %ImportDirective{module: [:Stream], only: [map: 2]}
+      ]
+
+      conflicts = Import.detect_import_conflicts(imports)
+      assert length(conflicts) == 1
+
+      conflict = hd(conflicts)
+      assert conflict.function == {:map, 2}
+      assert conflict.conflict_type == :explicit
+      assert length(conflict.imports) == 2
+    end
+
+    test "detects multiple conflicting functions" do
+      imports = [
+        %ImportDirective{module: [:Enum], only: [map: 2, filter: 2]},
+        %ImportDirective{module: [:Stream], only: [map: 2, filter: 2]}
+      ]
+
+      conflicts = Import.detect_import_conflicts(imports)
+      assert length(conflicts) == 2
+
+      functions = Enum.map(conflicts, & &1.function) |> Enum.sort()
+      assert functions == [{:filter, 2}, {:map, 2}]
+    end
+
+    test "detects partial overlap" do
+      imports = [
+        %ImportDirective{module: [:Enum], only: [map: 2, reduce: 3]},
+        %ImportDirective{module: [:Stream], only: [map: 2, take: 2]}
+      ]
+
+      conflicts = Import.detect_import_conflicts(imports)
+      assert length(conflicts) == 1
+      assert hd(conflicts).function == {:map, 2}
+    end
+
+    test "ignores full imports (no explicit functions)" do
+      imports = [
+        %ImportDirective{module: [:Enum]},
+        %ImportDirective{module: [:Stream]}
+      ]
+
+      assert Import.detect_import_conflicts(imports) == []
+    end
+
+    test "ignores type-based imports" do
+      imports = [
+        %ImportDirective{module: [:Kernel], only: :macros},
+        %ImportDirective{module: [:Logger], only: :macros}
+      ]
+
+      assert Import.detect_import_conflicts(imports) == []
+    end
+
+    test "detects conflict between explicit and full import with overlap in only" do
+      # Only explicit imports can conflict with each other
+      imports = [
+        %ImportDirective{module: [:Enum], only: [map: 2]},
+        %ImportDirective{module: [:Stream]}
+      ]
+
+      # Stream is full import, so no explicit conflict detected
+      assert Import.detect_import_conflicts(imports) == []
+    end
+
+    test "preserves location in conflict" do
+      location = %ElixirOntologies.Analyzer.Location.SourceLocation{
+        start_line: 10,
+        start_column: 5,
+        end_line: 10,
+        end_column: 30
+      }
+
+      imports = [
+        %ImportDirective{module: [:Enum], only: [map: 2], location: location},
+        %ImportDirective{module: [:Stream], only: [map: 2]}
+      ]
+
+      conflicts = Import.detect_import_conflicts(imports)
+      assert length(conflicts) == 1
+      assert hd(conflicts).location == location
+    end
+
+    test "detects conflict with three or more imports" do
+      imports = [
+        %ImportDirective{module: [:Enum], only: [map: 2]},
+        %ImportDirective{module: [:Stream], only: [map: 2]},
+        %ImportDirective{module: [:Flow], only: [map: 2]}
+      ]
+
+      conflicts = Import.detect_import_conflicts(imports)
+      assert length(conflicts) == 1
+
+      conflict = hd(conflicts)
+      assert length(conflict.imports) == 3
+    end
+
+    test "distinguishes functions by arity" do
+      imports = [
+        %ImportDirective{module: [:Enum], only: [map: 2]},
+        %ImportDirective{module: [:Stream], only: [map: 3]}
+      ]
+
+      # Different arities, no conflict
+      assert Import.detect_import_conflicts(imports) == []
+    end
+  end
+
+  describe "ImportConflict struct" do
+    test "has correct default values" do
+      conflict = %ImportConflict{function: {:map, 2}}
+      assert conflict.imports == []
+      assert conflict.conflict_type == :explicit
+      assert conflict.location == nil
+    end
+
+    test "function is enforced" do
+      assert_raise ArgumentError, ~r/must also be given/, fn ->
+        struct!(ImportConflict, %{})
+      end
     end
   end
 end

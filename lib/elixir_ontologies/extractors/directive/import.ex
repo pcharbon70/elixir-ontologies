@@ -78,6 +78,34 @@ defmodule ElixirOntologies.Extractors.Directive.Import do
     defstruct [:module, only: nil, except: nil, location: nil, scope: nil, metadata: %{}]
   end
 
+  defmodule ImportConflict do
+    @moduledoc """
+    Represents a detected import conflict where multiple imports bring the same function into scope.
+
+    ## Fields
+
+    - `:function` - The conflicting function as `{name, arity}` tuple
+    - `:imports` - List of ImportDirective structs that conflict
+    - `:conflict_type` - `:explicit` for known conflicts, `:potential` for possible conflicts
+    - `:location` - Location of first conflicting import (for error reporting)
+    """
+
+    alias ElixirOntologies.Extractors.Directive.Import.ImportDirective
+    alias ElixirOntologies.Analyzer.Location.SourceLocation
+
+    @type conflict_type :: :explicit | :potential
+
+    @type t :: %__MODULE__{
+            function: {atom(), non_neg_integer()},
+            imports: [ImportDirective.t()],
+            conflict_type: conflict_type(),
+            location: SourceLocation.t() | nil
+          }
+
+    @enforce_keys [:function]
+    defstruct [:function, :location, imports: [], conflict_type: :explicit]
+  end
+
   # ===========================================================================
   # Type Detection
   # ===========================================================================
@@ -302,6 +330,117 @@ defmodule ElixirOntologies.Extractors.Directive.Import do
     do: true
 
   def type_import?(_), do: false
+
+  # ===========================================================================
+  # Conflict Detection
+  # ===========================================================================
+
+  @doc """
+  Detects import conflicts where multiple imports bring the same function into scope.
+
+  This function analyzes a list of import directives and identifies cases where
+  the same function (name/arity) is explicitly imported from multiple modules.
+
+  Note: Only explicit conflicts are detected (where `only:` specifies the same function).
+  Full imports cannot be analyzed without knowing what each module exports.
+
+  ## Examples
+
+      iex> imports = [
+      ...>   %ElixirOntologies.Extractors.Directive.Import.ImportDirective{
+      ...>     module: [:Enum],
+      ...>     only: [map: 2]
+      ...>   },
+      ...>   %ElixirOntologies.Extractors.Directive.Import.ImportDirective{
+      ...>     module: [:Stream],
+      ...>     only: [map: 2]
+      ...>   }
+      ...> ]
+      iex> conflicts = ElixirOntologies.Extractors.Directive.Import.detect_import_conflicts(imports)
+      iex> length(conflicts)
+      1
+      iex> hd(conflicts).function
+      {:map, 2}
+
+      iex> imports = [
+      ...>   %ElixirOntologies.Extractors.Directive.Import.ImportDirective{
+      ...>     module: [:Enum],
+      ...>     only: [map: 2]
+      ...>   },
+      ...>   %ElixirOntologies.Extractors.Directive.Import.ImportDirective{
+      ...>     module: [:String],
+      ...>     only: [upcase: 1]
+      ...>   }
+      ...> ]
+      iex> ElixirOntologies.Extractors.Directive.Import.detect_import_conflicts(imports)
+      []
+  """
+  @spec detect_import_conflicts([ImportDirective.t()]) :: [ImportConflict.t()]
+  def detect_import_conflicts(imports) when is_list(imports) do
+    # Build a map of function -> list of imports that explicitly import it
+    imports
+    |> Enum.flat_map(fn directive ->
+      directive
+      |> explicit_imports()
+      |> Enum.map(fn func -> {func, directive} end)
+    end)
+    |> Enum.group_by(fn {func, _} -> func end, fn {_, directive} -> directive end)
+    |> Enum.filter(fn {_func, directives} -> length(directives) > 1 end)
+    |> Enum.map(fn {func, directives} ->
+      # Get location from first directive
+      first_location =
+        directives
+        |> Enum.map(& &1.location)
+        |> Enum.find(&(&1 != nil))
+
+      %ImportConflict{
+        function: func,
+        imports: directives,
+        conflict_type: :explicit,
+        location: first_location
+      }
+    end)
+    |> Enum.sort_by(fn conflict -> conflict.function end)
+  end
+
+  @doc """
+  Returns the list of explicitly imported functions from an import directive.
+
+  For imports with `only: [func: arity, ...]`, returns the function list.
+  For full imports or type-based imports, returns an empty list since we cannot
+  determine what functions are imported without analyzing the target module.
+
+  ## Examples
+
+      iex> directive = %ElixirOntologies.Extractors.Directive.Import.ImportDirective{
+      ...>   module: [:Enum],
+      ...>   only: [map: 2, filter: 2]
+      ...> }
+      iex> ElixirOntologies.Extractors.Directive.Import.explicit_imports(directive)
+      [{:map, 2}, {:filter, 2}]
+
+      iex> directive = %ElixirOntologies.Extractors.Directive.Import.ImportDirective{
+      ...>   module: [:Enum]
+      ...> }
+      iex> ElixirOntologies.Extractors.Directive.Import.explicit_imports(directive)
+      []
+
+      iex> directive = %ElixirOntologies.Extractors.Directive.Import.ImportDirective{
+      ...>   module: [:Kernel],
+      ...>   only: :macros
+      ...> }
+      iex> ElixirOntologies.Extractors.Directive.Import.explicit_imports(directive)
+      []
+  """
+  @spec explicit_imports(ImportDirective.t()) :: [{atom(), non_neg_integer()}]
+  def explicit_imports(%ImportDirective{only: only}) when is_list(only) do
+    # Convert keyword list to tuple list for consistent representation
+    Enum.map(only, fn
+      {name, arity} when is_atom(name) and is_integer(arity) -> {name, arity}
+    end)
+  end
+
+  def explicit_imports(%ImportDirective{}), do: []
 
   # ===========================================================================
   # Scope-Aware Extraction
