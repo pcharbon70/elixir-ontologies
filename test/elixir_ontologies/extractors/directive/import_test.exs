@@ -273,4 +273,218 @@ defmodule ElixirOntologies.Extractors.Directive.ImportTest do
       end
     end
   end
+
+  describe "extract_all_with_scope/2" do
+    test "extracts module-level import with :module scope" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            import Enum
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Import.extract_all_with_scope(body_list)
+      assert length(directives) == 1
+      assert hd(directives).scope == :module
+      assert hd(directives).module == [:Enum]
+    end
+
+    test "extracts function-level import with :function scope" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            def foo do
+              import String
+            end
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Import.extract_all_with_scope(body_list)
+      assert length(directives) == 1
+      assert hd(directives).scope == :function
+      assert hd(directives).module == [:String]
+    end
+
+    test "extracts block-level import with :block scope inside function" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            def foo do
+              if true do
+                import Map
+              end
+            end
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Import.extract_all_with_scope(body_list)
+      assert length(directives) == 1
+      assert hd(directives).scope == :block
+      assert hd(directives).module == [:Map]
+    end
+
+    test "extracts mixed scopes correctly" do
+      {:defmodule, _, [_, [do: {:__block__, _, body}]]} =
+        quote do
+          defmodule Test do
+            import Enum
+
+            def foo do
+              import String
+            end
+
+            import Map
+          end
+        end
+
+      directives = Import.extract_all_with_scope(body)
+      assert length(directives) == 3
+
+      scopes = Enum.map(directives, & &1.scope)
+      assert scopes == [:module, :function, :module]
+
+      modules = Enum.map(directives, & &1.module)
+      assert modules == [[:Enum], [:String], [:Map]]
+    end
+
+    test "handles defp with import" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            defp helper do
+              import List
+            end
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Import.extract_all_with_scope(body_list)
+      assert length(directives) == 1
+      assert hd(directives).scope == :function
+    end
+
+    test "handles defmacro with import" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            defmacro my_macro do
+              import Macro
+            end
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Import.extract_all_with_scope(body_list)
+      assert length(directives) == 1
+      assert hd(directives).scope == :function
+    end
+
+    test "handles case block inside function" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            def foo(x) do
+              case x do
+                :a -> import Enum
+                :b -> import String
+              end
+            end
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Import.extract_all_with_scope(body_list)
+      assert length(directives) == 2
+      assert Enum.all?(directives, &(&1.scope == :block))
+    end
+
+    test "handles with block inside function" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            def foo do
+              with {:ok, _} <- {:ok, 1} do
+                import Keyword
+              end
+            end
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Import.extract_all_with_scope(body_list)
+      assert length(directives) == 1
+      assert hd(directives).scope == :block
+    end
+
+    test "handles function with guard clause" do
+      {:defmodule, _, [_, [do: body]]} =
+        quote do
+          defmodule Test do
+            def foo(x) when is_integer(x) do
+              import Integer
+            end
+          end
+        end
+
+      body_list = if is_tuple(body), do: [body], else: body
+      directives = Import.extract_all_with_scope(body_list)
+      assert length(directives) == 1
+      assert hd(directives).scope == :function
+    end
+
+    test "handles nested functions" do
+      {:defmodule, _, [_, [do: {:__block__, _, body}]]} =
+        quote do
+          defmodule Test do
+            import Enum
+
+            def foo do
+              import String
+
+              fn ->
+                import Map
+              end
+            end
+
+            def bar do
+              import List
+            end
+          end
+        end
+
+      directives = Import.extract_all_with_scope(body)
+      assert length(directives) == 4
+
+      modules = Enum.map(directives, & &1.module)
+      assert [:Enum] in modules
+      assert [:String] in modules
+      assert [:Map] in modules
+      assert [:List] in modules
+    end
+
+    test "preserves only/except options with scope" do
+      {:defmodule, _, [_, [do: {:__block__, _, body}]]} =
+        quote do
+          defmodule Test do
+            import Enum, only: [map: 2]
+
+            def foo do
+              import String, except: [upcase: 1]
+            end
+          end
+        end
+
+      directives = Import.extract_all_with_scope(body)
+      assert length(directives) == 2
+
+      [enum_import, string_import] = directives
+      assert enum_import.scope == :module
+      assert enum_import.only == [map: 2]
+      assert string_import.scope == :function
+      assert string_import.except == [upcase: 1]
+    end
+  end
 end

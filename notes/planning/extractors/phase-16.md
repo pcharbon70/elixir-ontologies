@@ -69,16 +69,16 @@ Extract basic import directives with their module references.
 - [x] 16.2.1.6 Add basic import tests
 
 ### 16.2.2 Selective Import Extraction
-- [ ] **Task 16.2.2 Pending**
+- [x] **Task 16.2.2 Complete**
 
 Extract selective imports using only/except options.
 
-- [ ] 16.2.2.1 Extract `import Module, only: [func: arity]` form
-- [ ] 16.2.2.2 Extract `import Module, except: [func: arity]` form
-- [ ] 16.2.2.3 Extract `import Module, only: :functions` form
-- [ ] 16.2.2.4 Extract `import Module, only: :macros` form
-- [ ] 16.2.2.5 Parse function/arity lists into structured data
-- [ ] 16.2.2.6 Add selective import tests
+- [x] 16.2.2.1 Extract `import Module, only: [func: arity]` form
+- [x] 16.2.2.2 Extract `import Module, except: [func: arity]` form
+- [x] 16.2.2.3 Extract `import Module, only: :functions` form
+- [x] 16.2.2.4 Extract `import Module, only: :macros` form
+- [x] 16.2.2.5 Parse function/arity lists into structured data
+- [x] 16.2.2.6 Add selective import tests
 
 ### 16.2.3 Import Conflict Detection
 - [ ] **Task 16.2.3 Pending**
@@ -99,7 +99,7 @@ Detect potential import conflicts where multiple imports define the same functio
 - [x] Test `only: :functions` type import
 - [x] Test `only: :macros` type import
 - [ ] Test import conflict detection
-- [ ] Test import scope tracking
+- [x] Test import scope tracking
 - [x] Test multi-arity function imports
 
 ## 16.3 Require and Use Directive Extraction
