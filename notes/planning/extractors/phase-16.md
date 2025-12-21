@@ -169,16 +169,16 @@ Generate RDF triples representing module dependencies from directives.
 - [x] 16.4.1.6 Add alias dependency tests
 
 ### 16.4.2 Import Dependency Builder
-- [ ] **Task 16.4.2 Pending**
+- [x] **Task 16.4.2 Complete**
 
 Generate RDF triples for import dependencies.
 
-- [ ] 16.4.2.1 Implement `build_import_dependency/3` generating import IRI
-- [ ] 16.4.2.2 Generate `rdf:type structure:Import` triple
-- [ ] 16.4.2.3 Generate `structure:importsModule` linking to imported module
-- [ ] 16.4.2.4 Generate `structure:importsFunction` for each imported function
-- [ ] 16.4.2.5 Generate `structure:excludesFunction` for excluded functions
-- [ ] 16.4.2.6 Add import dependency tests
+- [x] 16.4.2.1 Implement `build_import_dependency/4` generating import IRI
+- [x] 16.4.2.2 Generate `rdf:type structure:Import` triple
+- [x] 16.4.2.3 Generate `structure:importsModule` linking to imported module
+- [x] 16.4.2.4 Generate `structure:importsFunction` for each imported function
+- [x] 16.4.2.5 Generate `structure:excludesFunction` for excluded functions
+- [x] 16.4.2.6 Add import dependency tests
 
 ### 16.4.3 Use/Require Dependency Builder
 - [ ] **Task 16.4.3 Pending**
@@ -205,8 +205,8 @@ Link directives to actual module definitions when available in analysis scope.
 - [ ] 16.4.4.6 Add cross-module linking tests
 
 **Section 16.4 Unit Tests:**
-- [ ] Test alias dependency RDF generation
-- [ ] Test import dependency RDF generation
+- [x] Test alias dependency RDF generation
+- [x] Test import dependency RDF generation
 - [ ] Test require dependency RDF generation
 - [ ] Test use dependency RDF generation
 - [ ] Test cross-module linking

@@ -10,7 +10,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
   ## Supported Directives
 
   - **Aliases** - `alias MyApp.Users, as: U` creates `struct:ModuleAlias`
-  - (Future) **Imports** - creates `struct:Import`
+  - **Imports** - `import Enum, only: [map: 2]` creates `struct:Import`
   - (Future) **Requires** - creates `struct:Require`
   - (Future) **Uses** - creates `struct:Use`
 
@@ -58,6 +58,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
   alias ElixirOntologies.Builders.{Context, Helpers}
   alias ElixirOntologies.{IRI, NS}
   alias ElixirOntologies.Extractors.Directive.Alias.AliasDirective
+  alias ElixirOntologies.Extractors.Directive.Import.ImportDirective
   alias NS.Structure
 
   # ===========================================================================
@@ -168,6 +169,138 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
   end
 
   # ===========================================================================
+  # Public API - Import Dependencies
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for a single import directive.
+
+  Creates an Import resource with:
+  - `rdf:type struct:Import` - type classification
+  - `struct:importsModule` - link to the imported module
+  - `struct:isFullImport` - whether this is a full import (no only/except)
+  - `struct:importType` - for type-based imports (:functions, :macros, :sigils)
+  - `struct:importsFunction` - for each explicitly imported function
+  - `struct:excludesFunction` - for each explicitly excluded function
+  - Link from containing module via `struct:hasImport`
+
+  ## Parameters
+
+  - `import_info` - ImportDirective struct from extraction
+  - `module_iri` - IRI of the containing module
+  - `context` - Builder context with base IRI
+  - `index` - Zero-based index of the import within the module
+
+  ## Returns
+
+  A tuple `{import_iri, triples}` where:
+  - `import_iri` - The IRI of the import resource
+  - `triples` - List of RDF triples describing the import
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{DependencyBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Directive.Import.ImportDirective
+      iex> import_info = %ImportDirective{module: [:Enum]}
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      iex> to_string(import_iri)
+      "https://example.org/code#MyApp/import/0"
+      iex> length(triples)
+      4
+
+      iex> alias ElixirOntologies.Builders.{DependencyBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Directive.Import.ImportDirective
+      iex> import_info = %ImportDirective{module: [:Enum], only: [map: 2, filter: 2]}
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {_import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      iex> length(triples)
+      6
+  """
+  @spec build_import_dependency(ImportDirective.t(), RDF.IRI.t(), Context.t(), non_neg_integer()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
+  def build_import_dependency(import_info, module_iri, context, index) do
+    # Generate import IRI
+    import_iri = IRI.for_import(module_iri, index)
+
+    # Get imported module IRI
+    imported_module_name = module_name_string(import_info.module)
+    imported_module_iri = IRI.for_module(context.base_iri, imported_module_name)
+
+    # Determine if this is a full import
+    is_full_import = import_info.only == nil and import_info.except == nil
+
+    # Build base triples
+    base_triples = [
+      # Type triple
+      Helpers.type_triple(import_iri, Structure.Import),
+      # Link to imported module
+      Helpers.object_property(import_iri, Structure.importsModule(), imported_module_iri),
+      # Full import flag
+      Helpers.datatype_property(import_iri, Structure.isFullImport(), is_full_import, RDF.XSD.Boolean),
+      # Link from containing module
+      Helpers.object_property(module_iri, Structure.hasImport(), import_iri)
+    ]
+
+    # Add type-based import triple if applicable
+    type_triples = build_import_type_triples(import_iri, import_info.only)
+
+    # Add function import triples if applicable
+    function_triples =
+      build_imported_function_triples(import_iri, import_info.only, imported_module_name, context)
+
+    # Add excluded function triples if applicable
+    excluded_triples =
+      build_excluded_function_triples(import_iri, import_info.except, imported_module_name, context)
+
+    triples = base_triples ++ type_triples ++ function_triples ++ excluded_triples
+
+    {import_iri, triples}
+  end
+
+  @doc """
+  Builds RDF triples for all import directives in a module.
+
+  Calls `build_import_dependency/4` for each import and aggregates the results.
+
+  ## Parameters
+
+  - `imports` - List of ImportDirective structs
+  - `module_iri` - IRI of the containing module
+  - `context` - Builder context with base IRI
+
+  ## Returns
+
+  A list of all generated RDF triples.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{DependencyBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Directive.Import.ImportDirective
+      iex> imports = [
+      ...>   %ImportDirective{module: [:Enum]},
+      ...>   %ImportDirective{module: [:String], only: [upcase: 1]}
+      ...> ]
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> triples = DependencyBuilder.build_import_dependencies(imports, module_iri, context)
+      iex> length(triples)
+      9
+  """
+  @spec build_import_dependencies([ImportDirective.t()], RDF.IRI.t(), Context.t()) ::
+          [RDF.Triple.t()]
+  def build_import_dependencies(imports, module_iri, context) do
+    imports
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {import_info, index} ->
+      {_import_iri, triples} = build_import_dependency(import_info, module_iri, context, index)
+      triples
+    end)
+  end
+
+  # ===========================================================================
   # Private Helpers
   # ===========================================================================
 
@@ -193,4 +326,38 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
         Atom.to_string(name)
     end
   end
+
+  # ===========================================================================
+  # Private Helpers - Import
+  # ===========================================================================
+
+  # Build import type triple for type-based imports (:functions, :macros, :sigils)
+  defp build_import_type_triples(import_iri, only) when only in [:functions, :macros, :sigils] do
+    type_string = Atom.to_string(only)
+    [Helpers.datatype_property(import_iri, Structure.importType(), type_string, RDF.XSD.String)]
+  end
+
+  defp build_import_type_triples(_import_iri, _only), do: []
+
+  # Build triples for explicitly imported functions (only: [func: arity, ...])
+  defp build_imported_function_triples(import_iri, only, imported_module, context)
+       when is_list(only) do
+    Enum.map(only, fn {func_name, arity} ->
+      func_iri = IRI.for_function(context.base_iri, imported_module, func_name, arity)
+      Helpers.object_property(import_iri, Structure.importsFunction(), func_iri)
+    end)
+  end
+
+  defp build_imported_function_triples(_import_iri, _only, _imported_module, _context), do: []
+
+  # Build triples for excluded functions (except: [func: arity, ...])
+  defp build_excluded_function_triples(import_iri, except, imported_module, context)
+       when is_list(except) do
+    Enum.map(except, fn {func_name, arity} ->
+      func_iri = IRI.for_function(context.base_iri, imported_module, func_name, arity)
+      Helpers.object_property(import_iri, Structure.excludesFunction(), func_iri)
+    end)
+  end
+
+  defp build_excluded_function_triples(_import_iri, _except, _imported_module, _context), do: []
 end

@@ -3,6 +3,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
 
   alias ElixirOntologies.Builders.{DependencyBuilder, Context}
   alias ElixirOntologies.Extractors.Directive.Alias.AliasDirective
+  alias ElixirOntologies.Extractors.Directive.Import.ImportDirective
   alias ElixirOntologies.NS.Structure
 
   doctest ElixirOntologies.Builders.DependencyBuilder
@@ -197,6 +198,349 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
 
       assert has_alias_0
       assert has_alias_1
+    end
+  end
+
+  # ===========================================================================
+  # Import Dependency Tests
+  # ===========================================================================
+
+  describe "build_import_dependency/4" do
+    test "generates correct import IRI" do
+      import_info = %ImportDirective{module: [:Enum]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, _triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      assert to_string(import_iri) == "#{@base_iri}MyApp/import/0"
+    end
+
+    test "generates correct import IRI with index" do
+      import_info = %ImportDirective{module: [:String]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, _triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 3)
+
+      assert to_string(import_iri) == "#{@base_iri}MyApp/import/3"
+    end
+
+    test "generates rdf:type Import triple" do
+      import_info = %ImportDirective{module: [:Enum]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      type_triple = {import_iri, RDF.type(), Structure.Import}
+      assert type_triple in triples
+    end
+
+    test "generates importsModule triple" do
+      import_info = %ImportDirective{module: [:Enum]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      imported_module_iri = RDF.iri("#{@base_iri}Enum")
+      imports_module_triple = {import_iri, Structure.importsModule(), imported_module_iri}
+      assert imports_module_triple in triples
+    end
+
+    test "generates hasImport triple linking module to import" do
+      import_info = %ImportDirective{module: [:Enum]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      has_import_triple = {module_iri, Structure.hasImport(), import_iri}
+      assert has_import_triple in triples
+    end
+
+    test "generates isFullImport true for full import" do
+      import_info = %ImportDirective{module: [:Enum]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      full_import_triple = Enum.find(triples, fn
+        {^import_iri, pred, _} -> pred == Structure.isFullImport()
+        _ -> false
+      end)
+
+      assert full_import_triple != nil
+      {_, _, literal} = full_import_triple
+      assert RDF.Literal.value(literal) == true
+    end
+
+    test "generates isFullImport false for selective import" do
+      import_info = %ImportDirective{module: [:Enum], only: [map: 2]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      full_import_triple = Enum.find(triples, fn
+        {^import_iri, pred, _} -> pred == Structure.isFullImport()
+        _ -> false
+      end)
+
+      assert full_import_triple != nil
+      {_, _, literal} = full_import_triple
+      assert RDF.Literal.value(literal) == false
+    end
+
+    test "returns 4 triples for full import" do
+      import_info = %ImportDirective{module: [:Enum]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {_import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      assert length(triples) == 4
+    end
+
+    test "handles multi-part module names" do
+      import_info = %ImportDirective{module: [:MyApp, :Accounts, :Users]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      imported_module_iri = RDF.iri("#{@base_iri}MyApp.Accounts.Users")
+      imports_module_triple = {import_iri, Structure.importsModule(), imported_module_iri}
+      assert imports_module_triple in triples
+    end
+  end
+
+  describe "build_import_dependency/4 with only: [func: arity]" do
+    test "generates importsFunction triples for each imported function" do
+      import_info = %ImportDirective{module: [:Enum], only: [map: 2, filter: 2]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      map_func_iri = RDF.iri("#{@base_iri}Enum/map/2")
+      filter_func_iri = RDF.iri("#{@base_iri}Enum/filter/2")
+
+      map_triple = {import_iri, Structure.importsFunction(), map_func_iri}
+      filter_triple = {import_iri, Structure.importsFunction(), filter_func_iri}
+
+      assert map_triple in triples
+      assert filter_triple in triples
+    end
+
+    test "returns 6 triples for import with 2 functions" do
+      import_info = %ImportDirective{module: [:Enum], only: [map: 2, filter: 2]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {_import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      # 4 base + 2 function triples
+      assert length(triples) == 6
+    end
+
+    test "handles single function import" do
+      import_info = %ImportDirective{module: [:String], only: [upcase: 1]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      func_iri = RDF.iri("#{@base_iri}String/upcase/1")
+      func_triple = {import_iri, Structure.importsFunction(), func_iri}
+
+      assert func_triple in triples
+    end
+  end
+
+  describe "build_import_dependency/4 with except:" do
+    test "generates excludesFunction triples for each excluded function" do
+      import_info = %ImportDirective{module: [:Enum], except: [reduce: 3, each: 2]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      reduce_func_iri = RDF.iri("#{@base_iri}Enum/reduce/3")
+      each_func_iri = RDF.iri("#{@base_iri}Enum/each/2")
+
+      reduce_triple = {import_iri, Structure.excludesFunction(), reduce_func_iri}
+      each_triple = {import_iri, Structure.excludesFunction(), each_func_iri}
+
+      assert reduce_triple in triples
+      assert each_triple in triples
+    end
+
+    test "returns 6 triples for import with 2 excluded functions" do
+      import_info = %ImportDirective{module: [:Enum], except: [reduce: 3, each: 2]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {_import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      # 4 base + 2 excluded function triples
+      assert length(triples) == 6
+    end
+
+    test "isFullImport is false for except import" do
+      import_info = %ImportDirective{module: [:Enum], except: [reduce: 3]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      full_import_triple = Enum.find(triples, fn
+        {^import_iri, pred, _} -> pred == Structure.isFullImport()
+        _ -> false
+      end)
+
+      {_, _, literal} = full_import_triple
+      assert RDF.Literal.value(literal) == false
+    end
+  end
+
+  describe "build_import_dependency/4 with type-based imports" do
+    test "generates importType triple for :functions" do
+      import_info = %ImportDirective{module: [:Kernel], only: :functions}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      type_triple = Enum.find(triples, fn
+        {^import_iri, pred, _} -> pred == Structure.importType()
+        _ -> false
+      end)
+
+      assert type_triple != nil
+      {_, _, literal} = type_triple
+      assert RDF.Literal.value(literal) == "functions"
+    end
+
+    test "generates importType triple for :macros" do
+      import_info = %ImportDirective{module: [:Kernel], only: :macros}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      type_triple = Enum.find(triples, fn
+        {^import_iri, pred, _} -> pred == Structure.importType()
+        _ -> false
+      end)
+
+      assert type_triple != nil
+      {_, _, literal} = type_triple
+      assert RDF.Literal.value(literal) == "macros"
+    end
+
+    test "generates importType triple for :sigils" do
+      import_info = %ImportDirective{module: [:Kernel], only: :sigils}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      type_triple = Enum.find(triples, fn
+        {^import_iri, pred, _} -> pred == Structure.importType()
+        _ -> false
+      end)
+
+      assert type_triple != nil
+      {_, _, literal} = type_triple
+      assert RDF.Literal.value(literal) == "sigils"
+    end
+
+    test "returns 5 triples for type-based import" do
+      import_info = %ImportDirective{module: [:Kernel], only: :macros}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {_import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      # 4 base + 1 importType triple
+      assert length(triples) == 5
+    end
+  end
+
+  describe "build_import_dependencies/3" do
+    test "returns empty list for empty imports" do
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      triples = DependencyBuilder.build_import_dependencies([], module_iri, context)
+
+      assert triples == []
+    end
+
+    test "generates triples for single import" do
+      imports = [%ImportDirective{module: [:Enum]}]
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      triples = DependencyBuilder.build_import_dependencies(imports, module_iri, context)
+
+      assert length(triples) == 4
+    end
+
+    test "generates triples for multiple imports" do
+      imports = [
+        %ImportDirective{module: [:Enum]},
+        %ImportDirective{module: [:String]},
+        %ImportDirective{module: [:List]}
+      ]
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      triples = DependencyBuilder.build_import_dependencies(imports, module_iri, context)
+
+      # 3 imports * 4 triples each = 12 triples
+      assert length(triples) == 12
+    end
+
+    test "assigns sequential indices to imports" do
+      imports = [
+        %ImportDirective{module: [:Enum]},
+        %ImportDirective{module: [:String]}
+      ]
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      triples = DependencyBuilder.build_import_dependencies(imports, module_iri, context)
+
+      # Check that we have import/0 and import/1
+      import_0_iri = RDF.iri("#{@base_iri}MyApp/import/0")
+      import_1_iri = RDF.iri("#{@base_iri}MyApp/import/1")
+
+      has_import_0 = Enum.any?(triples, fn {s, _, _} -> s == import_0_iri end)
+      has_import_1 = Enum.any?(triples, fn {s, _, _} -> s == import_1_iri end)
+
+      assert has_import_0
+      assert has_import_1
+    end
+
+    test "handles mixed import types" do
+      imports = [
+        %ImportDirective{module: [:Enum]},
+        %ImportDirective{module: [:String], only: [upcase: 1]},
+        %ImportDirective{module: [:Kernel], only: :macros}
+      ]
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      triples = DependencyBuilder.build_import_dependencies(imports, module_iri, context)
+
+      # First import: 4 triples (full)
+      # Second import: 5 triples (4 base + 1 function)
+      # Third import: 5 triples (4 base + 1 importType)
+      assert length(triples) == 14
     end
   end
 end

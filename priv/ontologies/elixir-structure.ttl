@@ -846,6 +846,43 @@
     rdfs:domain :Module ;
     rdfs:range :ModuleAlias .
 
+# Import dependency properties
+:importsModule a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "imports module"@en ;
+    rdfs:comment "The module from which functions are imported."@en ;
+    rdfs:domain :Import ;
+    rdfs:range :Module .
+
+:hasImport a owl:ObjectProperty ;
+    rdfs:label "has import"@en ;
+    rdfs:comment "Links a module to its import directives."@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Import .
+
+:importsFunction a owl:ObjectProperty ;
+    rdfs:label "imports function"@en ;
+    rdfs:comment "A function explicitly imported via the only: option."@en ;
+    rdfs:domain :Import ;
+    rdfs:range :Function .
+
+:excludesFunction a owl:ObjectProperty ;
+    rdfs:label "excludes function"@en ;
+    rdfs:comment "A function explicitly excluded via the except: option."@en ;
+    rdfs:domain :Import ;
+    rdfs:range :Function .
+
+:importType a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "import type"@en ;
+    rdfs:comment "Type-based import selector: 'functions', 'macros', or 'sigils'."@en ;
+    rdfs:domain :Import ;
+    rdfs:range xsd:string .
+
+:isFullImport a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is full import"@en ;
+    rdfs:comment "True if this import has no only/except restrictions."@en ;
+    rdfs:domain :Import ;
+    rdfs:range xsd:boolean .
+
 # Function identity - CRITICAL: arity is intrinsic
 :functionName a owl:DatatypeProperty, owl:FunctionalProperty ;
     rdfs:label "function name"@en ;
