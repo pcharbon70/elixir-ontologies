@@ -211,25 +211,25 @@ Link directives to actual module definitions when available in analysis scope.
 - [x] Test use dependency RDF generation
 - [x] Test cross-module linking
 - [x] Test external module reference handling
-- [ ] Test dependency graph completeness
-- [ ] Test SHACL validation of dependency graph
+- [x] Test dependency graph completeness
+- [x] Test SHACL validation of dependency graph
 
 ## Phase 16 Integration Tests
 
-- [ ] **Phase 16 Integration Tests** (15+ tests)
+- [x] **Phase 16 Integration Tests** (35 tests)
 
-- [ ] Test complete directive extraction for complex module
-- [ ] Test module dependency graph generation
-- [ ] Test multi-module analysis with cross-references
-- [ ] Test directive RDF validates against shapes
-- [ ] Test Pipeline integration with directive extractors
-- [ ] Test Orchestrator coordinates dependency builders
-- [ ] Test alias resolution across modules
-- [ ] Test import conflict detection accuracy
-- [ ] Test use option extraction completeness
-- [ ] Test lexical scope tracking accuracy
-- [ ] Test external dependency marking
-- [ ] Test circular dependency detection
-- [ ] Test multi-alias expansion correctness
-- [ ] Test backward compatibility with existing module extraction
-- [ ] Test error handling for malformed directives
+- [x] Test complete directive extraction for complex module
+- [x] Test module dependency graph generation
+- [x] Test multi-module analysis with cross-references
+- [x] Test directive RDF validates against shapes
+- [x] Test Pipeline integration with directive extractors
+- [x] Test Orchestrator coordinates dependency builders
+- [x] Test alias resolution across modules
+- [x] Test import conflict detection accuracy
+- [x] Test use option extraction completeness
+- [x] Test lexical scope tracking accuracy
+- [x] Test external dependency marking
+- [x] Test circular dependency detection (via cross-module linking)
+- [x] Test multi-alias expansion correctness
+- [x] Test backward compatibility with existing module extraction
+- [x] Test error handling for malformed directives
