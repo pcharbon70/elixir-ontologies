@@ -205,16 +205,16 @@ Generate RDF triples for function calls.
 - [x] 17.4.1.6 Add function call builder tests
 
 ### 17.4.2 Control Flow Builder
-- [ ] **Task 17.4.2 Pending**
+- [x] **Task 17.4.2 Complete**
 
 Generate RDF triples for control flow structures.
 
-- [ ] 17.4.2.1 Implement `build_conditional/3` for if/unless/cond
-- [ ] 17.4.2.2 Generate `rdf:type core:ConditionalExpression` triple
-- [ ] 17.4.2.3 Generate `core:hasCondition` linking to condition expression
-- [ ] 17.4.2.4 Generate `core:hasBranch` for each branch
-- [ ] 17.4.2.5 Implement `build_case_expression/3` for case/with
-- [ ] 17.4.2.6 Add control flow builder tests
+- [x] 17.4.2.1 Implement `build_conditional/3` for if/unless/cond
+- [x] 17.4.2.2 Generate `rdf:type core:ConditionalExpression` triple
+- [x] 17.4.2.3 Generate `core:hasCondition` linking to condition expression
+- [x] 17.4.2.4 Generate `core:hasBranch` for each branch
+- [x] 17.4.2.5 Implement `build_case_expression/3` for case/with
+- [x] 17.4.2.6 Add control flow builder tests
 
 ### 17.4.3 Exception Builder
 - [ ] **Task 17.4.3 Pending**
