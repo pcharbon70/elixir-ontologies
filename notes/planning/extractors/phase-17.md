@@ -19,16 +19,16 @@ Extract calls to functions defined in the same module (local calls).
 - [x] 17.1.1.6 Add local call extraction tests
 
 ### 17.1.2 Remote Function Call Extraction
-- [ ] **Task 17.1.2 Pending**
+- [x] **Task 17.1.2 Complete**
 
 Extract calls to functions in other modules (remote calls via Module.function).
 
-- [ ] 17.1.2.1 Implement `extract_remote_calls/1` for `Module.function(args)` pattern
-- [ ] 17.1.2.2 Define `%FunctionCall{type: :remote, module: ..., name: ..., arity: ...}` fields
-- [ ] 17.1.2.3 Handle aliased module calls (resolve alias to full module name)
-- [ ] 17.1.2.4 Handle imported function calls (resolve to source module)
-- [ ] 17.1.2.5 Track whether module is aliased or full name
-- [ ] 17.1.2.6 Add remote call extraction tests
+- [x] 17.1.2.1 Implement `extract_remote_calls/1` for `Module.function(args)` pattern
+- [x] 17.1.2.2 Define `%FunctionCall{type: :remote, module: ..., name: ..., arity: ...}` fields
+- [x] 17.1.2.3 Handle aliased module calls (resolve alias to full module name)
+- [x] 17.1.2.4 Handle imported function calls (resolve to source module)
+- [x] 17.1.2.5 Track whether module is aliased or full name
+- [x] 17.1.2.6 Add remote call extraction tests
 
 ### 17.1.3 Dynamic Call Extraction
 - [ ] **Task 17.1.3 Pending**

@@ -450,4 +450,275 @@ defmodule ElixirOntologies.Extractors.CallTest do
       assert bar_call.location.start_line == 2
     end
   end
+
+  # ===========================================================================
+  # remote_call?/1 Tests
+  # ===========================================================================
+
+  describe "remote_call?/1" do
+    test "returns true for Elixir module call" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
+      assert Call.remote_call?(ast)
+    end
+
+    test "returns true for nested module call" do
+      ast = {{:., [], [{:__aliases__, [], [:MyApp, :Services, :User]}, :create]}, [], [%{}]}
+      assert Call.remote_call?(ast)
+    end
+
+    test "returns true for Erlang module call" do
+      ast = {{:., [], [:ets, :new]}, [], [:table, []]}
+      assert Call.remote_call?(ast)
+    end
+
+    test "returns true for __MODULE__ call" do
+      ast = {{:., [], [{:__MODULE__, [], Elixir}, :helper]}, [], []}
+      assert Call.remote_call?(ast)
+    end
+
+    test "returns true for variable receiver (dynamic)" do
+      ast = {{:., [], [{:mod, [], Elixir}, :func]}, [], [{:x, [], Elixir}]}
+      assert Call.remote_call?(ast)
+    end
+
+    test "returns false for local call" do
+      ast = {:foo, [], []}
+      refute Call.remote_call?(ast)
+    end
+
+    test "returns false for non-tuple" do
+      refute Call.remote_call?(:atom)
+      refute Call.remote_call?("string")
+    end
+  end
+
+  # ===========================================================================
+  # extract_remote/2 Tests
+  # ===========================================================================
+
+  describe "extract_remote/2" do
+    test "extracts Elixir module call" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
+      assert {:ok, call} = Call.extract_remote(ast)
+      assert %FunctionCall{} = call
+      assert call.type == :remote
+      assert call.name == :upcase
+      assert call.module == [:String]
+      assert call.arity == 1
+    end
+
+    test "extracts nested module call" do
+      ast = {{:., [], [{:__aliases__, [], [:MyApp, :Services, :User]}, :create]}, [], [%{}]}
+      assert {:ok, call} = Call.extract_remote(ast)
+      assert call.module == [:MyApp, :Services, :User]
+      assert call.name == :create
+    end
+
+    test "extracts Erlang module call" do
+      ast = {{:., [], [:ets, :new]}, [], [:table, []]}
+      assert {:ok, call} = Call.extract_remote(ast)
+      assert call.module == :ets
+      assert call.name == :new
+      assert call.arity == 2
+      assert call.metadata.erlang_module == true
+    end
+
+    test "extracts __MODULE__ call with metadata" do
+      ast = {{:., [], [{:__MODULE__, [], Elixir}, :helper]}, [], [1, 2]}
+      assert {:ok, call} = Call.extract_remote(ast)
+      assert call.module == :__MODULE__
+      assert call.name == :helper
+      assert call.arity == 2
+      assert call.metadata.current_module == true
+    end
+
+    test "extracts dynamic receiver call with metadata" do
+      ast = {{:., [], [{:mod, [], Elixir}, :func]}, [], [{:x, [], Elixir}]}
+      assert {:ok, call} = Call.extract_remote(ast)
+      assert call.module == :mod
+      assert call.name == :func
+      assert call.metadata.dynamic_receiver == true
+      assert call.metadata.receiver_variable == :mod
+    end
+
+    test "includes location when available" do
+      ast = {{:., [line: 10], [{:__aliases__, [line: 10], [:String]}, :upcase]}, [line: 10, column: 5], ["hello"]}
+      assert {:ok, call} = Call.extract_remote(ast)
+      assert call.location != nil
+    end
+
+    test "respects include_location: false option" do
+      ast = {{:., [line: 10], [{:__aliases__, [], [:String]}, :upcase]}, [line: 10], ["hello"]}
+      assert {:ok, call} = Call.extract_remote(ast, include_location: false)
+      assert call.location == nil
+    end
+
+    test "returns error for local call" do
+      ast = {:foo, [], []}
+      assert {:error, {:not_a_remote_call, _msg}} = Call.extract_remote(ast)
+    end
+  end
+
+  # ===========================================================================
+  # extract_remote!/2 Tests
+  # ===========================================================================
+
+  describe "extract_remote!/2" do
+    test "returns call for valid input" do
+      ast = {{:., [], [{:__aliases__, [], [:Enum]}, :map]}, [], [[1, 2], {:fn, [], []}]}
+      call = Call.extract_remote!(ast)
+      assert call.name == :map
+      assert call.module == [:Enum]
+    end
+
+    test "raises for invalid input" do
+      assert_raise ArgumentError, fn ->
+        Call.extract_remote!({:foo, [], []})
+      end
+    end
+  end
+
+  # ===========================================================================
+  # extract_remote_calls/2 Tests
+  # ===========================================================================
+
+  describe "extract_remote_calls/2" do
+    test "extracts remote calls from list" do
+      body = [
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]},
+        {{:., [], [{:__aliases__, [], [:Enum]}, :map]}, [], [[1, 2], {:fn, [], []}]}
+      ]
+
+      calls = Call.extract_remote_calls(body)
+      assert length(calls) == 2
+      names = Enum.map(calls, & &1.name)
+      assert :upcase in names
+      assert :map in names
+    end
+
+    test "extracts nested remote calls" do
+      # String.upcase(Enum.join(list, ","))
+      ast =
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [],
+         [{{:., [], [{:__aliases__, [], [:Enum]}, :join]}, [], [{:list, [], nil}, ","]}]}
+
+      calls = Call.extract_remote_calls(ast)
+      assert length(calls) == 2
+      modules = Enum.map(calls, & &1.module)
+      assert [:String] in modules
+      assert [:Enum] in modules
+    end
+
+    test "ignores local calls" do
+      body = [
+        {:foo, [], []},
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
+      ]
+
+      calls = Call.extract_remote_calls(body)
+      assert length(calls) == 1
+      assert hd(calls).name == :upcase
+    end
+
+    test "extracts from control flow" do
+      ast =
+        {:if, [],
+         [
+           true,
+           [
+             do: {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["yes"]},
+             else: {{:., [], [{:__aliases__, [], [:String]}, :downcase]}, [], ["no"]}
+           ]
+         ]}
+
+      calls = Call.extract_remote_calls(ast)
+      assert length(calls) == 2
+      names = Enum.map(calls, & &1.name)
+      assert :upcase in names
+      assert :downcase in names
+    end
+  end
+
+  # ===========================================================================
+  # extract_all_calls/2 Tests
+  # ===========================================================================
+
+  describe "extract_all_calls/2" do
+    test "extracts both local and remote calls" do
+      body = [
+        {:foo, [], []},
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
+      ]
+
+      calls = Call.extract_all_calls(body)
+      assert length(calls) == 2
+      types = Enum.map(calls, & &1.type)
+      assert :local in types
+      assert :remote in types
+    end
+
+    test "extracts nested mixed calls" do
+      # process(String.upcase(data))
+      ast =
+        {:process, [],
+         [{{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], [{:data, [], nil}]}]}
+
+      calls = Call.extract_all_calls(ast)
+      assert length(calls) == 2
+      assert Enum.any?(calls, &(&1.name == :process and &1.type == :local))
+      assert Enum.any?(calls, &(&1.name == :upcase and &1.type == :remote))
+    end
+
+    test "extracts from real module code" do
+      {:ok, ast} =
+        Code.string_to_quoted("""
+        defmodule Test do
+          def run(data) do
+            result = process(data)
+            String.upcase(result)
+          end
+
+          defp process(data) do
+            validated = validate(data)
+            Enum.map(validated, fn x -> x end)
+          end
+        end
+        """)
+
+      {:defmodule, _, [_, [do: body]]} = ast
+      calls = Call.extract_all_calls(body)
+
+      local_names = calls |> Enum.filter(&(&1.type == :local)) |> Enum.map(& &1.name)
+      remote_names = calls |> Enum.filter(&(&1.type == :remote)) |> Enum.map(& &1.name)
+
+      assert :process in local_names
+      assert :validate in local_names
+      assert :upcase in remote_names
+      assert :map in remote_names
+    end
+
+    test "handles Erlang module calls" do
+      body = [
+        {{:., [], [:ets, :new]}, [], [:table, []]},
+        {{:., [], [:ets, :insert]}, [], [:table, {:key, :value}]}
+      ]
+
+      calls = Call.extract_all_calls(body)
+      assert length(calls) == 2
+      assert Enum.all?(calls, &(&1.module == :ets))
+    end
+
+    test "handles __MODULE__ calls" do
+      body = [
+        {{:., [], [{:__MODULE__, [], Elixir}, :helper]}, [], []},
+        {:local_func, [], []}
+      ]
+
+      calls = Call.extract_all_calls(body)
+      assert length(calls) == 2
+
+      mod_call = Enum.find(calls, &(&1.module == :__MODULE__))
+      assert mod_call.metadata.current_module == true
+    end
+  end
 end
