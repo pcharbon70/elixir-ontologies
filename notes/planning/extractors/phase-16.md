@@ -181,16 +181,16 @@ Generate RDF triples for import dependencies.
 - [x] 16.4.2.6 Add import dependency tests
 
 ### 16.4.3 Use/Require Dependency Builder
-- [ ] **Task 16.4.3 Pending**
+- [x] **Task 16.4.3 Complete**
 
 Generate RDF triples for use and require dependencies.
 
-- [ ] 16.4.3.1 Implement `build_require_dependency/3` generating require IRI
-- [ ] 16.4.3.2 Generate `rdf:type structure:Require` triple
-- [ ] 16.4.3.3 Implement `build_use_dependency/3` generating use IRI
-- [ ] 16.4.3.4 Generate `rdf:type structure:Use` triple
-- [ ] 16.4.3.5 Generate `structure:hasUseOption` for each option
-- [ ] 16.4.3.6 Add require/use dependency tests
+- [x] 16.4.3.1 Implement `build_require_dependency/4` generating require IRI
+- [x] 16.4.3.2 Generate `rdf:type structure:Require` triple
+- [x] 16.4.3.3 Implement `build_use_dependency/4` generating use IRI
+- [x] 16.4.3.4 Generate `rdf:type structure:Use` triple
+- [x] 16.4.3.5 Generate `structure:hasUseOption` for each option
+- [x] 16.4.3.6 Add require/use dependency tests
 
 ### 16.4.4 Cross-Module Linking
 - [ ] **Task 16.4.4 Pending**
@@ -207,8 +207,8 @@ Link directives to actual module definitions when available in analysis scope.
 **Section 16.4 Unit Tests:**
 - [x] Test alias dependency RDF generation
 - [x] Test import dependency RDF generation
-- [ ] Test require dependency RDF generation
-- [ ] Test use dependency RDF generation
+- [x] Test require dependency RDF generation
+- [x] Test use dependency RDF generation
 - [ ] Test cross-module linking
 - [ ] Test external module reference handling
 - [ ] Test dependency graph completeness

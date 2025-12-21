@@ -883,6 +883,74 @@
     rdfs:domain :Import ;
     rdfs:range xsd:boolean .
 
+# Require dependency properties
+:requireModule a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "require module"@en ;
+    rdfs:comment "The module being required."@en ;
+    rdfs:domain :Require ;
+    rdfs:range :Module .
+
+:hasRequire a owl:ObjectProperty ;
+    rdfs:label "has require"@en ;
+    rdfs:comment "Links a module to its require directives."@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Require .
+
+:requireAlias a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "require alias"@en ;
+    rdfs:comment "The alias name for the required module (from as: option)."@en ;
+    rdfs:domain :Require ;
+    rdfs:range xsd:string .
+
+# Use dependency properties
+:useModule a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "use module"@en ;
+    rdfs:comment "The module being used (whose __using__/1 is invoked)."@en ;
+    rdfs:domain :Use ;
+    rdfs:range :Module .
+
+:hasUse a owl:ObjectProperty ;
+    rdfs:label "has use"@en ;
+    rdfs:comment "Links a module to its use directives."@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Use .
+
+:hasUseOption a owl:ObjectProperty ;
+    rdfs:label "has use option"@en ;
+    rdfs:comment "Links a use directive to its option resources."@en ;
+    rdfs:domain :Use ;
+    rdfs:range :UseOption .
+
+# UseOption class and properties
+:UseOption a owl:Class ;
+    rdfs:label "Use Option"@en ;
+    rdfs:comment "An option passed to a use directive's __using__/1 callback."@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:optionKey a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "option key"@en ;
+    rdfs:comment "The key of a use option (nil for positional options)."@en ;
+    rdfs:domain :UseOption ;
+    rdfs:range xsd:string .
+
+:optionValue a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "option value"@en ;
+    rdfs:comment "The string representation of the option value."@en ;
+    rdfs:domain :UseOption ;
+    rdfs:range xsd:string .
+
+:optionValueType a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "option value type"@en ;
+    rdfs:comment "The type of the option value (atom, string, integer, etc.)."@en ;
+    rdfs:domain :UseOption ;
+    rdfs:range xsd:string .
+
+:isDynamicOption a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is dynamic option"@en ;
+    rdfs:comment "True if the option value cannot be determined at analysis time."@en ;
+    rdfs:domain :UseOption ;
+    rdfs:range xsd:boolean .
+
 # Function identity - CRITICAL: arity is intrinsic
 :functionName a owl:DatatypeProperty, owl:FunctionalProperty ;
     rdfs:label "function name"@en ;

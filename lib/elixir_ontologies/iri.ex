@@ -558,6 +558,31 @@ defmodule ElixirOntologies.IRI do
     append_to_iri(module_iri, "use/#{index}")
   end
 
+  @doc """
+  Generates an IRI for a use directive option.
+
+  Pattern: `{use_iri}/option/{index}`
+
+  ## Parameters
+
+  - `use_iri` - The IRI of the containing use directive
+  - `index` - Zero-based index of the option within the use directive
+
+  ## Examples
+
+      iex> use_iri = RDF.iri("https://example.org/code#MyApp/use/0")
+      iex> ElixirOntologies.IRI.for_use_option(use_iri, 0)
+      ~I<https://example.org/code#MyApp/use/0/option/0>
+
+      iex> use_iri = RDF.iri("https://example.org/code#MyApp.Server/use/1")
+      iex> ElixirOntologies.IRI.for_use_option(use_iri, 2)
+      ~I<https://example.org/code#MyApp.Server/use/1/option/2>
+  """
+  @spec for_use_option(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_use_option(use_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(use_iri, "option/#{index}")
+  end
+
   # ===========================================================================
   # IRI Utilities
   # ===========================================================================

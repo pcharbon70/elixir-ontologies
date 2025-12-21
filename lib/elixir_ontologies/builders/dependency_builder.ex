@@ -11,8 +11,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
 
   - **Aliases** - `alias MyApp.Users, as: U` creates `struct:ModuleAlias`
   - **Imports** - `import Enum, only: [map: 2]` creates `struct:Import`
-  - (Future) **Requires** - creates `struct:Require`
-  - (Future) **Uses** - creates `struct:Use`
+  - **Requires** - `require Logger` creates `struct:Require`
+  - **Uses** - `use GenServer, restart: :temporary` creates `struct:Use`
 
   ## Usage
 
@@ -59,6 +59,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
   alias ElixirOntologies.{IRI, NS}
   alias ElixirOntologies.Extractors.Directive.Alias.AliasDirective
   alias ElixirOntologies.Extractors.Directive.Import.ImportDirective
+  alias ElixirOntologies.Extractors.Directive.Require.RequireDirective
+  alias ElixirOntologies.Extractors.Directive.Use.{UseDirective, UseOption}
   alias NS.Structure
 
   # ===========================================================================
@@ -301,6 +303,238 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
   end
 
   # ===========================================================================
+  # Public API - Require Dependencies
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for a single require directive.
+
+  Creates a Require resource with:
+  - `rdf:type struct:Require` - type classification
+  - `struct:requireModule` - link to the required module
+  - `struct:requireAlias` - optional alias name (if `as:` is specified)
+  - Link from containing module via `struct:hasRequire`
+
+  ## Parameters
+
+  - `require_info` - RequireDirective struct from extraction
+  - `module_iri` - IRI of the containing module
+  - `context` - Builder context with base IRI
+  - `index` - Zero-based index of the require within the module
+
+  ## Returns
+
+  A tuple `{require_iri, triples}` where:
+  - `require_iri` - The IRI of the require resource
+  - `triples` - List of RDF triples describing the require
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{DependencyBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Directive.Require.RequireDirective
+      iex> require_info = %RequireDirective{module: [:Logger]}
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      iex> to_string(require_iri)
+      "https://example.org/code#MyApp/require/0"
+      iex> length(triples)
+      3
+
+      iex> alias ElixirOntologies.Builders.{DependencyBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Directive.Require.RequireDirective
+      iex> require_info = %RequireDirective{module: [:Logger], as: :L}
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {_require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      iex> length(triples)
+      4
+  """
+  @spec build_require_dependency(RequireDirective.t(), RDF.IRI.t(), Context.t(), non_neg_integer()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
+  def build_require_dependency(require_info, module_iri, context, index) do
+    # Generate require IRI
+    require_iri = IRI.for_require(module_iri, index)
+
+    # Get required module IRI
+    required_module_name = module_name_string(require_info.module)
+    required_module_iri = IRI.for_module(context.base_iri, required_module_name)
+
+    # Build base triples
+    base_triples = [
+      # Type triple
+      Helpers.type_triple(require_iri, Structure.Require),
+      # Link to required module
+      Helpers.object_property(require_iri, Structure.requireModule(), required_module_iri),
+      # Link from containing module
+      Helpers.object_property(module_iri, Structure.hasRequire(), require_iri)
+    ]
+
+    # Add alias triple if present
+    alias_triples = build_require_alias_triple(require_iri, require_info.as)
+
+    triples = base_triples ++ alias_triples
+
+    {require_iri, triples}
+  end
+
+  @doc """
+  Builds RDF triples for all require directives in a module.
+
+  Calls `build_require_dependency/4` for each require and aggregates the results.
+
+  ## Parameters
+
+  - `requires` - List of RequireDirective structs
+  - `module_iri` - IRI of the containing module
+  - `context` - Builder context with base IRI
+
+  ## Returns
+
+  A list of all generated RDF triples.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{DependencyBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Directive.Require.RequireDirective
+      iex> requires = [
+      ...>   %RequireDirective{module: [:Logger]},
+      ...>   %RequireDirective{module: [:Ecto, :Query], as: :Q}
+      ...> ]
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> triples = DependencyBuilder.build_require_dependencies(requires, module_iri, context)
+      iex> length(triples)
+      7
+  """
+  @spec build_require_dependencies([RequireDirective.t()], RDF.IRI.t(), Context.t()) ::
+          [RDF.Triple.t()]
+  def build_require_dependencies(requires, module_iri, context) do
+    requires
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {require_info, index} ->
+      {_require_iri, triples} = build_require_dependency(require_info, module_iri, context, index)
+      triples
+    end)
+  end
+
+  # ===========================================================================
+  # Public API - Use Dependencies
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for a single use directive.
+
+  Creates a Use resource with:
+  - `rdf:type struct:Use` - type classification
+  - `struct:useModule` - link to the used module
+  - `struct:hasUseOption` - links to option resources (if options present)
+  - Link from containing module via `struct:hasUse`
+
+  ## Parameters
+
+  - `use_info` - UseDirective struct from extraction
+  - `module_iri` - IRI of the containing module
+  - `context` - Builder context with base IRI
+  - `index` - Zero-based index of the use within the module
+
+  ## Returns
+
+  A tuple `{use_iri, triples}` where:
+  - `use_iri` - The IRI of the use resource
+  - `triples` - List of RDF triples describing the use
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{DependencyBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Directive.Use.UseDirective
+      iex> use_info = %UseDirective{module: [:GenServer]}
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      iex> to_string(use_iri)
+      "https://example.org/code#MyApp/use/0"
+      iex> length(triples)
+      3
+
+      iex> alias ElixirOntologies.Builders.{DependencyBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Directive.Use.UseDirective
+      iex> use_info = %UseDirective{module: [:GenServer], options: [restart: :temporary]}
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      iex> length(triples)
+      9
+  """
+  @spec build_use_dependency(UseDirective.t(), RDF.IRI.t(), Context.t(), non_neg_integer()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
+  def build_use_dependency(use_info, module_iri, context, index) do
+    # Generate use IRI
+    use_iri = IRI.for_use(module_iri, index)
+
+    # Get used module IRI
+    used_module_name = module_name_string(use_info.module)
+    used_module_iri = IRI.for_module(context.base_iri, used_module_name)
+
+    # Build base triples
+    base_triples = [
+      # Type triple
+      Helpers.type_triple(use_iri, Structure.Use),
+      # Link to used module
+      Helpers.object_property(use_iri, Structure.useModule(), used_module_iri),
+      # Link from containing module
+      Helpers.object_property(module_iri, Structure.hasUse(), use_iri)
+    ]
+
+    # Build option triples if present
+    option_triples = build_use_option_triples(use_iri, use_info.options)
+
+    triples = base_triples ++ option_triples
+
+    {use_iri, triples}
+  end
+
+  @doc """
+  Builds RDF triples for all use directives in a module.
+
+  Calls `build_use_dependency/4` for each use and aggregates the results.
+
+  ## Parameters
+
+  - `uses` - List of UseDirective structs
+  - `module_iri` - IRI of the containing module
+  - `context` - Builder context with base IRI
+
+  ## Returns
+
+  A list of all generated RDF triples.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{DependencyBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Directive.Use.UseDirective
+      iex> uses = [
+      ...>   %UseDirective{module: [:GenServer]},
+      ...>   %UseDirective{module: [:Supervisor], options: [strategy: :one_for_one]}
+      ...> ]
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> triples = DependencyBuilder.build_use_dependencies(uses, module_iri, context)
+      iex> length(triples)
+      12
+  """
+  @spec build_use_dependencies([UseDirective.t()], RDF.IRI.t(), Context.t()) ::
+          [RDF.Triple.t()]
+  def build_use_dependencies(uses, module_iri, context) do
+    uses
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {use_info, index} ->
+      {_use_iri, triples} = build_use_dependency(use_info, module_iri, context, index)
+      triples
+    end)
+  end
+
+  # ===========================================================================
   # Private Helpers
   # ===========================================================================
 
@@ -360,4 +594,147 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
   end
 
   defp build_excluded_function_triples(_import_iri, _except, _imported_module, _context), do: []
+
+  # ===========================================================================
+  # Private Helpers - Require
+  # ===========================================================================
+
+  # Build require alias triple if as: is present
+  defp build_require_alias_triple(require_iri, as_name) when is_atom(as_name) and not is_nil(as_name) do
+    alias_string = Atom.to_string(as_name)
+    [Helpers.datatype_property(require_iri, Structure.requireAlias(), alias_string, RDF.XSD.String)]
+  end
+
+  defp build_require_alias_triple(_require_iri, _as_name), do: []
+
+  # ===========================================================================
+  # Private Helpers - Use
+  # ===========================================================================
+
+  # Build option triples for use directive options
+  defp build_use_option_triples(use_iri, [_ | _] = options) do
+    options
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {option, index} ->
+      build_single_use_option_triples(use_iri, option, index)
+    end)
+  end
+
+  defp build_use_option_triples(_use_iri, _options), do: []
+
+  # Build triples for a single use option
+  defp build_single_use_option_triples(use_iri, {key, value}, index) when is_atom(key) do
+    option_iri = IRI.for_use_option(use_iri, index)
+
+    # Determine value type and string representation
+    {value_type, value_string, is_dynamic} = analyze_option_value(value)
+
+    [
+      # Type triple
+      Helpers.type_triple(option_iri, Structure.UseOption),
+      # Link from use directive
+      Helpers.object_property(use_iri, Structure.hasUseOption(), option_iri),
+      # Option key
+      Helpers.datatype_property(option_iri, Structure.optionKey(), Atom.to_string(key), RDF.XSD.String),
+      # Option value
+      Helpers.datatype_property(option_iri, Structure.optionValue(), value_string, RDF.XSD.String),
+      # Value type
+      Helpers.datatype_property(option_iri, Structure.optionValueType(), value_type, RDF.XSD.String),
+      # Dynamic flag
+      Helpers.datatype_property(option_iri, Structure.isDynamicOption(), is_dynamic, RDF.XSD.Boolean)
+    ]
+  end
+
+  # Handle UseOption struct (from analyze_options)
+  defp build_single_use_option_triples(use_iri, %UseOption{} = opt, index) do
+    option_iri = IRI.for_use_option(use_iri, index)
+
+    key_string = if opt.key, do: Atom.to_string(opt.key), else: ""
+    value_string = format_option_value(opt.value)
+    value_type = Atom.to_string(opt.value_type)
+
+    [
+      # Type triple
+      Helpers.type_triple(option_iri, Structure.UseOption),
+      # Link from use directive
+      Helpers.object_property(use_iri, Structure.hasUseOption(), option_iri),
+      # Option key
+      Helpers.datatype_property(option_iri, Structure.optionKey(), key_string, RDF.XSD.String),
+      # Option value
+      Helpers.datatype_property(option_iri, Structure.optionValue(), value_string, RDF.XSD.String),
+      # Value type
+      Helpers.datatype_property(option_iri, Structure.optionValueType(), value_type, RDF.XSD.String),
+      # Dynamic flag
+      Helpers.datatype_property(option_iri, Structure.isDynamicOption(), opt.dynamic, RDF.XSD.Boolean)
+    ]
+  end
+
+  # Handle positional (non-keyword) options like `use MyApp.Web, :controller`
+  defp build_single_use_option_triples(use_iri, value, index) do
+    option_iri = IRI.for_use_option(use_iri, index)
+
+    {value_type, value_string, is_dynamic} = analyze_option_value(value)
+
+    [
+      # Type triple
+      Helpers.type_triple(option_iri, Structure.UseOption),
+      # Link from use directive
+      Helpers.object_property(use_iri, Structure.hasUseOption(), option_iri),
+      # Option key (empty for positional)
+      Helpers.datatype_property(option_iri, Structure.optionKey(), "", RDF.XSD.String),
+      # Option value
+      Helpers.datatype_property(option_iri, Structure.optionValue(), value_string, RDF.XSD.String),
+      # Value type
+      Helpers.datatype_property(option_iri, Structure.optionValueType(), value_type, RDF.XSD.String),
+      # Dynamic flag
+      Helpers.datatype_property(option_iri, Structure.isDynamicOption(), is_dynamic, RDF.XSD.Boolean)
+    ]
+  end
+
+  # Analyze an option value and return {type_string, value_string, is_dynamic}
+  # Note: boolean check must come before atom since is_atom(true) returns true
+  defp analyze_option_value(value) when is_boolean(value) do
+    {"boolean", Atom.to_string(value), false}
+  end
+
+  defp analyze_option_value(nil) do
+    {"nil", "nil", false}
+  end
+
+  defp analyze_option_value(value) when is_atom(value) do
+    {"atom", Atom.to_string(value), false}
+  end
+
+  defp analyze_option_value(value) when is_binary(value) do
+    {"string", value, false}
+  end
+
+  defp analyze_option_value(value) when is_integer(value) do
+    {"integer", Integer.to_string(value), false}
+  end
+
+  defp analyze_option_value(value) when is_float(value) do
+    {"float", Float.to_string(value), false}
+  end
+
+  defp analyze_option_value(value) when is_list(value) do
+    {"list", inspect(value), false}
+  end
+
+  defp analyze_option_value(value) when is_tuple(value) do
+    {"tuple", inspect(value), false}
+  end
+
+  defp analyze_option_value(_value) do
+    {"dynamic", "<dynamic>", true}
+  end
+
+  # Format an option value as a string
+  defp format_option_value(value) when is_atom(value), do: Atom.to_string(value)
+  defp format_option_value(value) when is_binary(value), do: value
+  defp format_option_value(value) when is_integer(value), do: Integer.to_string(value)
+  defp format_option_value(value) when is_float(value), do: Float.to_string(value)
+  defp format_option_value(value) when is_boolean(value), do: Atom.to_string(value)
+  defp format_option_value(nil), do: "nil"
+  defp format_option_value(value), do: inspect(value)
 end
