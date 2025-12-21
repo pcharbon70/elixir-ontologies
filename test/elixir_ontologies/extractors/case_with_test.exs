@@ -2,7 +2,15 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.CaseWith
-  alias ElixirOntologies.Extractors.CaseWith.{CaseClause, CaseExpression, WithClause, WithExpression}
+
+  alias ElixirOntologies.Extractors.CaseWith.{
+    AfterClause,
+    CaseClause,
+    CaseExpression,
+    ReceiveExpression,
+    WithClause,
+    WithExpression
+  }
 
   doctest CaseWith
 
@@ -661,6 +669,333 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
 
       assert length(case_exprs) == 1
       assert length(with_exprs) == 1
+    end
+  end
+
+  # ===========================================================================
+  # Receive Type Detection Tests
+  # ===========================================================================
+
+  describe "receive_expression?/1" do
+    test "returns true for basic receive" do
+      ast = {:receive, [], [[do: [{:->, [], [[:ping], :pong]}]]]}
+      assert CaseWith.receive_expression?(ast)
+    end
+
+    test "returns true for receive with after" do
+      ast = {:receive, [], [[do: [], after: [{:->, [], [[0], :timeout]}]]]}
+      assert CaseWith.receive_expression?(ast)
+    end
+
+    test "returns false for case expression" do
+      ast = {:case, [], [{:x, [], nil}, [do: [{:->, [], [[:a], 1]}]]]}
+      refute CaseWith.receive_expression?(ast)
+    end
+
+    test "returns false for with expression" do
+      ast = {:with, [], [{:<-, [], [:ok, {:get, [], []}]}, [do: :ok]]}
+      refute CaseWith.receive_expression?(ast)
+    end
+
+    test "returns false for function call" do
+      ast = {:foo, [], []}
+      refute CaseWith.receive_expression?(ast)
+    end
+  end
+
+  # ===========================================================================
+  # Receive Extraction Tests
+  # ===========================================================================
+
+  describe "extract_receive/2" do
+    test "extracts receive with single clause" do
+      ast = {:receive, [], [[do: [{:->, [], [[:ping], :pong]}]]]}
+
+      assert {:ok, expr} = CaseWith.extract_receive(ast)
+      assert %ReceiveExpression{} = expr
+      assert length(expr.clauses) == 1
+      assert expr.has_after == false
+      assert expr.after_clause == nil
+    end
+
+    test "extracts receive with multiple clauses" do
+      ast = {:receive, [], [[do: [
+        {:->, [], [[:ping], :pong]},
+        {:->, [], [[{:msg, {:data, [], nil}}], {:data, [], nil}]},
+        {:->, [], [[{:_, [], nil}], :unknown]}
+      ]]]}
+
+      assert {:ok, expr} = CaseWith.extract_receive(ast)
+      assert length(expr.clauses) == 3
+      assert expr.metadata.clause_count == 3
+    end
+
+    test "extracts clause patterns" do
+      ast = {:receive, [], [[do: [
+        {:->, [], [[{:msg, {:data, [], nil}}], {:data, [], nil}]},
+        {:->, [], [[:ping], :pong]}
+      ]]]}
+
+      assert {:ok, expr} = CaseWith.extract_receive(ast)
+      [clause1, clause2] = expr.clauses
+
+      assert clause1.pattern == {:msg, {:data, [], nil}}
+      assert clause2.pattern == :ping
+    end
+
+    test "extracts clauses with guards" do
+      ast = {:receive, [], [[do: [
+        {:->, [], [[{:when, [], [{:n, [], nil}, {:>, [], [{:n, [], nil}, 0]}]}], :positive]}
+      ]]]}
+
+      assert {:ok, expr} = CaseWith.extract_receive(ast)
+      [clause] = expr.clauses
+
+      assert clause.has_guard == true
+      assert clause.pattern == {:n, [], nil}
+      assert clause.guard == {:>, [], [{:n, [], nil}, 0]}
+    end
+
+    test "extracts receive with after clause" do
+      ast = {:receive, [], [[
+        do: [{:->, [], [[:msg], :ok]}],
+        after: [{:->, [], [[5000], :timeout]}]
+      ]]}
+
+      assert {:ok, expr} = CaseWith.extract_receive(ast)
+      assert expr.has_after == true
+      assert %AfterClause{} = expr.after_clause
+      assert expr.after_clause.timeout == 5000
+      assert expr.after_clause.body == :timeout
+      assert expr.after_clause.is_immediate == false
+    end
+
+    test "detects immediate timeout (timeout 0)" do
+      ast = {:receive, [], [[
+        do: [{:->, [], [[:msg], :ok]}],
+        after: [{:->, [], [[0], :no_messages]}]
+      ]]}
+
+      assert {:ok, expr} = CaseWith.extract_receive(ast)
+      assert expr.after_clause.is_immediate == true
+      assert expr.metadata.has_immediate_timeout == true
+    end
+
+    test "extracts receive with only after (empty do block)" do
+      ast = {:receive, [], [[do: {:__block__, [], []}, after: [{:->, [], [[0], :timeout]}]]]}
+
+      assert {:ok, expr} = CaseWith.extract_receive(ast)
+      assert expr.clauses == []
+      assert expr.has_after == true
+      assert expr.after_clause.timeout == 0
+    end
+
+    test "tracks blocking in metadata" do
+      # Receive without after is blocking
+      ast_blocking = {:receive, [], [[do: [{:->, [], [[:msg], :ok]}]]]}
+
+      # Receive with non-zero after is still potentially blocking
+      ast_with_timeout = {:receive, [], [[
+        do: [{:->, [], [[:msg], :ok]}],
+        after: [{:->, [], [[5000], :timeout]}]
+      ]]}
+
+      # Receive with timeout 0 is non-blocking
+      ast_immediate = {:receive, [], [[
+        do: [{:->, [], [[:msg], :ok]}],
+        after: [{:->, [], [[0], :no_messages]}]
+      ]]}
+
+      assert {:ok, blocking} = CaseWith.extract_receive(ast_blocking)
+      assert {:ok, with_timeout} = CaseWith.extract_receive(ast_with_timeout)
+      assert {:ok, immediate} = CaseWith.extract_receive(ast_immediate)
+
+      assert blocking.metadata.is_blocking == true
+      assert with_timeout.metadata.is_blocking == true
+      assert immediate.metadata.is_blocking == false
+    end
+
+    test "returns error for non-receive expression" do
+      ast = {:case, [], [{:x, [], nil}, [do: []]]}
+      assert {:error, {:not_a_receive, _}} = CaseWith.extract_receive(ast)
+    end
+  end
+
+  describe "extract_receive!/2" do
+    test "returns expression for valid receive" do
+      ast = {:receive, [], [[do: [{:->, [], [[:ping], :pong]}]]]}
+
+      expr = CaseWith.extract_receive!(ast)
+      assert %ReceiveExpression{} = expr
+    end
+
+    test "raises for invalid input" do
+      ast = {:case, [], [{:x, [], nil}, [do: []]]}
+
+      assert_raise ArgumentError, fn ->
+        CaseWith.extract_receive!(ast)
+      end
+    end
+  end
+
+  # ===========================================================================
+  # Receive Bulk Extraction Tests
+  # ===========================================================================
+
+  describe "extract_receive_expressions/2" do
+    test "extracts single receive from list" do
+      body = [{:receive, [], [[do: [{:->, [], [[:a], 1]}]]]}]
+
+      exprs = CaseWith.extract_receive_expressions(body)
+      assert length(exprs) == 1
+    end
+
+    test "extracts multiple receives from list" do
+      body = [
+        {:receive, [], [[do: [{:->, [], [[:a], 1]}]]]},
+        {:foo, [], []},
+        {:receive, [], [[do: [{:->, [], [[:b], 2]}]]]}
+      ]
+
+      exprs = CaseWith.extract_receive_expressions(body)
+      assert length(exprs) == 2
+    end
+
+    test "extracts nested receive expressions" do
+      inner = {:receive, [], [[do: [{:->, [], [[:inner], :inner]}]]]}
+      outer = {:receive, [], [[do: [{:->, [], [[:outer], inner]}]]]}
+
+      exprs = CaseWith.extract_receive_expressions(outer)
+      assert length(exprs) == 2
+    end
+
+    test "does not extract case or with expressions" do
+      body = [
+        {:receive, [], [[do: [{:->, [], [[:msg], :ok]}]]]},
+        {:case, [], [{:x, [], nil}, [do: [{:->, [], [[:a], 1]}]]]},
+        {:with, [], [{:<-, [], [:ok, {:get, [], []}]}, [do: :ok]]}
+      ]
+
+      exprs = CaseWith.extract_receive_expressions(body)
+      assert length(exprs) == 1
+    end
+
+    test "returns empty list for non-receive AST" do
+      ast = {:foo, [], [{:bar, [], []}]}
+
+      exprs = CaseWith.extract_receive_expressions(ast)
+      assert exprs == []
+    end
+  end
+
+  # ===========================================================================
+  # Receive Struct Field Tests
+  # ===========================================================================
+
+  describe "AfterClause struct" do
+    test "has required fields" do
+      clause = %AfterClause{timeout: 5000, body: :timeout}
+      assert clause.timeout == 5000
+      assert clause.body == :timeout
+      assert clause.is_immediate == false
+      assert clause.location == nil
+    end
+
+    test "enforces required keys" do
+      assert_raise ArgumentError, fn ->
+        struct!(AfterClause, [])
+      end
+    end
+  end
+
+  describe "ReceiveExpression struct" do
+    test "has required fields" do
+      expr = %ReceiveExpression{}
+      assert expr.clauses == []
+      assert expr.after_clause == nil
+      assert expr.has_after == false
+      assert expr.location == nil
+      assert expr.metadata == %{}
+    end
+  end
+
+  # ===========================================================================
+  # Receive Integration Tests
+  # ===========================================================================
+
+  describe "receive integration" do
+    test "extracts receive from GenServer handle_info" do
+      code = """
+      def loop(state) do
+        receive do
+          {:call, from, request} ->
+            {reply, new_state} = handle_call(request, state)
+            send(from, reply)
+            loop(new_state)
+
+          {:cast, request} ->
+            new_state = handle_cast(request, state)
+            loop(new_state)
+
+          :stop ->
+            :ok
+        after
+          5000 ->
+            handle_timeout(state)
+            loop(state)
+        end
+      end
+      """
+
+      {:ok, ast} = Code.string_to_quoted(code)
+      exprs = CaseWith.extract_receive_expressions(ast)
+
+      assert length(exprs) == 1
+      [expr] = exprs
+      assert length(expr.clauses) == 3
+      assert expr.has_after == true
+      assert expr.after_clause.timeout == 5000
+    end
+
+    test "extracts receive with guards from real code" do
+      code = """
+      def receive_data do
+        receive do
+          {:data, n} when n > 0 -> {:positive, n}
+          {:data, n} when n < 0 -> {:negative, n}
+          {:data, 0} -> :zero
+        end
+      end
+      """
+
+      {:ok, ast} = Code.string_to_quoted(code)
+      exprs = CaseWith.extract_receive_expressions(ast)
+
+      assert length(exprs) == 1
+      [expr] = exprs
+
+      guarded = Enum.filter(expr.clauses, & &1.has_guard)
+      assert length(guarded) == 2
+    end
+
+    test "extracts non-blocking receive (timeout 0)" do
+      code = """
+      def flush_mailbox do
+        receive do
+          _msg -> flush_mailbox()
+        after
+          0 -> :done
+        end
+      end
+      """
+
+      {:ok, ast} = Code.string_to_quoted(code)
+      exprs = CaseWith.extract_receive_expressions(ast)
+
+      assert length(exprs) == 1
+      [expr] = exprs
+      assert expr.metadata.is_blocking == false
+      assert expr.metadata.has_immediate_timeout == true
     end
   end
 end

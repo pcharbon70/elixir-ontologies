@@ -93,16 +93,16 @@ Extract case and with expressions with their pattern matching clauses.
 - [x] 17.2.2.6 Add case/with extraction tests
 
 ### 17.2.3 Receive Expression Extraction
-- [ ] **Task 17.2.3 Pending**
+- [x] **Task 17.2.3 Complete**
 
 Extract receive expressions with their message patterns and timeouts.
 
-- [ ] 17.2.3.1 Implement `extract_receive/1` for receive blocks
-- [ ] 17.2.3.2 Define `%ReceiveExpression{clauses: [...], after: ..., location: ...}` struct
-- [ ] 17.2.3.3 Extract message patterns in receive clauses
-- [ ] 17.2.3.4 Extract `after` timeout clause
-- [ ] 17.2.3.5 Track receive as potential blocking point
-- [ ] 17.2.3.6 Add receive extraction tests
+- [x] 17.2.3.1 Implement `extract_receive/1` for receive blocks
+- [x] 17.2.3.2 Define `%ReceiveExpression{clauses: [...], after: ..., location: ...}` struct
+- [x] 17.2.3.3 Extract message patterns in receive clauses
+- [x] 17.2.3.4 Extract `after` timeout clause
+- [x] 17.2.3.5 Track receive as potential blocking point
+- [x] 17.2.3.6 Add receive extraction tests
 
 ### 17.2.4 Loop Expression Extraction
 - [ ] **Task 17.2.4 Pending**

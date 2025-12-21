@@ -1,10 +1,11 @@
 defmodule ElixirOntologies.Extractors.CaseWith do
   @moduledoc """
-  Extracts case and with expressions from Elixir AST.
+  Extracts case, with, and receive expressions from Elixir AST.
 
   This module provides extraction of pattern matching expressions including:
   - **case** - pattern matching against a subject value
   - **with** - chained pattern matching operations
+  - **receive** - message pattern matching from process mailbox
 
   ## Case Expressions
 
@@ -27,6 +28,17 @@ defmodule ElixirOntologies.Extractors.CaseWith do
         {:error, reason} -> {:error, reason}
       end
 
+  ## Receive Expressions
+
+  Receive expressions wait for messages from the process mailbox:
+
+      receive do
+        {:msg, data} -> handle(data)
+        :ping -> :pong
+      after
+        5000 -> :timeout
+      end
+
   ## Examples
 
       iex> ast = {:case, [], [{:x, [], nil}, [do: [{:->, [], [[:a], 1]}]]]}
@@ -35,6 +47,10 @@ defmodule ElixirOntologies.Extractors.CaseWith do
 
       iex> ast = {:with, [], [{:<-, [], [:ok, {:get, [], []}]}, [do: :ok]]}
       iex> ElixirOntologies.Extractors.CaseWith.with_expression?(ast)
+      true
+
+      iex> ast = {:receive, [], [[do: [{:->, [], [[:ping], :pong]}]]]}
+      iex> ElixirOntologies.Extractors.CaseWith.receive_expression?(ast)
       true
   """
 
@@ -149,6 +165,53 @@ defmodule ElixirOntologies.Extractors.CaseWith do
     defstruct [:clauses, :body, :location, else_clauses: [], has_else: false, metadata: %{}]
   end
 
+  defmodule AfterClause do
+    @moduledoc """
+    Represents an after clause in a receive expression.
+
+    ## Fields
+
+    - `:timeout` - The timeout expression (usually an integer)
+    - `:body` - The body to execute on timeout
+    - `:is_immediate` - True if timeout is literal 0
+    - `:location` - Source location if available
+    """
+
+    @type t :: %__MODULE__{
+            timeout: Macro.t(),
+            body: Macro.t(),
+            is_immediate: boolean(),
+            location: SourceLocation.t() | nil
+          }
+
+    @enforce_keys [:timeout, :body]
+    defstruct [:timeout, :body, :location, is_immediate: false]
+  end
+
+  defmodule ReceiveExpression do
+    @moduledoc """
+    Represents a receive expression extracted from AST.
+
+    ## Fields
+
+    - `:clauses` - List of message pattern clauses (as CaseClause)
+    - `:after_clause` - The after timeout clause if present
+    - `:has_after` - Whether the receive has an after block
+    - `:location` - Source location if available
+    - `:metadata` - Additional information (is_blocking, clause_count)
+    """
+
+    @type t :: %__MODULE__{
+            clauses: [ElixirOntologies.Extractors.CaseWith.CaseClause.t()],
+            after_clause: ElixirOntologies.Extractors.CaseWith.AfterClause.t() | nil,
+            has_after: boolean(),
+            location: SourceLocation.t() | nil,
+            metadata: map()
+          }
+
+    defstruct [:after_clause, :location, clauses: [], has_after: false, metadata: %{}]
+  end
+
   # ===========================================================================
   # Type Detection
   # ===========================================================================
@@ -194,6 +257,27 @@ defmodule ElixirOntologies.Extractors.CaseWith do
   @spec with_expression?(Macro.t()) :: boolean()
   def with_expression?({:with, _meta, [_ | _]}), do: true
   def with_expression?(_), do: false
+
+  @doc """
+  Checks if the given AST node represents a receive expression.
+
+  ## Examples
+
+      iex> ast = {:receive, [], [[do: [{:->, [], [[:ping], :pong]}]]]}
+      iex> ElixirOntologies.Extractors.CaseWith.receive_expression?(ast)
+      true
+
+      iex> ast = {:receive, [], [[do: [], after: [{:->, [], [[0], :timeout]}]]]}
+      iex> ElixirOntologies.Extractors.CaseWith.receive_expression?(ast)
+      true
+
+      iex> ast = {:case, [], [{:x, [], nil}, [do: [{:->, [], [[:a], 1]}]]]}
+      iex> ElixirOntologies.Extractors.CaseWith.receive_expression?(ast)
+      false
+  """
+  @spec receive_expression?(Macro.t()) :: boolean()
+  def receive_expression?({:receive, _meta, [opts]}) when is_list(opts), do: true
+  def receive_expression?(_), do: false
 
   # ===========================================================================
   # Case Extraction
@@ -424,6 +508,116 @@ defmodule ElixirOntologies.Extractors.CaseWith do
   end
 
   # ===========================================================================
+  # Receive Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts a receive expression from an AST node.
+
+  Returns `{:ok, %ReceiveExpression{}}` on success, `{:error, reason}` on failure.
+
+  ## Options
+
+  - `:include_location` - Whether to extract source location (default: true)
+
+  ## Examples
+
+      iex> ast = {:receive, [], [[do: [{:->, [], [[:ping], :pong]}]]]}
+      iex> {:ok, expr} = ElixirOntologies.Extractors.CaseWith.extract_receive(ast)
+      iex> length(expr.clauses)
+      1
+      iex> expr.has_after
+      false
+
+      iex> ast = {:receive, [], [[do: [{:->, [], [[:msg], :ok]}], after: [{:->, [], [[5000], :timeout]}]]]}
+      iex> {:ok, expr} = ElixirOntologies.Extractors.CaseWith.extract_receive(ast)
+      iex> expr.has_after
+      true
+      iex> expr.after_clause.timeout
+      5000
+
+      iex> ast = {:case, [], [{:x, [], nil}, [do: []]]}
+      iex> ElixirOntologies.Extractors.CaseWith.extract_receive(ast)
+      {:error, {:not_a_receive, "Not a receive expression: {:case, [], [{:x, [], nil}, [do: []]]}"}}
+  """
+  @spec extract_receive(Macro.t(), keyword()) :: {:ok, ReceiveExpression.t()} | {:error, term()}
+  def extract_receive(ast, opts \\ [])
+
+  def extract_receive({:receive, _meta, [body_opts]} = ast, opts) do
+    do_clauses = get_receive_clauses(Keyword.get(body_opts, :do, []))
+    after_clauses = Keyword.get(body_opts, :after, [])
+    location = Helpers.extract_location_if(ast, opts)
+
+    clauses = build_case_clauses(do_clauses, opts)
+    after_clause = build_after_clause(after_clauses, opts)
+
+    has_after = after_clause != nil
+    is_blocking = !has_after || (after_clause && !after_clause.is_immediate)
+
+    {:ok,
+     %ReceiveExpression{
+       clauses: clauses,
+       after_clause: after_clause,
+       has_after: has_after,
+       location: location,
+       metadata: %{
+         clause_count: length(clauses),
+         is_blocking: is_blocking,
+         has_immediate_timeout: after_clause != nil && after_clause.is_immediate
+       }
+     }}
+  end
+
+  def extract_receive(ast, _opts) do
+    {:error, {:not_a_receive, Helpers.format_error("Not a receive expression", ast)}}
+  end
+
+  @doc """
+  Extracts a receive expression, raising on error.
+
+  ## Examples
+
+      iex> ast = {:receive, [], [[do: [{:->, [], [[:ping], :pong]}]]]}
+      iex> expr = ElixirOntologies.Extractors.CaseWith.extract_receive!(ast)
+      iex> length(expr.clauses)
+      1
+  """
+  @spec extract_receive!(Macro.t(), keyword()) :: ReceiveExpression.t()
+  def extract_receive!(ast, opts \\ []) do
+    case extract_receive(ast, opts) do
+      {:ok, expr} -> expr
+      {:error, reason} -> raise ArgumentError, "Failed to extract receive: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
+  Extracts all receive expressions from an AST.
+
+  Walks the entire AST tree and extracts all receive expressions.
+
+  ## Options
+
+  - `:include_location` - Whether to extract source location (default: true)
+  - `:max_depth` - Maximum recursion depth (default: 100)
+
+  ## Examples
+
+      iex> body = [
+      ...>   {:receive, [], [[do: [{:->, [], [[:a], 1]}]]]},
+      ...>   {:foo, [], []},
+      ...>   {:receive, [], [[do: [{:->, [], [[:b], 2]}]]]}
+      ...> ]
+      iex> exprs = ElixirOntologies.Extractors.CaseWith.extract_receive_expressions(body)
+      iex> length(exprs)
+      2
+  """
+  @spec extract_receive_expressions(Macro.t(), keyword()) :: [ReceiveExpression.t()]
+  def extract_receive_expressions(ast, opts \\ []) do
+    max_depth = Keyword.get(opts, :max_depth, Helpers.max_recursion_depth())
+    extract_expressions_recursive(ast, :receive, opts, 0, max_depth)
+  end
+
+  # ===========================================================================
   # Private Functions - Case Clause Building
   # ===========================================================================
 
@@ -516,6 +710,31 @@ defmodule ElixirOntologies.Extractors.CaseWith do
   end
 
   # ===========================================================================
+  # Private Functions - Receive Clause Building
+  # ===========================================================================
+
+  # Handle empty do block (receive do after 0 -> ... end)
+  defp get_receive_clauses({:__block__, _, []}), do: []
+  defp get_receive_clauses(clauses) when is_list(clauses), do: clauses
+  defp get_receive_clauses(_), do: []
+
+  defp build_after_clause([], _opts), do: nil
+
+  defp build_after_clause([{:->, _meta, [[timeout], body]} = ast], opts) do
+    location = Helpers.extract_location_if(ast, opts)
+    is_immediate = timeout == 0
+
+    %AfterClause{
+      timeout: timeout,
+      body: body,
+      is_immediate: is_immediate,
+      location: location
+    }
+  end
+
+  defp build_after_clause(_, _opts), do: nil
+
+  # ===========================================================================
   # Private Functions - Recursive Extraction
   # ===========================================================================
 
@@ -573,6 +792,28 @@ defmodule ElixirOntologies.Extractors.CaseWith do
     nested_else = extract_from_case_clauses(else_clauses, type, opts, depth + 1, max)
 
     result ++ nested_body ++ nested_else
+  end
+
+  # Handle receive expression
+  defp extract_expressions_recursive({:receive, _meta, [body_opts]} = ast, type, opts, depth, max) do
+    result =
+      if type == :receive do
+        case extract_receive(ast, opts) do
+          {:ok, expr} -> [expr]
+          {:error, _} -> []
+        end
+      else
+        []
+      end
+
+    # Also search in clause bodies
+    do_clauses = get_receive_clauses(Keyword.get(body_opts, :do, []))
+    after_clauses = Keyword.get(body_opts, :after, [])
+
+    nested_do = extract_from_case_clauses(do_clauses, type, opts, depth + 1, max)
+    nested_after = extract_from_case_clauses(after_clauses, type, opts, depth + 1, max)
+
+    result ++ nested_do ++ nested_after
   end
 
   # Handle other AST nodes - recurse into args
