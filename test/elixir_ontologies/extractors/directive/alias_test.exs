@@ -565,6 +565,63 @@ defmodule ElixirOntologies.Extractors.Directive.AliasTest do
 
       assert {:error, {:not_a_multi_alias, _msg}} = Alias.extract_multi_alias(ast)
     end
+
+    test "respects max_nesting_depth option" do
+      # Two levels of nesting: MyApp.{Sub.{A}}
+      ast =
+        quote do
+          alias MyApp.{Sub.{A}}
+        end
+
+      # Should succeed with default depth (10)
+      assert {:ok, directives} = Alias.extract_multi_alias(ast)
+      assert length(directives) == 1
+
+      # Should succeed with depth 2
+      assert {:ok, _} = Alias.extract_multi_alias(ast, max_nesting_depth: 2)
+
+      # Should fail with depth 0 (no nesting allowed at all)
+      assert {:error, {:max_nesting_depth_exceeded, _msg}} =
+               Alias.extract_multi_alias(ast, max_nesting_depth: 0)
+    end
+
+    test "returns error when max nesting depth exceeded" do
+      # Build deeply nested multi-alias: A.{B.{C.{D}}}
+      # This is 3 levels of nesting
+      nested_ast =
+        {:alias, [],
+         [
+           {{:., [],
+             [
+               {:__aliases__, [], [:A]},
+               :{}
+             ]}, [],
+            [
+              {{:., [],
+                [
+                  {:__aliases__, [], [:B]},
+                  :{}
+                ]}, [],
+               [
+                 {{:., [],
+                   [
+                     {:__aliases__, [], [:C]},
+                     :{}
+                   ]}, [], [{:__aliases__, [], [:D]}]}
+               ]}
+            ]}
+         ]}
+
+      # Should fail with max depth of 1 (since we have 3 levels of nesting)
+      # Level 0: A.{...}, Level 1: B.{...}, Level 2: C.{...}
+      assert {:error, {:max_nesting_depth_exceeded, message}} =
+               Alias.extract_multi_alias(nested_ast, max_nesting_depth: 1)
+
+      assert message =~ "exceeded"
+
+      # Should succeed with max depth of 3
+      assert {:ok, _} = Alias.extract_multi_alias(nested_ast, max_nesting_depth: 3)
+    end
   end
 
   # ===========================================================================

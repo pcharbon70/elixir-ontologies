@@ -5,6 +5,20 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
   This module provides detailed extraction of alias directives including the
   source module, alias name (explicit or computed), and source location.
 
+  ## Architecture Note
+
+  This extractor is designed for composable, on-demand directive analysis. It is
+  intentionally **not** automatically invoked by the main Pipeline module. This
+  separation allows:
+
+  - Lightweight module extraction when directive details aren't needed
+  - Targeted directive analysis when building dependency graphs
+  - Flexibility to use extractors individually or in combination
+
+  To extract directives during module analysis, either:
+  1. Call this extractor directly on directive AST nodes
+  2. Use `Module.extract/2` with the `:extract_directives` option (when available)
+
   ## Alias Forms
 
   Elixir supports several alias forms:
@@ -272,6 +286,8 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
   # Multi-Alias Extraction
   # ===========================================================================
 
+  @default_max_nesting_depth 10
+
   @doc """
   Extracts a multi-alias directive into a list of individual AliasDirective structs.
 
@@ -280,6 +296,8 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
   ## Options
 
   - `:include_location` - Whether to extract source location (default: true)
+  - `:max_nesting_depth` - Maximum nesting depth for multi-alias expansion (default: 10).
+    Prevents stack overflow from deeply nested or malicious input.
 
   ## Examples
 
@@ -301,8 +319,12 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
         opts
       ) do
     location = Helpers.extract_location_if(node, opts)
-    directives = expand_multi_alias(prefix, suffixes, location, 0)
-    {:ok, directives}
+    max_depth = Keyword.get(opts, :max_nesting_depth, @default_max_nesting_depth)
+
+    case expand_multi_alias(prefix, suffixes, location, 0, 0, max_depth) do
+      {:ok, directives} -> {:ok, directives}
+      {:error, _} = error -> error
+    end
   end
 
   def extract_multi_alias(ast, _opts) do
@@ -334,15 +356,21 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
         opts
       ) do
     location = Helpers.extract_location_if(node, opts)
-    directives = expand_multi_alias(prefix, suffixes, location, 0)
+    max_depth = Keyword.get(opts, :max_nesting_depth, @default_max_nesting_depth)
 
-    {:ok,
-     %MultiAliasGroup{
-       prefix: prefix,
-       aliases: directives,
-       location: location,
-       metadata: %{}
-     }}
+    case expand_multi_alias(prefix, suffixes, location, 0, 0, max_depth) do
+      {:ok, directives} ->
+        {:ok,
+         %MultiAliasGroup{
+           prefix: prefix,
+           aliases: directives,
+           location: location,
+           metadata: %{}
+         }}
+
+      {:error, _} = error ->
+        error
+    end
   end
 
   def extract_multi_alias_group(ast, _opts) do
@@ -521,23 +549,34 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
   end
 
   # Expands multi-alias suffixes into individual AliasDirective structs
-  defp expand_multi_alias(prefix, suffixes, location, start_index) do
-    {directives, _} =
-      Enum.reduce(suffixes, {[], start_index}, fn suffix, {acc, idx} ->
-        case expand_suffix(prefix, suffix, location, idx) do
-          {:simple, directive, new_idx} ->
-            {[directive | acc], new_idx}
+  # With depth limiting to prevent stack overflow from deeply nested input
+  defp expand_multi_alias(prefix, suffixes, location, start_index, current_depth, max_depth) do
+    if current_depth > max_depth do
+      {:error, {:max_nesting_depth_exceeded, "Multi-alias nesting depth exceeded #{max_depth}"}}
+    else
+      result =
+        Enum.reduce_while(suffixes, {:ok, [], start_index}, fn suffix, {:ok, acc, idx} ->
+          case expand_suffix(prefix, suffix, location, idx, current_depth, max_depth) do
+            {:simple, directive, new_idx} ->
+              {:cont, {:ok, [directive | acc], new_idx}}
 
-          {:nested, nested_directives, new_idx} ->
-            {Enum.reverse(nested_directives) ++ acc, new_idx}
-        end
-      end)
+            {:nested, {:ok, nested_directives}, new_idx} ->
+              {:cont, {:ok, Enum.reverse(nested_directives) ++ acc, new_idx}}
 
-    Enum.reverse(directives)
+            {:nested, {:error, _} = error, _} ->
+              {:halt, error}
+          end
+        end)
+
+      case result do
+        {:ok, directives, _} -> {:ok, Enum.reverse(directives)}
+        {:error, _} = error -> error
+      end
+    end
   end
 
   # Handle simple suffix: {:__aliases__, _, parts}
-  defp expand_suffix(prefix, {:__aliases__, _, suffix_parts}, location, idx) do
+  defp expand_suffix(prefix, {:__aliases__, _, suffix_parts}, location, idx, _depth, _max_depth) do
     full_source = prefix ++ suffix_parts
     alias_name = compute_alias_name(full_source)
 
@@ -561,14 +600,24 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
          prefix,
          {{:., _, [{:__aliases__, _, nested_prefix_parts}, :{}]}, _, nested_suffixes},
          location,
-         idx
+         idx,
+         current_depth,
+         max_depth
        ) do
     # Combine the outer prefix with the nested prefix
     combined_prefix = prefix ++ nested_prefix_parts
-    # Recursively expand the nested suffixes
-    nested_directives = expand_multi_alias(combined_prefix, nested_suffixes, location, idx)
-    new_idx = idx + length(nested_directives)
-    {:nested, nested_directives, new_idx}
+    # Recursively expand the nested suffixes with incremented depth
+    result =
+      expand_multi_alias(combined_prefix, nested_suffixes, location, idx, current_depth + 1, max_depth)
+
+    case result do
+      {:ok, nested_directives} ->
+        new_idx = idx + length(nested_directives)
+        {:nested, {:ok, nested_directives}, new_idx}
+
+      {:error, _} = error ->
+        {:nested, error, idx}
+    end
   end
 
   # ===========================================================================

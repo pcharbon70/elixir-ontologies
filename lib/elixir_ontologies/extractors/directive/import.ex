@@ -5,6 +5,20 @@ defmodule ElixirOntologies.Extractors.Directive.Import do
   This module provides detailed extraction of import directives including the
   imported module, selective imports (only/except options), and source location.
 
+  ## Architecture Note
+
+  This extractor is designed for composable, on-demand directive analysis. It is
+  intentionally **not** automatically invoked by the main Pipeline module. This
+  separation allows:
+
+  - Lightweight module extraction when directive details aren't needed
+  - Targeted directive analysis when building dependency graphs
+  - Flexibility to use extractors individually or in combination
+
+  To extract directives during module analysis, either:
+  1. Call this extractor directly on directive AST nodes
+  2. Use `Module.extract/2` with the `:extract_directives` option (when available)
+
   ## Import Forms
 
   Elixir supports several import forms:

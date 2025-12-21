@@ -737,6 +737,110 @@ defmodule ElixirOntologies.Extractors.Directive.UseTest do
       option = %UseOption{key: :restart, value: :temporary, value_type: :atom}
       assert option.dynamic == false
       assert option.raw_ast == nil
+      assert option.source_kind == :literal
+    end
+  end
+
+  describe "source_kind/1" do
+    test "classifies literal atoms" do
+      assert Use.source_kind(:atom) == :literal
+      assert Use.source_kind(:temporary) == :literal
+    end
+
+    test "classifies literal strings" do
+      assert Use.source_kind("string") == :literal
+    end
+
+    test "classifies literal integers" do
+      assert Use.source_kind(42) == :literal
+    end
+
+    test "classifies literal floats" do
+      assert Use.source_kind(3.14) == :literal
+    end
+
+    test "classifies literal booleans" do
+      assert Use.source_kind(true) == :literal
+      assert Use.source_kind(false) == :literal
+    end
+
+    test "classifies module references as literal" do
+      assert Use.source_kind({:__aliases__, [], [:MyApp, :Web]}) == :literal
+    end
+
+    test "classifies literal lists" do
+      assert Use.source_kind([:a, :b, :c]) == :literal
+      assert Use.source_kind([1, 2, 3]) == :literal
+    end
+
+    test "classifies literal tuples" do
+      assert Use.source_kind({:a, :b}) == :literal
+    end
+
+    test "classifies variable references" do
+      assert Use.source_kind({:some_var, [], Elixir}) == :variable
+      assert Use.source_kind({:opts, [], nil}) == :variable
+    end
+
+    test "classifies function calls" do
+      func_call = {{:., [], [{:__aliases__, [], [:String]}, :to_atom]}, [], ["temp"]}
+      assert Use.source_kind(func_call) == :function_call
+    end
+
+    test "classifies module attribute references" do
+      # @config
+      attr = {:@, [], [{:config, [], nil}]}
+      assert Use.source_kind(attr) == :module_attribute
+    end
+
+    test "classifies mixed lists as other" do
+      assert Use.source_kind([:a, {:var, [], Elixir}]) == :other
+    end
+  end
+
+  describe "analyze_options/1 with source_kind" do
+    test "literal options have :literal source_kind" do
+      directive = %UseDirective{
+        module: [:GenServer],
+        options: [restart: :temporary, max_restarts: 3]
+      }
+
+      [restart, max] = Use.analyze_options(directive)
+
+      assert restart.source_kind == :literal
+      assert max.source_kind == :literal
+    end
+
+    test "variable option has :variable source_kind" do
+      directive = %UseDirective{
+        module: [:GenServer],
+        options: [restart: {:some_var, [], Elixir}]
+      }
+
+      [option] = Use.analyze_options(directive)
+      assert option.source_kind == :variable
+    end
+
+    test "function call option has :function_call source_kind" do
+      func_call = {{:., [], [{:__aliases__, [], [:String]}, :to_atom]}, [], ["temp"]}
+
+      directive = %UseDirective{
+        module: [:GenServer],
+        options: [restart: func_call]
+      }
+
+      [option] = Use.analyze_options(directive)
+      assert option.source_kind == :function_call
+    end
+
+    test "module attribute option has :module_attribute source_kind" do
+      directive = %UseDirective{
+        module: [:GenServer],
+        options: [restart: {:@, [], [{:config, [], nil}]}]
+      }
+
+      [option] = Use.analyze_options(directive)
+      assert option.source_kind == :module_attribute
     end
   end
 end

@@ -5,6 +5,20 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
   This module provides detailed extraction of use directives which invoke
   the `__using__/1` macro of a module, allowing modules to inject code at compile time.
 
+  ## Architecture Note
+
+  This extractor is designed for composable, on-demand directive analysis. It is
+  intentionally **not** automatically invoked by the main Pipeline module. This
+  separation allows:
+
+  - Lightweight module extraction when directive details aren't needed
+  - Targeted directive analysis when building dependency graphs
+  - Flexibility to use extractors individually or in combination
+
+  To extract directives during module analysis, either:
+  1. Call this extractor directly on directive AST nodes
+  2. Use `Module.extract/2` with the `:extract_directives` option (when available)
+
   ## Use Forms
 
   Elixir supports several use forms:
@@ -80,6 +94,8 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
     - `:value` - The extracted value (literal or AST for dynamic)
     - `:value_type` - Type classification of the value
     - `:dynamic` - Whether the value is dynamic (not resolvable at analysis time)
+    - `:source_kind` - The source of the value: `:literal`, `:variable`, `:function_call`,
+      `:module_attribute`, or `:other`
     - `:raw_ast` - The original AST for the value (useful for dynamic values)
     """
 
@@ -87,15 +103,18 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
             :atom | :string | :integer | :float | :boolean | :nil | :list | :tuple | :module |
             :dynamic
 
+    @type source_kind :: :literal | :variable | :function_call | :module_attribute | :other
+
     @type t :: %__MODULE__{
             key: atom() | nil,
             value: term(),
             value_type: value_type(),
             dynamic: boolean(),
+            source_kind: source_kind(),
             raw_ast: Macro.t() | nil
           }
 
-    defstruct [:key, :value, :value_type, :raw_ast, dynamic: false]
+    defstruct [:key, :value, :value_type, :raw_ast, dynamic: false, source_kind: :literal]
   end
 
   # ===========================================================================
@@ -409,6 +428,7 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
         value: :temporary,
         value_type: :atom,
         dynamic: false,
+        source_kind: :literal,
         raw_ast: nil
       }
 
@@ -418,6 +438,7 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
         value: 5,
         value_type: :integer,
         dynamic: false,
+        source_kind: :literal,
         raw_ast: nil
       }
   """
@@ -618,6 +639,90 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
 
   def extract_literal_value(value), do: {:dynamic, value}
 
+  @doc """
+  Determines the source kind of a value (where it comes from).
+
+  ## Source Kinds
+
+  - `:literal` - A literal value (atom, string, integer, list of literals, etc.)
+  - `:variable` - A variable reference
+  - `:function_call` - A function or macro call
+  - `:module_attribute` - A module attribute reference (@something)
+  - `:other` - Unknown or unclassifiable source
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Directive.Use.source_kind(:temporary)
+      :literal
+
+      iex> ElixirOntologies.Extractors.Directive.Use.source_kind(42)
+      :literal
+
+      iex> ElixirOntologies.Extractors.Directive.Use.source_kind({:some_var, [], Elixir})
+      :variable
+
+      iex> ElixirOntologies.Extractors.Directive.Use.source_kind({:@, [], [{:config, [], nil}]})
+      :module_attribute
+  """
+  @spec source_kind(term()) :: UseOption.source_kind()
+  # Literals
+  def source_kind(value) when is_atom(value), do: :literal
+  def source_kind(value) when is_binary(value), do: :literal
+  def source_kind(value) when is_integer(value), do: :literal
+  def source_kind(value) when is_float(value), do: :literal
+  def source_kind(value) when is_boolean(value), do: :literal
+
+  # Module reference is a literal
+  def source_kind({:__aliases__, _, parts}) when is_list(parts), do: :literal
+
+  # Module attribute: @foo
+  def source_kind({:@, _, [{_name, _, _}]}), do: :module_attribute
+
+  # Function call (remote): Module.func(...)
+  def source_kind({{:., _, _}, _, _}), do: :function_call
+
+  # Variable reference: 3-tuple with atom name and atom context
+  def source_kind({name, meta, context})
+      when is_atom(name) and is_list(meta) and is_atom(context) do
+    # Could be a variable or a function call (if it has args)
+    # Check if name looks like a variable (lowercase first char, no parens in most cases)
+    cond do
+      # Common macro/function calls
+      name in [:if, :unless, :case, :cond, :with, :for, :try, :receive, :quote, :unquote] ->
+        :function_call
+
+      # Looks like a variable (lowercase, no args list in context)
+      context == Elixir or context == nil ->
+        :variable
+
+      true ->
+        :other
+    end
+  end
+
+  # Other 3-tuples are typically function calls or macro calls
+  def source_kind({_name, _meta, args}) when is_list(args), do: :function_call
+
+  # List - check if all elements are literals
+  def source_kind(value) when is_list(value) do
+    if Enum.all?(value, &(source_kind(&1) == :literal)) do
+      :literal
+    else
+      :other
+    end
+  end
+
+  # Two-element tuple - check if literal
+  def source_kind({a, b}) do
+    if source_kind(a) == :literal and source_kind(b) == :literal do
+      :literal
+    else
+      :other
+    end
+  end
+
+  def source_kind(_), do: :other
+
   # ===========================================================================
   # Private Functions
   # ===========================================================================
@@ -625,6 +730,7 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
   defp analyze_value(key, value) do
     is_dynamic = dynamic_value?(value)
     vtype = value_type(value)
+    skind = source_kind(value)
 
     {extracted_value, raw} =
       case extract_literal_value(value) do
@@ -637,6 +743,7 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
       value: extracted_value,
       value_type: vtype,
       dynamic: is_dynamic,
+      source_kind: skind,
       raw_ast: raw
     }
   end
