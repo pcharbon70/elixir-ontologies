@@ -417,4 +417,326 @@ defmodule ElixirOntologies.Extractors.Directive.UseTest do
       end
     end
   end
+
+  # ===========================================================================
+  # Option Analysis Tests
+  # ===========================================================================
+
+  alias ElixirOntologies.Extractors.Directive.Use.UseOption
+
+  describe "analyze_options/1" do
+    test "returns empty list for nil options" do
+      directive = %UseDirective{module: [:GenServer], options: nil}
+      assert Use.analyze_options(directive) == []
+    end
+
+    test "returns empty list for empty options" do
+      directive = %UseDirective{module: [:GenServer], options: []}
+      assert Use.analyze_options(directive) == []
+    end
+
+    test "analyzes keyword options" do
+      directive = %UseDirective{
+        module: [:GenServer],
+        options: [restart: :temporary, max_restarts: 3]
+      }
+
+      options = Use.analyze_options(directive)
+      assert length(options) == 2
+
+      [restart, max] = options
+      assert restart.key == :restart
+      assert restart.value == :temporary
+      assert restart.value_type == :atom
+      refute restart.dynamic
+
+      assert max.key == :max_restarts
+      assert max.value == 3
+      assert max.value_type == :integer
+      refute max.dynamic
+    end
+
+    test "analyzes non-keyword atom option" do
+      directive = %UseDirective{module: [:MyApp, :Web], options: :controller}
+      [option] = Use.analyze_options(directive)
+
+      assert option.key == nil
+      assert option.value == :controller
+      assert option.value_type == :atom
+      refute option.dynamic
+    end
+
+    test "analyzes non-keyword string option" do
+      directive = %UseDirective{module: [:MyApp, :Web], options: "live_view"}
+      [option] = Use.analyze_options(directive)
+
+      assert option.key == nil
+      assert option.value == "live_view"
+      assert option.value_type == :string
+      refute option.dynamic
+    end
+
+    test "analyzes module reference value" do
+      # Simulates: use Phoenix.Controller, namespace: MyApp.Web
+      directive = %UseDirective{
+        module: [:Phoenix, :Controller],
+        options: [namespace: {:__aliases__, [], [:MyApp, :Web]}]
+      }
+
+      [option] = Use.analyze_options(directive)
+      assert option.key == :namespace
+      assert option.value == [:MyApp, :Web]
+      assert option.value_type == :module
+      refute option.dynamic
+    end
+
+    test "analyzes list value" do
+      directive = %UseDirective{
+        module: [:MyBehaviour],
+        options: [callbacks: [:init, :handle_call, :terminate]]
+      }
+
+      [option] = Use.analyze_options(directive)
+      assert option.key == :callbacks
+      assert option.value == [:init, :handle_call, :terminate]
+      assert option.value_type == :list
+      refute option.dynamic
+    end
+
+    test "marks variable value as dynamic" do
+      # Simulates: use GenServer, restart: some_var
+      directive = %UseDirective{
+        module: [:GenServer],
+        options: [restart: {:some_var, [], Elixir}]
+      }
+
+      [option] = Use.analyze_options(directive)
+      assert option.key == :restart
+      assert option.value_type == :dynamic
+      assert option.dynamic
+      assert option.raw_ast == {:some_var, [], Elixir}
+    end
+
+    test "marks function call value as dynamic" do
+      # Simulates: use GenServer, restart: String.to_atom("temp")
+      func_call = {{:., [], [{:__aliases__, [], [:String]}, :to_atom]}, [], ["temp"]}
+
+      directive = %UseDirective{
+        module: [:GenServer],
+        options: [restart: func_call]
+      }
+
+      [option] = Use.analyze_options(directive)
+      assert option.key == :restart
+      assert option.value_type == :dynamic
+      assert option.dynamic
+      assert option.raw_ast == func_call
+    end
+  end
+
+  describe "parse_option/1" do
+    test "parses atom value" do
+      option = Use.parse_option({:restart, :temporary})
+      assert option.key == :restart
+      assert option.value == :temporary
+      assert option.value_type == :atom
+      refute option.dynamic
+    end
+
+    test "parses integer value" do
+      option = Use.parse_option({:max_restarts, 5})
+      assert option.key == :max_restarts
+      assert option.value == 5
+      assert option.value_type == :integer
+      refute option.dynamic
+    end
+
+    test "parses string value" do
+      option = Use.parse_option({:name, "my_server"})
+      assert option.key == :name
+      assert option.value == "my_server"
+      assert option.value_type == :string
+      refute option.dynamic
+    end
+
+    test "parses boolean value" do
+      option = Use.parse_option({:debug, true})
+      assert option.key == :debug
+      assert option.value == true
+      assert option.value_type == :boolean
+      refute option.dynamic
+    end
+
+    test "parses float value" do
+      option = Use.parse_option({:timeout, 1.5})
+      assert option.key == :timeout
+      assert option.value == 1.5
+      assert option.value_type == :float
+      refute option.dynamic
+    end
+
+    test "parses nil value" do
+      option = Use.parse_option({:default, nil})
+      assert option.key == :default
+      assert option.value == nil
+      assert option.value_type == :nil
+      refute option.dynamic
+    end
+  end
+
+  describe "dynamic_value?/1" do
+    test "returns false for atoms" do
+      refute Use.dynamic_value?(:atom)
+      refute Use.dynamic_value?(:temporary)
+    end
+
+    test "returns false for strings" do
+      refute Use.dynamic_value?("string")
+    end
+
+    test "returns false for integers" do
+      refute Use.dynamic_value?(42)
+      refute Use.dynamic_value?(0)
+      refute Use.dynamic_value?(-1)
+    end
+
+    test "returns false for floats" do
+      refute Use.dynamic_value?(3.14)
+    end
+
+    test "returns false for booleans" do
+      refute Use.dynamic_value?(true)
+      refute Use.dynamic_value?(false)
+    end
+
+    test "returns false for module references" do
+      refute Use.dynamic_value?({:__aliases__, [], [:MyApp, :Web]})
+    end
+
+    test "returns false for literal lists" do
+      refute Use.dynamic_value?([:a, :b, :c])
+      refute Use.dynamic_value?([1, 2, 3])
+    end
+
+    test "returns false for literal tuples" do
+      refute Use.dynamic_value?({:a, :b})
+      refute Use.dynamic_value?({1, 2})
+    end
+
+    test "returns true for variable references" do
+      assert Use.dynamic_value?({:some_var, [], Elixir})
+      assert Use.dynamic_value?({:opts, [line: 1], nil})
+    end
+
+    test "returns true for function calls" do
+      func_call = {{:., [], [{:__aliases__, [], [:String]}, :to_atom]}, [], ["temp"]}
+      assert Use.dynamic_value?(func_call)
+    end
+
+    test "returns true for list with dynamic element" do
+      assert Use.dynamic_value?([:a, {:var, [], Elixir}, :c])
+    end
+  end
+
+  describe "value_type/1" do
+    test "classifies atoms" do
+      assert Use.value_type(:atom) == :atom
+      assert Use.value_type(:temporary) == :atom
+    end
+
+    test "classifies strings" do
+      assert Use.value_type("string") == :string
+    end
+
+    test "classifies integers" do
+      assert Use.value_type(42) == :integer
+    end
+
+    test "classifies floats" do
+      assert Use.value_type(3.14) == :float
+    end
+
+    test "classifies booleans" do
+      assert Use.value_type(true) == :boolean
+      assert Use.value_type(false) == :boolean
+    end
+
+    test "classifies nil" do
+      assert Use.value_type(nil) == :nil
+    end
+
+    test "classifies lists" do
+      assert Use.value_type([:a, :b]) == :list
+      assert Use.value_type([1, 2, 3]) == :list
+    end
+
+    test "classifies tuples" do
+      assert Use.value_type({:a, :b}) == :tuple
+    end
+
+    test "classifies module references" do
+      assert Use.value_type({:__aliases__, [], [:MyApp, :Web]}) == :module
+    end
+
+    test "classifies dynamic values" do
+      assert Use.value_type({:some_var, [], Elixir}) == :dynamic
+    end
+  end
+
+  describe "extract_literal_value/1" do
+    test "extracts atoms" do
+      assert Use.extract_literal_value(:temporary) == {:ok, :temporary}
+    end
+
+    test "extracts strings" do
+      assert Use.extract_literal_value("string") == {:ok, "string"}
+    end
+
+    test "extracts integers" do
+      assert Use.extract_literal_value(42) == {:ok, 42}
+    end
+
+    test "extracts floats" do
+      assert Use.extract_literal_value(3.14) == {:ok, 3.14}
+    end
+
+    test "extracts booleans" do
+      assert Use.extract_literal_value(true) == {:ok, true}
+      assert Use.extract_literal_value(false) == {:ok, false}
+    end
+
+    test "extracts nil" do
+      assert Use.extract_literal_value(nil) == {:ok, nil}
+    end
+
+    test "extracts module reference as list of atoms" do
+      assert Use.extract_literal_value({:__aliases__, [], [:MyApp, :Web]}) == {:ok, [:MyApp, :Web]}
+    end
+
+    test "extracts literal lists" do
+      assert Use.extract_literal_value([:a, :b, :c]) == {:ok, [:a, :b, :c]}
+    end
+
+    test "extracts literal tuples" do
+      assert Use.extract_literal_value({:a, :b}) == {:ok, {:a, :b}}
+    end
+
+    test "returns dynamic for variable references" do
+      var = {:some_var, [], Elixir}
+      assert Use.extract_literal_value(var) == {:dynamic, var}
+    end
+
+    test "returns dynamic for function calls" do
+      func_call = {{:., [], [{:__aliases__, [], [:String]}, :to_atom]}, [], ["temp"]}
+      assert Use.extract_literal_value(func_call) == {:dynamic, func_call}
+    end
+  end
+
+  describe "UseOption struct" do
+    test "has correct default values" do
+      option = %UseOption{key: :restart, value: :temporary, value_type: :atom}
+      assert option.dynamic == false
+      assert option.raw_ast == nil
+    end
+  end
 end

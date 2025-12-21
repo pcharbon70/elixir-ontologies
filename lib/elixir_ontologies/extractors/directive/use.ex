@@ -70,6 +70,34 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
     defstruct [:module, :options, :location, :scope, metadata: %{}]
   end
 
+  defmodule UseOption do
+    @moduledoc """
+    Represents an analyzed use option.
+
+    ## Fields
+
+    - `:key` - The option key (atom)
+    - `:value` - The extracted value (literal or AST for dynamic)
+    - `:value_type` - Type classification of the value
+    - `:dynamic` - Whether the value is dynamic (not resolvable at analysis time)
+    - `:raw_ast` - The original AST for the value (useful for dynamic values)
+    """
+
+    @type value_type ::
+            :atom | :string | :integer | :float | :boolean | :nil | :list | :tuple | :module |
+            :dynamic
+
+    @type t :: %__MODULE__{
+            key: atom() | nil,
+            value: term(),
+            value_type: value_type(),
+            dynamic: boolean(),
+            raw_ast: Macro.t() | nil
+          }
+
+    defstruct [:key, :value, :value_type, :raw_ast, dynamic: false]
+  end
+
   # ===========================================================================
   # Type Detection
   # ===========================================================================
@@ -315,8 +343,303 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
   def keyword_options?(%UseDirective{}), do: false
 
   # ===========================================================================
+  # Option Analysis
+  # ===========================================================================
+
+  @doc """
+  Analyzes the options from a UseDirective into structured UseOption structs.
+
+  For keyword options, each key-value pair becomes a UseOption.
+  For non-keyword options (single value), returns a single UseOption with key=nil.
+
+  ## Examples
+
+      iex> directive = %ElixirOntologies.Extractors.Directive.Use.UseDirective{
+      ...>   module: [:GenServer],
+      ...>   options: [restart: :temporary, max_restarts: 3]
+      ...> }
+      iex> options = ElixirOntologies.Extractors.Directive.Use.analyze_options(directive)
+      iex> length(options)
+      2
+      iex> [first, second] = options
+      iex> first.key
+      :restart
+      iex> first.value
+      :temporary
+      iex> second.key
+      :max_restarts
+      iex> second.value
+      3
+
+      iex> directive = %ElixirOntologies.Extractors.Directive.Use.UseDirective{
+      ...>   module: [:MyApp, :Web],
+      ...>   options: :controller
+      ...> }
+      iex> [option] = ElixirOntologies.Extractors.Directive.Use.analyze_options(directive)
+      iex> option.key
+      nil
+      iex> option.value
+      :controller
+  """
+  @spec analyze_options(UseDirective.t()) :: [UseOption.t()]
+  def analyze_options(%UseDirective{options: nil}), do: []
+  def analyze_options(%UseDirective{options: []}), do: []
+
+  def analyze_options(%UseDirective{options: opts}) when is_list(opts) do
+    if Keyword.keyword?(opts) do
+      Enum.map(opts, &parse_option/1)
+    else
+      # Non-keyword list, treat as single value
+      [analyze_value(nil, opts)]
+    end
+  end
+
+  def analyze_options(%UseDirective{options: value}) do
+    [analyze_value(nil, value)]
+  end
+
+  @doc """
+  Parses a single keyword option tuple into a UseOption struct.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Directive.Use.parse_option({:restart, :temporary})
+      %ElixirOntologies.Extractors.Directive.Use.UseOption{
+        key: :restart,
+        value: :temporary,
+        value_type: :atom,
+        dynamic: false,
+        raw_ast: nil
+      }
+
+      iex> ElixirOntologies.Extractors.Directive.Use.parse_option({:count, 5})
+      %ElixirOntologies.Extractors.Directive.Use.UseOption{
+        key: :count,
+        value: 5,
+        value_type: :integer,
+        dynamic: false,
+        raw_ast: nil
+      }
+  """
+  @spec parse_option({atom(), term()}) :: UseOption.t()
+  def parse_option({key, value}) when is_atom(key) do
+    analyze_value(key, value)
+  end
+
+  @doc """
+  Checks if an AST value is dynamic (not resolvable at analysis time).
+
+  Dynamic values include:
+  - Variable references
+  - Function calls
+  - Macro calls
+  - Any AST tuple that isn't a literal structure
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Directive.Use.dynamic_value?(:atom)
+      false
+
+      iex> ElixirOntologies.Extractors.Directive.Use.dynamic_value?(42)
+      false
+
+      iex> ElixirOntologies.Extractors.Directive.Use.dynamic_value?({:some_var, [], Elixir})
+      true
+
+      iex> ElixirOntologies.Extractors.Directive.Use.dynamic_value?({{:., [], [{:__aliases__, [], [:String]}, :to_atom]}, [], ["temp"]})
+      true
+  """
+  @spec dynamic_value?(term()) :: boolean()
+  # Literals are not dynamic
+  def dynamic_value?(value) when is_atom(value), do: false
+  def dynamic_value?(value) when is_binary(value), do: false
+  def dynamic_value?(value) when is_integer(value), do: false
+  def dynamic_value?(value) when is_float(value), do: false
+  def dynamic_value?(value) when is_boolean(value), do: false
+
+  # Module reference is not dynamic
+  def dynamic_value?({:__aliases__, _, parts}) when is_list(parts), do: false
+
+  # List - check if any element is dynamic
+  def dynamic_value?(value) when is_list(value) do
+    Enum.any?(value, &dynamic_value?/1)
+  end
+
+  # Two-element tuple that looks like a keyword pair
+  def dynamic_value?({key, val}) when is_atom(key), do: dynamic_value?(val)
+
+  # Two-element tuple that's a literal pair
+  def dynamic_value?({a, b}), do: dynamic_value?(a) or dynamic_value?(b)
+
+  # Function call - dynamic
+  def dynamic_value?({{:., _, _}, _, _}), do: true
+
+  # Variable reference - dynamic (3-tuple with atom name and context)
+  def dynamic_value?({name, meta, context})
+      when is_atom(name) and is_list(meta) and is_atom(context),
+      do: true
+
+  # Other 3-tuples might be AST nodes - check recursively
+  def dynamic_value?({_, _, args}) when is_list(args), do: true
+
+  # Fallback for anything else
+  def dynamic_value?(_), do: false
+
+  @doc """
+  Determines the type classification of a value.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Directive.Use.value_type(:atom)
+      :atom
+
+      iex> ElixirOntologies.Extractors.Directive.Use.value_type("string")
+      :string
+
+      iex> ElixirOntologies.Extractors.Directive.Use.value_type(42)
+      :integer
+
+      iex> ElixirOntologies.Extractors.Directive.Use.value_type(3.14)
+      :float
+
+      iex> ElixirOntologies.Extractors.Directive.Use.value_type(true)
+      :boolean
+
+      iex> ElixirOntologies.Extractors.Directive.Use.value_type(nil)
+      :nil
+
+      iex> ElixirOntologies.Extractors.Directive.Use.value_type([:a, :b])
+      :list
+
+      iex> ElixirOntologies.Extractors.Directive.Use.value_type({:a, :b})
+      :tuple
+
+      iex> ElixirOntologies.Extractors.Directive.Use.value_type({:__aliases__, [], [:MyApp, :Web]})
+      :module
+
+      iex> ElixirOntologies.Extractors.Directive.Use.value_type({:some_var, [], Elixir})
+      :dynamic
+  """
+  @spec value_type(term()) :: UseOption.value_type()
+  def value_type(nil), do: :nil
+  def value_type(value) when is_boolean(value), do: :boolean
+  def value_type(value) when is_atom(value), do: :atom
+  def value_type(value) when is_binary(value), do: :string
+  def value_type(value) when is_integer(value), do: :integer
+  def value_type(value) when is_float(value), do: :float
+  def value_type(value) when is_list(value), do: :list
+  def value_type({:__aliases__, _, parts}) when is_list(parts), do: :module
+
+  def value_type({a, b}) when not is_list(a) and not is_list(b) do
+    if dynamic_value?({a, b}), do: :dynamic, else: :tuple
+  end
+
+  def value_type(value) when is_tuple(value) do
+    if dynamic_value?(value), do: :dynamic, else: :tuple
+  end
+
+  def value_type(_), do: :dynamic
+
+  @doc """
+  Extracts the literal value from an AST node if possible.
+
+  Returns `{:ok, value}` for literal values that can be extracted,
+  or `{:dynamic, ast}` for values that cannot be resolved at analysis time.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Directive.Use.extract_literal_value(:temporary)
+      {:ok, :temporary}
+
+      iex> ElixirOntologies.Extractors.Directive.Use.extract_literal_value(42)
+      {:ok, 42}
+
+      iex> ElixirOntologies.Extractors.Directive.Use.extract_literal_value({:__aliases__, [], [:MyApp, :Web]})
+      {:ok, [:MyApp, :Web]}
+
+      iex> ElixirOntologies.Extractors.Directive.Use.extract_literal_value({:some_var, [], Elixir})
+      {:dynamic, {:some_var, [], Elixir}}
+  """
+  @spec extract_literal_value(term()) :: {:ok, term()} | {:dynamic, Macro.t()}
+  def extract_literal_value(nil), do: {:ok, nil}
+  def extract_literal_value(value) when is_atom(value), do: {:ok, value}
+  def extract_literal_value(value) when is_binary(value), do: {:ok, value}
+  def extract_literal_value(value) when is_integer(value), do: {:ok, value}
+  def extract_literal_value(value) when is_float(value), do: {:ok, value}
+  def extract_literal_value(value) when is_boolean(value), do: {:ok, value}
+
+  def extract_literal_value({:__aliases__, _, parts}) when is_list(parts) do
+    {:ok, parts}
+  end
+
+  def extract_literal_value(value) when is_list(value) do
+    if dynamic_value?(value) do
+      {:dynamic, value}
+    else
+      extracted = Enum.map(value, fn
+        {k, v} when is_atom(k) ->
+          case extract_literal_value(v) do
+            {:ok, val} -> {k, val}
+            {:dynamic, _} -> {k, v}
+          end
+        item ->
+          case extract_literal_value(item) do
+            {:ok, val} -> val
+            {:dynamic, _} -> item
+          end
+      end)
+      {:ok, extracted}
+    end
+  end
+
+  def extract_literal_value({a, b}) do
+    if dynamic_value?({a, b}) do
+      {:dynamic, {a, b}}
+    else
+      case {extract_literal_value(a), extract_literal_value(b)} do
+        {{:ok, va}, {:ok, vb}} -> {:ok, {va, vb}}
+        _ -> {:dynamic, {a, b}}
+      end
+    end
+  end
+
+  def extract_literal_value(value) when is_tuple(value) do
+    if dynamic_value?(value) do
+      {:dynamic, value}
+    else
+      # Convert tuple to list, extract, convert back
+      list = Tuple.to_list(value)
+      case extract_literal_value(list) do
+        {:ok, extracted} -> {:ok, List.to_tuple(extracted)}
+        {:dynamic, _} -> {:dynamic, value}
+      end
+    end
+  end
+
+  def extract_literal_value(value), do: {:dynamic, value}
+
+  # ===========================================================================
   # Private Functions
   # ===========================================================================
+
+  defp analyze_value(key, value) do
+    is_dynamic = dynamic_value?(value)
+    vtype = value_type(value)
+
+    {extracted_value, raw} =
+      case extract_literal_value(value) do
+        {:ok, v} -> {v, nil}
+        {:dynamic, ast} -> {ast, ast}
+      end
+
+    %UseOption{
+      key: key,
+      value: extracted_value,
+      value_type: vtype,
+      dynamic: is_dynamic,
+      raw_ast: raw
+    }
+  end
 
   defp build_directive(module_parts, use_opts, node, opts) do
     location = Helpers.extract_location_if(node, opts)

@@ -131,26 +131,26 @@ Extract use directives with their options, which invoke __using__ macros.
 - [x] 16.3.2.6 Add use extraction tests
 
 ### 16.3.3 Use Option Analysis
-- [ ] **Task 16.3.3 Pending**
+- [x] **Task 16.3.3 Complete**
 
 Analyze use options to understand configuration passed to __using__ callbacks.
 
-- [ ] 16.3.3.1 Parse keyword options in use directives
-- [ ] 16.3.3.2 Track common option patterns (e.g., `use GenServer, restart: :temporary`)
-- [ ] 16.3.3.3 Extract literal option values
-- [ ] 16.3.3.4 Handle dynamic option values (mark as unresolved)
-- [ ] 16.3.3.5 Create `%UseOption{key: ..., value: ..., dynamic: boolean()}` struct
-- [ ] 16.3.3.6 Add use option analysis tests
+- [x] 16.3.3.1 Parse keyword options in use directives
+- [x] 16.3.3.2 Track common option patterns (e.g., `use GenServer, restart: :temporary`)
+- [x] 16.3.3.3 Extract literal option values
+- [x] 16.3.3.4 Handle dynamic option values (mark as unresolved)
+- [x] 16.3.3.5 Create `%UseOption{key: ..., value: ..., dynamic: boolean()}` struct
+- [x] 16.3.3.6 Add use option analysis tests
 
 **Section 16.3 Unit Tests:**
-- [ ] Test require extraction
-- [ ] Test require with `as:` option
-- [ ] Test simple use extraction
-- [ ] Test use with keyword options
-- [ ] Test use option parsing
-- [ ] Test dynamic use option handling
-- [ ] Test scope tracking for require/use
-- [ ] Test multiple use directives
+- [x] Test require extraction
+- [x] Test require with `as:` option
+- [x] Test simple use extraction
+- [x] Test use with keyword options
+- [x] Test use option parsing
+- [x] Test dynamic use option handling
+- [x] Test scope tracking for require/use
+- [x] Test multiple use directives
 
 ## 16.4 Module Dependency Graph
 
