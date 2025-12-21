@@ -193,24 +193,24 @@ Generate RDF triples for use and require dependencies.
 - [x] 16.4.3.6 Add require/use dependency tests
 
 ### 16.4.4 Cross-Module Linking
-- [ ] **Task 16.4.4 Pending**
+- [x] **Task 16.4.4 Complete**
 
 Link directives to actual module definitions when available in analysis scope.
 
-- [ ] 16.4.4.1 Implement module resolution for aliased modules
-- [ ] 16.4.4.2 Link imports to actual module IRIs
-- [ ] 16.4.4.3 Link use directives to __using__ macro definitions
-- [ ] 16.4.4.4 Handle unresolved references (external dependencies)
-- [ ] 16.4.4.5 Generate `structure:referencesExternalModule` for unresolved
-- [ ] 16.4.4.6 Add cross-module linking tests
+- [x] 16.4.4.1 Implement module resolution for aliased modules
+- [x] 16.4.4.2 Link imports to actual module IRIs
+- [x] 16.4.4.3 Link use directives to __using__ macro definitions
+- [x] 16.4.4.4 Handle unresolved references (external dependencies)
+- [x] 16.4.4.5 Generate `structure:isExternalModule` for unresolved
+- [x] 16.4.4.6 Add cross-module linking tests
 
 **Section 16.4 Unit Tests:**
 - [x] Test alias dependency RDF generation
 - [x] Test import dependency RDF generation
 - [x] Test require dependency RDF generation
 - [x] Test use dependency RDF generation
-- [ ] Test cross-module linking
-- [ ] Test external module reference handling
+- [x] Test cross-module linking
+- [x] Test external module reference handling
 - [ ] Test dependency graph completeness
 - [ ] Test SHACL validation of dependency graph
 

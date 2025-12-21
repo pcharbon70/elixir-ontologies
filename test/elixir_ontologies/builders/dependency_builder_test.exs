@@ -1062,4 +1062,243 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       assert has_use_1
     end
   end
+
+  # ===========================================================================
+  # Cross-Module Linking Tests
+  # ===========================================================================
+
+  describe "cross-module linking - alias" do
+    test "no isExternalModule triple when known_modules not set" do
+      alias_info = %AliasDirective{source: [:MyApp, :Users], as: :U}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      context = Context.new(base_iri: @base_iri)
+
+      {_alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+
+      external_triples = Enum.filter(triples, fn
+        {_, pred, _} -> pred == Structure.isExternalModule()
+        _ -> false
+      end)
+
+      assert external_triples == []
+    end
+
+    test "isExternalModule = false for known module" do
+      alias_info = %AliasDirective{source: [:MyApp, :Users], as: :U}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      known_modules = MapSet.new(["MyApp.Users", "MyApp.Accounts"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+
+      external_triple = {alias_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)}
+      assert external_triple in triples
+    end
+
+    test "isExternalModule = true for external module" do
+      alias_info = %AliasDirective{source: [:Enum], as: :E}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      known_modules = MapSet.new(["MyApp.Users", "MyApp.Accounts"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+
+      external_triple = {alias_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)}
+      assert external_triple in triples
+    end
+
+    test "returns 5 triples with cross-module linking enabled" do
+      alias_info = %AliasDirective{source: [:Enum], as: :E}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      known_modules = MapSet.new(["MyApp.Users"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {_alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+
+      # 4 base triples + 1 isExternalModule triple
+      assert length(triples) == 5
+    end
+  end
+
+  describe "cross-module linking - import" do
+    test "isExternalModule = false for known module" do
+      import_info = %ImportDirective{module: [:MyApp, :Helpers]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      known_modules = MapSet.new(["MyApp.Helpers"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      external_triple = {import_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)}
+      assert external_triple in triples
+    end
+
+    test "isExternalModule = true for stdlib module" do
+      import_info = %ImportDirective{module: [:Enum], only: [map: 2]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      known_modules = MapSet.new(["MyApp.Users"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+
+      external_triple = {import_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)}
+      assert external_triple in triples
+    end
+  end
+
+  describe "cross-module linking - require" do
+    test "isExternalModule = false for known module" do
+      require_info = %RequireDirective{module: [:MyApp, :Macros]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      known_modules = MapSet.new(["MyApp.Macros"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+
+      external_triple = {require_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)}
+      assert external_triple in triples
+    end
+
+    test "isExternalModule = true for Logger" do
+      require_info = %RequireDirective{module: [:Logger]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      known_modules = MapSet.new(["MyApp.Users"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+
+      external_triple = {require_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)}
+      assert external_triple in triples
+    end
+  end
+
+  describe "cross-module linking - use" do
+    test "isExternalModule = false for known module" do
+      use_info = %UseDirective{module: [:MyApp, :Behaviour]}
+      module_iri = RDF.iri("#{@base_iri}MyApp.Worker")
+      known_modules = MapSet.new(["MyApp.Behaviour"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+
+      external_triple = {use_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)}
+      assert external_triple in triples
+    end
+
+    test "isExternalModule = true for GenServer" do
+      use_info = %UseDirective{module: [:GenServer]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      known_modules = MapSet.new(["MyApp.Users"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+
+      external_triple = {use_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)}
+      assert external_triple in triples
+    end
+
+    test "generates invokesUsing triple for known module" do
+      use_info = %UseDirective{module: [:MyApp, :Behaviour]}
+      module_iri = RDF.iri("#{@base_iri}MyApp.Worker")
+      known_modules = MapSet.new(["MyApp.Behaviour"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+
+      using_macro_iri = RDF.iri("#{@base_iri}MyApp.Behaviour/__using__/1")
+      invokes_using_triple = {use_iri, Structure.invokesUsing(), using_macro_iri}
+      assert invokes_using_triple in triples
+    end
+
+    test "no invokesUsing triple for external module" do
+      use_info = %UseDirective{module: [:GenServer]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      known_modules = MapSet.new(["MyApp.Users"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+
+      invokes_using_triples = Enum.filter(triples, fn
+        {_, pred, _} -> pred == Structure.invokesUsing()
+        _ -> false
+      end)
+
+      assert invokes_using_triples == []
+    end
+
+    test "no invokesUsing triple when linking not enabled" do
+      use_info = %UseDirective{module: [:MyApp, :Behaviour]}
+      module_iri = RDF.iri("#{@base_iri}MyApp.Worker")
+      context = Context.new(base_iri: @base_iri)
+
+      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+
+      invokes_using_triples = Enum.filter(triples, fn
+        {_, pred, _} -> pred == Structure.invokesUsing()
+        _ -> false
+      end)
+
+      assert invokes_using_triples == []
+    end
+
+    test "returns 5 triples for use with known module (3 base + 1 external + 1 invokesUsing)" do
+      use_info = %UseDirective{module: [:MyApp, :Behaviour]}
+      module_iri = RDF.iri("#{@base_iri}MyApp.Worker")
+      known_modules = MapSet.new(["MyApp.Behaviour"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+
+      # 3 base + 1 isExternalModule + 1 invokesUsing
+      assert length(triples) == 5
+    end
+
+    test "returns 4 triples for use with external module (3 base + 1 external)" do
+      use_info = %UseDirective{module: [:GenServer]}
+      module_iri = RDF.iri("#{@base_iri}MyApp")
+      known_modules = MapSet.new(["MyApp.Users"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+
+      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+
+      # 3 base + 1 isExternalModule (no invokesUsing for external)
+      assert length(triples) == 4
+    end
+  end
+
+  describe "cross-module linking - mixed scenario" do
+    test "correctly identifies internal and external dependencies" do
+      known_modules = MapSet.new(["MyApp.Users", "MyApp.Accounts", "MyApp.Repo"])
+      context = Context.new(base_iri: @base_iri, known_modules: known_modules)
+      module_iri = RDF.iri("#{@base_iri}MyApp.Controller")
+
+      # Internal alias
+      {alias_iri, alias_triples} = DependencyBuilder.build_alias_dependency(
+        %AliasDirective{source: [:MyApp, :Users], as: :U},
+        module_iri, context, 0
+      )
+      assert {alias_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)} in alias_triples
+
+      # External import
+      {import_iri, import_triples} = DependencyBuilder.build_import_dependency(
+        %ImportDirective{module: [:Enum]},
+        module_iri, context, 0
+      )
+      assert {import_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)} in import_triples
+
+      # Internal require
+      {require_iri, require_triples} = DependencyBuilder.build_require_dependency(
+        %RequireDirective{module: [:MyApp, :Repo]},
+        module_iri, context, 0
+      )
+      assert {require_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)} in require_triples
+
+      # External use
+      {use_iri, use_triples} = DependencyBuilder.build_use_dependency(
+        %UseDirective{module: [:GenServer]},
+        module_iri, context, 0
+      )
+      assert {use_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)} in use_triples
+    end
+  end
 end

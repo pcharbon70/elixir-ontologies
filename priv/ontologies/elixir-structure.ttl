@@ -951,6 +951,19 @@
     rdfs:domain :UseOption ;
     rdfs:range xsd:boolean .
 
+# Cross-module linking properties
+:isExternalModule a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is external module"@en ;
+    rdfs:comment """Indicates if the referenced module is outside the analysis scope.
+    External modules include Elixir stdlib, OTP, and third-party dependencies."""@en ;
+    rdfs:range xsd:boolean .
+
+:invokesUsing a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "invokes using"@en ;
+    rdfs:comment "Links a use directive to the __using__/1 macro it invokes."@en ;
+    rdfs:domain :Use ;
+    rdfs:range :Macro .
+
 # Function identity - CRITICAL: arity is intrinsic
 :functionName a owl:DatatypeProperty, owl:FunctionalProperty ;
     rdfs:label "function name"@en ;

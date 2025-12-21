@@ -115,8 +115,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
     # Get alias short name
     alias_name = get_alias_name(alias_info)
 
-    # Build triples
-    triples = [
+    # Build base triples
+    base_triples = [
       # Type triple
       Helpers.type_triple(alias_iri, Structure.ModuleAlias),
       # Alias name
@@ -127,7 +127,10 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
       Helpers.object_property(module_iri, Structure.hasAlias(), alias_iri)
     ]
 
-    {alias_iri, triples}
+    # Add external module detection triple if cross-module linking is enabled
+    external_triples = build_external_module_triple(alias_iri, aliased_module_name, context)
+
+    {alias_iri, base_triples ++ external_triples}
   end
 
   @doc """
@@ -257,7 +260,10 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
     excluded_triples =
       build_excluded_function_triples(import_iri, import_info.except, imported_module_name, context)
 
-    triples = base_triples ++ type_triples ++ function_triples ++ excluded_triples
+    # Add external module detection triple if cross-module linking is enabled
+    external_triples = build_external_module_triple(import_iri, imported_module_name, context)
+
+    triples = base_triples ++ type_triples ++ function_triples ++ excluded_triples ++ external_triples
 
     {import_iri, triples}
   end
@@ -373,7 +379,10 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
     # Add alias triple if present
     alias_triples = build_require_alias_triple(require_iri, require_info.as)
 
-    triples = base_triples ++ alias_triples
+    # Add external module detection triple if cross-module linking is enabled
+    external_triples = build_external_module_triple(require_iri, required_module_name, context)
+
+    triples = base_triples ++ alias_triples ++ external_triples
 
     {require_iri, triples}
   end
@@ -489,7 +498,13 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
     # Build option triples if present
     option_triples = build_use_option_triples(use_iri, use_info.options)
 
-    triples = base_triples ++ option_triples
+    # Add external module detection triple if cross-module linking is enabled
+    external_triples = build_external_module_triple(use_iri, used_module_name, context)
+
+    # Add invokesUsing triple if target module is known
+    using_triples = build_invokes_using_triple(use_iri, used_module_name, context)
+
+    triples = base_triples ++ option_triples ++ external_triples ++ using_triples
 
     {use_iri, triples}
   end
@@ -558,6 +573,40 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
 
       name when is_atom(name) ->
         Atom.to_string(name)
+    end
+  end
+
+  # ===========================================================================
+  # Private Helpers - Cross-Module Linking
+  # ===========================================================================
+
+  # Build isExternalModule triple if cross-module linking is enabled
+  # Returns empty list if linking is not enabled (known_modules is nil)
+  defp build_external_module_triple(directive_iri, module_name, context) do
+    case Context.module_known?(context, module_name) do
+      nil ->
+        # Cross-module linking not enabled
+        []
+
+      is_known ->
+        # Generate triple: external = not known
+        is_external = not is_known
+        [Helpers.datatype_property(directive_iri, Structure.isExternalModule(), is_external, RDF.XSD.Boolean)]
+    end
+  end
+
+  # Build invokesUsing triple for use directives when target module is known
+  # Links the use directive to the __using__/1 macro in the used module
+  defp build_invokes_using_triple(use_iri, module_name, context) do
+    case Context.module_known?(context, module_name) do
+      true ->
+        # Module is known, link to its __using__/1 macro
+        using_macro_iri = IRI.for_function(context.base_iri, module_name, "__using__", 1)
+        [Helpers.object_property(use_iri, Structure.invokesUsing(), using_macro_iri)]
+
+      _ ->
+        # Module is external or linking not enabled - no triple
+        []
     end
   end
 
