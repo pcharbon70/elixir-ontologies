@@ -105,16 +105,16 @@ Extract receive expressions with their message patterns and timeouts.
 - [x] 17.2.3.6 Add receive extraction tests
 
 ### 17.2.4 Loop Expression Extraction
-- [ ] **Task 17.2.4 Pending**
+- [x] **Task 17.2.4 Complete**
 
 Extract for comprehensions and recursive patterns.
 
-- [ ] 17.2.4.1 Update `lib/elixir_ontologies/extractors/comprehension.ex` for loop semantics
-- [ ] 17.2.4.2 Define `%ForLoop{generators: [...], filters: [...], into: ..., body: ...}` struct
-- [ ] 17.2.4.3 Extract generators (binding patterns)
-- [ ] 17.2.4.4 Extract filters (guard expressions)
-- [ ] 17.2.4.5 Extract `into:` accumulator target
-- [ ] 17.2.4.6 Add loop extraction tests
+- [x] 17.2.4.1 Update `lib/elixir_ontologies/extractors/comprehension.ex` for loop semantics
+- [x] 17.2.4.2 Define `%ForLoop{generators: [...], filters: [...], into: ..., body: ...}` struct
+- [x] 17.2.4.3 Extract generators (binding patterns)
+- [x] 17.2.4.4 Extract filters (guard expressions)
+- [x] 17.2.4.5 Extract `into:` accumulator target
+- [x] 17.2.4.6 Add loop extraction tests
 
 **Section 17.2 Unit Tests:**
 - [ ] Test if/else extraction

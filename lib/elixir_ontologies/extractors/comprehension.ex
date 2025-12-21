@@ -1,6 +1,6 @@
 defmodule ElixirOntologies.Extractors.Comprehension do
   @moduledoc """
-  Extracts for comprehensions from AST nodes.
+  Extracts for comprehensions (loop expressions) from AST nodes.
 
   This module analyzes Elixir AST nodes representing `for` comprehensions and
   extracts their generators, filters, options, and body expressions. Supports
@@ -10,6 +10,12 @@ defmodule ElixirOntologies.Extractors.Comprehension do
   - Bitstring Generators: `<<c <- binary>>` - iterate over binary data
   - Filters: Boolean expressions that filter results
   - Options: `:into`, `:reduce`, `:uniq`
+
+  ## Loop Semantics
+
+  The `for_loop?/1` predicate and `extract_for_loops/2` function provide
+  loop-oriented naming for consistency with other control flow extractors.
+  ForLoop is an alias for Comprehension - they represent the same construct.
 
   ## Generator Ordering
 
@@ -37,6 +43,60 @@ defmodule ElixirOntologies.Extractors.Comprehension do
   alias ElixirOntologies.Extractors.Helpers
 
   # ===========================================================================
+  # Nested Structs
+  # ===========================================================================
+
+  defmodule Generator do
+    @moduledoc """
+    Represents a generator in a for comprehension.
+
+    A generator binds a pattern to elements from an enumerable, creating
+    the iteration loop. Multiple generators create nested loops.
+    """
+
+    @typedoc """
+    A generator in a comprehension.
+
+    - `:type` - Either `:generator` or `:bitstring_generator`
+    - `:pattern` - The pattern to match against each element
+    - `:enumerable` - The collection being iterated
+    - `:location` - Source location if available
+    """
+    @type t :: %__MODULE__{
+            type: :generator | :bitstring_generator,
+            pattern: Macro.t(),
+            enumerable: Macro.t(),
+            location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
+          }
+
+    @enforce_keys [:type, :pattern, :enumerable]
+    defstruct [:type, :pattern, :enumerable, :location]
+  end
+
+  defmodule Filter do
+    @moduledoc """
+    Represents a filter expression in a for comprehension.
+
+    Filters are boolean expressions that determine which iterations
+    produce output. They act as guards within the loop.
+    """
+
+    @typedoc """
+    A filter in a comprehension.
+
+    - `:expression` - The boolean filter expression
+    - `:location` - Source location if available
+    """
+    @type t :: %__MODULE__{
+            expression: Macro.t(),
+            location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
+          }
+
+    @enforce_keys [:expression]
+    defstruct [:expression, :location]
+  end
+
+  # ===========================================================================
   # Result Structs
   # ===========================================================================
 
@@ -44,8 +104,8 @@ defmodule ElixirOntologies.Extractors.Comprehension do
   The result of comprehension extraction.
 
   - `:type` - Always `:for` for comprehensions
-  - `:generators` - List of generator structs (regular and bitstring)
-  - `:filters` - List of filter expressions
+  - `:generators` - List of Generator structs (regular and bitstring)
+  - `:filters` - List of Filter structs
   - `:body` - The body expression that produces output
   - `:options` - Map of comprehension options (into, reduce, uniq)
   - `:location` - Source location if available
@@ -53,8 +113,8 @@ defmodule ElixirOntologies.Extractors.Comprehension do
   """
   @type t :: %__MODULE__{
           type: :for,
-          generators: [generator()],
-          filters: [Macro.t()],
+          generators: [Generator.t()],
+          filters: [Filter.t()],
           body: Macro.t(),
           options: options(),
           location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
@@ -62,19 +122,11 @@ defmodule ElixirOntologies.Extractors.Comprehension do
         }
 
   @typedoc """
-  A generator in a comprehension.
+  ForLoop is an alias for the Comprehension struct.
 
-  - `:type` - Either `:generator` or `:bitstring_generator`
-  - `:pattern` - The pattern to match against each element
-  - `:enumerable` - The collection being iterated
-  - `:location` - Source location if available
+  This alias provides naming consistency with other control flow extractors.
   """
-  @type generator :: %{
-          type: :generator | :bitstring_generator,
-          pattern: Macro.t(),
-          enumerable: Macro.t(),
-          location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
-        }
+  @type for_loop :: t()
 
   @typedoc """
   Comprehension options map.
@@ -121,6 +173,22 @@ defmodule ElixirOntologies.Extractors.Comprehension do
   def comprehension?(_), do: false
 
   @doc """
+  Checks if an AST node represents a for loop (alias for `comprehension?/1`).
+
+  This function provides naming consistency with other control flow extractors.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Comprehension.for_loop?({:for, [], [[do: nil]]})
+      true
+
+      iex> ElixirOntologies.Extractors.Comprehension.for_loop?({:if, [], [true, [do: 1]]})
+      false
+  """
+  @spec for_loop?(Macro.t()) :: boolean()
+  def for_loop?(ast), do: comprehension?(ast)
+
+  @doc """
   Checks if an AST node is a generator expression (`pattern <- enumerable`).
 
   ## Examples
@@ -160,6 +228,10 @@ defmodule ElixirOntologies.Extractors.Comprehension do
   Returns `{:ok, %Comprehension{}}` on success, or `{:error, reason}` if the
   node is not a for comprehension.
 
+  ## Options
+
+  - `:include_location` - When true, extracts source location (default: true)
+
   ## Examples
 
       iex> ast = {:for, [], [{:<-, [], [{:x, [], nil}, [1, 2, 3]]}, [do: {:x, [], nil}]]}
@@ -173,10 +245,12 @@ defmodule ElixirOntologies.Extractors.Comprehension do
 
       iex> {:error, _} = ElixirOntologies.Extractors.Comprehension.extract({:if, [], [true]})
   """
-  @spec extract(Macro.t()) :: {:ok, t()} | {:error, String.t()}
-  def extract({:for, _meta, args} = node) when is_list(args) do
-    {generators, filters, opts} = parse_comprehension_args(args)
-    {body, options} = extract_body_and_options(opts)
+  @spec extract(Macro.t(), keyword()) :: {:ok, t()} | {:error, String.t()}
+  def extract(node, opts \\ [])
+
+  def extract({:for, _meta, args} = node, opts) when is_list(args) do
+    {generators, filters, comp_opts} = parse_comprehension_args(args)
+    {body, options} = extract_body_and_options(comp_opts)
 
     result = %__MODULE__{
       type: :for,
@@ -184,7 +258,7 @@ defmodule ElixirOntologies.Extractors.Comprehension do
       filters: filters,
       body: body,
       options: options,
-      location: Helpers.extract_location(node),
+      location: Helpers.extract_location_if(node, opts),
       metadata: %{
         generator_count: length(generators),
         filter_count: length(filters),
@@ -197,7 +271,7 @@ defmodule ElixirOntologies.Extractors.Comprehension do
     {:ok, result}
   end
 
-  def extract(node) do
+  def extract(node, _opts) do
     {:error, Helpers.format_error("Not a for comprehension", node)}
   end
 
@@ -219,6 +293,52 @@ defmodule ElixirOntologies.Extractors.Comprehension do
     end
   end
 
+  @doc """
+  Extracts all for loops (comprehensions) from an AST.
+
+  Walks the AST recursively to find all for comprehensions, including
+  those nested within other expressions.
+
+  ## Options
+
+  - `:include_location` - When true, extracts source location (default: true)
+
+  ## Examples
+
+      iex> ast = quote do
+      ...>   x = for i <- [1, 2], do: i
+      ...>   y = for j <- [3, 4], do: j
+      ...> end
+      iex> loops = ElixirOntologies.Extractors.Comprehension.extract_for_loops(ast)
+      iex> length(loops)
+      2
+
+      iex> ast = quote do
+      ...>   for i <- [1, 2] do
+      ...>     for j <- [3, 4], do: {i, j}
+      ...>   end
+      ...> end
+      iex> loops = ElixirOntologies.Extractors.Comprehension.extract_for_loops(ast)
+      iex> length(loops)
+      2
+  """
+  @spec extract_for_loops(Macro.t(), keyword()) :: [t()]
+  def extract_for_loops(ast, opts \\ []) do
+    {_ast, loops} =
+      Macro.prewalk(ast, [], fn
+        {:for, _meta, _args} = node, acc ->
+          case extract(node, opts) do
+            {:ok, loop} -> {node, [loop | acc]}
+            {:error, _} -> {node, acc}
+          end
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    Enum.reverse(loops)
+  end
+
   # ===========================================================================
   # Generator Extraction
   # ===========================================================================
@@ -237,9 +357,9 @@ defmodule ElixirOntologies.Extractors.Comprehension do
       iex> gen.enumerable
       [1, 2, 3]
   """
-  @spec extract_generator(Macro.t()) :: generator()
+  @spec extract_generator(Macro.t()) :: Generator.t()
   def extract_generator({:<-, _meta, [pattern, enumerable]} = node) do
-    %{
+    %Generator{
       type: :generator,
       pattern: pattern,
       enumerable: enumerable,
@@ -261,13 +381,31 @@ defmodule ElixirOntologies.Extractors.Comprehension do
       iex> gen.enumerable
       "hello"
   """
-  @spec extract_bitstring_generator(Macro.t()) :: generator()
+  @spec extract_bitstring_generator(Macro.t()) :: Generator.t()
   def extract_bitstring_generator({:<<>>, _meta, [{:<-, _arrow_meta, [pattern, binary]}]} = node) do
-    %{
+    %Generator{
       type: :bitstring_generator,
       pattern: pattern,
       enumerable: binary,
       location: Helpers.extract_location(node)
+    }
+  end
+
+  @doc """
+  Extracts a filter from an AST expression.
+
+  ## Examples
+
+      iex> ast = {:>, [], [{:x, [], nil}, 0]}
+      iex> filter = ElixirOntologies.Extractors.Comprehension.extract_filter(ast)
+      iex> filter.expression
+      {:>, [], [{:x, [], nil}, 0]}
+  """
+  @spec extract_filter(Macro.t()) :: Filter.t()
+  def extract_filter(expression) do
+    %Filter{
+      expression: expression,
+      location: Helpers.extract_location(expression)
     }
   end
 
@@ -333,8 +471,9 @@ defmodule ElixirOntologies.Extractors.Comprehension do
   ## Examples
 
       iex> alias ElixirOntologies.Extractors.Comprehension
-      iex> gen1 = %{type: :generator, pattern: {:x, [], nil}, enumerable: [1], location: nil}
-      iex> gen2 = %{type: :generator, pattern: {:y, [], nil}, enumerable: [2], location: nil}
+      iex> alias ElixirOntologies.Extractors.Comprehension.Generator
+      iex> gen1 = %Generator{type: :generator, pattern: {:x, [], nil}, enumerable: [1]}
+      iex> gen2 = %Generator{type: :generator, pattern: {:y, [], nil}, enumerable: [2]}
       iex> comp = %Comprehension{type: :for, generators: [gen1, gen2]}
       iex> Comprehension.generator_patterns(comp)
       [{:x, [], nil}, {:y, [], nil}]
@@ -371,7 +510,8 @@ defmodule ElixirOntologies.Extractors.Comprehension do
 
           # Filter expression (anything else)
           true ->
-            {gens, filts ++ [arg], opts}
+            filter = extract_filter(arg)
+            {gens, filts ++ [filter], opts}
         end
       end)
 
