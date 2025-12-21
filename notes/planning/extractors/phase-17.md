@@ -155,16 +155,16 @@ Extract rescue clauses with their exception patterns.
 - [x] 17.3.2.6 Add rescue clause extraction tests
 
 ### 17.3.3 Catch Clause Extraction
-- [ ] **Task 17.3.3 Pending**
+- [x] **Task 17.3.3 Complete**
 
 Extract catch clauses for throw/exit/error handling.
 
-- [ ] 17.3.3.1 Implement `extract_catch_clauses/1` for catch blocks
-- [ ] 17.3.3.2 Define `%CatchClause{type: :throw|:exit|:error, pattern: ..., body: ...}` struct
-- [ ] 17.3.3.3 Extract catch type (:throw, :exit, :error)
-- [ ] 17.3.3.4 Extract catch pattern
-- [ ] 17.3.3.5 Handle catch without explicit type
-- [ ] 17.3.3.6 Add catch clause extraction tests
+- [x] 17.3.3.1 Implement `extract_catch_clauses/1` for catch blocks
+- [x] 17.3.3.2 Define `%CatchClause{type: :throw|:exit|:error, pattern: ..., body: ...}` struct
+- [x] 17.3.3.3 Extract catch type (:throw, :exit, :error)
+- [x] 17.3.3.4 Extract catch pattern
+- [x] 17.3.3.5 Handle catch without explicit type
+- [x] 17.3.3.6 Add catch clause extraction tests
 
 ### 17.3.4 Raise and Throw Extraction
 - [ ] **Task 17.3.4 Pending**

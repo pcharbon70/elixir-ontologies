@@ -396,6 +396,81 @@ defmodule ElixirOntologies.Extractors.ExceptionTest do
   end
 
   # ===========================================================================
+  # Standalone Catch Clause Extraction Tests
+  # ===========================================================================
+
+  describe "extract_catch_clauses/2" do
+    test "extracts clauses from list with :throw kind" do
+      clauses = [{:->, [], [[:throw, {:value, [], nil}], {:value, [], nil}]}]
+      result = Exception.extract_catch_clauses(clauses)
+
+      assert length(result) == 1
+      [clause] = result
+      assert %CatchClause{} = clause
+      assert clause.kind == :throw
+      assert {:value, [], nil} = clause.pattern
+    end
+
+    test "returns empty list for nil" do
+      assert Exception.extract_catch_clauses(nil) == []
+    end
+
+    test "returns empty list for empty list" do
+      assert Exception.extract_catch_clauses([]) == []
+    end
+
+    test "extracts :exit kind" do
+      clauses = [{:->, [], [[:exit, {:reason, [], nil}], {:reason, [], nil}]}]
+      [clause] = Exception.extract_catch_clauses(clauses)
+
+      assert clause.kind == :exit
+      assert {:reason, [], nil} = clause.pattern
+    end
+
+    test "extracts :error kind" do
+      clauses = [{:->, [], [[:error, {:reason, [], nil}], :error_handled]}]
+      [clause] = Exception.extract_catch_clauses(clauses)
+
+      assert clause.kind == :error
+      assert {:reason, [], nil} = clause.pattern
+    end
+
+    test "handles catch without explicit kind" do
+      clauses = [{:->, [], [[{:value, [], nil}], {:value, [], nil}]}]
+      [clause] = Exception.extract_catch_clauses(clauses)
+
+      assert clause.kind == nil
+      assert {:value, [], nil} = clause.pattern
+    end
+
+    test "extracts complex pattern" do
+      # Pattern: {:ball, color}
+      pattern = {:ball, {:color, [], nil}}
+      clauses = [{:->, [], [[:throw, pattern], :caught]}]
+      [clause] = Exception.extract_catch_clauses(clauses)
+
+      assert clause.kind == :throw
+      assert {:ball, {:color, [], nil}} = clause.pattern
+    end
+
+    test "extracts multiple catch clauses" do
+      clauses = [
+        {:->, [], [[:throw, {:t, [], nil}], :throw_handled]},
+        {:->, [], [[:exit, {:e, [], nil}], :exit_handled]},
+        {:->, [], [[:error, {:r, [], nil}], :error_handled]}
+      ]
+
+      result = Exception.extract_catch_clauses(clauses)
+      assert length(result) == 3
+
+      [throw_clause, exit_clause, error_clause] = result
+      assert throw_clause.kind == :throw
+      assert exit_clause.kind == :exit
+      assert error_clause.kind == :error
+    end
+  end
+
+  # ===========================================================================
   # Else Clause Tests
   # ===========================================================================
 
