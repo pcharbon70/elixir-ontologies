@@ -112,6 +112,80 @@ defmodule ElixirOntologies.Extractors.Exception do
     defstruct [:pattern, :guard, :body, :location]
   end
 
+  defmodule RaiseExpression do
+    @moduledoc """
+    Represents a raise or reraise expression.
+
+    A raise expression signals an exception, optionally specifying an
+    exception module, message, and/or attributes.
+    """
+
+    @typedoc """
+    A raise or reraise expression.
+
+    - `:exception` - Exception module or struct, nil for message-only raise
+    - `:message` - Message string or expression
+    - `:attributes` - Keyword list of exception attributes
+    - `:is_reraise` - True if this is a reraise
+    - `:stacktrace` - Stacktrace expression for reraise
+    - `:location` - Source location if available
+    """
+    @type t :: %__MODULE__{
+            exception: atom() | Macro.t() | nil,
+            message: String.t() | Macro.t() | nil,
+            attributes: keyword() | nil,
+            is_reraise: boolean(),
+            stacktrace: Macro.t() | nil,
+            location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
+          }
+
+    defstruct [:exception, :message, :attributes, :stacktrace, :location, is_reraise: false]
+  end
+
+  defmodule ThrowExpression do
+    @moduledoc """
+    Represents a throw expression.
+
+    A throw expression throws a value that can be caught with a catch clause.
+    """
+
+    @typedoc """
+    A throw expression.
+
+    - `:value` - The thrown value
+    - `:location` - Source location if available
+    """
+    @type t :: %__MODULE__{
+            value: Macro.t(),
+            location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
+          }
+
+    @enforce_keys [:value]
+    defstruct [:value, :location]
+  end
+
+  defmodule ExitExpression do
+    @moduledoc """
+    Represents an exit expression.
+
+    An exit expression terminates the current process with a reason.
+    """
+
+    @typedoc """
+    An exit expression.
+
+    - `:reason` - The exit reason
+    - `:location` - Source location if available
+    """
+    @type t :: %__MODULE__{
+            reason: Macro.t(),
+            location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil
+          }
+
+    @enforce_keys [:reason]
+    defstruct [:reason, :location]
+  end
+
   # ===========================================================================
   # Main Struct
   # ===========================================================================
@@ -514,4 +588,446 @@ defmodule ElixirOntologies.Extractors.Exception do
 
   defp maybe_add(list, type, true), do: [type | list]
   defp maybe_add(list, _type, false), do: list
+
+  # ===========================================================================
+  # Raise/Reraise Extraction
+  # ===========================================================================
+
+  @doc """
+  Checks if an AST node represents a raise or reraise expression.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Exception.raise_expression?({:raise, [], ["error"]})
+      true
+
+      iex> ElixirOntologies.Extractors.Exception.raise_expression?({:reraise, [], [:e, :stack]})
+      true
+
+      iex> ElixirOntologies.Extractors.Exception.raise_expression?({:throw, [], [:value]})
+      false
+  """
+  @spec raise_expression?(Macro.t()) :: boolean()
+  def raise_expression?({:raise, _meta, args}) when is_list(args), do: true
+  def raise_expression?({:reraise, _meta, args}) when is_list(args), do: true
+  def raise_expression?(_), do: false
+
+  @doc """
+  Extracts a raise or reraise expression from an AST node.
+
+  Returns `{:ok, %RaiseExpression{}}` on success, or `{:error, reason}` if the
+  node is not a raise/reraise expression.
+
+  ## Options
+
+  - `:include_location` - When true, extracts source location (default: true)
+
+  ## Examples
+
+      iex> ast = {:raise, [], ["error message"]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.Exception.extract_raise(ast)
+      iex> result.message
+      "error message"
+
+      iex> {:error, _} = ElixirOntologies.Extractors.Exception.extract_raise({:throw, [], [:value]})
+  """
+  @spec extract_raise(Macro.t(), keyword()) :: {:ok, RaiseExpression.t()} | {:error, String.t()}
+  def extract_raise(node, opts \\ [])
+
+  # Reraise with exception and stacktrace
+  def extract_raise({:reraise, _meta, [exception, stacktrace]} = node, opts) do
+    {exc_module, message, attrs} = parse_raise_exception(exception)
+
+    result = %RaiseExpression{
+      exception: exc_module,
+      message: message,
+      attributes: attrs,
+      is_reraise: true,
+      stacktrace: stacktrace,
+      location: Helpers.extract_location_if(node, opts)
+    }
+
+    {:ok, result}
+  end
+
+  # Raise with message only
+  def extract_raise({:raise, _meta, [message]} = node, opts) when is_binary(message) do
+    result = %RaiseExpression{
+      exception: nil,
+      message: message,
+      attributes: nil,
+      is_reraise: false,
+      stacktrace: nil,
+      location: Helpers.extract_location_if(node, opts)
+    }
+
+    {:ok, result}
+  end
+
+  # Raise with exception module only
+  def extract_raise({:raise, _meta, [{:__aliases__, _, _} = exception]} = node, opts) do
+    result = %RaiseExpression{
+      exception: exception,
+      message: nil,
+      attributes: nil,
+      is_reraise: false,
+      stacktrace: nil,
+      location: Helpers.extract_location_if(node, opts)
+    }
+
+    {:ok, result}
+  end
+
+  # Raise with exception struct
+  def extract_raise({:raise, _meta, [{:%, _, _} = struct_ast]} = node, opts) do
+    result = %RaiseExpression{
+      exception: struct_ast,
+      message: nil,
+      attributes: nil,
+      is_reraise: false,
+      stacktrace: nil,
+      location: Helpers.extract_location_if(node, opts)
+    }
+
+    {:ok, result}
+  end
+
+  # Raise with exception module and message string
+  def extract_raise({:raise, _meta, [exception, message]} = node, opts) when is_binary(message) do
+    result = %RaiseExpression{
+      exception: exception,
+      message: message,
+      attributes: nil,
+      is_reraise: false,
+      stacktrace: nil,
+      location: Helpers.extract_location_if(node, opts)
+    }
+
+    {:ok, result}
+  end
+
+  # Raise with exception module and keyword opts
+  def extract_raise({:raise, _meta, [exception, attrs]} = node, opts) when is_list(attrs) do
+    message = Keyword.get(attrs, :message)
+
+    result = %RaiseExpression{
+      exception: exception,
+      message: message,
+      attributes: attrs,
+      is_reraise: false,
+      stacktrace: nil,
+      location: Helpers.extract_location_if(node, opts)
+    }
+
+    {:ok, result}
+  end
+
+  # Raise with expression as message (variable or function call)
+  def extract_raise({:raise, _meta, [message_expr]} = node, opts) do
+    result = %RaiseExpression{
+      exception: nil,
+      message: message_expr,
+      attributes: nil,
+      is_reraise: false,
+      stacktrace: nil,
+      location: Helpers.extract_location_if(node, opts)
+    }
+
+    {:ok, result}
+  end
+
+  # Raise with exception and expression (e.g., variable)
+  def extract_raise({:raise, _meta, [exception, message_expr]} = node, opts) do
+    result = %RaiseExpression{
+      exception: exception,
+      message: message_expr,
+      attributes: nil,
+      is_reraise: false,
+      stacktrace: nil,
+      location: Helpers.extract_location_if(node, opts)
+    }
+
+    {:ok, result}
+  end
+
+  def extract_raise(node, _opts) do
+    {:error, Helpers.format_error("Not a raise/reraise expression", node)}
+  end
+
+  @doc """
+  Extracts a raise expression, raising on error.
+
+  ## Examples
+
+      iex> ast = {:raise, [], ["error"]}
+      iex> result = ElixirOntologies.Extractors.Exception.extract_raise!(ast)
+      iex> result.message
+      "error"
+  """
+  @spec extract_raise!(Macro.t(), keyword()) :: RaiseExpression.t()
+  def extract_raise!(node, opts \\ []) do
+    case extract_raise(node, opts) do
+      {:ok, result} -> result
+      {:error, reason} -> raise ArgumentError, reason
+    end
+  end
+
+  @doc """
+  Extracts all raise/reraise expressions from an AST.
+
+  ## Examples
+
+      iex> ast = quote do
+      ...>   raise "error1"
+      ...>   raise "error2"
+      ...> end
+      iex> raises = ElixirOntologies.Extractors.Exception.extract_raises(ast)
+      iex> length(raises)
+      2
+  """
+  @spec extract_raises(Macro.t(), keyword()) :: [RaiseExpression.t()]
+  def extract_raises(ast, opts \\ []) do
+    {_ast, raises} =
+      Macro.prewalk(ast, [], fn
+        {:raise, _meta, _args} = node, acc ->
+          case extract_raise(node, opts) do
+            {:ok, raise_expr} -> {node, [raise_expr | acc]}
+            {:error, _} -> {node, acc}
+          end
+
+        {:reraise, _meta, _args} = node, acc ->
+          case extract_raise(node, opts) do
+            {:ok, raise_expr} -> {node, [raise_expr | acc]}
+            {:error, _} -> {node, acc}
+          end
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    Enum.reverse(raises)
+  end
+
+  # Parse the exception argument to extract module, message, and attributes
+  defp parse_raise_exception(exception) when is_binary(exception) do
+    {nil, exception, nil}
+  end
+
+  defp parse_raise_exception({:__aliases__, _, _} = module) do
+    {module, nil, nil}
+  end
+
+  defp parse_raise_exception({:%, _, [module, {:%{}, _, attrs}]}) do
+    message = Keyword.get(attrs, :message)
+    {module, message, attrs}
+  end
+
+  defp parse_raise_exception(other) do
+    # Could be a variable or expression holding an exception
+    {other, nil, nil}
+  end
+
+  # ===========================================================================
+  # Throw Extraction
+  # ===========================================================================
+
+  @doc """
+  Checks if an AST node represents a throw expression.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Exception.throw_expression?({:throw, [], [:value]})
+      true
+
+      iex> ElixirOntologies.Extractors.Exception.throw_expression?({:raise, [], ["error"]})
+      false
+  """
+  @spec throw_expression?(Macro.t()) :: boolean()
+  def throw_expression?({:throw, _meta, args}) when is_list(args), do: true
+  def throw_expression?(_), do: false
+
+  @doc """
+  Extracts a throw expression from an AST node.
+
+  Returns `{:ok, %ThrowExpression{}}` on success, or `{:error, reason}` if the
+  node is not a throw expression.
+
+  ## Options
+
+  - `:include_location` - When true, extracts source location (default: true)
+
+  ## Examples
+
+      iex> ast = {:throw, [], [:value]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.Exception.extract_throw(ast)
+      iex> result.value
+      :value
+
+      iex> {:error, _} = ElixirOntologies.Extractors.Exception.extract_throw({:raise, [], ["error"]})
+  """
+  @spec extract_throw(Macro.t(), keyword()) :: {:ok, ThrowExpression.t()} | {:error, String.t()}
+  def extract_throw(node, opts \\ [])
+
+  def extract_throw({:throw, _meta, [value]} = node, opts) do
+    result = %ThrowExpression{
+      value: value,
+      location: Helpers.extract_location_if(node, opts)
+    }
+
+    {:ok, result}
+  end
+
+  def extract_throw(node, _opts) do
+    {:error, Helpers.format_error("Not a throw expression", node)}
+  end
+
+  @doc """
+  Extracts a throw expression, raising on error.
+
+  ## Examples
+
+      iex> ast = {:throw, [], [:done]}
+      iex> result = ElixirOntologies.Extractors.Exception.extract_throw!(ast)
+      iex> result.value
+      :done
+  """
+  @spec extract_throw!(Macro.t(), keyword()) :: ThrowExpression.t()
+  def extract_throw!(node, opts \\ []) do
+    case extract_throw(node, opts) do
+      {:ok, result} -> result
+      {:error, reason} -> raise ArgumentError, reason
+    end
+  end
+
+  @doc """
+  Extracts all throw expressions from an AST.
+
+  ## Examples
+
+      iex> ast = quote do
+      ...>   throw :a
+      ...>   throw :b
+      ...> end
+      iex> throws = ElixirOntologies.Extractors.Exception.extract_throws(ast)
+      iex> length(throws)
+      2
+  """
+  @spec extract_throws(Macro.t(), keyword()) :: [ThrowExpression.t()]
+  def extract_throws(ast, opts \\ []) do
+    {_ast, throws} =
+      Macro.prewalk(ast, [], fn
+        {:throw, _meta, _args} = node, acc ->
+          case extract_throw(node, opts) do
+            {:ok, throw_expr} -> {node, [throw_expr | acc]}
+            {:error, _} -> {node, acc}
+          end
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    Enum.reverse(throws)
+  end
+
+  # ===========================================================================
+  # Exit Extraction
+  # ===========================================================================
+
+  @doc """
+  Checks if an AST node represents an exit expression.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.Exception.exit_expression?({:exit, [], [:normal]})
+      true
+
+      iex> ElixirOntologies.Extractors.Exception.exit_expression?({:throw, [], [:value]})
+      false
+  """
+  @spec exit_expression?(Macro.t()) :: boolean()
+  def exit_expression?({:exit, _meta, args}) when is_list(args), do: true
+  def exit_expression?(_), do: false
+
+  @doc """
+  Extracts an exit expression from an AST node.
+
+  Returns `{:ok, %ExitExpression{}}` on success, or `{:error, reason}` if the
+  node is not an exit expression.
+
+  ## Options
+
+  - `:include_location` - When true, extracts source location (default: true)
+
+  ## Examples
+
+      iex> ast = {:exit, [], [:normal]}
+      iex> {:ok, result} = ElixirOntologies.Extractors.Exception.extract_exit(ast)
+      iex> result.reason
+      :normal
+
+      iex> {:error, _} = ElixirOntologies.Extractors.Exception.extract_exit({:throw, [], [:value]})
+  """
+  @spec extract_exit(Macro.t(), keyword()) :: {:ok, ExitExpression.t()} | {:error, String.t()}
+  def extract_exit(node, opts \\ [])
+
+  def extract_exit({:exit, _meta, [reason]} = node, opts) do
+    result = %ExitExpression{
+      reason: reason,
+      location: Helpers.extract_location_if(node, opts)
+    }
+
+    {:ok, result}
+  end
+
+  def extract_exit(node, _opts) do
+    {:error, Helpers.format_error("Not an exit expression", node)}
+  end
+
+  @doc """
+  Extracts an exit expression, raising on error.
+
+  ## Examples
+
+      iex> ast = {:exit, [], [:shutdown]}
+      iex> result = ElixirOntologies.Extractors.Exception.extract_exit!(ast)
+      iex> result.reason
+      :shutdown
+  """
+  @spec extract_exit!(Macro.t(), keyword()) :: ExitExpression.t()
+  def extract_exit!(node, opts \\ []) do
+    case extract_exit(node, opts) do
+      {:ok, result} -> result
+      {:error, reason} -> raise ArgumentError, reason
+    end
+  end
+
+  @doc """
+  Extracts all exit expressions from an AST.
+
+  ## Examples
+
+      iex> ast = quote do
+      ...>   exit(:normal)
+      ...>   exit(:shutdown)
+      ...> end
+      iex> exits = ElixirOntologies.Extractors.Exception.extract_exits(ast)
+      iex> length(exits)
+      2
+  """
+  @spec extract_exits(Macro.t(), keyword()) :: [ExitExpression.t()]
+  def extract_exits(ast, opts \\ []) do
+    {_ast, exits} =
+      Macro.prewalk(ast, [], fn
+        {:exit, _meta, _args} = node, acc ->
+          case extract_exit(node, opts) do
+            {:ok, exit_expr} -> {node, [exit_expr | acc]}
+            {:error, _} -> {node, acc}
+          end
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    Enum.reverse(exits)
+  end
 end

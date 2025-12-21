@@ -167,16 +167,16 @@ Extract catch clauses for throw/exit/error handling.
 - [x] 17.3.3.6 Add catch clause extraction tests
 
 ### 17.3.4 Raise and Throw Extraction
-- [ ] **Task 17.3.4 Pending**
+- [x] **Task 17.3.4 Complete**
 
 Extract raise and throw expressions.
 
-- [ ] 17.3.4.1 Implement `extract_raise/1` for raise expressions
-- [ ] 17.3.4.2 Define `%RaiseExpression{exception: ..., message: ..., attributes: ...}` struct
-- [ ] 17.3.4.3 Extract exception module being raised
-- [ ] 17.3.4.4 Implement `extract_throw/1` for throw expressions
-- [ ] 17.3.4.5 Define `%ThrowExpression{value: ..., location: ...}` struct
-- [ ] 17.3.4.6 Add raise/throw extraction tests
+- [x] 17.3.4.1 Implement `extract_raise/1` for raise expressions
+- [x] 17.3.4.2 Define `%RaiseExpression{exception: ..., message: ..., attributes: ...}` struct
+- [x] 17.3.4.3 Extract exception module being raised
+- [x] 17.3.4.4 Implement `extract_throw/1` for throw expressions
+- [x] 17.3.4.5 Define `%ThrowExpression{value: ..., location: ...}` struct
+- [x] 17.3.4.6 Add raise/throw extraction tests
 
 **Section 17.3 Unit Tests:**
 - [ ] Test try/rescue extraction

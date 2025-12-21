@@ -9,7 +9,15 @@ defmodule ElixirOntologies.Extractors.ExceptionTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.Exception
-  alias ElixirOntologies.Extractors.Exception.{RescueClause, CatchClause, ElseClause}
+
+  alias ElixirOntologies.Extractors.Exception.{
+    RescueClause,
+    CatchClause,
+    ElseClause,
+    RaiseExpression,
+    ThrowExpression,
+    ExitExpression
+  }
 
   doctest Exception
 
@@ -710,6 +718,448 @@ defmodule ElixirOntologies.Extractors.ExceptionTest do
       assert clause.pattern == {:ok, :v}
       assert clause.body == :v
       assert clause.guard == nil
+    end
+  end
+
+  # ===========================================================================
+  # Raise Expression Tests
+  # ===========================================================================
+
+  describe "raise_expression?/1" do
+    test "returns true for raise with message" do
+      ast = {:raise, [], ["error message"]}
+      assert Exception.raise_expression?(ast)
+    end
+
+    test "returns true for raise with exception module" do
+      ast = {:raise, [], [{:__aliases__, [], [:RuntimeError]}]}
+      assert Exception.raise_expression?(ast)
+    end
+
+    test "returns true for reraise" do
+      ast = {:reraise, [], [{:e, [], nil}, {:__STACKTRACE__, [], nil}]}
+      assert Exception.raise_expression?(ast)
+    end
+
+    test "returns false for throw" do
+      ast = {:throw, [], [:value]}
+      refute Exception.raise_expression?(ast)
+    end
+
+    test "returns false for non-raise expressions" do
+      refute Exception.raise_expression?({:if, [], [true, [do: 1]]})
+      refute Exception.raise_expression?(:atom)
+    end
+  end
+
+  describe "extract_raise/2" do
+    test "extracts raise with message string" do
+      ast = {:raise, [], ["error message"]}
+      {:ok, result} = Exception.extract_raise(ast)
+
+      assert %RaiseExpression{} = result
+      assert result.message == "error message"
+      assert result.exception == nil
+      assert result.is_reraise == false
+    end
+
+    test "extracts raise with exception module only" do
+      ast = {:raise, [], [{:__aliases__, [], [:RuntimeError]}]}
+      {:ok, result} = Exception.extract_raise(ast)
+
+      assert result.exception == {:__aliases__, [], [:RuntimeError]}
+      assert result.message == nil
+      assert result.is_reraise == false
+    end
+
+    test "extracts raise with exception and message string" do
+      ast = {:raise, [], [{:__aliases__, [], [:ArgumentError]}, "bad argument"]}
+      {:ok, result} = Exception.extract_raise(ast)
+
+      assert result.exception == {:__aliases__, [], [:ArgumentError]}
+      assert result.message == "bad argument"
+      assert result.is_reraise == false
+    end
+
+    test "extracts raise with exception and keyword options" do
+      ast = {:raise, [], [{:__aliases__, [], [:RuntimeError]}, [message: "failed", extra: :data]]}
+      {:ok, result} = Exception.extract_raise(ast)
+
+      assert result.exception == {:__aliases__, [], [:RuntimeError]}
+      assert result.message == "failed"
+      assert result.attributes == [message: "failed", extra: :data]
+      assert result.is_reraise == false
+    end
+
+    test "extracts raise with exception struct" do
+      struct_ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:RuntimeError]},
+           {:%{}, [], [message: "oops"]}
+         ]}
+
+      ast = {:raise, [], [struct_ast]}
+      {:ok, result} = Exception.extract_raise(ast)
+
+      assert result.exception == struct_ast
+      assert result.is_reraise == false
+    end
+
+    test "extracts raise with variable as message" do
+      ast = {:raise, [], [{:msg, [], nil}]}
+      {:ok, result} = Exception.extract_raise(ast)
+
+      assert result.message == {:msg, [], nil}
+      assert result.exception == nil
+    end
+
+    test "extracts raise with exception and variable message" do
+      ast = {:raise, [], [{:__aliases__, [], [:ArgumentError]}, {:msg, [], nil}]}
+      {:ok, result} = Exception.extract_raise(ast)
+
+      assert result.exception == {:__aliases__, [], [:ArgumentError]}
+      assert result.message == {:msg, [], nil}
+    end
+
+    test "extracts reraise with exception and stacktrace" do
+      ast = {:reraise, [], [{:e, [], nil}, {:__STACKTRACE__, [], nil}]}
+      {:ok, result} = Exception.extract_raise(ast)
+
+      assert result.is_reraise == true
+      assert result.exception == {:e, [], nil}
+      assert result.stacktrace == {:__STACKTRACE__, [], nil}
+    end
+
+    test "extracts reraise with message string and stacktrace" do
+      ast = {:reraise, [], ["error", {:stacktrace, [], nil}]}
+      {:ok, result} = Exception.extract_raise(ast)
+
+      assert result.is_reraise == true
+      assert result.message == "error"
+      assert result.stacktrace == {:stacktrace, [], nil}
+    end
+
+    test "returns error for non-raise expression" do
+      ast = {:throw, [], [:value]}
+      assert {:error, _} = Exception.extract_raise(ast)
+    end
+  end
+
+  describe "extract_raise!/2" do
+    test "extracts raise expression" do
+      ast = {:raise, [], ["error"]}
+      result = Exception.extract_raise!(ast)
+      assert result.message == "error"
+    end
+
+    test "raises on non-raise expression" do
+      ast = {:throw, [], [:value]}
+
+      assert_raise ArgumentError, fn ->
+        Exception.extract_raise!(ast)
+      end
+    end
+  end
+
+  describe "extract_raises/2" do
+    test "extracts multiple raise expressions" do
+      ast =
+        quote do
+          raise "error1"
+          raise "error2"
+        end
+
+      raises = Exception.extract_raises(ast)
+      assert length(raises) == 2
+      assert Enum.all?(raises, &(&1.is_reraise == false))
+    end
+
+    test "extracts mixed raise and reraise" do
+      ast =
+        {:__block__, [],
+         [
+           {:raise, [], ["error"]},
+           {:reraise, [], [{:e, [], nil}, {:stack, [], nil}]}
+         ]}
+
+      raises = Exception.extract_raises(ast)
+      assert length(raises) == 2
+
+      [raise_expr, reraise_expr] = raises
+      refute raise_expr.is_reraise
+      assert reraise_expr.is_reraise
+    end
+
+    test "returns empty list when no raises" do
+      ast =
+        quote do
+          x = 1
+          y = 2
+        end
+
+      raises = Exception.extract_raises(ast)
+      assert raises == []
+    end
+
+    test "extracts nested raise expressions" do
+      ast =
+        quote do
+          if true do
+            raise "inner"
+          else
+            raise "outer"
+          end
+        end
+
+      raises = Exception.extract_raises(ast)
+      assert length(raises) == 2
+    end
+  end
+
+  describe "RaiseExpression struct" do
+    test "has default values" do
+      expr = %RaiseExpression{}
+      assert expr.exception == nil
+      assert expr.message == nil
+      assert expr.attributes == nil
+      assert expr.is_reraise == false
+      assert expr.stacktrace == nil
+      assert expr.location == nil
+    end
+  end
+
+  # ===========================================================================
+  # Throw Expression Tests
+  # ===========================================================================
+
+  describe "throw_expression?/1" do
+    test "returns true for throw with atom" do
+      ast = {:throw, [], [:value]}
+      assert Exception.throw_expression?(ast)
+    end
+
+    test "returns true for throw with tuple" do
+      ast = {:throw, [], [{:error, :reason}]}
+      assert Exception.throw_expression?(ast)
+    end
+
+    test "returns false for raise" do
+      ast = {:raise, [], ["error"]}
+      refute Exception.throw_expression?(ast)
+    end
+
+    test "returns false for non-throw expressions" do
+      refute Exception.throw_expression?({:exit, [], [:normal]})
+      refute Exception.throw_expression?(:atom)
+    end
+  end
+
+  describe "extract_throw/2" do
+    test "extracts throw with atom value" do
+      ast = {:throw, [], [:value]}
+      {:ok, result} = Exception.extract_throw(ast)
+
+      assert %ThrowExpression{} = result
+      assert result.value == :value
+    end
+
+    test "extracts throw with tuple value" do
+      ast = {:throw, [], [{:error, :reason}]}
+      {:ok, result} = Exception.extract_throw(ast)
+
+      assert result.value == {:error, :reason}
+    end
+
+    test "extracts throw with variable" do
+      ast = {:throw, [], [{:value, [], nil}]}
+      {:ok, result} = Exception.extract_throw(ast)
+
+      assert result.value == {:value, [], nil}
+    end
+
+    test "returns error for non-throw expression" do
+      ast = {:raise, [], ["error"]}
+      assert {:error, _} = Exception.extract_throw(ast)
+    end
+  end
+
+  describe "extract_throw!/2" do
+    test "extracts throw expression" do
+      ast = {:throw, [], [:done]}
+      result = Exception.extract_throw!(ast)
+      assert result.value == :done
+    end
+
+    test "raises on non-throw expression" do
+      ast = {:raise, [], ["error"]}
+
+      assert_raise ArgumentError, fn ->
+        Exception.extract_throw!(ast)
+      end
+    end
+  end
+
+  describe "extract_throws/2" do
+    test "extracts multiple throw expressions" do
+      ast =
+        quote do
+          throw(:a)
+          throw(:b)
+        end
+
+      throws = Exception.extract_throws(ast)
+      assert length(throws) == 2
+    end
+
+    test "returns empty list when no throws" do
+      ast =
+        quote do
+          x = 1
+          y = 2
+        end
+
+      throws = Exception.extract_throws(ast)
+      assert throws == []
+    end
+
+    test "extracts nested throw expressions" do
+      ast =
+        quote do
+          if true do
+            throw(:inner)
+          else
+            throw(:outer)
+          end
+        end
+
+      throws = Exception.extract_throws(ast)
+      assert length(throws) == 2
+    end
+  end
+
+  describe "ThrowExpression struct" do
+    test "has required value field" do
+      expr = %ThrowExpression{value: :test}
+      assert expr.value == :test
+      assert expr.location == nil
+    end
+  end
+
+  # ===========================================================================
+  # Exit Expression Tests
+  # ===========================================================================
+
+  describe "exit_expression?/1" do
+    test "returns true for exit with atom" do
+      ast = {:exit, [], [:normal]}
+      assert Exception.exit_expression?(ast)
+    end
+
+    test "returns true for exit with tuple" do
+      ast = {:exit, [], [{:shutdown, :reason}]}
+      assert Exception.exit_expression?(ast)
+    end
+
+    test "returns false for throw" do
+      ast = {:throw, [], [:value]}
+      refute Exception.exit_expression?(ast)
+    end
+
+    test "returns false for non-exit expressions" do
+      refute Exception.exit_expression?({:raise, [], ["error"]})
+      refute Exception.exit_expression?(:atom)
+    end
+  end
+
+  describe "extract_exit/2" do
+    test "extracts exit with atom reason" do
+      ast = {:exit, [], [:normal]}
+      {:ok, result} = Exception.extract_exit(ast)
+
+      assert %ExitExpression{} = result
+      assert result.reason == :normal
+    end
+
+    test "extracts exit with tuple reason" do
+      ast = {:exit, [], [{:shutdown, :reason}]}
+      {:ok, result} = Exception.extract_exit(ast)
+
+      assert result.reason == {:shutdown, :reason}
+    end
+
+    test "extracts exit with variable" do
+      ast = {:exit, [], [{:reason, [], nil}]}
+      {:ok, result} = Exception.extract_exit(ast)
+
+      assert result.reason == {:reason, [], nil}
+    end
+
+    test "returns error for non-exit expression" do
+      ast = {:throw, [], [:value]}
+      assert {:error, _} = Exception.extract_exit(ast)
+    end
+  end
+
+  describe "extract_exit!/2" do
+    test "extracts exit expression" do
+      ast = {:exit, [], [:shutdown]}
+      result = Exception.extract_exit!(ast)
+      assert result.reason == :shutdown
+    end
+
+    test "raises on non-exit expression" do
+      ast = {:throw, [], [:value]}
+
+      assert_raise ArgumentError, fn ->
+        Exception.extract_exit!(ast)
+      end
+    end
+  end
+
+  describe "extract_exits/2" do
+    test "extracts multiple exit expressions" do
+      ast =
+        quote do
+          exit(:normal)
+          exit(:shutdown)
+        end
+
+      exits = Exception.extract_exits(ast)
+      assert length(exits) == 2
+    end
+
+    test "returns empty list when no exits" do
+      ast =
+        quote do
+          x = 1
+          y = 2
+        end
+
+      exits = Exception.extract_exits(ast)
+      assert exits == []
+    end
+
+    test "extracts nested exit expressions" do
+      ast =
+        quote do
+          if true do
+            exit(:inner)
+          else
+            exit(:outer)
+          end
+        end
+
+      exits = Exception.extract_exits(ast)
+      assert length(exits) == 2
+    end
+  end
+
+  describe "ExitExpression struct" do
+    test "has required reason field" do
+      expr = %ExitExpression{reason: :normal}
+      assert expr.reason == :normal
+      assert expr.location == nil
     end
   end
 end
