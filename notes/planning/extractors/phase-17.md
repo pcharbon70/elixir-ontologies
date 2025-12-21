@@ -7,16 +7,16 @@ This phase implements function call extraction and control flow analysis to buil
 This section implements extraction of function calls, distinguishing between local calls, remote calls, and dynamic calls.
 
 ### 17.1.1 Local Function Call Extraction
-- [ ] **Task 17.1.1 Pending**
+- [x] **Task 17.1.1 Complete**
 
 Extract calls to functions defined in the same module (local calls).
 
-- [ ] 17.1.1.1 Create `lib/elixir_ontologies/extractors/call.ex`
-- [ ] 17.1.1.2 Define `%FunctionCall{type: :local, name: ..., arity: ..., arguments: ..., location: ...}` struct
-- [ ] 17.1.1.3 Implement `extract_local_calls/1` finding all local function calls in AST
-- [ ] 17.1.1.4 Distinguish calls from variable references
-- [ ] 17.1.1.5 Track call site location
-- [ ] 17.1.1.6 Add local call extraction tests
+- [x] 17.1.1.1 Create `lib/elixir_ontologies/extractors/call.ex`
+- [x] 17.1.1.2 Define `%FunctionCall{type: :local, name: ..., arity: ..., arguments: ..., location: ...}` struct
+- [x] 17.1.1.3 Implement `extract_local_calls/1` finding all local function calls in AST
+- [x] 17.1.1.4 Distinguish calls from variable references
+- [x] 17.1.1.5 Track call site location
+- [x] 17.1.1.6 Add local call extraction tests
 
 ### 17.1.2 Remote Function Call Extraction
 - [ ] **Task 17.1.2 Pending**
