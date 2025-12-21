@@ -721,4 +721,396 @@ defmodule ElixirOntologies.Extractors.CallTest do
       assert mod_call.metadata.current_module == true
     end
   end
+
+  # ===========================================================================
+  # dynamic_call?/1 Tests
+  # ===========================================================================
+
+  describe "dynamic_call?/1" do
+    test "returns true for apply/3 with module alias" do
+      ast = {:apply, [], [{:__aliases__, [], [:Module]}, :func, [1, 2]]}
+      assert Call.dynamic_call?(ast)
+    end
+
+    test "returns true for apply/3 with atom module" do
+      ast = {:apply, [], [:erlang, :element, [1, {:tuple, [], nil}]]}
+      assert Call.dynamic_call?(ast)
+    end
+
+    test "returns true for apply/3 with variable module" do
+      ast = {:apply, [], [{:mod, [], Elixir}, {:func, [], Elixir}, [1, 2]]}
+      assert Call.dynamic_call?(ast)
+    end
+
+    test "returns true for apply/2 with variable function" do
+      ast = {:apply, [], [{:fun, [], Elixir}, [1, 2]]}
+      assert Call.dynamic_call?(ast)
+    end
+
+    test "returns true for apply/2 with function capture" do
+      ast = {:apply, [], [{:&, [], [{:/, [], [{:func, [], nil}, 1]}]}, [1]]}
+      assert Call.dynamic_call?(ast)
+    end
+
+    test "returns true for Kernel.apply/3" do
+      ast = {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
+        {:__aliases__, [], [:Module]}, :func, [1, 2]
+      ]}
+      assert Call.dynamic_call?(ast)
+    end
+
+    test "returns true for Kernel.apply/2" do
+      ast = {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
+        {:fun, [], Elixir}, [1, 2]
+      ]}
+      assert Call.dynamic_call?(ast)
+    end
+
+    test "returns true for anonymous function call" do
+      ast = {{:., [], [{:callback, [], Elixir}]}, [], [1, 2, 3]}
+      assert Call.dynamic_call?(ast)
+    end
+
+    test "returns true for fun variable call" do
+      ast = {{:., [], [{:fun, [], Elixir}]}, [], []}
+      assert Call.dynamic_call?(ast)
+    end
+
+    test "returns false for local call" do
+      ast = {:foo, [], []}
+      refute Call.dynamic_call?(ast)
+    end
+
+    test "returns false for remote call" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
+      refute Call.dynamic_call?(ast)
+    end
+
+    test "returns false for __MODULE__ receiver" do
+      ast = {{:., [], [{:__MODULE__, [], Elixir}]}, [], []}
+      refute Call.dynamic_call?(ast)
+    end
+
+    test "returns false for non-tuple" do
+      refute Call.dynamic_call?(:atom)
+      refute Call.dynamic_call?("string")
+      refute Call.dynamic_call?(123)
+    end
+  end
+
+  # ===========================================================================
+  # extract_dynamic/2 Tests
+  # ===========================================================================
+
+  describe "extract_dynamic/2" do
+    test "extracts apply/3 with known module and function" do
+      ast = {:apply, [], [{:__aliases__, [], [:String]}, :upcase, ["hello"]]}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert %FunctionCall{} = call
+      assert call.type == :dynamic
+      assert call.name == :apply
+      assert call.arity == 1
+      assert call.metadata.dynamic_type == :apply_3
+      assert call.metadata.known_module == [:String]
+      assert call.metadata.known_function == :upcase
+    end
+
+    test "extracts apply/3 with atom module" do
+      ast = {:apply, [], [:erlang, :element, [1, {:tuple, [], nil}]]}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert call.metadata.known_module == :erlang
+      assert call.metadata.known_function == :element
+    end
+
+    test "extracts apply/3 with variable module" do
+      ast = {:apply, [], [{:mod, [], Elixir}, :func, [1, 2]]}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert call.metadata.module_variable == :mod
+      assert call.metadata.known_function == :func
+    end
+
+    test "extracts apply/3 with variable function" do
+      ast = {:apply, [], [{:__aliases__, [], [:Module]}, {:func_name, [], Elixir}, [1]]}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert call.metadata.known_module == [:Module]
+      assert call.metadata.function_variable == :func_name
+    end
+
+    test "extracts apply/3 with both variables" do
+      ast = {:apply, [], [{:mod, [], Elixir}, {:func, [], Elixir}, [1, 2, 3]]}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert call.metadata.module_variable == :mod
+      assert call.metadata.function_variable == :func
+      assert call.arity == 3
+    end
+
+    test "extracts apply/2 with variable function" do
+      ast = {:apply, [], [{:fun, [], Elixir}, [1, 2]]}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert call.metadata.dynamic_type == :apply_2
+      assert call.metadata.function_variable == :fun
+      assert call.arity == 2
+    end
+
+    test "extracts apply/2 with function capture" do
+      capture = {:&, [], [{:/, [], [{:func, [], nil}, 1]}]}
+      ast = {:apply, [], [capture, [42]]}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert call.metadata.dynamic_type == :apply_2
+      assert call.metadata.function_capture == capture
+    end
+
+    test "extracts Kernel.apply/3" do
+      ast = {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
+        {:__aliases__, [], [:Module]}, :func, [1, 2]
+      ]}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert call.type == :dynamic
+      assert call.metadata.dynamic_type == :apply_3
+      assert call.metadata.known_module == [:Module]
+    end
+
+    test "extracts Kernel.apply/2" do
+      ast = {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
+        {:fun, [], Elixir}, [1, 2]
+      ]}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert call.metadata.dynamic_type == :apply_2
+      assert call.metadata.function_variable == :fun
+    end
+
+    test "extracts anonymous function call" do
+      ast = {{:., [], [{:callback, [], Elixir}]}, [], [1, 2, 3]}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert call.type == :dynamic
+      assert call.name == :anonymous
+      assert call.arity == 3
+      assert call.metadata.dynamic_type == :anonymous_call
+      assert call.metadata.function_variable == :callback
+    end
+
+    test "extracts anonymous function call with no args" do
+      ast = {{:., [], [{:thunk, [], Elixir}]}, [], []}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert call.name == :anonymous
+      assert call.arity == 0
+      assert call.metadata.function_variable == :thunk
+    end
+
+    test "includes location when available" do
+      ast = {:apply, [line: 10, column: 5], [{:__aliases__, [], [:M]}, :f, []]}
+      assert {:ok, call} = Call.extract_dynamic(ast)
+      assert call.location != nil
+      assert call.location.start_line == 10
+    end
+
+    test "respects include_location: false option" do
+      ast = {:apply, [line: 10], [{:__aliases__, [], [:M]}, :f, []]}
+      assert {:ok, call} = Call.extract_dynamic(ast, include_location: false)
+      assert call.location == nil
+    end
+
+    test "returns error for local call" do
+      ast = {:foo, [], []}
+      assert {:error, {:not_a_dynamic_call, _msg}} = Call.extract_dynamic(ast)
+    end
+
+    test "returns error for remote call" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
+      assert {:error, {:not_a_dynamic_call, _msg}} = Call.extract_dynamic(ast)
+    end
+  end
+
+  # ===========================================================================
+  # extract_dynamic!/2 Tests
+  # ===========================================================================
+
+  describe "extract_dynamic!/2" do
+    test "returns call for valid input" do
+      ast = {:apply, [], [{:fun, [], Elixir}, [1, 2]]}
+      call = Call.extract_dynamic!(ast)
+      assert call.type == :dynamic
+      assert call.metadata.dynamic_type == :apply_2
+    end
+
+    test "raises for invalid input" do
+      assert_raise ArgumentError, fn ->
+        Call.extract_dynamic!({:foo, [], []})
+      end
+    end
+  end
+
+  # ===========================================================================
+  # extract_dynamic_calls/2 Tests
+  # ===========================================================================
+
+  describe "extract_dynamic_calls/2" do
+    test "extracts apply/3 calls from list" do
+      body = [
+        {:apply, [], [{:__aliases__, [], [:String]}, :upcase, ["hello"]]},
+        {:apply, [], [{:__aliases__, [], [:Enum]}, :map, [[1, 2], {:fn, [], []}]]}
+      ]
+
+      calls = Call.extract_dynamic_calls(body)
+      assert length(calls) == 2
+      assert Enum.all?(calls, &(&1.type == :dynamic))
+    end
+
+    test "extracts apply/2 calls" do
+      body = [
+        {:apply, [], [{:fun1, [], Elixir}, [1]]},
+        {:apply, [], [{:fun2, [], Elixir}, [2, 3]]}
+      ]
+
+      calls = Call.extract_dynamic_calls(body)
+      assert length(calls) == 2
+      vars = Enum.map(calls, & &1.metadata.function_variable)
+      assert :fun1 in vars
+      assert :fun2 in vars
+    end
+
+    test "extracts anonymous function calls" do
+      body = [
+        {{:., [], [{:callback, [], Elixir}]}, [], [1, 2]},
+        {{:., [], [{:handler, [], Elixir}]}, [], []}
+      ]
+
+      calls = Call.extract_dynamic_calls(body)
+      assert length(calls) == 2
+      vars = Enum.map(calls, & &1.metadata.function_variable)
+      assert :callback in vars
+      assert :handler in vars
+    end
+
+    test "extracts Kernel.apply calls" do
+      body = [
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
+          {:__aliases__, [], [:M]}, :f, [1]
+        ]},
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
+          {:fun, [], Elixir}, [2]
+        ]}
+      ]
+
+      calls = Call.extract_dynamic_calls(body)
+      assert length(calls) == 2
+    end
+
+    test "ignores local calls" do
+      body = [
+        {:foo, [], []},
+        {:apply, [], [{:__aliases__, [], [:M]}, :f, []]}
+      ]
+
+      calls = Call.extract_dynamic_calls(body)
+      assert length(calls) == 1
+      assert hd(calls).metadata.dynamic_type == :apply_3
+    end
+
+    test "ignores remote calls" do
+      body = [
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]},
+        {:apply, [], [{:fun, [], Elixir}, [1]]}
+      ]
+
+      calls = Call.extract_dynamic_calls(body)
+      assert length(calls) == 1
+      assert hd(calls).metadata.dynamic_type == :apply_2
+    end
+
+    test "extracts nested dynamic calls" do
+      # apply(Module, :func, [callback.(x)])
+      ast =
+        {:apply, [],
+         [
+           {:__aliases__, [], [:Module]},
+           :func,
+           [{{:., [], [{:callback, [], Elixir}]}, [], [{:x, [], nil}]}]
+         ]}
+
+      calls = Call.extract_dynamic_calls(ast)
+      assert length(calls) == 2
+      types = Enum.map(calls, & &1.metadata.dynamic_type)
+      assert :apply_3 in types
+      assert :anonymous_call in types
+    end
+
+    test "extracts from control flow" do
+      ast =
+        {:if, [],
+         [
+           true,
+           [
+             do: {:apply, [], [{:__aliases__, [], [:M1]}, :yes, []]},
+             else: {:apply, [], [{:__aliases__, [], [:M2]}, :no, []]}
+           ]
+         ]}
+
+      calls = Call.extract_dynamic_calls(ast)
+      assert length(calls) == 2
+    end
+  end
+
+  # ===========================================================================
+  # Combined Extraction Tests
+  # ===========================================================================
+
+  describe "extract_all_calls/2 with dynamic calls" do
+    test "extracts all three call types" do
+      body = [
+        {:local_func, [], []},
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]},
+        {:apply, [], [{:__aliases__, [], [:Module]}, :func, [1]]}
+      ]
+
+      calls = Call.extract_all_calls(body)
+      assert length(calls) == 3
+      types = Enum.map(calls, & &1.type)
+      assert :local in types
+      assert :remote in types
+      assert :dynamic in types
+    end
+
+    test "extracts all call types from real code" do
+      {:ok, ast} =
+        Code.string_to_quoted("""
+        defmodule Test do
+          def run(callback, module) do
+            local_func()
+            String.upcase("hello")
+            apply(module, :func, [1])
+            callback.(42)
+          end
+        end
+        """)
+
+      {:defmodule, _, [_, [do: body]]} = ast
+      calls = Call.extract_all_calls(body)
+
+      local = Enum.filter(calls, &(&1.type == :local))
+      remote = Enum.filter(calls, &(&1.type == :remote))
+      dynamic = Enum.filter(calls, &(&1.type == :dynamic))
+
+      assert length(local) >= 1
+      assert length(remote) >= 1
+      assert length(dynamic) >= 2
+    end
+
+    test "handles mixed nested calls" do
+      # local(String.upcase(callback.(x)))
+      ast =
+        {:local_func, [],
+         [
+           {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [],
+            [{{:., [], [{:callback, [], Elixir}]}, [], [{:x, [], nil}]}]}
+         ]}
+
+      calls = Call.extract_all_calls(ast)
+      assert length(calls) == 3
+      types = Enum.map(calls, & &1.type)
+      assert :local in types
+      assert :remote in types
+      assert :dynamic in types
+    end
+  end
 end

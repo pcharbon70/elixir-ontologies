@@ -31,28 +31,28 @@ Extract calls to functions in other modules (remote calls via Module.function).
 - [x] 17.1.2.6 Add remote call extraction tests
 
 ### 17.1.3 Dynamic Call Extraction
-- [ ] **Task 17.1.3 Pending**
+- [x] **Task 17.1.3 Complete**
 
 Extract dynamic function calls using apply/3, Kernel.apply/3, and variable function names.
 
-- [ ] 17.1.3.1 Implement `extract_dynamic_calls/1` for apply patterns
-- [ ] 17.1.3.2 Define `%FunctionCall{type: :dynamic, ...}` for unresolved targets
-- [ ] 17.1.3.3 Detect `apply(module, function, args)` calls
-- [ ] 17.1.3.4 Detect `fun.(args)` anonymous function calls
-- [ ] 17.1.3.5 Track known vs unknown targets
-- [ ] 17.1.3.6 Add dynamic call extraction tests
+- [x] 17.1.3.1 Implement `extract_dynamic_calls/1` for apply patterns
+- [x] 17.1.3.2 Define `%FunctionCall{type: :dynamic, ...}` for unresolved targets
+- [x] 17.1.3.3 Detect `apply(module, function, args)` calls
+- [x] 17.1.3.4 Detect `fun.(args)` anonymous function calls
+- [x] 17.1.3.5 Track known vs unknown targets
+- [x] 17.1.3.6 Add dynamic call extraction tests
 
 ### 17.1.4 Pipe Chain Extraction
-- [ ] **Task 17.1.4 Pending**
+- [x] **Task 17.1.4 Complete**
 
 Extract function calls from pipe chains, preserving the pipe structure.
 
-- [ ] 17.1.4.1 Implement `extract_pipe_chain/1` for `|>` operator sequences
-- [ ] 17.1.4.2 Define `%PipeChain{steps: [...], start_value: ..., location: ...}` struct
-- [ ] 17.1.4.3 Extract each step as a function call with implicit first argument
-- [ ] 17.1.4.4 Track pipe chain order and length
-- [ ] 17.1.4.5 Handle partial function application in pipes
-- [ ] 17.1.4.6 Add pipe chain extraction tests
+- [x] 17.1.4.1 Implement `extract_pipe_chain/1` for `|>` operator sequences
+- [x] 17.1.4.2 Define `%PipeChain{steps: [...], start_value: ..., location: ...}` struct
+- [x] 17.1.4.3 Extract each step as a function call with implicit first argument
+- [x] 17.1.4.4 Track pipe chain order and length
+- [x] 17.1.4.5 Handle partial function application in pipes
+- [x] 17.1.4.6 Add pipe chain extraction tests
 
 **Section 17.1 Unit Tests:**
 - [ ] Test local function call extraction

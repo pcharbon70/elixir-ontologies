@@ -5,6 +5,7 @@ defmodule ElixirOntologies.Extractors.Call do
   This module provides extraction of function calls including:
   - **Local calls** - calls to functions in the same module
   - **Remote calls** - calls via `Module.function(args)` syntax
+  - **Dynamic calls** - calls via `apply/2`, `apply/3`, or anonymous function invocation
 
   ## Architecture Note
 
@@ -35,6 +36,19 @@ defmodule ElixirOntologies.Extractors.Call do
       # :ets.new(:table, [])
       {{:., [], [:ets, :new]}, [], [:table, []]}
 
+  ### Dynamic Calls
+
+  Dynamic calls are calls where the target cannot be determined at compile time:
+
+      # apply/3: apply(Module, :func, args)
+      {:apply, [], [{:__aliases__, [], [:Module]}, :func, [1, 2]]}
+
+      # apply/2: apply(fun, args)
+      {:apply, [], [{:fun, [], Elixir}, [1, 2]]}
+
+      # Anonymous function call: fun.(args)
+      {{:., [], [{:callback, [], Elixir}]}, [], [1, 2]}
+
   ## Examples
 
       iex> ast = {:foo, [line: 1], []}
@@ -43,6 +57,10 @@ defmodule ElixirOntologies.Extractors.Call do
 
       iex> ast = {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
       iex> ElixirOntologies.Extractors.Call.remote_call?(ast)
+      true
+
+      iex> ast = {:apply, [], [{:__aliases__, [], [:Module]}, :func, [1, 2]]}
+      iex> ElixirOntologies.Extractors.Call.dynamic_call?(ast)
       true
 
       iex> ast = {:foo, [line: 1], [1, 2]}
@@ -202,6 +220,66 @@ defmodule ElixirOntologies.Extractors.Call do
   end
 
   def remote_call?(_), do: false
+
+  @doc """
+  Checks if the given AST node represents a dynamic function call.
+
+  Returns `true` for:
+  - `apply/3` calls: `apply(Module, :func, args)`
+  - `apply/2` calls: `apply(fun, args)`
+  - `Kernel.apply/3` calls
+  - Anonymous function calls: `fun.(args)`
+
+  ## Examples
+
+      iex> ast = {:apply, [], [{:__aliases__, [], [:Module]}, :func, [1, 2]]}
+      iex> ElixirOntologies.Extractors.Call.dynamic_call?(ast)
+      true
+
+      iex> ast = {:apply, [], [{:fun, [], Elixir}, [1, 2]]}
+      iex> ElixirOntologies.Extractors.Call.dynamic_call?(ast)
+      true
+
+      iex> ast = {{:., [], [{:callback, [], Elixir}]}, [], [1, 2]}
+      iex> ElixirOntologies.Extractors.Call.dynamic_call?(ast)
+      true
+
+      iex> ast = {:foo, [], []}
+      iex> ElixirOntologies.Extractors.Call.dynamic_call?(ast)
+      false
+  """
+  @spec dynamic_call?(Macro.t()) :: boolean()
+  # apply/3: apply(Module, :func, args)
+  def dynamic_call?({:apply, _meta, [_module, _func, args]}) when is_list(args), do: true
+
+  # apply/2: apply(fun, args)
+  def dynamic_call?({:apply, _meta, [_fun, args]}) when is_list(args), do: true
+
+  # Kernel.apply/3: Kernel.apply(Module, :func, args)
+  def dynamic_call?({{:., _, [{:__aliases__, _, [:Kernel]}, :apply]}, _, [_, _, args]})
+      when is_list(args) do
+    true
+  end
+
+  # Kernel.apply/2: Kernel.apply(fun, args)
+  def dynamic_call?({{:., _, [{:__aliases__, _, [:Kernel]}, :apply]}, _, [_, args]})
+      when is_list(args) do
+    true
+  end
+
+  # Anonymous function call: fun.(args) - dot call with single element (no function name)
+  def dynamic_call?({{:., _, [receiver]}, _, args})
+      when is_tuple(receiver) and is_list(args) do
+    # Check that receiver is a variable (not __aliases__ which would be a module)
+    case receiver do
+      {:__aliases__, _, _} -> false
+      {:__MODULE__, _, _} -> false
+      {name, _, ctx} when is_atom(name) and is_atom(ctx) -> true
+      _ -> false
+    end
+  end
+
+  def dynamic_call?(_), do: false
 
   # ===========================================================================
   # Single Extraction
@@ -373,6 +451,111 @@ defmodule ElixirOntologies.Extractors.Call do
   end
 
   # ===========================================================================
+  # Dynamic Call Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts a dynamic function call from an AST node.
+
+  Dynamic calls include `apply/2`, `apply/3`, `Kernel.apply`, and anonymous
+  function invocations (`fun.(args)`).
+
+  Returns `{:ok, %FunctionCall{}}` on success, `{:error, reason}` on failure.
+
+  ## Metadata
+
+  The metadata field contains information about the dynamic call:
+  - `:dynamic_type` - One of `:apply_3`, `:apply_2`, or `:anonymous_call`
+  - For apply calls: `:known_module`, `:known_function` if literals
+  - For apply calls: `:module_variable`, `:function_variable` if variables
+  - For anonymous calls: `:function_variable`
+
+  ## Examples
+
+      iex> ast = {:apply, [], [{:__aliases__, [], [:String]}, :upcase, ["hello"]]}
+      iex> {:ok, call} = ElixirOntologies.Extractors.Call.extract_dynamic(ast)
+      iex> call.type
+      :dynamic
+      iex> call.metadata.dynamic_type
+      :apply_3
+      iex> call.metadata.known_module
+      [:String]
+
+      iex> ast = {{:., [], [{:callback, [], Elixir}]}, [], [1, 2]}
+      iex> {:ok, call} = ElixirOntologies.Extractors.Call.extract_dynamic(ast)
+      iex> call.metadata.dynamic_type
+      :anonymous_call
+      iex> call.metadata.function_variable
+      :callback
+  """
+  @spec extract_dynamic(Macro.t(), keyword()) :: {:ok, FunctionCall.t()} | {:error, term()}
+  def extract_dynamic(ast, opts \\ [])
+
+  # apply/3: apply(Module, :func, args)
+  def extract_dynamic({:apply, _meta, [module, func, args]} = node, opts)
+      when is_list(args) do
+    build_apply_3_call(module, func, args, node, opts)
+  end
+
+  # apply/2: apply(fun, args)
+  def extract_dynamic({:apply, _meta, [fun, args]} = node, opts)
+      when is_list(args) do
+    build_apply_2_call(fun, args, node, opts)
+  end
+
+  # Kernel.apply/3: Kernel.apply(Module, :func, args)
+  def extract_dynamic(
+        {{:., _, [{:__aliases__, _, [:Kernel]}, :apply]}, _, [module, func, args]} = node,
+        opts
+      )
+      when is_list(args) do
+    build_apply_3_call(module, func, args, node, opts)
+  end
+
+  # Kernel.apply/2: Kernel.apply(fun, args)
+  def extract_dynamic(
+        {{:., _, [{:__aliases__, _, [:Kernel]}, :apply]}, _, [fun, args]} = node,
+        opts
+      )
+      when is_list(args) do
+    build_apply_2_call(fun, args, node, opts)
+  end
+
+  # Anonymous function call: fun.(args)
+  def extract_dynamic({{:., _, [receiver]}, _, args} = node, opts)
+      when is_tuple(receiver) and is_list(args) do
+    case receiver do
+      {name, _, ctx} when is_atom(name) and is_atom(ctx) and name not in [:__aliases__, :__MODULE__] ->
+        build_anonymous_call(name, args, node, opts)
+
+      _ ->
+        {:error, {:not_a_dynamic_call, Helpers.format_error("Not a dynamic function call", node)}}
+    end
+  end
+
+  def extract_dynamic(node, _opts) do
+    {:error, {:not_a_dynamic_call, Helpers.format_error("Not a dynamic function call", node)}}
+  end
+
+  @doc """
+  Extracts a dynamic function call, raising on error.
+
+  ## Examples
+
+      iex> ast = {:apply, [], [{:fun, [], Elixir}, [1, 2]]}
+      iex> call = ElixirOntologies.Extractors.Call.extract_dynamic!(ast)
+      iex> call.type
+      :dynamic
+  """
+  @spec extract_dynamic!(Macro.t(), keyword()) :: FunctionCall.t()
+  def extract_dynamic!(ast, opts \\ []) do
+    case extract_dynamic(ast, opts) do
+      {:ok, call} -> call
+      {:error, reason} -> raise ArgumentError, "Failed to extract dynamic call: #{inspect(reason)}"
+    end
+  end
+
+  # ===========================================================================
   # Bulk Extraction
   # ===========================================================================
 
@@ -465,6 +648,32 @@ defmodule ElixirOntologies.Extractors.Call do
     extract_calls_recursive(ast, opts, 0, max_depth, :all)
   end
 
+  @doc """
+  Extracts all dynamic function calls from an AST.
+
+  Walks the entire AST tree and extracts all dynamic function calls found
+  (apply/2, apply/3, Kernel.apply, anonymous function calls).
+
+  ## Options
+
+  - `:include_location` - Whether to extract source location (default: true)
+  - `:max_depth` - Maximum recursion depth (default: 100)
+
+  ## Examples
+
+      iex> ast = {:apply, [], [{:__aliases__, [], [:String]}, :upcase, ["hello"]]}
+      iex> calls = ElixirOntologies.Extractors.Call.extract_dynamic_calls(ast)
+      iex> length(calls)
+      1
+      iex> hd(calls).type
+      :dynamic
+  """
+  @spec extract_dynamic_calls(Macro.t(), keyword()) :: [FunctionCall.t()]
+  def extract_dynamic_calls(ast, opts \\ []) do
+    max_depth = Keyword.get(opts, :max_depth, Helpers.max_recursion_depth())
+    extract_calls_recursive(ast, opts, 0, max_depth, :dynamic)
+  end
+
   # ===========================================================================
   # Private Functions
   # ===========================================================================
@@ -498,11 +707,102 @@ defmodule ElixirOntologies.Extractors.Call do
      }}
   end
 
+  # Build apply/3 call - tracks known module/function when literals
+  defp build_apply_3_call(module, func, args, node, opts) do
+    location = Helpers.extract_location_if(node, opts)
+
+    metadata =
+      %{dynamic_type: :apply_3}
+      |> add_module_info(module)
+      |> add_function_info(func)
+
+    {:ok,
+     %FunctionCall{
+       type: :dynamic,
+       name: :apply,
+       arity: length(args),
+       arguments: args,
+       location: location,
+       metadata: metadata
+     }}
+  end
+
+  # Build apply/2 call - tracks function variable
+  defp build_apply_2_call(fun, args, node, opts) do
+    location = Helpers.extract_location_if(node, opts)
+
+    metadata =
+      %{dynamic_type: :apply_2}
+      |> add_function_var_info(fun)
+
+    {:ok,
+     %FunctionCall{
+       type: :dynamic,
+       name: :apply,
+       arity: length(args),
+       arguments: args,
+       location: location,
+       metadata: metadata
+     }}
+  end
+
+  # Build anonymous function call
+  defp build_anonymous_call(var_name, args, node, opts) do
+    location = Helpers.extract_location_if(node, opts)
+
+    {:ok,
+     %FunctionCall{
+       type: :dynamic,
+       name: :anonymous,
+       arity: length(args),
+       arguments: args,
+       location: location,
+       metadata: %{dynamic_type: :anonymous_call, function_variable: var_name}
+     }}
+  end
+
+  # Helper to add module info to metadata
+  defp add_module_info(metadata, {:__aliases__, _, parts}) do
+    Map.put(metadata, :known_module, parts)
+  end
+
+  defp add_module_info(metadata, module) when is_atom(module) do
+    Map.put(metadata, :known_module, module)
+  end
+
+  defp add_module_info(metadata, {var_name, _, ctx}) when is_atom(var_name) and is_atom(ctx) do
+    Map.put(metadata, :module_variable, var_name)
+  end
+
+  defp add_module_info(metadata, _), do: metadata
+
+  # Helper to add function info to metadata
+  defp add_function_info(metadata, func) when is_atom(func) do
+    Map.put(metadata, :known_function, func)
+  end
+
+  defp add_function_info(metadata, {var_name, _, ctx}) when is_atom(var_name) and is_atom(ctx) do
+    Map.put(metadata, :function_variable, var_name)
+  end
+
+  defp add_function_info(metadata, _), do: metadata
+
+  # Helper to add function variable info for apply/2
+  defp add_function_var_info(metadata, {var_name, _, ctx}) when is_atom(var_name) and is_atom(ctx) do
+    Map.put(metadata, :function_variable, var_name)
+  end
+
+  defp add_function_var_info(metadata, {:&, _, _} = capture) do
+    Map.put(metadata, :function_capture, capture)
+  end
+
+  defp add_function_var_info(metadata, _), do: metadata
+
   # ===========================================================================
   # Recursive Extraction
   # ===========================================================================
 
-  # mode can be :local, :remote, or :all
+  # mode can be :local, :remote, :dynamic, or :all
 
   # Recursive extraction with depth tracking
   defp extract_calls_recursive(_ast, _opts, depth, max_depth, _mode) when depth > max_depth do
@@ -519,6 +819,27 @@ defmodule ElixirOntologies.Extractors.Call do
     extract_calls_recursive(statements, opts, depth, max_depth, mode)
   end
 
+  # Handle anonymous function call - {{:., _, [receiver]}, _, args} (single element in dot)
+  defp extract_calls_recursive(
+         {{:., _dot_meta, [receiver]}, _meta, args} = node,
+         opts,
+         depth,
+         max_depth,
+         mode
+       )
+       when is_tuple(receiver) and is_list(args) do
+    calls_from_args = extract_calls_recursive(args, opts, depth + 1, max_depth, mode)
+
+    if mode in [:dynamic, :all] and dynamic_call?(node) do
+      case extract_dynamic(node, opts) do
+        {:ok, call} -> [call | calls_from_args]
+        {:error, _} -> calls_from_args
+      end
+    else
+      calls_from_args
+    end
+  end
+
   # Handle remote function call - {{:., _, [receiver, func]}, _, args}
   defp extract_calls_recursive(
          {{:., _dot_meta, [_receiver, _func_name]}, _meta, args} = node,
@@ -530,8 +851,32 @@ defmodule ElixirOntologies.Extractors.Call do
        when is_list(args) do
     calls_from_args = extract_calls_recursive(args, opts, depth + 1, max_depth, mode)
 
-    if mode in [:remote, :all] and remote_call?(node) do
-      case extract_remote(node, opts) do
+    # Check for Kernel.apply first (dynamic), then regular remote call
+    cond do
+      mode in [:dynamic, :all] and dynamic_call?(node) ->
+        case extract_dynamic(node, opts) do
+          {:ok, call} -> [call | calls_from_args]
+          {:error, _} -> calls_from_args
+        end
+
+      mode in [:remote, :all] and remote_call?(node) ->
+        case extract_remote(node, opts) do
+          {:ok, call} -> [call | calls_from_args]
+          {:error, _} -> calls_from_args
+        end
+
+      true ->
+        calls_from_args
+    end
+  end
+
+  # Handle apply/2 and apply/3 calls (dynamic)
+  defp extract_calls_recursive({:apply, _meta, apply_args} = node, opts, depth, max_depth, mode)
+       when is_list(apply_args) do
+    calls_from_args = extract_calls_recursive(apply_args, opts, depth + 1, max_depth, mode)
+
+    if mode in [:dynamic, :all] and dynamic_call?(node) do
+      case extract_dynamic(node, opts) do
         {:ok, call} -> [call | calls_from_args]
         {:error, _} -> calls_from_args
       end
