@@ -69,16 +69,16 @@ Extract function calls from pipe chains, preserving the pipe structure.
 This section extracts control flow structures including conditionals, pattern matching expressions, and comprehensions.
 
 ### 17.2.1 Conditional Expression Extraction
-- [ ] **Task 17.2.1 Pending**
+- [x] **Task 17.2.1 Complete**
 
 Extract if/unless/cond expressions with their branches.
 
-- [ ] 17.2.1.1 Update `lib/elixir_ontologies/extractors/control_flow.ex` for detailed extraction
-- [ ] 17.2.1.2 Define `%Conditional{type: :if|:unless|:cond, condition: ..., branches: [...]}` struct
-- [ ] 17.2.1.3 Extract `if` condition and both branches (true/else)
-- [ ] 17.2.1.4 Extract `unless` condition and both branches
-- [ ] 17.2.1.5 Extract `cond` with all clause conditions
-- [ ] 17.2.1.6 Add conditional extraction tests
+- [x] 17.2.1.1 Create `lib/elixir_ontologies/extractors/conditional.ex` for dedicated extraction
+- [x] 17.2.1.2 Define `%Conditional{type: :if|:unless|:cond, condition: ..., branches: [...]}` struct
+- [x] 17.2.1.3 Extract `if` condition and both branches (true/else)
+- [x] 17.2.1.4 Extract `unless` condition and both branches
+- [x] 17.2.1.5 Extract `cond` with all clause conditions
+- [x] 17.2.1.6 Add conditional extraction tests
 
 ### 17.2.2 Case and With Expression Extraction
 - [ ] **Task 17.2.2 Pending**
