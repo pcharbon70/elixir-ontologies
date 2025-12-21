@@ -236,6 +236,77 @@ defmodule ElixirOntologies.Extractors.ExceptionTest do
   end
 
   # ===========================================================================
+  # Standalone Rescue Clause Extraction Tests
+  # ===========================================================================
+
+  describe "extract_rescue_clauses/2" do
+    test "extracts clauses from list" do
+      clauses = [{:->, [], [[{:e, [], nil}], :error]}]
+      result = Exception.extract_rescue_clauses(clauses)
+
+      assert length(result) == 1
+      [clause] = result
+      assert %RescueClause{} = clause
+      assert clause.is_catch_all
+    end
+
+    test "returns empty list for nil" do
+      assert Exception.extract_rescue_clauses(nil) == []
+    end
+
+    test "returns empty list for empty list" do
+      assert Exception.extract_rescue_clauses([]) == []
+    end
+
+    test "extracts exception module name from alias" do
+      # Pattern: ArgumentError (without variable)
+      clauses = [{:->, [], [[{:__aliases__, [alias: false], [:ArgumentError]}], :arg_error]}]
+      [clause] = Exception.extract_rescue_clauses(clauses)
+
+      refute clause.is_catch_all
+      assert length(clause.exceptions) == 1
+      {:__aliases__, _, [:ArgumentError]} = hd(clause.exceptions)
+    end
+
+    test "extracts multiple exception types from list" do
+      # Pattern: e in [ArgumentError, RuntimeError]
+      pattern =
+        {:in, [],
+         [
+           {:e, [], nil},
+           [
+             {:__aliases__, [alias: false], [:ArgumentError]},
+             {:__aliases__, [alias: false], [:RuntimeError]}
+           ]
+         ]}
+
+      clauses = [{:->, [], [[pattern], {:e, [], nil}]}]
+      [clause] = Exception.extract_rescue_clauses(clauses)
+
+      refute clause.is_catch_all
+      assert {:e, [], nil} = clause.variable
+      assert length(clause.exceptions) == 2
+    end
+
+    test "handles nested module exception types" do
+      # Pattern: e in MyApp.CustomError
+      pattern =
+        {:in, [],
+         [
+           {:e, [], nil},
+           {:__aliases__, [alias: false], [:MyApp, :CustomError]}
+         ]}
+
+      clauses = [{:->, [], [[pattern], :custom_error]}]
+      [clause] = Exception.extract_rescue_clauses(clauses)
+
+      refute clause.is_catch_all
+      assert length(clause.exceptions) == 1
+      {:__aliases__, _, [:MyApp, :CustomError]} = hd(clause.exceptions)
+    end
+  end
+
+  # ===========================================================================
   # Catch Clause Tests
   # ===========================================================================
 

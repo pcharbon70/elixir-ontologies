@@ -143,16 +143,16 @@ Extract try blocks with all their clauses.
 - [x] 17.3.1.6 Add try block extraction tests
 
 ### 17.3.2 Rescue Clause Extraction
-- [ ] **Task 17.3.2 Pending**
+- [x] **Task 17.3.2 Complete**
 
 Extract rescue clauses with their exception patterns.
 
-- [ ] 17.3.2.1 Implement `extract_rescue_clauses/1` for rescue blocks
-- [ ] 17.3.2.2 Define `%RescueClause{exceptions: [...], variable: ..., body: ...}` struct
-- [ ] 17.3.2.3 Extract exception type patterns (e.g., `ArgumentError`)
-- [ ] 17.3.2.4 Extract exception variable binding (e.g., `rescue e ->`)
-- [ ] 17.3.2.5 Handle bare rescue (catch-all)
-- [ ] 17.3.2.6 Add rescue clause extraction tests
+- [x] 17.3.2.1 Implement `extract_rescue_clauses/1` for rescue blocks
+- [x] 17.3.2.2 Define `%RescueClause{exceptions: [...], variable: ..., body: ...}` struct
+- [x] 17.3.2.3 Extract exception type patterns (e.g., `ArgumentError`)
+- [x] 17.3.2.4 Extract exception variable binding (e.g., `rescue e ->`)
+- [x] 17.3.2.5 Handle bare rescue (catch-all)
+- [x] 17.3.2.6 Add rescue clause extraction tests
 
 ### 17.3.3 Catch Clause Extraction
 - [ ] **Task 17.3.3 Pending**
