@@ -131,16 +131,16 @@ Extract for comprehensions and recursive patterns.
 This section extracts exception handling constructs including try/rescue/catch/after blocks.
 
 ### 17.3.1 Try Block Extraction
-- [ ] **Task 17.3.1 Pending**
+- [x] **Task 17.3.1 Complete**
 
 Extract try blocks with all their clauses.
 
-- [ ] 17.3.1.1 Create `lib/elixir_ontologies/extractors/exception.ex`
-- [ ] 17.3.1.2 Define `%TryExpression{body: ..., rescue: [...], catch: [...], else: [...], after: ...}` struct
-- [ ] 17.3.1.3 Extract try body expression
-- [ ] 17.3.1.4 Track all clause types present
-- [ ] 17.3.1.5 Handle try with only some clauses (e.g., try/after without rescue)
-- [ ] 17.3.1.6 Add try block extraction tests
+- [x] 17.3.1.1 Create `lib/elixir_ontologies/extractors/exception.ex`
+- [x] 17.3.1.2 Define `%TryExpression{body: ..., rescue: [...], catch: [...], else: [...], after: ...}` struct
+- [x] 17.3.1.3 Extract try body expression
+- [x] 17.3.1.4 Track all clause types present
+- [x] 17.3.1.5 Handle try with only some clauses (e.g., try/after without rescue)
+- [x] 17.3.1.6 Add try block extraction tests
 
 ### 17.3.2 Rescue Clause Extraction
 - [ ] **Task 17.3.2 Pending**
