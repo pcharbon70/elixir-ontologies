@@ -193,16 +193,16 @@ Extract raise and throw expressions.
 This section implements the RDF builder for function calls and control flow.
 
 ### 17.4.1 Function Call Builder
-- [ ] **Task 17.4.1 Pending**
+- [x] **Task 17.4.1 Complete**
 
 Generate RDF triples for function calls.
 
-- [ ] 17.4.1.1 Create `lib/elixir_ontologies/builders/call_graph_builder.ex`
-- [ ] 17.4.1.2 Implement `build_function_call/3` generating call IRI
-- [ ] 17.4.1.3 Generate `rdf:type core:FunctionCall` triple
-- [ ] 17.4.1.4 Generate `core:callsFunction` linking to target function
-- [ ] 17.4.1.5 Generate `core:calledFrom` linking to calling function
-- [ ] 17.4.1.6 Add function call builder tests
+- [x] 17.4.1.1 Create `lib/elixir_ontologies/builders/call_graph_builder.ex`
+- [x] 17.4.1.2 Implement `build_function_call/3` generating call IRI
+- [x] 17.4.1.3 Generate `rdf:type core:FunctionCall` triple
+- [x] 17.4.1.4 Generate `core:callsFunction` linking to target function
+- [x] 17.4.1.5 Generate `core:calledFrom` linking to calling function
+- [x] 17.4.1.6 Add function call builder tests
 
 ### 17.4.2 Control Flow Builder
 - [ ] **Task 17.4.2 Pending**
