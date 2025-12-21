@@ -467,6 +467,98 @@ defmodule ElixirOntologies.IRI do
   end
 
   # ===========================================================================
+  # Module Directive IRIs
+  # ===========================================================================
+
+  @doc """
+  Generates an IRI for a module alias directive.
+
+  Pattern: `{base}#Module/alias/{index}`
+
+  ## Parameters
+
+  - `module_iri` - The IRI of the containing module
+  - `index` - Zero-based index of the alias within the module
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> ElixirOntologies.IRI.for_alias(module_iri, 0)
+      ~I<https://example.org/code#MyApp/alias/0>
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp.Users")
+      iex> ElixirOntologies.IRI.for_alias(module_iri, 2)
+      ~I<https://example.org/code#MyApp.Users/alias/2>
+  """
+  @spec for_alias(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_alias(module_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(module_iri, "alias/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for a module import directive.
+
+  Pattern: `{base}#Module/import/{index}`
+
+  ## Parameters
+
+  - `module_iri` - The IRI of the containing module
+  - `index` - Zero-based index of the import within the module
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> ElixirOntologies.IRI.for_import(module_iri, 0)
+      ~I<https://example.org/code#MyApp/import/0>
+  """
+  @spec for_import(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_import(module_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(module_iri, "import/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for a module require directive.
+
+  Pattern: `{base}#Module/require/{index}`
+
+  ## Parameters
+
+  - `module_iri` - The IRI of the containing module
+  - `index` - Zero-based index of the require within the module
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> ElixirOntologies.IRI.for_require(module_iri, 0)
+      ~I<https://example.org/code#MyApp/require/0>
+  """
+  @spec for_require(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_require(module_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(module_iri, "require/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for a module use directive.
+
+  Pattern: `{base}#Module/use/{index}`
+
+  ## Parameters
+
+  - `module_iri` - The IRI of the containing module
+  - `index` - Zero-based index of the use within the module
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp.Server")
+      iex> ElixirOntologies.IRI.for_use(module_iri, 0)
+      ~I<https://example.org/code#MyApp.Server/use/0>
+  """
+  @spec for_use(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_use(module_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(module_iri, "use/#{index}")
+  end
+
+  # ===========================================================================
   # IRI Utilities
   # ===========================================================================
 

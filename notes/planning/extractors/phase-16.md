@@ -157,16 +157,16 @@ Analyze use options to understand configuration passed to __using__ callbacks.
 This section builds the module dependency graph connecting modules through their directive relationships.
 
 ### 16.4.1 Dependency Graph Builder
-- [ ] **Task 16.4.1 Pending**
+- [x] **Task 16.4.1 Complete**
 
 Generate RDF triples representing module dependencies from directives.
 
-- [ ] 16.4.1.1 Create `lib/elixir_ontologies/builders/dependency_builder.ex`
-- [ ] 16.4.1.2 Implement `build_alias_dependency/3` generating alias IRI and triples
-- [ ] 16.4.1.3 Generate `rdf:type structure:ModuleAlias` triple
-- [ ] 16.4.1.4 Generate `structure:aliasesModule` linking to aliased module
-- [ ] 16.4.1.5 Generate `structure:aliasedAs` with the short name
-- [ ] 16.4.1.6 Add alias dependency tests
+- [x] 16.4.1.1 Create `lib/elixir_ontologies/builders/dependency_builder.ex`
+- [x] 16.4.1.2 Implement `build_alias_dependency/4` generating alias IRI and triples
+- [x] 16.4.1.3 Generate `rdf:type structure:ModuleAlias` triple
+- [x] 16.4.1.4 Generate `structure:aliasedModule` linking to aliased module
+- [x] 16.4.1.5 Generate `structure:aliasName` with the short name
+- [x] 16.4.1.6 Add alias dependency tests
 
 ### 16.4.2 Import Dependency Builder
 - [ ] **Task 16.4.2 Pending**

@@ -834,6 +834,18 @@
     rdfs:domain :ModuleAlias ;
     rdfs:range xsd:string .
 
+:aliasedModule a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "aliased module"@en ;
+    rdfs:comment "The target module that is aliased."@en ;
+    rdfs:domain :ModuleAlias ;
+    rdfs:range :Module .
+
+:hasAlias a owl:ObjectProperty ;
+    rdfs:label "has alias"@en ;
+    rdfs:comment "Links a module to its alias directives."@en ;
+    rdfs:domain :Module ;
+    rdfs:range :ModuleAlias .
+
 # Function identity - CRITICAL: arity is intrinsic
 :functionName a owl:DatatypeProperty, owl:FunctionalProperty ;
     rdfs:label "function name"@en ;
