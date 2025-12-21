@@ -81,16 +81,16 @@ Extract if/unless/cond expressions with their branches.
 - [x] 17.2.1.6 Add conditional extraction tests
 
 ### 17.2.2 Case and With Expression Extraction
-- [ ] **Task 17.2.2 Pending**
+- [x] **Task 17.2.2 Complete**
 
 Extract case and with expressions with their pattern matching clauses.
 
-- [ ] 17.2.2.1 Implement `extract_case/1` for case expressions
-- [ ] 17.2.2.2 Define `%CaseExpression{subject: ..., clauses: [...], location: ...}` struct
-- [ ] 17.2.2.3 Extract each case clause with pattern and guard
-- [ ] 17.2.2.4 Implement `extract_with/1` for with expressions
-- [ ] 17.2.2.5 Define `%WithExpression{clauses: [...], else: ..., location: ...}` struct
-- [ ] 17.2.2.6 Add case/with extraction tests
+- [x] 17.2.2.1 Implement `extract_case/2` for case expressions
+- [x] 17.2.2.2 Define `%CaseExpression{subject: ..., clauses: [...], location: ...}` struct
+- [x] 17.2.2.3 Extract each case clause with pattern and guard
+- [x] 17.2.2.4 Implement `extract_with/2` for with expressions
+- [x] 17.2.2.5 Define `%WithExpression{clauses: [...], else: ..., location: ...}` struct
+- [x] 17.2.2.6 Add case/with extraction tests
 
 ### 17.2.3 Receive Expression Extraction
 - [ ] **Task 17.2.3 Pending**
