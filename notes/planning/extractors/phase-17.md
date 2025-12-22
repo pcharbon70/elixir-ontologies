@@ -179,14 +179,14 @@ Extract raise and throw expressions.
 - [x] 17.3.4.6 Add raise/throw extraction tests
 
 **Section 17.3 Unit Tests:**
-- [ ] Test try/rescue extraction
-- [ ] Test try/catch extraction
-- [ ] Test try/after extraction
-- [ ] Test try/else extraction
-- [ ] Test rescue exception pattern extraction
-- [ ] Test catch type extraction
-- [ ] Test raise expression extraction
-- [ ] Test throw expression extraction
+- [x] Test try/rescue extraction
+- [x] Test try/catch extraction
+- [x] Test try/after extraction
+- [x] Test try/else extraction
+- [x] Test rescue exception pattern extraction
+- [x] Test catch type extraction
+- [x] Test raise expression extraction
+- [x] Test throw expression extraction
 
 ## 17.4 Call Graph Builder
 
