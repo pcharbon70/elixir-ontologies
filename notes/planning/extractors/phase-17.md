@@ -240,20 +240,20 @@ Generate RDF triples for exception handling.
 
 ## Phase 17 Integration Tests
 
-- [ ] **Phase 17 Integration Tests** (15+ tests)
+- [x] **Phase 17 Integration Tests** (26 tests)
 
-- [ ] Test complete call graph extraction for complex module
-- [ ] Test cross-module call graph
-- [ ] Test control flow extraction accuracy
-- [ ] Test exception handling coverage
-- [ ] Test call graph RDF validates against shapes
-- [ ] Test Pipeline integration with call extractors
-- [ ] Test Orchestrator coordinates call graph builder
-- [ ] Test pipe chain representation
-- [ ] Test recursive function detection
-- [ ] Test dynamic call handling
-- [ ] Test receive expression in GenServer
-- [ ] Test comprehension extraction
-- [ ] Test nested control flow structures
-- [ ] Test backward compatibility with existing extractors
-- [ ] Test error handling for complex AST patterns
+- [x] Test complete call graph extraction for complex module
+- [x] Test cross-module call graph
+- [x] Test control flow extraction accuracy
+- [x] Test exception handling coverage
+- [x] Test call graph RDF validates against shapes
+- [x] Test Pipeline integration with call extractors
+- [x] Test Orchestrator coordinates call graph builder
+- [x] Test pipe chain representation
+- [x] Test recursive function detection
+- [x] Test dynamic call handling
+- [x] Test receive expression in GenServer
+- [x] Test comprehension extraction
+- [x] Test nested control flow structures
+- [x] Test backward compatibility with existing extractors
+- [x] Test error handling for complex AST patterns
