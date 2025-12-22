@@ -7,16 +7,16 @@ This phase implements extraction and building for anonymous functions, capture o
 This section implements extraction of anonymous function definitions using fn/end syntax.
 
 ### 18.1.1 Basic Anonymous Function Extraction
-- [ ] **Task 18.1.1 Pending**
+- [x] **Task 18.1.1 Complete**
 
 Extract anonymous function definitions with their clauses.
 
-- [ ] 18.1.1.1 Create `lib/elixir_ontologies/extractors/anonymous_function.ex`
-- [ ] 18.1.1.2 Define `%AnonymousFunction{clauses: [...], arity: ..., location: ..., captured_vars: [...]}` struct
-- [ ] 18.1.1.3 Implement `extract_anonymous_function/1` for `fn -> end` AST pattern
-- [ ] 18.1.1.4 Extract all clauses of multi-clause anonymous functions
-- [ ] 18.1.1.5 Calculate arity from parameters
-- [ ] 18.1.1.6 Add basic anonymous function tests
+- [x] 18.1.1.1 Create `lib/elixir_ontologies/extractors/anonymous_function.ex`
+- [x] 18.1.1.2 Define `%AnonymousFunction{clauses: [...], arity: ..., location: ..., metadata: {...}}` struct
+- [x] 18.1.1.3 Implement `extract/1` for `fn -> end` AST pattern
+- [x] 18.1.1.4 Extract all clauses of multi-clause anonymous functions
+- [x] 18.1.1.5 Calculate arity from parameters
+- [x] 18.1.1.6 Add basic anonymous function tests (8 doctests, 33 tests)
 
 ### 18.1.2 Anonymous Function Clause Extraction
 - [ ] **Task 18.1.2 Pending**
@@ -55,14 +55,14 @@ Analyze capture placeholders (&1, &2, etc.) in shorthand captures.
 - [ ] 18.1.4.6 Add placeholder analysis tests
 
 **Section 18.1 Unit Tests:**
-- [ ] Test single-clause anonymous function extraction
-- [ ] Test multi-clause anonymous function extraction
-- [ ] Test anonymous function guard extraction
-- [ ] Test named function capture (`&func/1`)
-- [ ] Test remote function capture (`&Module.func/2`)
-- [ ] Test shorthand capture (`&(&1 + 1)`)
-- [ ] Test placeholder counting
-- [ ] Test capture arity calculation
+- [x] Test single-clause anonymous function extraction (18.1.1)
+- [x] Test multi-clause anonymous function extraction (18.1.1)
+- [x] Test anonymous function guard extraction (18.1.1)
+- [ ] Test named function capture (`&func/1`) (18.1.3)
+- [ ] Test remote function capture (`&Module.func/2`) (18.1.3)
+- [ ] Test shorthand capture (`&(&1 + 1)`) (18.1.3)
+- [ ] Test placeholder counting (18.1.4)
+- [ ] Test capture arity calculation (18.1.3/18.1.4)
 
 ## 18.2 Closure Variable Tracking
 
