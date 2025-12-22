@@ -55,14 +55,14 @@ Extract function calls from pipe chains, preserving the pipe structure.
 - [x] 17.1.4.6 Add pipe chain extraction tests
 
 **Section 17.1 Unit Tests:**
-- [ ] Test local function call extraction
-- [ ] Test remote function call extraction
-- [ ] Test aliased module call resolution
-- [ ] Test imported function call resolution
-- [ ] Test apply/3 call extraction
-- [ ] Test anonymous function call extraction
-- [ ] Test pipe chain extraction
-- [ ] Test call site location accuracy
+- [x] Test local function call extraction
+- [x] Test remote function call extraction
+- [x] Test aliased module call resolution
+- [x] Test imported function call resolution
+- [x] Test apply/3 call extraction
+- [x] Test anonymous function call extraction
+- [x] Test pipe chain extraction
+- [x] Test call site location accuracy
 
 ## 17.2 Control Flow Extraction
 
