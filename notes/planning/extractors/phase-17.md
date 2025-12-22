@@ -117,14 +117,14 @@ Extract for comprehensions and recursive patterns.
 - [x] 17.2.4.6 Add loop extraction tests
 
 **Section 17.2 Unit Tests:**
-- [ ] Test if/else extraction
-- [ ] Test unless extraction
-- [ ] Test cond clause extraction
-- [ ] Test case expression extraction
-- [ ] Test with expression extraction
-- [ ] Test receive extraction with after
-- [ ] Test for comprehension extraction
-- [ ] Test nested control flow structures
+- [x] Test if/else extraction
+- [x] Test unless extraction
+- [x] Test cond clause extraction
+- [x] Test case expression extraction
+- [x] Test with expression extraction
+- [x] Test receive extraction with after
+- [x] Test for comprehension extraction
+- [x] Test nested control flow structures
 
 ## 17.3 Exception Handling Extraction
 
