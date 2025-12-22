@@ -3,14 +3,22 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
   Tests for the ExceptionBuilder module.
 
   These tests verify RDF triple generation for exception handling structures
-  including try expressions, raise expressions, and throw expressions.
+  including try expressions, raise expressions, throw expressions, and exit expressions.
   """
 
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Builders.{ExceptionBuilder, Context}
   alias ElixirOntologies.Extractors.Exception
-  alias ElixirOntologies.Extractors.Exception.{RescueClause, CatchClause, RaiseExpression, ThrowExpression}
+
+  alias ElixirOntologies.Extractors.Exception.{
+    RescueClause,
+    CatchClause,
+    RaiseExpression,
+    ThrowExpression,
+    ExitExpression
+  }
+
   alias ElixirOntologies.NS.Core
 
   @base_iri "https://example.org/code#"
@@ -71,6 +79,31 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       base = RDF.iri(@base_iri)
       iri = ExceptionBuilder.throw_iri(base, "Test/abort/1", 2)
       assert to_string(iri) == "https://example.org/code#throw/Test/abort/1/2"
+    end
+  end
+
+  # ===========================================================================
+  # Exit IRI Generation Tests
+  # ===========================================================================
+
+  describe "exit_iri/3" do
+    test "generates IRI with containing function and index" do
+      iri = ExceptionBuilder.exit_iri(@base_iri, "MyApp/terminate/1", 0)
+      assert to_string(iri) == "https://example.org/code#exit/MyApp/terminate/1/0"
+    end
+
+    test "increments index for multiple exit expressions" do
+      iri0 = ExceptionBuilder.exit_iri(@base_iri, "MyApp/stop/0", 0)
+      iri1 = ExceptionBuilder.exit_iri(@base_iri, "MyApp/stop/0", 1)
+
+      assert to_string(iri0) == "https://example.org/code#exit/MyApp/stop/0/0"
+      assert to_string(iri1) == "https://example.org/code#exit/MyApp/stop/0/1"
+    end
+
+    test "handles RDF.IRI as base" do
+      base = RDF.iri(@base_iri)
+      iri = ExceptionBuilder.exit_iri(base, "Test/shutdown/0", 3)
+      assert to_string(iri) == "https://example.org/code#exit/Test/shutdown/0/3"
     end
   end
 
@@ -339,6 +372,79 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
   end
 
   # ===========================================================================
+  # Exit Expression Building Tests
+  # ===========================================================================
+
+  describe "build_exit/3" do
+    test "generates type triple for exit expression" do
+      exit_expr = %ExitExpression{reason: :normal}
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ExceptionBuilder.build_exit(exit_expr, context,
+        containing_function: "MyApp/stop/0", index: 0)
+
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ExitExpression
+    end
+
+    test "generates type triple for exit with shutdown reason" do
+      exit_expr = %ExitExpression{reason: :shutdown}
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ExceptionBuilder.build_exit(exit_expr, context,
+        containing_function: "MyApp/terminate/1", index: 0)
+
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ExitExpression
+    end
+
+    test "generates type triple for exit with complex reason" do
+      exit_expr = %ExitExpression{reason: {:shutdown, :timeout}}
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ExceptionBuilder.build_exit(exit_expr, context,
+        containing_function: "MyApp/handle_timeout/0", index: 0)
+
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ExitExpression
+    end
+
+    test "generates startLine triple for exit with location" do
+      exit_expr = %ExitExpression{reason: :normal, location: %{line: 88}}
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ExceptionBuilder.build_exit(exit_expr, context,
+        containing_function: "MyApp/stop/0", index: 0)
+
+      line_triple = find_triple(triples, expr_iri, Core.startLine())
+      assert line_triple != nil
+      assert RDF.Literal.value(elem(line_triple, 2)) == 88
+    end
+
+    test "uses default index 0 when not specified" do
+      exit_expr = %ExitExpression{reason: :normal}
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, _triples} = ExceptionBuilder.build_exit(exit_expr, context,
+        containing_function: "MyApp/stop/0")
+
+      assert to_string(expr_iri) == "https://example.org/code#exit/MyApp/stop/0/0"
+    end
+
+    test "uses unknown/0 when containing_function not specified" do
+      exit_expr = %ExitExpression{reason: :normal}
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, _triples} = ExceptionBuilder.build_exit(exit_expr, context)
+
+      assert to_string(expr_iri) == "https://example.org/code#exit/unknown/0/0"
+    end
+  end
+
+  # ===========================================================================
   # Location Handling Tests
   # ===========================================================================
 
@@ -527,6 +633,7 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       try_expr = %Exception{body: :ok, rescue_clauses: [], catch_clauses: [], else_clauses: []}
       raise_expr = %RaiseExpression{message: "error"}
       throw_expr = %ThrowExpression{value: :done}
+      exit_expr = %ExitExpression{reason: :normal}
       context = Context.new(base_iri: @base_iri)
 
       {try_iri, try_triples} = ExceptionBuilder.build_try(try_expr, context,
@@ -535,14 +642,18 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         containing_function: "MyApp/test/0", index: 0)
       {throw_iri, throw_triples} = ExceptionBuilder.build_throw(throw_expr, context,
         containing_function: "MyApp/test/0", index: 0)
+      {exit_iri, exit_triples} = ExceptionBuilder.build_exit(exit_expr, context,
+        containing_function: "MyApp/test/0", index: 0)
 
       try_type = find_triple(try_triples, try_iri, RDF.type())
       raise_type = find_triple(raise_triples, raise_iri, RDF.type())
       throw_type = find_triple(throw_triples, throw_iri, RDF.type())
+      exit_type = find_triple(exit_triples, exit_iri, RDF.type())
 
       assert elem(try_type, 2) == Core.TryExpression
       assert elem(raise_type, 2) == Core.RaiseExpression
       assert elem(throw_type, 2) == Core.ThrowExpression
+      assert elem(exit_type, 2) == Core.ExitExpression
     end
 
     test "boolean properties have correct literal type" do

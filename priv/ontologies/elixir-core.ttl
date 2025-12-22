@@ -319,6 +319,11 @@
     rdfs:comment "Throws a value to be caught by a catch clause."@en ;
     rdfs:subClassOf :ControlFlowExpression .
 
+:ExitExpression a owl:Class ;
+    rdfs:label "Exit Expression"@en ;
+    rdfs:comment "Terminates the current process with a reason."@en ;
+    rdfs:subClassOf :ControlFlowExpression .
+
 :ReceiveExpression a owl:Class ;
     rdfs:label "Receive Expression"@en ;
     rdfs:comment """Waits for a message in the process mailbox, matching against

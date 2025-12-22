@@ -387,10 +387,9 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     tries = build_tries(exceptions, containing_function, context)
     raises = build_raises(exceptions, containing_function, context)
     throws = build_throws(exceptions, containing_function, context)
-    # Note: exits are extracted but build_exit/3 not yet available
-    # (will be added when review-improvements branch is merged)
+    exits = build_exits(exceptions, containing_function, context)
 
-    tries ++ raises ++ throws
+    tries ++ raises ++ throws ++ exits
   end
 
   defp build_tries(exceptions, containing_function, context) do
@@ -438,7 +437,20 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     end)
   end
 
-  # Note: build_exits/3 will be added when ExceptionBuilder.build_exit/3 is available
+  defp build_exits(exceptions, containing_function, context) do
+    exceptions
+    |> Map.get(:exits, [])
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {exit_expr, index} ->
+      {_iri, triples} =
+        ExceptionBuilder.build_exit(exit_expr, context,
+          containing_function: containing_function,
+          index: index
+        )
+
+      triples
+    end)
+  end
 
   # Derive containing function identifier from module IRI for Phase 17 builders
   defp derive_containing_function(module_iri) do
