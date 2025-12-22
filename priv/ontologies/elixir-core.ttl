@@ -685,6 +685,30 @@
     rdfs:label "has into collector"@en ;
     rdfs:domain :ForComprehension .
 
+:hasIntoOption a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "has into option"@en ;
+    rdfs:comment "Indicates the comprehension uses into option to collect results."@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range xsd:boolean .
+
+:hasReduceOption a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "has reduce option"@en ;
+    rdfs:comment "Indicates the comprehension uses reduce option for accumulation."@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range xsd:boolean .
+
+:hasUniqOption a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "has uniq option"@en ;
+    rdfs:comment "Indicates the comprehension uses uniq option to filter duplicates."@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range xsd:boolean .
+
+:hasAfterTimeout a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "has after timeout"@en ;
+    rdfs:comment "Indicates the receive expression has an after timeout block."@en ;
+    rdfs:domain :ReceiveExpression ;
+    rdfs:range xsd:boolean .
+
 # Block and scope properties
 :containsExpression a owl:ObjectProperty ;
     rdfs:label "contains expression"@en ;

@@ -329,10 +329,10 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     conditionals = build_conditionals(control_flow, containing_function, context)
     cases = build_cases(control_flow, containing_function, context)
     withs = build_withs(control_flow, containing_function, context)
-    # Note: receives and comprehensions are extracted but not yet built to RDF
-    # (ControlFlowBuilder doesn't have build_receive or build_comprehension)
+    receives = build_receives(control_flow, containing_function, context)
+    comprehensions = build_comprehensions(control_flow, containing_function, context)
 
-    conditionals ++ cases ++ withs
+    conditionals ++ cases ++ withs ++ receives ++ comprehensions
   end
 
   defp build_conditionals(control_flow, containing_function, context) do
@@ -372,6 +372,36 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     |> Enum.flat_map(fn {with_expr, index} ->
       {_iri, triples} =
         ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: containing_function,
+          index: index
+        )
+
+      triples
+    end)
+  end
+
+  defp build_receives(control_flow, containing_function, context) do
+    control_flow
+    |> Map.get(:receives, [])
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {receive_expr, index} ->
+      {_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: containing_function,
+          index: index
+        )
+
+      triples
+    end)
+  end
+
+  defp build_comprehensions(control_flow, containing_function, context) do
+    control_flow
+    |> Map.get(:comprehensions, [])
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {comprehension, index} ->
+      {_iri, triples} =
+        ControlFlowBuilder.build_comprehension(comprehension, context,
           containing_function: containing_function,
           index: index
         )

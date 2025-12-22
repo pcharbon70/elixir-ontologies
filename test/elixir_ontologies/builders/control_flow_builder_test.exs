@@ -3,14 +3,16 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   Tests for the ControlFlowBuilder module.
 
   These tests verify RDF triple generation for control flow structures including
-  conditionals (if/unless/cond), case expressions, and with expressions.
+  conditionals (if/unless/cond), case expressions, with expressions, receive
+  expressions, and comprehensions.
   """
 
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Builders.{ControlFlowBuilder, Context}
   alias ElixirOntologies.Extractors.Conditional.{Conditional, Branch}
-  alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, CaseClause, WithExpression, WithClause}
+  alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, CaseClause, WithExpression, WithClause, ReceiveExpression}
+  alias ElixirOntologies.Extractors.Comprehension
   alias ElixirOntologies.NS.Core
 
   @base_iri "https://example.org/code#"
@@ -406,6 +408,292 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
 
       else_triple = find_triple(triples, expr_iri, Core.hasElseClause())
       assert else_triple == nil
+    end
+  end
+
+  # ===========================================================================
+  # Receive IRI Generation Tests
+  # ===========================================================================
+
+  describe "receive_iri/3" do
+    test "generates IRI with containing function and index" do
+      iri = ControlFlowBuilder.receive_iri(@base_iri, "MyApp/wait/0", 0)
+      assert to_string(iri) == "https://example.org/code#receive/MyApp/wait/0/0"
+    end
+
+    test "handles RDF.IRI as base" do
+      base = RDF.iri(@base_iri)
+      iri = ControlFlowBuilder.receive_iri(base, "Test/listen/1", 2)
+      assert to_string(iri) == "https://example.org/code#receive/Test/listen/1/2"
+    end
+  end
+
+  # ===========================================================================
+  # Comprehension IRI Generation Tests
+  # ===========================================================================
+
+  describe "comprehension_iri/3" do
+    test "generates IRI with containing function and index" do
+      iri = ControlFlowBuilder.comprehension_iri(@base_iri, "MyApp/transform/1", 0)
+      assert to_string(iri) == "https://example.org/code#for/MyApp/transform/1/0"
+    end
+
+    test "handles RDF.IRI as base" do
+      base = RDF.iri(@base_iri)
+      iri = ControlFlowBuilder.comprehension_iri(base, "Test/map/1", 3)
+      assert to_string(iri) == "https://example.org/code#for/Test/map/1/3"
+    end
+  end
+
+  # ===========================================================================
+  # Receive Expression Building Tests
+  # ===========================================================================
+
+  describe "build_receive/3" do
+    test "generates type triple for receive expression" do
+      receive_expr = %ReceiveExpression{
+        clauses: [{:->, [], [[{:msg, [], nil}], :ok]}],
+        after_clause: nil,
+        has_after: false,
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_receive(receive_expr, context,
+        containing_function: "MyApp/listen/0", index: 0)
+
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ReceiveExpression
+    end
+
+    test "generates hasClause triple for receive with clauses" do
+      receive_expr = %ReceiveExpression{
+        clauses: [
+          {:->, [], [[{:msg, [], nil}], :ok]},
+          {:->, [], [[{:error, :_}], :err]}
+        ],
+        after_clause: nil,
+        has_after: false,
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_receive(receive_expr, context,
+        containing_function: "MyApp/handle/0", index: 0)
+
+      clause_triple = find_triple(triples, expr_iri, Core.hasClause())
+      assert clause_triple != nil
+      assert RDF.Literal.value(elem(clause_triple, 2)) == true
+    end
+
+    test "generates hasAfterTimeout triple for receive with after block" do
+      receive_expr = %ReceiveExpression{
+        clauses: [{:->, [], [[{:msg, [], nil}], :ok]}],
+        after_clause: {5000, :timeout},
+        has_after: true,
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_receive(receive_expr, context,
+        containing_function: "MyApp/wait/0", index: 0)
+
+      after_triple = find_triple(triples, expr_iri, Core.hasAfterTimeout())
+      assert after_triple != nil
+      assert RDF.Literal.value(elem(after_triple, 2)) == true
+    end
+
+    test "does not generate hasAfterTimeout when no after block" do
+      receive_expr = %ReceiveExpression{
+        clauses: [{:->, [], [[{:msg, [], nil}], :ok]}],
+        after_clause: nil,
+        has_after: false,
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_receive(receive_expr, context,
+        containing_function: "MyApp/listen/0", index: 0)
+
+      after_triple = find_triple(triples, expr_iri, Core.hasAfterTimeout())
+      assert after_triple == nil
+    end
+
+    test "generates startLine triple for receive with location" do
+      receive_expr = %ReceiveExpression{
+        clauses: [{:->, [], [[{:msg, [], nil}], :ok]}],
+        after_clause: nil,
+        has_after: false,
+        location: %{line: 25},
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_receive(receive_expr, context,
+        containing_function: "MyApp/wait/0", index: 0)
+
+      line_triple = find_triple(triples, expr_iri, Core.startLine())
+      assert line_triple != nil
+      assert RDF.Literal.value(elem(line_triple, 2)) == 25
+    end
+  end
+
+  # ===========================================================================
+  # Comprehension Expression Building Tests
+  # ===========================================================================
+
+  describe "build_comprehension/3" do
+    test "generates type triple for comprehension" do
+      comprehension = %Comprehension{
+        type: :list,
+        generators: [{:x, {:list, [], nil}}],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
+        containing_function: "MyApp/transform/1", index: 0)
+
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ForComprehension
+    end
+
+    test "generates hasGenerator triple for comprehension with generators" do
+      comprehension = %Comprehension{
+        type: :list,
+        generators: [{:x, {:list, [], nil}}, {:y, {:other, [], nil}}],
+        filters: [],
+        body: {:x, :y},
+        options: %{},
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
+        containing_function: "MyApp/product/2", index: 0)
+
+      generator_triple = find_triple(triples, expr_iri, Core.hasGenerator())
+      assert generator_triple != nil
+      assert RDF.Literal.value(elem(generator_triple, 2)) == true
+    end
+
+    test "generates hasFilter triple for comprehension with filters" do
+      comprehension = %Comprehension{
+        type: :list,
+        generators: [{:x, {:list, [], nil}}],
+        filters: [{:>, [], [{:x, [], nil}, 0]}],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
+        containing_function: "MyApp/filter/1", index: 0)
+
+      filter_triple = find_triple(triples, expr_iri, Core.hasFilter())
+      assert filter_triple != nil
+      assert RDF.Literal.value(elem(filter_triple, 2)) == true
+    end
+
+    test "generates hasIntoOption triple for comprehension with into option" do
+      comprehension = %Comprehension{
+        type: :into,
+        generators: [{:x, {:list, [], nil}}],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{into: %{}},
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
+        containing_function: "MyApp/into_map/1", index: 0)
+
+      into_triple = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_triple != nil
+      assert RDF.Literal.value(elem(into_triple, 2)) == true
+    end
+
+    test "generates hasReduceOption triple for comprehension with reduce option" do
+      comprehension = %Comprehension{
+        type: :reduce,
+        generators: [{:x, {:list, [], nil}}],
+        filters: [],
+        body: {:+, [], [:acc, :x]},
+        options: %{reduce: 0},
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
+        containing_function: "MyApp/sum/1", index: 0)
+
+      reduce_triple = find_triple(triples, expr_iri, Core.hasReduceOption())
+      assert reduce_triple != nil
+      assert RDF.Literal.value(elem(reduce_triple, 2)) == true
+    end
+
+    test "generates hasUniqOption triple for comprehension with uniq option" do
+      comprehension = %Comprehension{
+        type: :list,
+        generators: [{:x, {:list, [], nil}}],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{uniq: true},
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
+        containing_function: "MyApp/unique/1", index: 0)
+
+      uniq_triple = find_triple(triples, expr_iri, Core.hasUniqOption())
+      assert uniq_triple != nil
+      assert RDF.Literal.value(elem(uniq_triple, 2)) == true
+    end
+
+    test "does not generate hasFilter when no filters present" do
+      comprehension = %Comprehension{
+        type: :list,
+        generators: [{:x, {:list, [], nil}}],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
+        containing_function: "MyApp/map/1", index: 0)
+
+      filter_triple = find_triple(triples, expr_iri, Core.hasFilter())
+      assert filter_triple == nil
+    end
+
+    test "generates startLine triple for comprehension with location" do
+      comprehension = %Comprehension{
+        type: :list,
+        generators: [{:x, {:list, [], nil}}],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{},
+        location: %{line: 50},
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
+        containing_function: "MyApp/transform/1", index: 0)
+
+      line_triple = find_triple(triples, expr_iri, Core.startLine())
+      assert line_triple != nil
+      assert RDF.Literal.value(elem(line_triple, 2)) == 50
     end
   end
 

@@ -8,6 +8,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   - **Conditionals**: if/unless/cond expressions
   - **Case expressions**: Pattern matching with clauses
   - **With expressions**: Monadic pattern matching chains
+  - **Receive expressions**: Process message handling with optional timeout
+  - **Comprehensions**: For comprehensions with generators and filters
 
   ## Usage
 
@@ -29,7 +31,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   - Conditional: `{base}cond/{function_fragment}/{index}`
   - Case: `{base}case/{function_fragment}/{index}`
   - With: `{base}with/{function_fragment}/{index}`
-  - Clause: `{parent_iri}/clause/{index}`
+  - Receive: `{base}receive/{function_fragment}/{index}`
+  - Comprehension: `{base}for/{function_fragment}/{index}`
 
   ## Examples
 
@@ -45,7 +48,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   alias ElixirOntologies.Builders.{Context, Helpers}
   alias ElixirOntologies.NS.Core
   alias ElixirOntologies.Extractors.Conditional.{Conditional, Branch}
-  alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, WithExpression}
+  alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, WithExpression, ReceiveExpression}
+  alias ElixirOntologies.Extractors.Comprehension
 
   # ===========================================================================
   # Public API - Conditional Builder
@@ -239,6 +243,133 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # ===========================================================================
+  # Public API - Receive Builder
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for a receive expression.
+
+  ## Parameters
+
+  - `receive_expr` - ReceiveExpression extraction result
+  - `context` - Builder context with base IRI
+  - `opts` - Options:
+    - `:containing_function` - IRI fragment of containing function
+    - `:index` - Expression index within the function (default: 0)
+
+  ## Returns
+
+  A tuple `{expr_iri, triples}`.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{ControlFlowBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.CaseWith.ReceiveExpression
+      iex> receive_expr = %ReceiveExpression{clauses: [], has_after: false, metadata: %{}}
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {iri, _triples} = ControlFlowBuilder.build_receive(receive_expr, context, containing_function: "MyApp/loop/0", index: 0)
+      iex> to_string(iri)
+      "https://example.org/code#receive/MyApp/loop/0/0"
+  """
+  @spec build_receive(ReceiveExpression.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  def build_receive(%ReceiveExpression{} = receive_expr, %Context{} = context, opts \\ []) do
+    containing_function = Keyword.get(opts, :containing_function, "unknown/0")
+    index = Keyword.get(opts, :index, 0)
+
+    expr_iri = receive_iri(context.base_iri, containing_function, index)
+
+    triples =
+      []
+      |> add_type_triple(expr_iri, Core.ReceiveExpression)
+      |> add_receive_clause_triples(expr_iri, receive_expr.clauses)
+      |> add_after_timeout_triple(expr_iri, receive_expr.has_after)
+      |> add_location_triple(expr_iri, receive_expr.location)
+
+    {expr_iri, triples}
+  end
+
+  @doc """
+  Generates an IRI for a receive expression.
+
+  ## Examples
+
+      iex> ElixirOntologies.Builders.ControlFlowBuilder.receive_iri("https://example.org/code#", "MyApp/foo/1", 0)
+      ~I<https://example.org/code#receive/MyApp/foo/1/0>
+  """
+  @spec receive_iri(String.t() | RDF.IRI.t(), String.t(), non_neg_integer()) :: RDF.IRI.t()
+  def receive_iri(base_iri, containing_function, index) when is_binary(base_iri) do
+    RDF.iri("#{base_iri}receive/#{containing_function}/#{index}")
+  end
+
+  def receive_iri(%RDF.IRI{value: base}, containing_function, index) do
+    receive_iri(base, containing_function, index)
+  end
+
+  # ===========================================================================
+  # Public API - Comprehension Builder
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for a for comprehension.
+
+  ## Parameters
+
+  - `comprehension` - Comprehension extraction result
+  - `context` - Builder context with base IRI
+  - `opts` - Options:
+    - `:containing_function` - IRI fragment of containing function
+    - `:index` - Expression index within the function (default: 0)
+
+  ## Returns
+
+  A tuple `{expr_iri, triples}`.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{ControlFlowBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Comprehension
+      iex> comp = %Comprehension{type: :for, generators: [], filters: [], options: %{}, metadata: %{}}
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {iri, _triples} = ControlFlowBuilder.build_comprehension(comp, context, containing_function: "MyApp/map/1", index: 0)
+      iex> to_string(iri)
+      "https://example.org/code#for/MyApp/map/1/0"
+  """
+  @spec build_comprehension(Comprehension.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  def build_comprehension(%Comprehension{} = comprehension, %Context{} = context, opts \\ []) do
+    containing_function = Keyword.get(opts, :containing_function, "unknown/0")
+    index = Keyword.get(opts, :index, 0)
+
+    expr_iri = comprehension_iri(context.base_iri, containing_function, index)
+
+    triples =
+      []
+      |> add_type_triple(expr_iri, Core.ForComprehension)
+      |> add_generator_triple(expr_iri, comprehension.generators)
+      |> add_filter_triple(expr_iri, comprehension.filters)
+      |> add_comprehension_options_triples(expr_iri, comprehension.options)
+      |> add_location_triple(expr_iri, comprehension.location)
+
+    {expr_iri, triples}
+  end
+
+  @doc """
+  Generates an IRI for a for comprehension.
+
+  ## Examples
+
+      iex> ElixirOntologies.Builders.ControlFlowBuilder.comprehension_iri("https://example.org/code#", "MyApp/foo/1", 0)
+      ~I<https://example.org/code#for/MyApp/foo/1/0>
+  """
+  @spec comprehension_iri(String.t() | RDF.IRI.t(), String.t(), non_neg_integer()) :: RDF.IRI.t()
+  def comprehension_iri(base_iri, containing_function, index) when is_binary(base_iri) do
+    RDF.iri("#{base_iri}for/#{containing_function}/#{index}")
+  end
+
+  def comprehension_iri(%RDF.IRI{value: base}, containing_function, index) do
+    comprehension_iri(base, containing_function, index)
+  end
+
+  # ===========================================================================
   # Private - Type Triples
   # ===========================================================================
 
@@ -351,6 +482,77 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   defp add_has_else_triple(triples, _expr_iri, _else_clauses), do: triples
+
+  # ===========================================================================
+  # Private - Receive Expression Helpers
+  # ===========================================================================
+
+  # For receive expressions, track that message clauses exist
+  defp add_receive_clause_triples(triples, expr_iri, clauses) when is_list(clauses) and clauses != [] do
+    triple = Helpers.datatype_property(expr_iri, Core.hasClause(), true, RDF.XSD.Boolean)
+    [triple | triples]
+  end
+
+  defp add_receive_clause_triples(triples, _expr_iri, _clauses), do: triples
+
+  # Track presence of after timeout clause
+  defp add_after_timeout_triple(triples, expr_iri, true) do
+    triple = Helpers.datatype_property(expr_iri, Core.hasAfterTimeout(), true, RDF.XSD.Boolean)
+    [triple | triples]
+  end
+
+  defp add_after_timeout_triple(triples, _expr_iri, _has_after), do: triples
+
+  # ===========================================================================
+  # Private - Comprehension Helpers
+  # ===========================================================================
+
+  # Track presence of generators
+  defp add_generator_triple(triples, expr_iri, generators) when is_list(generators) and generators != [] do
+    triple = Helpers.datatype_property(expr_iri, Core.hasGenerator(), true, RDF.XSD.Boolean)
+    [triple | triples]
+  end
+
+  defp add_generator_triple(triples, _expr_iri, _generators), do: triples
+
+  # Track presence of filters
+  defp add_filter_triple(triples, expr_iri, filters) when is_list(filters) and filters != [] do
+    triple = Helpers.datatype_property(expr_iri, Core.hasFilter(), true, RDF.XSD.Boolean)
+    [triple | triples]
+  end
+
+  defp add_filter_triple(triples, _expr_iri, _filters), do: triples
+
+  # Track comprehension options (into, reduce, uniq)
+  defp add_comprehension_options_triples(triples, expr_iri, options) when is_map(options) do
+    triples
+    |> add_into_option_triple(expr_iri, Map.get(options, :into))
+    |> add_reduce_option_triple(expr_iri, Map.get(options, :reduce))
+    |> add_uniq_option_triple(expr_iri, Map.get(options, :uniq))
+  end
+
+  defp add_comprehension_options_triples(triples, _expr_iri, _options), do: triples
+
+  defp add_into_option_triple(triples, expr_iri, into) when not is_nil(into) do
+    triple = Helpers.datatype_property(expr_iri, Core.hasIntoOption(), true, RDF.XSD.Boolean)
+    [triple | triples]
+  end
+
+  defp add_into_option_triple(triples, _expr_iri, _into), do: triples
+
+  defp add_reduce_option_triple(triples, expr_iri, reduce) when not is_nil(reduce) do
+    triple = Helpers.datatype_property(expr_iri, Core.hasReduceOption(), true, RDF.XSD.Boolean)
+    [triple | triples]
+  end
+
+  defp add_reduce_option_triple(triples, _expr_iri, _reduce), do: triples
+
+  defp add_uniq_option_triple(triples, expr_iri, true) do
+    triple = Helpers.datatype_property(expr_iri, Core.hasUniqOption(), true, RDF.XSD.Boolean)
+    [triple | triples]
+  end
+
+  defp add_uniq_option_triple(triples, _expr_iri, _uniq), do: triples
 
   # ===========================================================================
   # Private - Common Helpers
