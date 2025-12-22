@@ -128,7 +128,8 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
     Analysis result for a single module within a file.
 
     Contains all extracted information specific to one module, including
-    functions, types, protocols, behaviors, and OTP patterns.
+    functions, types, protocols, behaviors, OTP patterns, and Phase 17
+    call graph/control flow analysis.
 
     ## Fields
 
@@ -142,6 +143,9 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
     - `otp_patterns` - OTP pattern detection results (GenServer, Supervisor, etc.)
     - `attributes` - Module attribute results
     - `macros` - Macro definition and usage results
+    - `calls` - List of function call extraction results (Phase 17)
+    - `control_flow` - Map of control flow structures (Phase 17)
+    - `exceptions` - Map of exception handling structures (Phase 17)
     - `metadata` - Additional analysis metadata
     """
 
@@ -156,6 +160,20 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
       otp_patterns: %{},
       attributes: [],
       macros: [],
+      calls: [],
+      control_flow: %{
+        conditionals: [],
+        cases: [],
+        withs: [],
+        receives: [],
+        comprehensions: []
+      },
+      exceptions: %{
+        tries: [],
+        raises: [],
+        throws: [],
+        exits: []
+      },
       metadata: %{}
     ]
 
@@ -170,6 +188,9 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
             otp_patterns: map(),
             attributes: list(),
             macros: list(),
+            calls: list(),
+            control_flow: map(),
+            exceptions: map(),
             metadata: map()
           }
   end
@@ -398,7 +419,11 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
       behaviors: extract_behaviors(body),
       otp_patterns: extract_otp_patterns(body),
       attributes: extract_attributes(body),
-      macros: extract_macros(body)
+      macros: extract_macros(body),
+      # Phase 17: Call graph and control flow
+      calls: extract_calls(body),
+      control_flow: extract_control_flow(body),
+      exceptions: extract_exceptions(body)
     }
   end
 
@@ -472,6 +497,34 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
   defp extract_macros(_body) do
     # For now, return empty - full implementation requires finding defmacro nodes
     []
+  end
+
+  # ===========================================================================
+  # Private - Phase 17 Extractors (Call Graph, Control Flow, Exceptions)
+  # ===========================================================================
+
+  defp extract_calls(body) do
+    # Extract all function calls from the module body
+    Extractors.Call.extract_all_calls(body)
+  end
+
+  defp extract_control_flow(body) do
+    %{
+      conditionals: Extractors.Conditional.extract_conditionals(body),
+      cases: Extractors.CaseWith.extract_case_expressions(body),
+      withs: Extractors.CaseWith.extract_with_expressions(body),
+      receives: Extractors.CaseWith.extract_receive_expressions(body),
+      comprehensions: Extractors.Comprehension.extract_for_loops(body)
+    }
+  end
+
+  defp extract_exceptions(body) do
+    %{
+      tries: Extractors.Exception.extract_try_expressions(body),
+      raises: Extractors.Exception.extract_raises(body),
+      throws: Extractors.Exception.extract_throws(body),
+      exits: Extractors.Exception.extract_exits(body)
+    }
   end
 
   # Find function definition nodes (def, defp, defmacro, defmacrop)

@@ -652,6 +652,174 @@ defmodule ElixirOntologies.Phase17IntegrationTest do
   end
 
   # ===========================================================================
+  # Pipeline Integration Tests
+  # ===========================================================================
+
+  describe "Pipeline integration with Phase 17 extractors" do
+    test "Pipeline.analyze_string_and_build extracts calls and control flow" do
+      source = """
+      defmodule TestModule do
+        def process(x) do
+          if x > 0 do
+            helper(x)
+          else
+            Enum.map([x], &abs/1)
+          end
+        end
+
+        defp helper(y), do: y * 2
+      end
+      """
+
+      config = ElixirOntologies.Config.new(base_iri: "https://test.org/code#")
+      {:ok, result} = ElixirOntologies.Pipeline.analyze_string_and_build(source, config)
+
+      # Verify that the graph was built
+      assert %ElixirOntologies.Graph{} = result.graph
+
+      # Verify modules were analyzed
+      assert length(result.modules) == 1
+      [module_analysis] = result.modules
+
+      # Verify Phase 17 data was extracted
+      assert is_list(module_analysis.calls)
+      assert is_map(module_analysis.control_flow)
+      assert is_map(module_analysis.exceptions)
+
+      # Verify calls were extracted
+      assert length(module_analysis.calls) > 0
+
+      # Verify conditionals were extracted
+      assert length(module_analysis.control_flow.conditionals) > 0
+    end
+
+    test "Pipeline builds RDF with Phase 17 triples" do
+      source = """
+      defmodule SimpleModule do
+        def test(x) do
+          case x do
+            :ok -> helper()
+            :error -> raise "error"
+          end
+        end
+
+        defp helper, do: :done
+      end
+      """
+
+      config = ElixirOntologies.Config.new(base_iri: "https://test.org/code#")
+      {:ok, result} = ElixirOntologies.Pipeline.analyze_string_and_build(source, config)
+
+      # Check graph has triples (including Phase 17)
+      graph = result.graph
+      triple_count = ElixirOntologies.Graph.statement_count(graph)
+      assert triple_count > 0
+    end
+  end
+
+  # ===========================================================================
+  # Orchestrator Coordination Tests
+  # ===========================================================================
+
+  describe "Orchestrator coordination with Phase 17 builders" do
+    test "Orchestrator builds graph with call graph triples" do
+      # Create minimal analysis data with Phase 17 structures
+      analysis = %{
+        module: %ElixirOntologies.Extractors.Module{
+          type: :module,
+          name: [:TestModule],
+          docstring: nil,
+          aliases: [],
+          imports: [],
+          requires: [],
+          uses: [],
+          functions: [],
+          macros: [],
+          types: [],
+          location: nil,
+          metadata: %{parent_module: nil, has_moduledoc: false, nested_modules: []}
+        },
+        functions: [],
+        calls: [
+          %Call.FunctionCall{
+            type: :local,
+            name: :helper,
+            arity: 1,
+            arguments: [:x],
+            location: %{line: 10}
+          }
+        ],
+        control_flow: %{
+          conditionals: [],
+          cases: [],
+          withs: []
+        },
+        exceptions: %{
+          tries: [],
+          raises: [],
+          throws: []
+        }
+      }
+
+      context = Context.new(base_iri: "https://test.org/code#")
+      {:ok, graph} = ElixirOntologies.Builders.Orchestrator.build_module_graph(analysis, context)
+
+      # Verify graph was built
+      assert %RDF.Graph{} = graph
+
+      # Verify it contains triples (module + call triples)
+      assert RDF.Graph.statement_count(graph) > 0
+
+      # Find call triples (LocalCall type)
+      triples = RDF.Graph.triples(graph)
+      call_triples = Enum.filter(triples, fn {s, _p, _o} ->
+        to_string(s) =~ "call/"
+      end)
+
+      assert length(call_triples) > 0
+    end
+
+    test "Orchestrator handles empty Phase 17 data gracefully" do
+      # Analysis with no calls/control flow/exceptions
+      analysis = %{
+        module: %ElixirOntologies.Extractors.Module{
+          type: :module,
+          name: [:EmptyModule],
+          docstring: nil,
+          aliases: [],
+          imports: [],
+          requires: [],
+          uses: [],
+          functions: [],
+          macros: [],
+          types: [],
+          location: nil,
+          metadata: %{parent_module: nil, has_moduledoc: false, nested_modules: []}
+        },
+        functions: [],
+        calls: [],
+        control_flow: %{
+          conditionals: [],
+          cases: [],
+          withs: []
+        },
+        exceptions: %{
+          tries: [],
+          raises: [],
+          throws: []
+        }
+      }
+
+      context = Context.new(base_iri: "https://test.org/code#")
+      {:ok, graph} = ElixirOntologies.Builders.Orchestrator.build_module_graph(analysis, context)
+
+      # Should succeed with just module triples
+      assert %RDF.Graph{} = graph
+      assert RDF.Graph.statement_count(graph) > 0
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 

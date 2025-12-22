@@ -77,7 +77,10 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     ProtocolBuilder,
     BehaviourBuilder,
     StructBuilder,
-    TypeSystemBuilder
+    TypeSystemBuilder,
+    CallGraphBuilder,
+    ControlFlowBuilder,
+    ExceptionBuilder
   }
 
   alias ElixirOntologies.Builders.OTP.{
@@ -192,7 +195,11 @@ defmodule ElixirOntologies.Builders.Orchestrator do
       {:genservers, &build_genservers/3},
       {:supervisors, &build_supervisors/3},
       {:agents, &build_agents/3},
-      {:tasks, &build_tasks/3}
+      {:tasks, &build_tasks/3},
+      # Phase 17: Call Graph and Control Flow
+      {:calls, &build_calls/3},
+      {:control_flow, &build_control_flow/3},
+      {:exceptions, &build_exceptions/3}
     ]
 
     # Filter builders based on include/exclude
@@ -292,6 +299,157 @@ defmodule ElixirOntologies.Builders.Orchestrator do
       {_task_iri, triples} = TaskBuilder.build_task(task_info, module_iri, context)
       triples
     end)
+  end
+
+  # ===========================================================================
+  # Phase 17 Builders: Call Graph, Control Flow, Exceptions
+  # ===========================================================================
+
+  defp build_calls(analysis, module_iri, context) do
+    calls = Map.get(analysis, :calls, [])
+    containing_function = derive_containing_function(module_iri)
+
+    calls
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {call, index} ->
+      {_call_iri, triples} =
+        CallGraphBuilder.build(call, context,
+          caller_function: containing_function,
+          index: index
+        )
+
+      triples
+    end)
+  end
+
+  defp build_control_flow(analysis, module_iri, context) do
+    control_flow = Map.get(analysis, :control_flow, %{})
+    containing_function = derive_containing_function(module_iri)
+
+    conditionals = build_conditionals(control_flow, containing_function, context)
+    cases = build_cases(control_flow, containing_function, context)
+    withs = build_withs(control_flow, containing_function, context)
+    # Note: receives and comprehensions are extracted but not yet built to RDF
+    # (ControlFlowBuilder doesn't have build_receive or build_comprehension)
+
+    conditionals ++ cases ++ withs
+  end
+
+  defp build_conditionals(control_flow, containing_function, context) do
+    control_flow
+    |> Map.get(:conditionals, [])
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {conditional, index} ->
+      {_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: containing_function,
+          index: index
+        )
+
+      triples
+    end)
+  end
+
+  defp build_cases(control_flow, containing_function, context) do
+    control_flow
+    |> Map.get(:cases, [])
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {case_expr, index} ->
+      {_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: containing_function,
+          index: index
+        )
+
+      triples
+    end)
+  end
+
+  defp build_withs(control_flow, containing_function, context) do
+    control_flow
+    |> Map.get(:withs, [])
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {with_expr, index} ->
+      {_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: containing_function,
+          index: index
+        )
+
+      triples
+    end)
+  end
+
+  defp build_exceptions(analysis, module_iri, context) do
+    exceptions = Map.get(analysis, :exceptions, %{})
+    containing_function = derive_containing_function(module_iri)
+
+    tries = build_tries(exceptions, containing_function, context)
+    raises = build_raises(exceptions, containing_function, context)
+    throws = build_throws(exceptions, containing_function, context)
+    # Note: exits are extracted but build_exit/3 not yet available
+    # (will be added when review-improvements branch is merged)
+
+    tries ++ raises ++ throws
+  end
+
+  defp build_tries(exceptions, containing_function, context) do
+    exceptions
+    |> Map.get(:tries, [])
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {try_expr, index} ->
+      {_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: containing_function,
+          index: index
+        )
+
+      triples
+    end)
+  end
+
+  defp build_raises(exceptions, containing_function, context) do
+    exceptions
+    |> Map.get(:raises, [])
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {raise_expr, index} ->
+      {_iri, triples} =
+        ExceptionBuilder.build_raise(raise_expr, context,
+          containing_function: containing_function,
+          index: index
+        )
+
+      triples
+    end)
+  end
+
+  defp build_throws(exceptions, containing_function, context) do
+    exceptions
+    |> Map.get(:throws, [])
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {throw_expr, index} ->
+      {_iri, triples} =
+        ExceptionBuilder.build_throw(throw_expr, context,
+          containing_function: containing_function,
+          index: index
+        )
+
+      triples
+    end)
+  end
+
+  # Note: build_exits/3 will be added when ExceptionBuilder.build_exit/3 is available
+
+  # Derive containing function identifier from module IRI for Phase 17 builders
+  defp derive_containing_function(module_iri) do
+    # Extract module name from IRI and format as function fragment
+    # Module IRI is like: https://example.org/code#MyApp.Users
+    # We want: MyApp.Users/module/0 (indicating module-level expressions)
+    module_iri
+    |> to_string()
+    |> String.split("#")
+    |> List.last()
+    |> Kernel.<>("/module/0")
   end
 
   # ===========================================================================
