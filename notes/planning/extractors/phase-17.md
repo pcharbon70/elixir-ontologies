@@ -229,14 +229,14 @@ Generate RDF triples for exception handling.
 - [x] 17.4.3.6 Add exception builder tests
 
 **Section 17.4 Unit Tests:**
-- [ ] Test function call RDF generation
-- [ ] Test local vs remote call distinction
-- [ ] Test control flow RDF generation
-- [ ] Test conditional branch linking
-- [ ] Test try/rescue/catch RDF generation
-- [ ] Test call graph completeness
-- [ ] Test SHACL validation of call graph
-- [ ] Test integration with existing function builder
+- [x] Test function call RDF generation
+- [x] Test local vs remote call distinction
+- [x] Test control flow RDF generation
+- [x] Test conditional branch linking
+- [x] Test try/rescue/catch RDF generation
+- [x] Test call graph completeness
+- [x] Test triple validation (SHACL-style property constraints)
+- [x] Test integration with existing function builder
 
 ## Phase 17 Integration Tests
 

@@ -478,6 +478,124 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
   end
 
   # ===========================================================================
+  # Triple Validation Tests
+  # ===========================================================================
+
+  describe "triple validation" do
+    test "all triples have valid subjects (IRIs)" do
+      try_expr = %Exception{
+        body: :ok,
+        has_rescue: true,
+        has_catch: true,
+        has_after: true,
+        rescue_clauses: [%RescueClause{body: :err}],
+        catch_clauses: [%CatchClause{pattern: :x, body: :x}],
+        after_body: :cleanup,
+        location: %{line: 10}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {_expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
+        containing_function: "MyApp/test/0", index: 0)
+
+      for {subject, _predicate, _object} <- triples do
+        assert %RDF.IRI{} = subject
+        assert String.starts_with?(to_string(subject), "https://")
+      end
+    end
+
+    test "all triples have valid predicates (IRIs)" do
+      try_expr = %Exception{
+        body: :ok,
+        has_rescue: true,
+        rescue_clauses: [%RescueClause{body: :err}],
+        catch_clauses: [],
+        else_clauses: [],
+        location: %{line: 10}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {_expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
+        containing_function: "MyApp/test/0", index: 0)
+
+      for {_subject, predicate, _object} <- triples do
+        assert %RDF.IRI{} = predicate
+      end
+    end
+
+    test "type triples have correct class IRIs" do
+      try_expr = %Exception{body: :ok, rescue_clauses: [], catch_clauses: [], else_clauses: []}
+      raise_expr = %RaiseExpression{message: "error"}
+      throw_expr = %ThrowExpression{value: :done}
+      context = Context.new(base_iri: @base_iri)
+
+      {try_iri, try_triples} = ExceptionBuilder.build_try(try_expr, context,
+        containing_function: "MyApp/test/0", index: 0)
+      {raise_iri, raise_triples} = ExceptionBuilder.build_raise(raise_expr, context,
+        containing_function: "MyApp/test/0", index: 0)
+      {throw_iri, throw_triples} = ExceptionBuilder.build_throw(throw_expr, context,
+        containing_function: "MyApp/test/0", index: 0)
+
+      try_type = find_triple(try_triples, try_iri, RDF.type())
+      raise_type = find_triple(raise_triples, raise_iri, RDF.type())
+      throw_type = find_triple(throw_triples, throw_iri, RDF.type())
+
+      assert elem(try_type, 2) == Core.TryExpression
+      assert elem(raise_type, 2) == Core.RaiseExpression
+      assert elem(throw_type, 2) == Core.ThrowExpression
+    end
+
+    test "boolean properties have correct literal type" do
+      try_expr = %Exception{
+        body: :ok,
+        has_rescue: true,
+        has_catch: true,
+        has_after: true,
+        has_else: true,
+        rescue_clauses: [%RescueClause{body: :err}],
+        catch_clauses: [%CatchClause{pattern: :x, body: :x}],
+        else_clauses: [%Exception.ElseClause{pattern: :ok, body: :ok}],
+        after_body: :cleanup
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
+        containing_function: "MyApp/test/0", index: 0)
+
+      rescue_triple = find_triple(triples, expr_iri, Core.hasRescueClause())
+      catch_triple = find_triple(triples, expr_iri, Core.hasCatchClause())
+      after_triple = find_triple(triples, expr_iri, Core.hasAfterClause())
+      else_triple = find_triple(triples, expr_iri, Core.hasElseClause())
+
+      for triple <- [rescue_triple, catch_triple, after_triple, else_triple] do
+        literal = elem(triple, 2)
+        assert RDF.Literal.datatype_id(literal) == RDF.XSD.Boolean.id()
+        assert RDF.Literal.value(literal) == true
+      end
+    end
+
+    test "startLine is a positive integer literal" do
+      try_expr = %Exception{
+        body: :ok,
+        rescue_clauses: [],
+        catch_clauses: [],
+        else_clauses: [],
+        location: %{line: 42}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
+        containing_function: "MyApp/test/0", index: 0)
+
+      line_triple = find_triple(triples, expr_iri, Core.startLine())
+      literal = elem(line_triple, 2)
+
+      assert RDF.Literal.datatype_id(literal) == RDF.XSD.PositiveInteger.id()
+      assert RDF.Literal.value(literal) == 42
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 

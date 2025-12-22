@@ -583,6 +583,94 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # Triple Validation Tests
+  # ===========================================================================
+
+  describe "triple validation" do
+    test "all triples have valid subjects (IRIs)" do
+      conditional = %Conditional{
+        type: :if,
+        condition: :x,
+        branches: [%Branch{type: :then, body: :ok}],
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {_expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
+        containing_function: "MyApp/test/0", index: 0)
+
+      Enum.each(triples, fn {s, _, _} ->
+        assert %RDF.IRI{} = s
+      end)
+    end
+
+    test "all triples have valid predicates (IRIs)" do
+      case_expr = %CaseExpression{
+        subject: :x,
+        clauses: [%CaseClause{index: 0, pattern: :ok, body: :ok, has_guard: false}],
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {_expr_iri, triples} = ControlFlowBuilder.build_case(case_expr, context,
+        containing_function: "MyApp/test/0", index: 0)
+
+      Enum.each(triples, fn {_, p, _} ->
+        assert %RDF.IRI{} = p
+      end)
+    end
+
+    test "type triples have correct class IRIs" do
+      context = Context.new(base_iri: @base_iri)
+
+      # Test if expression
+      if_cond = %Conditional{type: :if, condition: :x, branches: [%Branch{type: :then, body: 1}], metadata: %{}}
+      {iri, triples} = ControlFlowBuilder.build_conditional(if_cond, context, containing_function: "MyApp/test/0", index: 0)
+      type_triple = find_triple(triples, iri, RDF.type())
+      assert elem(type_triple, 2) == Core.IfExpression
+
+      # Test case expression
+      case_clause = %CaseClause{index: 0, pattern: :ok, body: 1, has_guard: false}
+      case_expr = %CaseExpression{subject: :x, clauses: [case_clause], metadata: %{}}
+      {iri2, triples2} = ControlFlowBuilder.build_case(
+        case_expr, context, containing_function: "MyApp/test/0", index: 0)
+      type_triple2 = find_triple(triples2, iri2, RDF.type())
+      assert elem(type_triple2, 2) == Core.CaseExpression
+
+      # Test with expression
+      with_clause = %WithClause{index: 0, type: :match, pattern: :ok, expression: :x}
+      with_expr = %WithExpression{clauses: [with_clause], body: :ok, else_clauses: [], metadata: %{}}
+      {iri3, triples3} = ControlFlowBuilder.build_with(
+        with_expr, context, containing_function: "MyApp/test/0", index: 0)
+      type_triple3 = find_triple(triples3, iri3, RDF.type())
+      assert elem(type_triple3, 2) == Core.WithExpression
+    end
+
+    test "boolean properties have correct literal type" do
+      conditional = %Conditional{
+        type: :if,
+        condition: :x,
+        branches: [%Branch{type: :then, body: :ok}, %Branch{type: :else, body: :err}],
+        metadata: %{}
+      }
+      context = Context.new(base_iri: @base_iri)
+
+      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
+        containing_function: "MyApp/test/0", index: 0)
+
+      # Check hasCondition is boolean
+      cond_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert %RDF.Literal{} = elem(cond_triple, 2)
+      assert RDF.Literal.value(elem(cond_triple, 2)) == true
+
+      # Check hasThenBranch is boolean
+      then_triple = find_triple(triples, expr_iri, Core.hasThenBranch())
+      assert %RDF.Literal{} = elem(then_triple, 2)
+      assert RDF.Literal.value(elem(then_triple, 2)) == true
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 
