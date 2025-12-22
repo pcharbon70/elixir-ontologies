@@ -217,16 +217,16 @@ Generate RDF triples for control flow structures.
 - [x] 17.4.2.6 Add control flow builder tests
 
 ### 17.4.3 Exception Builder
-- [ ] **Task 17.4.3 Pending**
+- [x] **Task 17.4.3 Complete**
 
 Generate RDF triples for exception handling.
 
-- [ ] 17.4.3.1 Implement `build_try_expression/3` generating try IRI
-- [ ] 17.4.3.2 Generate `rdf:type core:TryExpression` triple
-- [ ] 17.4.3.3 Generate `core:hasRescueClause` for rescue clauses
-- [ ] 17.4.3.4 Generate `core:hasCatchClause` for catch clauses
-- [ ] 17.4.3.5 Generate `core:hasAfterClause` for after block
-- [ ] 17.4.3.6 Add exception builder tests
+- [x] 17.4.3.1 Implement `build_try_expression/3` generating try IRI
+- [x] 17.4.3.2 Generate `rdf:type core:TryExpression` triple
+- [x] 17.4.3.3 Generate `core:hasRescueClause` for rescue clauses
+- [x] 17.4.3.4 Generate `core:hasCatchClause` for catch clauses
+- [x] 17.4.3.5 Generate `core:hasAfterClause` for after block
+- [x] 17.4.3.6 Add exception builder tests
 
 **Section 17.4 Unit Tests:**
 - [ ] Test function call RDF generation
