@@ -2,7 +2,7 @@ defmodule ElixirOntologies.Extractors.ClosureTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.Closure
-  alias ElixirOntologies.Extractors.Closure.{FreeVariable, FreeVariableAnalysis}
+  alias ElixirOntologies.Extractors.Closure.{FreeVariable, FreeVariableAnalysis, ClosureScope, ScopeAnalysis}
   alias ElixirOntologies.Extractors.AnonymousFunction
 
   doctest Closure
@@ -501,6 +501,376 @@ defmodule ElixirOntologies.Extractors.ClosureTest do
       assert free_var.name == :y
       assert free_var.reference_count == 3
       assert analysis.total_capture_count == 3
+    end
+  end
+
+  # ===========================================================================
+  # ClosureScope Struct Tests
+  # ===========================================================================
+
+  describe "ClosureScope struct" do
+    test "creates struct with required fields" do
+      scope = %ClosureScope{level: 0, type: :module}
+      assert scope.level == 0
+      assert scope.type == :module
+      assert scope.variables == []
+      assert scope.name == nil
+      assert scope.parent == nil
+    end
+
+    test "creates struct with all fields" do
+      parent = %ClosureScope{level: 0, type: :module}
+
+      scope = %ClosureScope{
+        level: 1,
+        type: :function,
+        variables: [:x, :y],
+        name: :my_func,
+        location: %{start_line: 5},
+        parent: parent,
+        metadata: %{arity: 2}
+      }
+
+      assert scope.level == 1
+      assert scope.type == :function
+      assert scope.variables == [:x, :y]
+      assert scope.name == :my_func
+      assert scope.parent.type == :module
+    end
+  end
+
+  # ===========================================================================
+  # ScopeAnalysis Struct Tests
+  # ===========================================================================
+
+  describe "ScopeAnalysis struct" do
+    test "creates struct with required fields" do
+      analysis = %ScopeAnalysis{
+        scope_chain: [],
+        variable_sources: %{}
+      }
+
+      assert analysis.scope_chain == []
+      assert analysis.variable_sources == %{}
+      assert analysis.capture_depth == 0
+      assert analysis.crosses_function_boundary == false
+      assert analysis.captures_module_attributes == false
+    end
+
+    test "creates struct with all fields" do
+      scope = %ClosureScope{level: 0, type: :function, variables: [:x]}
+
+      analysis = %ScopeAnalysis{
+        scope_chain: [scope],
+        variable_sources: %{x: scope},
+        capture_depth: 1,
+        crosses_function_boundary: true,
+        captures_module_attributes: false,
+        metadata: %{note: "test"}
+      }
+
+      assert length(analysis.scope_chain) == 1
+      assert Map.has_key?(analysis.variable_sources, :x)
+      assert analysis.capture_depth == 1
+      assert analysis.crosses_function_boundary == true
+    end
+  end
+
+  # ===========================================================================
+  # build_scope_chain/1 Tests
+  # ===========================================================================
+
+  describe "build_scope_chain/1" do
+    test "builds empty chain from empty list" do
+      chain = Closure.build_scope_chain([])
+      assert chain == []
+    end
+
+    test "builds single-level chain" do
+      scopes = [%{type: :function, variables: [:x]}]
+      chain = Closure.build_scope_chain(scopes)
+
+      assert length(chain) == 1
+      assert hd(chain).level == 0
+      assert hd(chain).type == :function
+      assert hd(chain).variables == [:x]
+      assert hd(chain).parent == nil
+    end
+
+    test "builds multi-level chain with parent links" do
+      scopes = [
+        %{type: :module, variables: []},
+        %{type: :function, variables: [:x, :y], name: :my_func},
+        %{type: :closure, variables: [:a]}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      assert length(chain) == 3
+
+      [module_scope, func_scope, closure_scope] = chain
+
+      assert module_scope.level == 0
+      assert module_scope.type == :module
+      assert module_scope.parent == nil
+
+      assert func_scope.level == 1
+      assert func_scope.type == :function
+      assert func_scope.name == :my_func
+      assert func_scope.parent == module_scope
+
+      assert closure_scope.level == 2
+      assert closure_scope.type == :closure
+      assert closure_scope.parent == func_scope
+    end
+
+    test "preserves location information" do
+      scopes = [
+        %{type: :function, variables: [:x], location: %{start_line: 10}}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+      assert hd(chain).location == %{start_line: 10}
+    end
+
+    test "preserves metadata" do
+      scopes = [
+        %{type: :function, variables: [], metadata: %{arity: 2}}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+      assert hd(chain).metadata == %{arity: 2}
+    end
+  end
+
+  # ===========================================================================
+  # analyze_closure_scope/2 Tests
+  # ===========================================================================
+
+  describe "analyze_closure_scope/2" do
+    test "finds variable from immediate enclosing scope" do
+      scopes = [%{type: :function, variables: [:x, :y]}]
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope([:x], chain)
+
+      assert Map.has_key?(analysis.variable_sources, :x)
+      assert analysis.variable_sources[:x].type == :function
+      assert analysis.capture_depth == 0
+    end
+
+    test "finds variable from grandparent scope" do
+      scopes = [
+        %{type: :module, variables: [:config]},
+        %{type: :function, variables: [:x]}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope([:config], chain)
+
+      assert analysis.variable_sources[:config].type == :module
+      assert analysis.capture_depth == 1
+    end
+
+    test "detects module attribute captures" do
+      scopes = [
+        %{type: :module, variables: [:module_config]},
+        %{type: :function, variables: [:x]}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope([:module_config], chain)
+
+      assert analysis.captures_module_attributes == true
+    end
+
+    test "does not set captures_module_attributes for function-level captures" do
+      scopes = [%{type: :function, variables: [:x]}]
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope([:x], chain)
+
+      assert analysis.captures_module_attributes == false
+    end
+
+    test "handles multiple free variables from different scopes" do
+      scopes = [
+        %{type: :module, variables: [:config]},
+        %{type: :function, variables: [:param]},
+        %{type: :closure, variables: [:local]}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope([:config, :param, :local], chain)
+
+      assert analysis.variable_sources[:config].type == :module
+      assert analysis.variable_sources[:param].type == :function
+      assert analysis.variable_sources[:local].type == :closure
+      assert analysis.captures_module_attributes == true
+    end
+
+    test "handles empty free variable list" do
+      scopes = [%{type: :function, variables: [:x]}]
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope([], chain)
+
+      assert analysis.variable_sources == %{}
+      assert analysis.capture_depth == 0
+      assert analysis.captures_module_attributes == false
+    end
+
+    test "handles variable not found in any scope" do
+      scopes = [%{type: :function, variables: [:x]}]
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope([:unknown], chain)
+
+      # Variable not found, so not in variable_sources
+      refute Map.has_key?(analysis.variable_sources, :unknown)
+    end
+
+    test "calculates capture depth correctly for nested closures" do
+      scopes = [
+        %{type: :module, variables: [:a]},
+        %{type: :function, variables: [:b]},
+        %{type: :closure, variables: [:c]},
+        %{type: :closure, variables: [:d]}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope([:a, :b, :c, :d], chain)
+
+      # Capturing from level 3, a is at level 0 (depth 3), d is at level 3 (depth 0)
+      assert analysis.capture_depth == 3
+    end
+  end
+
+  # ===========================================================================
+  # analyze_closure_with_scope/2 Tests
+  # ===========================================================================
+
+  describe "analyze_closure_with_scope/2" do
+    test "combines free variable analysis with scope analysis" do
+      ast = quote do: fn x -> x + outer end
+      {:ok, anon} = AnonymousFunction.extract(ast)
+      scopes = [%{type: :function, variables: [:outer]}]
+
+      {:ok, full_analysis} = Closure.analyze_closure_with_scope(anon, scopes)
+
+      # Check free variable analysis
+      assert full_analysis.free_variable_analysis.has_captures == true
+      assert hd(full_analysis.free_variable_analysis.free_variables).name == :outer
+
+      # Check scope analysis
+      assert full_analysis.scope_analysis.variable_sources[:outer].type == :function
+    end
+
+    test "handles closure with module-level capture" do
+      ast = quote do: fn x -> x + config end
+      {:ok, anon} = AnonymousFunction.extract(ast)
+
+      scopes = [
+        %{type: :module, variables: [:config]},
+        %{type: :function, variables: []}
+      ]
+
+      {:ok, full_analysis} = Closure.analyze_closure_with_scope(anon, scopes)
+
+      assert full_analysis.scope_analysis.captures_module_attributes == true
+      assert full_analysis.scope_analysis.variable_sources[:config].type == :module
+    end
+
+    test "handles closure with no free variables" do
+      ast = quote do: fn x -> x + 1 end
+      {:ok, anon} = AnonymousFunction.extract(ast)
+      scopes = [%{type: :function, variables: [:y]}]
+
+      {:ok, full_analysis} = Closure.analyze_closure_with_scope(anon, scopes)
+
+      assert full_analysis.free_variable_analysis.has_captures == false
+      assert full_analysis.scope_analysis.variable_sources == %{}
+    end
+
+    test "handles multi-clause anonymous function" do
+      ast =
+        quote do
+          fn
+            0 -> zero_val
+            n -> n + offset
+          end
+        end
+
+      {:ok, anon} = AnonymousFunction.extract(ast)
+      scopes = [%{type: :function, variables: [:zero_val, :offset]}]
+
+      {:ok, full_analysis} = Closure.analyze_closure_with_scope(anon, scopes)
+
+      free_names = Enum.map(full_analysis.free_variable_analysis.free_variables, & &1.name) |> Enum.sort()
+      assert free_names == [:offset, :zero_val]
+
+      assert Map.has_key?(full_analysis.scope_analysis.variable_sources, :zero_val)
+      assert Map.has_key?(full_analysis.scope_analysis.variable_sources, :offset)
+    end
+  end
+
+  # ===========================================================================
+  # Nested Closure Scope Tests
+  # ===========================================================================
+
+  describe "nested closure scenarios" do
+    test "captures from immediate parent" do
+      # Inner closure captures from outer closure
+      scopes = [
+        %{type: :function, variables: [:func_var]},
+        %{type: :closure, variables: [:outer_var]}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope([:outer_var], chain)
+
+      assert analysis.variable_sources[:outer_var].type == :closure
+      assert analysis.capture_depth == 0
+    end
+
+    test "captures from grandparent function" do
+      scopes = [
+        %{type: :function, variables: [:func_var]},
+        %{type: :closure, variables: [:outer_var]}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope([:func_var], chain)
+
+      assert analysis.variable_sources[:func_var].type == :function
+      assert analysis.capture_depth == 1
+    end
+
+    test "captures from multiple levels" do
+      scopes = [
+        %{type: :module, variables: [:mod_var]},
+        %{type: :function, variables: [:func_var]},
+        %{type: :closure, variables: [:closure1_var]},
+        %{type: :closure, variables: [:closure2_var]}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope(
+        [:mod_var, :func_var, :closure1_var, :closure2_var],
+        chain
+      )
+
+      assert analysis.variable_sources[:mod_var].level == 0
+      assert analysis.variable_sources[:func_var].level == 1
+      assert analysis.variable_sources[:closure1_var].level == 2
+      assert analysis.variable_sources[:closure2_var].level == 3
     end
   end
 end

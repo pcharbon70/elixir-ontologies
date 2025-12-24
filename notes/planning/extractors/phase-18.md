@@ -81,16 +81,16 @@ Detect free variables in anonymous functions that reference outer scope.
 - [x] 18.2.1.6 Add free variable detection tests (9 doctests, 42 unit tests)
 
 ### 18.2.2 Closure Scope Analysis
-- [ ] **Task 18.2.2 Pending**
+- [x] **Task 18.2.2 Complete**
 
 Analyze the scope from which variables are captured.
 
-- [ ] 18.2.2.1 Implement `analyze_closure_scope/2` for scope tracking
-- [ ] 18.2.2.2 Track enclosing function scope
-- [ ] 18.2.2.3 Track enclosing module scope (module attributes)
-- [ ] 18.2.2.4 Handle nested closures (capture from intermediate scope)
-- [ ] 18.2.2.5 Create `%ClosureScope{level: ..., variables: [...], parent: ...}` struct
-- [ ] 18.2.2.6 Add closure scope tests
+- [x] 18.2.2.1 Implement `analyze_closure_scope/2` for scope tracking
+- [x] 18.2.2.2 Track enclosing function scope
+- [x] 18.2.2.3 Track enclosing module scope (module attributes)
+- [x] 18.2.2.4 Handle nested closures (capture from intermediate scope)
+- [x] 18.2.2.5 Create `%ClosureScope{level: ..., type: ..., variables: [...], parent: ...}` struct
+- [x] 18.2.2.6 Add closure scope tests (13 doctests, 66 tests total)
 
 ### 18.2.3 Capture Mutation Detection
 - [ ] **Task 18.2.3 Pending**
@@ -106,13 +106,13 @@ Detect potential issues with captured variable mutation patterns.
 
 **Section 18.2 Unit Tests:**
 - [x] Test free variable detection (18.2.1)
-- [x] Test captured variable from function scope (18.2.1)
-- [ ] Test captured variable from module attribute
-- [x] Test nested closure capture (18.2.1)
+- [x] Test captured variable from function scope (18.2.1, 18.2.2)
+- [x] Test captured variable from module attribute (18.2.2)
+- [x] Test nested closure capture (18.2.1, 18.2.2)
 - [ ] Test shadowed variable detection
 - [ ] Test variable rebinding detection
 - [x] Test closure with no captures (18.2.1)
-- [x] Test closure with multiple captures (18.2.1)
+- [x] Test closure with multiple captures (18.2.1, 18.2.2)
 
 ## 18.3 Anonymous Function Builder
 

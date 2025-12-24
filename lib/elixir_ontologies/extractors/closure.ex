@@ -110,6 +110,89 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # ===========================================================================
+  # ClosureScope Struct
+  # ===========================================================================
+
+  defmodule ClosureScope do
+    @moduledoc """
+    Represents a scope level in the closure hierarchy.
+
+    ## Fields
+
+    - `:level` - Scope depth (0 = module, 1 = function, 2+ = nested closures)
+    - `:type` - Type of scope (:module, :function, :closure, :block)
+    - `:variables` - Variables available/bound in this scope
+    - `:name` - Optional name (function name, nil for anonymous)
+    - `:location` - Source location where this scope is defined
+    - `:parent` - Parent scope (nil for module level)
+    - `:metadata` - Additional information
+    """
+
+    @type scope_type :: :module | :function | :closure | :block
+
+    @type t :: %__MODULE__{
+            level: non_neg_integer(),
+            type: scope_type(),
+            variables: [atom()],
+            name: atom() | nil,
+            location: map() | nil,
+            parent: t() | nil,
+            metadata: map()
+          }
+
+    @enforce_keys [:level, :type]
+    defstruct [
+      :level,
+      :type,
+      :name,
+      :location,
+      :parent,
+      variables: [],
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
+  # ScopeAnalysis Struct
+  # ===========================================================================
+
+  defmodule ScopeAnalysis do
+    @moduledoc """
+    Complete analysis of scope hierarchy for a closure.
+
+    ## Fields
+
+    - `:scope_chain` - List of scopes from innermost to outermost
+    - `:variable_sources` - Map from variable name to the scope providing it
+    - `:capture_depth` - Maximum depth of any capture (0 = immediate, 1 = grandparent, etc.)
+    - `:crosses_function_boundary` - Whether any capture crosses a function boundary
+    - `:captures_module_attributes` - Whether any module attributes are captured
+    - `:metadata` - Additional information
+    """
+
+    alias ElixirOntologies.Extractors.Closure.ClosureScope
+
+    @type t :: %__MODULE__{
+            scope_chain: [ClosureScope.t()],
+            variable_sources: %{atom() => ClosureScope.t()},
+            capture_depth: non_neg_integer(),
+            crosses_function_boundary: boolean(),
+            captures_module_attributes: boolean(),
+            metadata: map()
+          }
+
+    @enforce_keys [:scope_chain, :variable_sources]
+    defstruct [
+      :scope_chain,
+      :variable_sources,
+      capture_depth: 0,
+      crosses_function_boundary: false,
+      captures_module_attributes: false,
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
   # High-Level Analysis
   # ===========================================================================
 
@@ -225,6 +308,199 @@ defmodule ElixirOntologies.Extractors.Closure do
        total_capture_count: total_captures,
        metadata: %{}
      }}
+  end
+
+  # ===========================================================================
+  # Scope Analysis
+  # ===========================================================================
+
+  @doc """
+  Builds a scope chain representing the enclosing context for a closure.
+
+  Takes a list of scope definitions (from outermost to innermost) and builds
+  a linked chain of `%ClosureScope{}` structs.
+
+  Each scope definition should be a map with:
+  - `:type` - :module, :function, :closure, or :block
+  - `:variables` - list of variable names available in this scope
+  - `:name` - optional name (for functions)
+  - `:location` - optional source location
+
+  ## Examples
+
+      iex> scopes = [
+      ...>   %{type: :module, variables: []},
+      ...>   %{type: :function, variables: [:x, :y], name: :my_func}
+      ...> ]
+      iex> chain = ElixirOntologies.Extractors.Closure.build_scope_chain(scopes)
+      iex> length(chain)
+      2
+      iex> hd(chain).type
+      :module
+      iex> List.last(chain).type
+      :function
+      iex> List.last(chain).level
+      1
+  """
+  @spec build_scope_chain([map()]) :: [ClosureScope.t()]
+  def build_scope_chain(scope_defs) when is_list(scope_defs) do
+    {chain, _} =
+      scope_defs
+      |> Enum.with_index()
+      |> Enum.reduce({[], nil}, fn {scope_def, level}, {acc, parent} ->
+        scope = %ClosureScope{
+          level: level,
+          type: Map.get(scope_def, :type, :block),
+          variables: Map.get(scope_def, :variables, []),
+          name: Map.get(scope_def, :name),
+          location: Map.get(scope_def, :location),
+          parent: parent,
+          metadata: Map.get(scope_def, :metadata, %{})
+        }
+
+        {[scope | acc], scope}
+      end)
+
+    Enum.reverse(chain)
+  end
+
+  @doc """
+  Analyzes which scope provides each captured variable.
+
+  Takes a list of free variable names and a scope chain, and determines
+  which scope in the chain provides each variable.
+
+  Returns a `%ScopeAnalysis{}` with:
+  - `:variable_sources` - maps each variable to its providing scope
+  - `:capture_depth` - maximum depth any variable must traverse
+  - `:crosses_function_boundary` - whether any capture crosses function boundaries
+  - `:captures_module_attributes` - whether any module-level variables are captured
+
+  ## Examples
+
+      iex> scopes = [
+      ...>   %{type: :module, variables: [:config]},
+      ...>   %{type: :function, variables: [:x, :y]}
+      ...> ]
+      iex> chain = ElixirOntologies.Extractors.Closure.build_scope_chain(scopes)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.analyze_closure_scope([:y, :config], chain)
+      iex> analysis.captures_module_attributes
+      true
+      iex> analysis.variable_sources[:y].type
+      :function
+
+      iex> scopes = [%{type: :function, variables: [:a]}]
+      iex> chain = ElixirOntologies.Extractors.Closure.build_scope_chain(scopes)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.analyze_closure_scope([:a], chain)
+      iex> analysis.capture_depth
+      0
+  """
+  @spec analyze_closure_scope([atom()], [ClosureScope.t()]) :: {:ok, ScopeAnalysis.t()}
+  def analyze_closure_scope(free_variable_names, scope_chain) do
+    # Reverse the chain so we search from innermost to outermost
+    # (the chain is built outermost first)
+    search_chain = Enum.reverse(scope_chain)
+
+    # Find which scope provides each variable
+    variable_sources =
+      free_variable_names
+      |> Enum.map(fn var_name ->
+        source = find_variable_in_chain(var_name, search_chain)
+        {var_name, source}
+      end)
+      |> Enum.reject(fn {_name, source} -> is_nil(source) end)
+      |> Map.new()
+
+    # Calculate metrics
+    closure_level = if search_chain == [], do: 0, else: hd(search_chain).level + 1
+
+    capture_depths =
+      variable_sources
+      |> Map.values()
+      |> Enum.map(fn scope -> closure_level - scope.level - 1 end)
+
+    max_depth = if capture_depths == [], do: 0, else: Enum.max(capture_depths)
+
+    # Check if any capture crosses a function boundary
+    crosses_function =
+      variable_sources
+      |> Map.values()
+      |> Enum.any?(fn scope ->
+        # Find if there's a function boundary between the closure and this scope
+        has_function_boundary?(scope, search_chain, closure_level)
+      end)
+
+    # Check if any module-level variables are captured
+    captures_module =
+      variable_sources
+      |> Map.values()
+      |> Enum.any?(fn scope -> scope.type == :module end)
+
+    {:ok,
+     %ScopeAnalysis{
+       scope_chain: scope_chain,
+       variable_sources: variable_sources,
+       capture_depth: max_depth,
+       crosses_function_boundary: crosses_function,
+       captures_module_attributes: captures_module,
+       metadata: %{}
+     }}
+  end
+
+  @doc """
+  Analyzes closure scope with automatic scope chain building from context.
+
+  This is a convenience function that combines `analyze_closure/1` results
+  with scope analysis when you have the enclosing scope definitions.
+
+  ## Examples
+
+      iex> ast = quote do: fn x -> x + outer end
+      iex> {:ok, anon} = ElixirOntologies.Extractors.AnonymousFunction.extract(ast)
+      iex> scopes = [%{type: :function, variables: [:outer]}]
+      iex> {:ok, full_analysis} = ElixirOntologies.Extractors.Closure.analyze_closure_with_scope(anon, scopes)
+      iex> full_analysis.scope_analysis.variable_sources[:outer].type
+      :function
+  """
+  @spec analyze_closure_with_scope(AnonymousFunction.t(), [map()]) ::
+          {:ok, %{free_variable_analysis: FreeVariableAnalysis.t(), scope_analysis: ScopeAnalysis.t()}}
+  def analyze_closure_with_scope(%AnonymousFunction{} = anon, scope_defs) do
+    {:ok, free_var_analysis} = analyze_closure(anon)
+
+    scope_chain = build_scope_chain(scope_defs)
+    free_var_names = Enum.map(free_var_analysis.free_variables, & &1.name)
+
+    {:ok, scope_analysis} = analyze_closure_scope(free_var_names, scope_chain)
+
+    {:ok,
+     %{
+       free_variable_analysis: free_var_analysis,
+       scope_analysis: scope_analysis
+     }}
+  end
+
+  # Find which scope provides a variable, searching from innermost outward
+  defp find_variable_in_chain(_var_name, []), do: nil
+
+  defp find_variable_in_chain(var_name, [scope | rest]) do
+    if var_name in scope.variables do
+      scope
+    else
+      find_variable_in_chain(var_name, rest)
+    end
+  end
+
+  # Check if there's a function boundary between the closure level and the source scope
+  defp has_function_boundary?(source_scope, search_chain, closure_level) do
+    # Find all scopes between the source and the closure
+    intermediate_scopes =
+      search_chain
+      |> Enum.filter(fn scope ->
+        scope.level > source_scope.level and scope.level < closure_level
+      end)
+
+    # Check if any intermediate scope is a function
+    Enum.any?(intermediate_scopes, fn scope -> scope.type == :function end)
   end
 
   # ===========================================================================
