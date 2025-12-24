@@ -31,16 +31,16 @@ Extract individual clauses of anonymous functions with their patterns and guards
 - [x] 18.1.2.6 Add clause extraction tests (26 new tests, 14 doctests, 59 total)
 
 ### 18.1.3 Capture Operator Extraction
-- [ ] **Task 18.1.3 Pending**
+- [x] **Task 18.1.3 Complete**
 
 Extract capture operator expressions (&) for creating function references.
 
-- [ ] 18.1.3.1 Implement `extract_capture/1` for `&func/arity` pattern
-- [ ] 18.1.3.2 Define `%Capture{type: :named|:anonymous, target: ..., arity: ...}` struct
-- [ ] 18.1.3.3 Extract named function captures (`&Module.function/arity`)
-- [ ] 18.1.3.4 Extract local function captures (`&function/arity`)
-- [ ] 18.1.3.5 Extract shorthand captures (`&(&1 + &2)`)
-- [ ] 18.1.3.6 Add capture operator tests
+- [x] 18.1.3.1 Implement `extract/1` for all capture patterns
+- [x] 18.1.3.2 Define `%Capture{type: :named_local|:named_remote|:shorthand, ...}` struct
+- [x] 18.1.3.3 Extract named remote function captures (`&Module.function/arity`, `&:erlang.func/arity`)
+- [x] 18.1.3.4 Extract named local function captures (`&function/arity`)
+- [x] 18.1.3.5 Extract shorthand captures (`&(&1 + &2)`) with placeholder detection
+- [x] 18.1.3.6 Add capture operator tests (14 doctests, 42 unit tests)
 
 ### 18.1.4 Capture Placeholder Analysis
 - [ ] **Task 18.1.4 Pending**
@@ -58,11 +58,11 @@ Analyze capture placeholders (&1, &2, etc.) in shorthand captures.
 - [x] Test single-clause anonymous function extraction (18.1.1)
 - [x] Test multi-clause anonymous function extraction (18.1.1)
 - [x] Test anonymous function guard extraction (18.1.1)
-- [ ] Test named function capture (`&func/1`) (18.1.3)
-- [ ] Test remote function capture (`&Module.func/2`) (18.1.3)
-- [ ] Test shorthand capture (`&(&1 + 1)`) (18.1.3)
+- [x] Test named function capture (`&func/1`) (18.1.3)
+- [x] Test remote function capture (`&Module.func/2`) (18.1.3)
+- [x] Test shorthand capture (`&(&1 + 1)`) (18.1.3)
 - [ ] Test placeholder counting (18.1.4)
-- [ ] Test capture arity calculation (18.1.3/18.1.4)
+- [x] Test capture arity calculation (18.1.3)
 
 ## 18.2 Closure Variable Tracking
 
