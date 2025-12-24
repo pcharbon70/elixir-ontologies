@@ -583,6 +583,61 @@ defmodule ElixirOntologies.IRI do
     append_to_iri(use_iri, "option/#{index}")
   end
 
+  @doc """
+  Generates an IRI for an anonymous function.
+
+  Anonymous functions don't have names, so identification is based on either:
+  - The containing function/module and an index
+  - A file path and line number
+
+  Pattern: `{base}#Module/anon/{index}` or `{base}#file/{path}/anon/L{line}`
+
+  ## Parameters
+
+  - `context_iri` - The IRI of the containing context (module, function, or file)
+  - `index_or_line` - Index within the context or line number
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> ElixirOntologies.IRI.for_anonymous_function(module_iri, 0)
+      ~I<https://example.org/code#MyApp/anon/0>
+
+      iex> func_iri = RDF.iri("https://example.org/code#MyApp/get_user/1")
+      iex> ElixirOntologies.IRI.for_anonymous_function(func_iri, 2)
+      ~I<https://example.org/code#MyApp/get_user/1/anon/2>
+  """
+  @spec for_anonymous_function(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_anonymous_function(context_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(context_iri, "anon/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for an anonymous function clause.
+
+  Pattern: `{anon_iri}/clause/{N}`
+
+  ## Parameters
+
+  - `anon_iri` - The IRI of the anonymous function
+  - `clause_order` - The clause position (0-indexed)
+
+  ## Examples
+
+      iex> anon_iri = RDF.iri("https://example.org/code#MyApp/anon/0")
+      iex> ElixirOntologies.IRI.for_anonymous_clause(anon_iri, 0)
+      ~I<https://example.org/code#MyApp/anon/0/clause/0>
+
+      iex> anon_iri = RDF.iri("https://example.org/code#MyApp/get_user/1/anon/2")
+      iex> ElixirOntologies.IRI.for_anonymous_clause(anon_iri, 1)
+      ~I<https://example.org/code#MyApp/get_user/1/anon/2/clause/1>
+  """
+  @spec for_anonymous_clause(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_anonymous_clause(anon_iri, clause_order)
+      when is_integer(clause_order) and clause_order >= 0 do
+    append_to_iri(anon_iri, "clause/#{clause_order}")
+  end
+
   # ===========================================================================
   # IRI Utilities
   # ===========================================================================

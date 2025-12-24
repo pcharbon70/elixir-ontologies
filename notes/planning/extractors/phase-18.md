@@ -119,16 +119,16 @@ Detect potential issues with captured variable mutation patterns.
 This section implements RDF builders for anonymous functions and closures.
 
 ### 18.3.1 Anonymous Function Builder
-- [ ] **Task 18.3.1 Pending**
+- [x] **Task 18.3.1 Complete**
 
 Generate RDF triples for anonymous function definitions.
 
-- [ ] 18.3.1.1 Create `lib/elixir_ontologies/builders/anonymous_function_builder.ex`
-- [ ] 18.3.1.2 Implement `build_anonymous_function/3` generating unique IRI
-- [ ] 18.3.1.3 Generate `rdf:type structure:AnonymousFunction` triple
-- [ ] 18.3.1.4 Generate `structure:hasArity` with arity value
-- [ ] 18.3.1.5 Generate `structure:hasClause` for each clause
-- [ ] 18.3.1.6 Add anonymous function builder tests
+- [x] 18.3.1.1 Create `lib/elixir_ontologies/builders/anonymous_function_builder.ex`
+- [x] 18.3.1.2 Implement `build/3` generating unique IRI
+- [x] 18.3.1.3 Generate `rdf:type structure:AnonymousFunction` triple
+- [x] 18.3.1.4 Generate `structure:arity` with arity value
+- [x] 18.3.1.5 Generate `structure:hasClause` for each clause
+- [x] 18.3.1.6 Add anonymous function builder tests (2 doctests, 13 tests)
 
 ### 18.3.2 Closure Builder
 - [ ] **Task 18.3.2 Pending**
@@ -155,8 +155,8 @@ Generate RDF triples for capture operator expressions.
 - [ ] 18.3.3.6 Add capture builder tests
 
 **Section 18.3 Unit Tests:**
-- [ ] Test anonymous function RDF generation
-- [ ] Test multi-clause function RDF
+- [x] Test anonymous function RDF generation (18.3.1)
+- [x] Test multi-clause function RDF (18.3.1)
 - [ ] Test closure RDF with captured variables
 - [ ] Test capture expression RDF
 - [ ] Test shorthand capture RDF
