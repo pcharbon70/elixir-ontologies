@@ -386,6 +386,238 @@ defmodule ElixirOntologies.Extractors.AnonymousFunctionTest do
   end
 
   # ===========================================================================
+  # Clause AST Detection (18.1.2)
+  # ===========================================================================
+
+  describe "clause_ast?/1" do
+    test "returns true for valid clause AST" do
+      ast = {:->, [], [[{:x, [], nil}], :ok]}
+      assert AnonymousFunction.clause_ast?(ast)
+    end
+
+    test "returns true for clause with multiple parameters" do
+      ast = {:->, [], [[{:x, [], nil}, {:y, [], nil}], :ok]}
+      assert AnonymousFunction.clause_ast?(ast)
+    end
+
+    test "returns true for clause with no parameters" do
+      ast = {:->, [], [[], :ok]}
+      assert AnonymousFunction.clause_ast?(ast)
+    end
+
+    test "returns false for anonymous function" do
+      ast = {:fn, [], [{:->, [], [[], :ok]}]}
+      refute AnonymousFunction.clause_ast?(ast)
+    end
+
+    test "returns false for non-AST" do
+      refute AnonymousFunction.clause_ast?(:not_ast)
+      refute AnonymousFunction.clause_ast?("string")
+      refute AnonymousFunction.clause_ast?(123)
+    end
+  end
+
+  # ===========================================================================
+  # Standalone Clause Extraction (18.1.2)
+  # ===========================================================================
+
+  describe "extract_clause/1" do
+    test "extracts single-parameter clause" do
+      ast = {:->, [], [[{:x, [], nil}], {:x, [], nil}]}
+
+      assert {:ok, clause} = AnonymousFunction.extract_clause(ast)
+      assert clause.arity == 1
+      assert clause.order == nil
+      assert length(clause.parameters) == 1
+    end
+
+    test "extracts multi-parameter clause" do
+      ast = {:->, [], [[{:x, [], nil}, {:y, [], nil}], :ok]}
+
+      assert {:ok, clause} = AnonymousFunction.extract_clause(ast)
+      assert clause.arity == 2
+      assert length(clause.parameters) == 2
+    end
+
+    test "extracts clause with guard" do
+      # fn x when is_integer(x) -> x end - the clause part
+      ast =
+        {:->, [],
+         [
+           [{:when, [], [{:x, [], nil}, {:is_integer, [], [{:x, [], nil}]}]}],
+           {:x, [], nil}
+         ]}
+
+      assert {:ok, clause} = AnonymousFunction.extract_clause(ast)
+      assert clause.arity == 1
+      assert clause.guard != nil
+    end
+
+    test "extracts parameter patterns" do
+      ast = {:->, [], [[{:x, [], nil}], :ok]}
+
+      assert {:ok, clause} = AnonymousFunction.extract_clause(ast)
+      assert is_list(clause.parameter_patterns)
+      assert length(clause.parameter_patterns) == 1
+      [pattern] = clause.parameter_patterns
+      assert pattern.type == :variable
+    end
+
+    test "collects bound variables" do
+      ast = {:->, [], [[{:x, [], nil}, {:y, [], nil}], :ok]}
+
+      assert {:ok, clause} = AnonymousFunction.extract_clause(ast)
+      assert :x in clause.bound_variables
+      assert :y in clause.bound_variables
+    end
+
+    test "handles tuple pattern with bindings" do
+      # Create a clause AST with a tuple pattern
+      ast = {:->, [], [[{:{}, [], [:ok, {:result, [], nil}]}], {:result, [], nil}]}
+
+      assert {:ok, clause} = AnonymousFunction.extract_clause(ast)
+      assert clause.arity == 1
+      assert :result in clause.bound_variables
+    end
+
+    test "returns error for non-clause AST" do
+      ast = {:def, [], [{:foo, [], nil}]}
+      assert {:error, :not_clause} = AnonymousFunction.extract_clause(ast)
+    end
+
+    test "can skip pattern extraction" do
+      ast = {:->, [], [[{:x, [], nil}], :ok]}
+
+      assert {:ok, clause} = AnonymousFunction.extract_clause(ast, include_patterns: false)
+      assert clause.parameter_patterns == nil
+      assert clause.bound_variables == []
+    end
+  end
+
+  # ===========================================================================
+  # Clause Extraction with Order (18.1.2)
+  # ===========================================================================
+
+  describe "extract_clause_with_order/2" do
+    test "extracts clause with explicit order" do
+      ast = {:->, [], [[0], :zero]}
+
+      assert {:ok, clause} = AnonymousFunction.extract_clause_with_order(ast, 1)
+      assert clause.order == 1
+      assert clause.arity == 1
+    end
+
+    test "extracts clause with higher order" do
+      ast = {:->, [], [[{:n, [], nil}], :positive]}
+
+      assert {:ok, clause} = AnonymousFunction.extract_clause_with_order(ast, 3)
+      assert clause.order == 3
+    end
+
+    test "returns error for invalid order" do
+      ast = {:->, [], [[], :ok]}
+      assert {:error, :not_clause} = AnonymousFunction.extract_clause_with_order(ast, 0)
+      assert {:error, :not_clause} = AnonymousFunction.extract_clause_with_order(ast, -1)
+    end
+
+    test "returns error for non-clause AST" do
+      assert {:error, :not_clause} = AnonymousFunction.extract_clause_with_order({:def, [], []}, 1)
+    end
+  end
+
+  # ===========================================================================
+  # Enhanced Clause Fields (18.1.2)
+  # ===========================================================================
+
+  describe "clause arity field" do
+    test "clauses from extract/1 have arity" do
+      ast = quote do: fn x, y -> x + y end
+
+      assert {:ok, anon} = AnonymousFunction.extract(ast)
+      [clause] = anon.clauses
+      assert clause.arity == 2
+    end
+
+    test "multi-clause function clauses have correct arity" do
+      ast =
+        quote do
+          fn
+            0 -> :zero
+            n -> n
+          end
+        end
+
+      assert {:ok, anon} = AnonymousFunction.extract(ast)
+      assert Enum.all?(anon.clauses, fn c -> c.arity == 1 end)
+    end
+  end
+
+  describe "clause parameter_patterns field" do
+    test "clauses have pattern analysis" do
+      ast = quote do: fn {:ok, value} -> value end
+
+      assert {:ok, anon} = AnonymousFunction.extract(ast)
+      [clause] = anon.clauses
+      assert is_list(clause.parameter_patterns)
+      [pattern] = clause.parameter_patterns
+      assert pattern.type == :tuple
+    end
+
+    test "wildcard patterns are recognized" do
+      ast = quote do: fn _ -> :ok end
+
+      assert {:ok, anon} = AnonymousFunction.extract(ast)
+      [clause] = anon.clauses
+      [pattern] = clause.parameter_patterns
+      assert pattern.type == :wildcard
+    end
+
+    test "literal patterns are recognized" do
+      ast = quote do: fn 0 -> :zero end
+
+      assert {:ok, anon} = AnonymousFunction.extract(ast)
+      [clause] = anon.clauses
+      [pattern] = clause.parameter_patterns
+      assert pattern.type == :literal
+    end
+  end
+
+  describe "clause bound_variables field" do
+    test "collects variables from simple patterns" do
+      ast = quote do: fn x -> x end
+
+      assert {:ok, anon} = AnonymousFunction.extract(ast)
+      [clause] = anon.clauses
+      assert :x in clause.bound_variables
+    end
+
+    test "collects variables from nested patterns" do
+      ast = quote do: fn {:ok, {a, b}} -> {a, b} end
+
+      assert {:ok, anon} = AnonymousFunction.extract(ast)
+      [clause] = anon.clauses
+      assert :a in clause.bound_variables
+      assert :b in clause.bound_variables
+    end
+
+    test "empty for wildcard-only patterns" do
+      ast = quote do: fn _ -> :ok end
+
+      assert {:ok, anon} = AnonymousFunction.extract(ast)
+      [clause] = anon.clauses
+      assert clause.bound_variables == []
+    end
+
+    test "empty for literal-only patterns" do
+      ast = quote do: fn 42 -> :answer end
+
+      assert {:ok, anon} = AnonymousFunction.extract(ast)
+      [clause] = anon.clauses
+      assert clause.bound_variables == []
+    end
+  end
+
+  # ===========================================================================
   # Doctest Verification
   # ===========================================================================
 

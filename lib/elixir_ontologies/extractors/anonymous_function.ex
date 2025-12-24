@@ -38,6 +38,7 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
   """
 
   alias ElixirOntologies.Extractors.Helpers
+  alias ElixirOntologies.Extractors.Pattern
 
   # ===========================================================================
   # Clause Struct
@@ -49,28 +50,42 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
 
     ## Fields
 
-    - `:parameters` - List of parameter patterns
-    - `:guard` - Guard expression or nil
+    - `:parameters` - List of parameter pattern AST nodes
+    - `:guard` - Guard expression AST or nil
     - `:body` - The clause body AST
-    - `:order` - 1-indexed clause order
+    - `:order` - 1-indexed clause order (nil for standalone extraction)
+    - `:arity` - Number of parameters in this clause
+    - `:parameter_patterns` - List of Pattern.t() for each parameter (optional)
+    - `:bound_variables` - All variables bound by parameters
     - `:location` - Source location if available
+    - `:metadata` - Additional clause metadata
     """
+
+    alias ElixirOntologies.Extractors.Pattern
 
     @type t :: %__MODULE__{
             parameters: [Macro.t()],
             guard: Macro.t() | nil,
             body: Macro.t(),
-            order: pos_integer(),
-            location: map() | nil
+            order: pos_integer() | nil,
+            arity: non_neg_integer(),
+            parameter_patterns: [Pattern.t()] | nil,
+            bound_variables: [atom()],
+            location: map() | nil,
+            metadata: map()
           }
 
-    @enforce_keys [:parameters, :body, :order]
+    @enforce_keys [:parameters, :body, :arity]
     defstruct [
       :parameters,
       :guard,
       :body,
       :order,
-      location: nil
+      :arity,
+      parameter_patterns: nil,
+      bound_variables: [],
+      location: nil,
+      metadata: %{}
     ]
   end
 
@@ -123,6 +138,26 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
   def anonymous_function?({:fn, _meta, clauses}) when is_list(clauses), do: true
   def anonymous_function?(_), do: false
 
+  @doc """
+  Checks if an AST node represents an anonymous function clause.
+
+  Anonymous function clauses use the `{:->, meta, [params, body]}` AST form.
+
+  ## Examples
+
+      iex> ElixirOntologies.Extractors.AnonymousFunction.clause_ast?({:->, [], [[{:x, [], nil}], :ok]})
+      true
+
+      iex> ElixirOntologies.Extractors.AnonymousFunction.clause_ast?({:fn, [], []})
+      false
+
+      iex> ElixirOntologies.Extractors.AnonymousFunction.clause_ast?(:not_ast)
+      false
+  """
+  @spec clause_ast?(Macro.t()) :: boolean()
+  def clause_ast?({:->, _meta, [params, _body]}) when is_list(params), do: true
+  def clause_ast?(_), do: false
+
   # ===========================================================================
   # Extraction
   # ===========================================================================
@@ -149,7 +184,7 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
     extracted_clauses =
       clauses
       |> Enum.with_index(1)
-      |> Enum.map(fn {clause_ast, order} -> extract_clause(clause_ast, order) end)
+      |> Enum.map(fn {clause_ast, order} -> do_extract_clause(clause_ast, order) end)
 
     arity = calculate_arity(extracted_clauses)
     location = Helpers.extract_location(node)
@@ -191,30 +226,147 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
   end
 
   # ===========================================================================
+  # Clause Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts an individual clause from a `{:->, meta, [params, body]}` AST node.
+
+  This function provides standalone clause extraction with detailed pattern
+  analysis for parameters. The order is set to nil for standalone extraction.
+
+  ## Options
+
+  - `:include_patterns` - Whether to extract Pattern.t() for each parameter (default: true)
+
+  ## Examples
+
+      iex> ast = {:->, [], [[{:x, [], nil}], {:x, [], nil}]}
+      iex> {:ok, clause} = ElixirOntologies.Extractors.AnonymousFunction.extract_clause(ast)
+      iex> clause.arity
+      1
+      iex> clause.order
+      nil
+
+      iex> ElixirOntologies.Extractors.AnonymousFunction.extract_clause({:def, [], []})
+      {:error, :not_clause}
+  """
+  @spec extract_clause(Macro.t(), keyword()) :: {:ok, Clause.t()} | {:error, atom()}
+  def extract_clause(ast, opts \\ [])
+
+  def extract_clause({:->, _meta, [params_with_guard, body]} = node, opts) do
+    {parameters, guard} = extract_params_and_guard(params_with_guard)
+    location = Helpers.extract_location(node)
+    arity = length(parameters)
+    include_patterns = Keyword.get(opts, :include_patterns, true)
+
+    {parameter_patterns, bound_variables} =
+      if include_patterns do
+        extract_parameter_patterns(parameters)
+      else
+        {nil, []}
+      end
+
+    {:ok,
+     %Clause{
+       parameters: parameters,
+       guard: guard,
+       body: body,
+       order: nil,
+       arity: arity,
+       parameter_patterns: parameter_patterns,
+       bound_variables: bound_variables,
+       location: location,
+       metadata: %{}
+     }}
+  end
+
+  def extract_clause(_, _opts), do: {:error, :not_clause}
+
+  @doc """
+  Extracts a clause with an explicit order value.
+
+  Used when extracting clauses as part of a multi-clause anonymous function
+  where order matters for pattern matching semantics.
+
+  ## Examples
+
+      iex> ast = {:->, [], [[0], :zero]}
+      iex> {:ok, clause} = ElixirOntologies.Extractors.AnonymousFunction.extract_clause_with_order(ast, 1)
+      iex> clause.order
+      1
+  """
+  @spec extract_clause_with_order(Macro.t(), pos_integer(), keyword()) ::
+          {:ok, Clause.t()} | {:error, atom()}
+  def extract_clause_with_order(ast, order, opts \\ [])
+
+  def extract_clause_with_order({:->, _meta, [params_with_guard, body]} = node, order, opts)
+      when is_integer(order) and order > 0 do
+    {parameters, guard} = extract_params_and_guard(params_with_guard)
+    location = Helpers.extract_location(node)
+    arity = length(parameters)
+    include_patterns = Keyword.get(opts, :include_patterns, true)
+
+    {parameter_patterns, bound_variables} =
+      if include_patterns do
+        extract_parameter_patterns(parameters)
+      else
+        {nil, []}
+      end
+
+    {:ok,
+     %Clause{
+       parameters: parameters,
+       guard: guard,
+       body: body,
+       order: order,
+       arity: arity,
+       parameter_patterns: parameter_patterns,
+       bound_variables: bound_variables,
+       location: location,
+       metadata: %{}
+     }}
+  end
+
+  def extract_clause_with_order(_, _, _opts), do: {:error, :not_clause}
+
+  # ===========================================================================
   # Private Helpers
   # ===========================================================================
 
-  defp extract_clause({:->, _meta, [params_with_guard, body]} = node, order) do
+  # Internal clause extraction used by extract/1 for whole function extraction
+  # Includes pattern analysis by default for consistency
+  defp do_extract_clause({:->, _meta, [params_with_guard, body]} = node, order) do
     {parameters, guard} = extract_params_and_guard(params_with_guard)
     location = Helpers.extract_location(node)
+    arity = length(parameters)
+    {parameter_patterns, bound_variables} = extract_parameter_patterns(parameters)
 
     %Clause{
       parameters: parameters,
       guard: guard,
       body: body,
       order: order,
-      location: location
+      arity: arity,
+      parameter_patterns: parameter_patterns,
+      bound_variables: bound_variables,
+      location: location,
+      metadata: %{}
     }
   end
 
   # Handle malformed clause AST gracefully
-  defp extract_clause(_invalid, order) do
+  defp do_extract_clause(_invalid, order) do
     %Clause{
       parameters: [],
       guard: nil,
       body: nil,
       order: order,
-      location: nil
+      arity: 0,
+      parameter_patterns: nil,
+      bound_variables: [],
+      location: nil,
+      metadata: %{}
     }
   end
 
@@ -254,5 +406,26 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
       end)
 
     Enum.reverse(acc)
+  end
+
+  # Extract Pattern.t() for each parameter and collect all bound variables
+  defp extract_parameter_patterns(parameters) do
+    patterns =
+      Enum.map(parameters, fn param ->
+        case Pattern.extract(param) do
+          {:ok, pattern} -> pattern
+          _ -> nil
+        end
+      end)
+
+    bound_variables =
+      patterns
+      |> Enum.flat_map(fn
+        %Pattern{bindings: bindings} -> bindings
+        nil -> []
+      end)
+      |> Enum.uniq()
+
+    {patterns, bound_variables}
   end
 end

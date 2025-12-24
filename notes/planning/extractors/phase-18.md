@@ -19,16 +19,16 @@ Extract anonymous function definitions with their clauses.
 - [x] 18.1.1.6 Add basic anonymous function tests (8 doctests, 33 tests)
 
 ### 18.1.2 Anonymous Function Clause Extraction
-- [ ] **Task 18.1.2 Pending**
+- [x] **Task 18.1.2 Complete**
 
 Extract individual clauses of anonymous functions with their patterns and guards.
 
-- [ ] 18.1.2.1 Define `%AnonymousFunctionClause{parameters: [...], guard: ..., body: ...}` struct
-- [ ] 18.1.2.2 Extract parameter patterns for each clause
-- [ ] 18.1.2.3 Extract guard expressions (when clauses)
-- [ ] 18.1.2.4 Extract clause body
-- [ ] 18.1.2.5 Track clause order for pattern matching semantics
-- [ ] 18.1.2.6 Add clause extraction tests
+- [x] 18.1.2.1 Enhanced `AnonymousFunction.Clause` struct with arity, parameter_patterns, bound_variables
+- [x] 18.1.2.2 Extract parameter patterns using Pattern.extract/1 integration
+- [x] 18.1.2.3 Extract guard expressions (when clauses)
+- [x] 18.1.2.4 Extract clause body
+- [x] 18.1.2.5 Track clause order via extract_clause_with_order/2
+- [x] 18.1.2.6 Add clause extraction tests (26 new tests, 14 doctests, 59 total)
 
 ### 18.1.3 Capture Operator Extraction
 - [ ] **Task 18.1.3 Pending**
