@@ -2315,4 +2315,269 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
       assert SupervisorExtractor.child_type(child) == :supervisor
     end
   end
+
+  # ===========================================================================
+  # RestartIntensity Struct Tests
+  # ===========================================================================
+
+  describe "RestartIntensity struct" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.RestartIntensity
+
+    test "has OTP default values" do
+      intensity = %RestartIntensity{}
+      assert intensity.max_restarts == 3
+      assert intensity.max_seconds == 5
+      assert intensity.intensity == 0.6
+      assert intensity.is_default_max_restarts == true
+      assert intensity.is_default_max_seconds == true
+    end
+
+    test "can be created with custom values" do
+      intensity = %RestartIntensity{
+        max_restarts: 10,
+        max_seconds: 60,
+        intensity: 0.16666666666666666,
+        is_default_max_restarts: false,
+        is_default_max_seconds: false
+      }
+
+      assert intensity.max_restarts == 10
+      assert intensity.max_seconds == 60
+      assert_in_delta intensity.intensity, 0.167, 0.01
+    end
+  end
+
+  # ===========================================================================
+  # extract_restart_intensity/1 Tests
+  # ===========================================================================
+
+  describe "extract_restart_intensity/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.RestartIntensity
+
+    test "extracts intensity from strategy with explicit values" do
+      strategy = %Strategy{
+        type: :one_for_one,
+        max_restarts: 10,
+        max_seconds: 60,
+        is_default_max_restarts: false,
+        is_default_max_seconds: false
+      }
+
+      intensity = SupervisorExtractor.extract_restart_intensity(strategy)
+
+      assert %RestartIntensity{} = intensity
+      assert intensity.max_restarts == 10
+      assert intensity.max_seconds == 60
+      assert_in_delta intensity.intensity, 0.167, 0.01
+      assert intensity.is_default_max_restarts == false
+      assert intensity.is_default_max_seconds == false
+    end
+
+    test "extracts intensity from strategy with default values" do
+      strategy = %Strategy{}
+
+      intensity = SupervisorExtractor.extract_restart_intensity(strategy)
+
+      assert intensity.max_restarts == 3
+      assert intensity.max_seconds == 5
+      assert intensity.intensity == 0.6
+      assert intensity.is_default_max_restarts == true
+      assert intensity.is_default_max_seconds == true
+    end
+
+    test "includes source strategy type in metadata" do
+      strategy = %Strategy{type: :one_for_all}
+
+      intensity = SupervisorExtractor.extract_restart_intensity(strategy)
+
+      assert intensity.metadata.source_strategy == :one_for_all
+    end
+
+    test "handles nil max_restarts and max_seconds" do
+      strategy = %Strategy{max_restarts: nil, max_seconds: nil}
+
+      intensity = SupervisorExtractor.extract_restart_intensity(strategy)
+
+      assert intensity.max_restarts == 3
+      assert intensity.max_seconds == 5
+      assert intensity.intensity == 0.6
+    end
+  end
+
+  # ===========================================================================
+  # restart_intensity_description/1 Tests
+  # ===========================================================================
+
+  describe "restart_intensity_description/1" do
+    test "returns description for explicit values" do
+      strategy = %Strategy{max_restarts: 3, max_seconds: 5, is_default_max_restarts: false, is_default_max_seconds: false}
+
+      desc = SupervisorExtractor.restart_intensity_description(strategy)
+
+      assert desc == "3 restarts in 5 seconds (0.6/sec)"
+    end
+
+    test "returns description with [defaults] marker for default values" do
+      strategy = %Strategy{}
+
+      desc = SupervisorExtractor.restart_intensity_description(strategy)
+
+      assert desc == "3 restarts in 5 seconds (0.6/sec) [defaults]"
+    end
+
+    test "returns description for custom high intensity" do
+      strategy = %Strategy{max_restarts: 100, max_seconds: 10, is_default_max_restarts: false, is_default_max_seconds: false}
+
+      desc = SupervisorExtractor.restart_intensity_description(strategy)
+
+      assert desc == "100 restarts in 10 seconds (10.0/sec)"
+    end
+
+    test "does not add defaults marker when only one is default" do
+      strategy = %Strategy{max_restarts: 10, is_default_max_restarts: false, is_default_max_seconds: true}
+
+      desc = SupervisorExtractor.restart_intensity_description(strategy)
+
+      refute String.contains?(desc, "[defaults]")
+    end
+  end
+
+  # ===========================================================================
+  # high_restart_intensity?/1 Tests
+  # ===========================================================================
+
+  describe "high_restart_intensity?/1" do
+    test "returns false for default intensity" do
+      strategy = %Strategy{}
+      refute SupervisorExtractor.high_restart_intensity?(strategy)
+    end
+
+    test "returns false for intensity at exactly 1.0" do
+      strategy = %Strategy{max_restarts: 5, max_seconds: 5}
+      refute SupervisorExtractor.high_restart_intensity?(strategy)
+    end
+
+    test "returns true for intensity above 1.0" do
+      strategy = %Strategy{max_restarts: 10, max_seconds: 5}
+      assert SupervisorExtractor.high_restart_intensity?(strategy)
+    end
+
+    test "returns true for very high intensity" do
+      strategy = %Strategy{max_restarts: 100, max_seconds: 10}
+      assert SupervisorExtractor.high_restart_intensity?(strategy)
+    end
+  end
+
+  # ===========================================================================
+  # within_default_intensity?/1 Tests
+  # ===========================================================================
+
+  describe "within_default_intensity?/1" do
+    test "returns true when both defaults" do
+      strategy = %Strategy{is_default_max_restarts: true, is_default_max_seconds: true}
+      assert SupervisorExtractor.within_default_intensity?(strategy)
+    end
+
+    test "returns false when max_restarts is not default" do
+      strategy = %Strategy{max_restarts: 10, is_default_max_restarts: false, is_default_max_seconds: true}
+      refute SupervisorExtractor.within_default_intensity?(strategy)
+    end
+
+    test "returns false when max_seconds is not default" do
+      strategy = %Strategy{max_seconds: 60, is_default_max_restarts: true, is_default_max_seconds: false}
+      refute SupervisorExtractor.within_default_intensity?(strategy)
+    end
+
+    test "returns false when neither is default" do
+      strategy = %Strategy{max_restarts: 10, max_seconds: 60, is_default_max_restarts: false, is_default_max_seconds: false}
+      refute SupervisorExtractor.within_default_intensity?(strategy)
+    end
+  end
+
+  # ===========================================================================
+  # Restart Intensity from Extracted Strategies
+  # ===========================================================================
+
+  describe "restart intensity from extracted strategies" do
+    test "extracts intensity from supervisor with custom restart settings" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one, max_restarts: 10, max_seconds: 60)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      intensity = SupervisorExtractor.extract_restart_intensity(strategy)
+
+      assert intensity.max_restarts == 10
+      assert intensity.max_seconds == 60
+      assert_in_delta intensity.intensity, 0.167, 0.01
+      assert intensity.is_default_max_restarts == false
+      assert intensity.is_default_max_seconds == false
+    end
+
+    test "extracts intensity from supervisor with default settings" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      intensity = SupervisorExtractor.extract_restart_intensity(strategy)
+
+      assert intensity.max_restarts == 3
+      assert intensity.max_seconds == 5
+      assert intensity.intensity == 0.6
+      assert intensity.is_default_max_restarts == true
+      assert intensity.is_default_max_seconds == true
+    end
+
+    test "extracts intensity from DynamicSupervisor" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(strategy: :one_for_one, max_restarts: 5, max_seconds: 10)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      intensity = SupervisorExtractor.extract_restart_intensity(strategy)
+
+      assert intensity.max_restarts == 5
+      assert intensity.max_seconds == 10
+      assert intensity.intensity == 0.5
+    end
+
+    test "correctly identifies high restart intensity in extracted strategy" do
+      code = """
+      defmodule AggressiveSup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one, max_restarts: 100, max_seconds: 10)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert SupervisorExtractor.high_restart_intensity?(strategy)
+      assert SupervisorExtractor.restart_intensity(strategy) == 10.0
+    end
+  end
 end

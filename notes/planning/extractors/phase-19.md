@@ -81,16 +81,16 @@ Extract the supervision strategy type from supervisor init/1.
 - [x] 19.2.1.6 Add strategy type tests
 
 ### 19.2.2 Restart Intensity Extraction
-- [ ] **Task 19.2.2 Pending**
+- [x] **Task 19.2.2 Complete**
 
 Extract restart intensity limits (max_restarts/max_seconds).
 
-- [ ] 19.2.2.1 Extract `max_restarts: N` option (default 3)
-- [ ] 19.2.2.2 Extract `max_seconds: N` option (default 5)
-- [ ] 19.2.2.3 Calculate restart intensity ratio
-- [ ] 19.2.2.4 Handle legacy tuple format `{strategy, max_restarts, max_seconds}`
-- [ ] 19.2.2.5 Track whether using defaults or explicit values
-- [ ] 19.2.2.6 Add restart intensity tests
+- [x] 19.2.2.1 Extract `max_restarts: N` option (default 3)
+- [x] 19.2.2.2 Extract `max_seconds: N` option (default 5)
+- [x] 19.2.2.3 Calculate restart intensity ratio
+- [x] 19.2.2.4 Handle legacy tuple format `{strategy, max_restarts, max_seconds}`
+- [x] 19.2.2.5 Track whether using defaults or explicit values
+- [x] 19.2.2.6 Add restart intensity tests
 
 ### 19.2.3 DynamicSupervisor Strategy
 - [ ] **Task 19.2.3 Pending**

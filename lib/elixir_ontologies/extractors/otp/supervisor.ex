@@ -107,6 +107,50 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   @type supervision_strategy :: Strategy.t()
 
   # ===========================================================================
+  # RestartIntensity Struct
+  # ===========================================================================
+
+  defmodule RestartIntensity do
+    @moduledoc """
+    Represents the restart intensity configuration for a supervisor.
+
+    Restart intensity defines how many restarts are allowed within a time window
+    before the supervisor gives up and terminates.
+
+    ## OTP Defaults
+
+    - `max_restarts`: 3 (maximum restart attempts)
+    - `max_seconds`: 5 (time window in seconds)
+    - Default intensity: 0.6 restarts/second
+
+    ## Fields
+
+    - `:max_restarts` - Maximum restart attempts in time window
+    - `:max_seconds` - Time window in seconds
+    - `:intensity` - Calculated restarts per second ratio
+    - `:is_default_max_restarts` - Whether max_restarts uses default
+    - `:is_default_max_seconds` - Whether max_seconds uses default
+    - `:metadata` - Additional information
+    """
+
+    @type t :: %__MODULE__{
+            max_restarts: non_neg_integer(),
+            max_seconds: non_neg_integer(),
+            intensity: float(),
+            is_default_max_restarts: boolean(),
+            is_default_max_seconds: boolean(),
+            metadata: map()
+          }
+
+    defstruct max_restarts: 3,
+              max_seconds: 5,
+              intensity: 0.6,
+              is_default_max_restarts: true,
+              is_default_max_seconds: true,
+              metadata: %{}
+  end
+
+  # ===========================================================================
   # StartSpec Struct
   # ===========================================================================
 
@@ -1152,6 +1196,126 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     max_restarts = effective_max_restarts(strategy)
     max_seconds = effective_max_seconds(strategy)
     max_restarts / max_seconds
+  end
+
+  @doc """
+  Extracts restart intensity configuration from a Strategy struct.
+
+  Returns a `%RestartIntensity{}` struct with the calculated intensity
+  and default tracking.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> strategy = %Strategy{max_restarts: 10, max_seconds: 60, is_default_max_restarts: false, is_default_max_seconds: false}
+      iex> intensity = SupervisorExtractor.extract_restart_intensity(strategy)
+      iex> intensity.max_restarts
+      10
+      iex> intensity.max_seconds
+      60
+      iex> intensity.intensity
+      0.16666666666666666
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> strategy = %Strategy{}
+      iex> intensity = SupervisorExtractor.extract_restart_intensity(strategy)
+      iex> intensity.is_default_max_restarts
+      true
+      iex> intensity.is_default_max_seconds
+      true
+  """
+  @spec extract_restart_intensity(Strategy.t()) :: RestartIntensity.t()
+  def extract_restart_intensity(%Strategy{} = strategy) do
+    max_restarts = effective_max_restarts(strategy)
+    max_seconds = effective_max_seconds(strategy)
+    intensity = max_restarts / max_seconds
+
+    %RestartIntensity{
+      max_restarts: max_restarts,
+      max_seconds: max_seconds,
+      intensity: intensity,
+      is_default_max_restarts: strategy.is_default_max_restarts,
+      is_default_max_seconds: strategy.is_default_max_seconds,
+      metadata: %{
+        source_strategy: strategy.type
+      }
+    }
+  end
+
+  @doc """
+  Returns a human-readable description of the restart intensity.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.restart_intensity_description(%Strategy{max_restarts: 3, max_seconds: 5, is_default_max_restarts: false, is_default_max_seconds: false})
+      "3 restarts in 5 seconds (0.6/sec)"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.restart_intensity_description(%Strategy{max_restarts: nil, max_seconds: nil})
+      "3 restarts in 5 seconds (0.6/sec) [defaults]"
+  """
+  @spec restart_intensity_description(Strategy.t()) :: String.t()
+  def restart_intensity_description(%Strategy{} = strategy) do
+    max_restarts = effective_max_restarts(strategy)
+    max_seconds = effective_max_seconds(strategy)
+    intensity = Float.round(max_restarts / max_seconds, 2)
+
+    base = "#{max_restarts} restarts in #{max_seconds} seconds (#{intensity}/sec)"
+
+    if strategy.is_default_max_restarts and strategy.is_default_max_seconds do
+      base <> " [defaults]"
+    else
+      base
+    end
+  end
+
+  @doc """
+  Checks if the restart intensity is high (aggressive restart policy).
+
+  An intensity is considered high if it exceeds 1 restart per second.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.high_restart_intensity?(%Strategy{max_restarts: 10, max_seconds: 5})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.high_restart_intensity?(%Strategy{max_restarts: 3, max_seconds: 5})
+      false
+  """
+  @spec high_restart_intensity?(Strategy.t()) :: boolean()
+  def high_restart_intensity?(%Strategy{} = strategy) do
+    restart_intensity(strategy) > 1.0
+  end
+
+  @doc """
+  Checks if the strategy is using default restart intensity settings.
+
+  Returns true if both max_restarts and max_seconds are using defaults.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.within_default_intensity?(%Strategy{is_default_max_restarts: true, is_default_max_seconds: true})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.within_default_intensity?(%Strategy{max_restarts: 10, is_default_max_restarts: false})
+      false
+  """
+  @spec within_default_intensity?(Strategy.t()) :: boolean()
+  def within_default_intensity?(%Strategy{} = strategy) do
+    strategy.is_default_max_restarts and strategy.is_default_max_seconds
   end
 
   # ===========================================================================
