@@ -31,16 +31,16 @@ Extract the start function specification from child specs.
 - [x] 19.1.2.6 Add start function extraction tests
 
 ### 19.1.3 Restart Strategy Extraction
-- [ ] **Task 19.1.3 Pending**
+- [x] **Task 19.1.3 Complete**
 
 Extract restart strategy options from child specs.
 
-- [ ] 19.1.3.1 Implement `extract_restart_strategy/1` for restart options
-- [ ] 19.1.3.2 Define `%RestartStrategy{type: :permanent|:temporary|:transient}` struct
-- [ ] 19.1.3.3 Extract `restart: :permanent` (default)
-- [ ] 19.1.3.4 Extract `restart: :temporary` (never restart)
-- [ ] 19.1.3.5 Extract `restart: :transient` (restart only on abnormal exit)
-- [ ] 19.1.3.6 Add restart strategy tests
+- [x] 19.1.3.1 Implement `extract_restart_strategy/1` for restart options
+- [x] 19.1.3.2 Define `%RestartStrategy{type: :permanent|:temporary|:transient}` struct
+- [x] 19.1.3.3 Extract `restart: :permanent` (default)
+- [x] 19.1.3.4 Extract `restart: :temporary` (never restart)
+- [x] 19.1.3.5 Extract `restart: :transient` (restart only on abnormal exit)
+- [x] 19.1.3.6 Add restart strategy tests
 
 ### 19.1.4 Shutdown and Type Extraction
 - [ ] **Task 19.1.4 Pending**

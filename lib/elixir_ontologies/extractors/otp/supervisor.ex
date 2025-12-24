@@ -132,6 +132,40 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   end
 
   # ===========================================================================
+  # RestartStrategy Struct
+  # ===========================================================================
+
+  defmodule RestartStrategy do
+    @moduledoc """
+    Represents the restart strategy for a child specification.
+
+    The restart strategy determines when the supervisor should restart a child:
+
+    - `:permanent` - Always restart the child (default)
+    - `:temporary` - Never restart the child
+    - `:transient` - Restart only if child exits abnormally (non-:normal exit)
+
+    ## Fields
+
+    - `:type` - The restart type atom
+    - `:is_default` - Whether this is the default value (not explicitly set)
+    - `:metadata` - Additional information
+    """
+
+    @type restart_type :: :permanent | :temporary | :transient
+
+    @type t :: %__MODULE__{
+            type: restart_type(),
+            is_default: boolean(),
+            metadata: map()
+          }
+
+    defstruct type: :permanent,
+              is_default: true,
+              metadata: %{}
+  end
+
+  # ===========================================================================
   # ChildSpec Struct
   # ===========================================================================
 
@@ -1121,6 +1155,124 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   """
   @spec child_start_mfa(ChildSpec.t()) :: {atom(), atom(), non_neg_integer()} | nil
   def child_start_mfa(%ChildSpec{start: start}), do: start_function_mfa(start)
+
+  # ===========================================================================
+  # Restart Strategy Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts the restart strategy from a ChildSpec.
+
+  Returns a `%RestartStrategy{}` struct with the restart type and whether
+  it was explicitly set or defaulted.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, RestartStrategy}
+      iex> spec = %ChildSpec{id: :worker, restart: :temporary, metadata: %{format: :map}}
+      iex> strategy = SupervisorExtractor.extract_restart_strategy(spec)
+      iex> strategy.type
+      :temporary
+      iex> strategy.is_default
+      false
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, RestartStrategy}
+      iex> spec = %ChildSpec{id: :worker, restart: :permanent, metadata: %{format: :module_only}}
+      iex> strategy = SupervisorExtractor.extract_restart_strategy(spec)
+      iex> strategy.type
+      :permanent
+      iex> strategy.is_default
+      true
+  """
+  @spec extract_restart_strategy(ChildSpec.t()) :: RestartStrategy.t()
+  def extract_restart_strategy(%ChildSpec{restart: restart, metadata: metadata}) do
+    # Determine if this was explicitly set or defaulted
+    # Module-only and tuple formats without explicit restart use defaults
+    is_default = restart == :permanent and not explicitly_set_restart?(metadata)
+
+    %RestartStrategy{
+      type: restart,
+      is_default: is_default,
+      metadata: %{
+        source_format: Map.get(metadata, :format)
+      }
+    }
+  end
+
+  # Check if restart was explicitly set based on child spec format
+  defp explicitly_set_restart?(%{format: :map}), do: true
+  defp explicitly_set_restart?(%{format: :legacy_tuple}), do: true
+  defp explicitly_set_restart?(%{format: :tuple, has_args: true} = meta) do
+    # Tuple format with keyword list args might have restart option
+    Map.get(meta, :has_restart_option, false)
+  end
+  defp explicitly_set_restart?(_), do: false
+
+  @doc """
+  Returns the restart strategy type from a ChildSpec.
+
+  This is a convenience function that extracts the restart type directly.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :transient})
+      :transient
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :permanent})
+      :permanent
+  """
+  @spec restart_strategy_type(ChildSpec.t()) :: RestartStrategy.restart_type()
+  def restart_strategy_type(%ChildSpec{restart: restart}), do: restart
+
+  @doc """
+  Checks if a child spec is using the default restart strategy.
+
+  The default restart strategy is `:permanent`.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.default_restart?(%ChildSpec{restart: :permanent, metadata: %{format: :module_only}})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.default_restart?(%ChildSpec{restart: :temporary, metadata: %{format: :map}})
+      false
+  """
+  @spec default_restart?(ChildSpec.t()) :: boolean()
+  def default_restart?(%ChildSpec{} = spec) do
+    extract_restart_strategy(spec).is_default
+  end
+
+  @doc """
+  Returns the restart description for a restart type.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.restart_description(:permanent)
+      "Always restart the child process"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.restart_description(:temporary)
+      "Never restart the child process"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.restart_description(:transient)
+      "Restart only if child exits abnormally"
+  """
+  @spec restart_description(RestartStrategy.restart_type()) :: String.t()
+  def restart_description(:permanent), do: "Always restart the child process"
+  def restart_description(:temporary), do: "Never restart the child process"
+  def restart_description(:transient), do: "Restart only if child exits abnormally"
 
   # ===========================================================================
   # Strategy Extraction Helpers

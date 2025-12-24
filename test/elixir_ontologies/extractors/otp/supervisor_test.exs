@@ -1488,4 +1488,246 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
       assert SupervisorExtractor.child_start_mfa(child) == {MyWorker, :custom_start, 2}
     end
   end
+
+  # ===========================================================================
+  # RestartStrategy Struct Tests
+  # ===========================================================================
+
+  describe "RestartStrategy struct" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.RestartStrategy
+
+    test "has default values" do
+      strategy = %RestartStrategy{}
+      assert strategy.type == :permanent
+      assert strategy.is_default == true
+      assert strategy.metadata == %{}
+    end
+
+    test "can be created with all restart types" do
+      assert %RestartStrategy{type: :permanent}.type == :permanent
+      assert %RestartStrategy{type: :temporary}.type == :temporary
+      assert %RestartStrategy{type: :transient}.type == :transient
+    end
+  end
+
+  # ===========================================================================
+  # extract_restart_strategy/1 Tests
+  # ===========================================================================
+
+  describe "extract_restart_strategy/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, RestartStrategy}
+
+    test "extracts permanent restart from child spec" do
+      spec = %ChildSpec{id: :worker, restart: :permanent, metadata: %{format: :map}}
+      strategy = SupervisorExtractor.extract_restart_strategy(spec)
+
+      assert %RestartStrategy{} = strategy
+      assert strategy.type == :permanent
+    end
+
+    test "extracts temporary restart from child spec" do
+      spec = %ChildSpec{id: :worker, restart: :temporary, metadata: %{format: :map}}
+      strategy = SupervisorExtractor.extract_restart_strategy(spec)
+
+      assert strategy.type == :temporary
+      assert strategy.is_default == false
+    end
+
+    test "extracts transient restart from child spec" do
+      spec = %ChildSpec{id: :worker, restart: :transient, metadata: %{format: :map}}
+      strategy = SupervisorExtractor.extract_restart_strategy(spec)
+
+      assert strategy.type == :transient
+      assert strategy.is_default == false
+    end
+
+    test "detects default restart for module_only format" do
+      spec = %ChildSpec{id: :worker, restart: :permanent, metadata: %{format: :module_only}}
+      strategy = SupervisorExtractor.extract_restart_strategy(spec)
+
+      assert strategy.type == :permanent
+      assert strategy.is_default == true
+    end
+
+    test "detects explicit restart for map format" do
+      spec = %ChildSpec{id: :worker, restart: :permanent, metadata: %{format: :map}}
+      strategy = SupervisorExtractor.extract_restart_strategy(spec)
+
+      assert strategy.type == :permanent
+      # Map format is considered explicit even for :permanent
+      assert strategy.is_default == false
+    end
+
+    test "detects explicit restart for legacy_tuple format" do
+      spec = %ChildSpec{id: :worker, restart: :permanent, metadata: %{format: :legacy_tuple}}
+      strategy = SupervisorExtractor.extract_restart_strategy(spec)
+
+      assert strategy.type == :permanent
+      assert strategy.is_default == false
+    end
+
+    test "includes source format in metadata" do
+      spec = %ChildSpec{id: :worker, restart: :temporary, metadata: %{format: :map}}
+      strategy = SupervisorExtractor.extract_restart_strategy(spec)
+
+      assert strategy.metadata.source_format == :map
+    end
+  end
+
+  # ===========================================================================
+  # restart_strategy_type/1 Tests
+  # ===========================================================================
+
+  describe "restart_strategy_type/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+
+    test "returns permanent for permanent restart" do
+      assert SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :permanent}) == :permanent
+    end
+
+    test "returns temporary for temporary restart" do
+      assert SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :temporary}) == :temporary
+    end
+
+    test "returns transient for transient restart" do
+      assert SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :transient}) == :transient
+    end
+  end
+
+  # ===========================================================================
+  # default_restart?/1 Tests
+  # ===========================================================================
+
+  describe "default_restart?/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+
+    test "returns true for module_only format with permanent restart" do
+      spec = %ChildSpec{restart: :permanent, metadata: %{format: :module_only}}
+      assert SupervisorExtractor.default_restart?(spec) == true
+    end
+
+    test "returns false for map format even with permanent restart" do
+      spec = %ChildSpec{restart: :permanent, metadata: %{format: :map}}
+      assert SupervisorExtractor.default_restart?(spec) == false
+    end
+
+    test "returns false for non-permanent restart" do
+      spec = %ChildSpec{restart: :temporary, metadata: %{format: :module_only}}
+      assert SupervisorExtractor.default_restart?(spec) == false
+    end
+  end
+
+  # ===========================================================================
+  # restart_description/1 Tests
+  # ===========================================================================
+
+  describe "restart_description/1" do
+    test "returns description for permanent" do
+      assert SupervisorExtractor.restart_description(:permanent) == "Always restart the child process"
+    end
+
+    test "returns description for temporary" do
+      assert SupervisorExtractor.restart_description(:temporary) == "Never restart the child process"
+    end
+
+    test "returns description for transient" do
+      assert SupervisorExtractor.restart_description(:transient) == "Restart only if child exits abnormally"
+    end
+  end
+
+  # ===========================================================================
+  # Restart Strategy Extraction from Full Child Specs
+  # ===========================================================================
+
+  describe "restart strategy extraction from parsed child specs" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.RestartStrategy
+
+    test "extracts restart from map format child spec" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :worker, start: {MyWorker, :start_link, []}, restart: :temporary}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      strategy = SupervisorExtractor.extract_restart_strategy(child)
+
+      assert strategy.type == :temporary
+      assert strategy.is_default == false
+    end
+
+    test "extracts restart from legacy tuple format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {:id, {MyWorker, :start_link, []}, :transient, 5000, :worker, [MyWorker]}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      strategy = SupervisorExtractor.extract_restart_strategy(child)
+
+      assert strategy.type == :transient
+      assert strategy.is_default == false
+    end
+
+    test "module-only format has default restart" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [MyWorker]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      strategy = SupervisorExtractor.extract_restart_strategy(child)
+
+      assert strategy.type == :permanent
+      assert strategy.is_default == true
+    end
+
+    test "tuple format has default restart" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [{MyWorker, [:arg]}]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      strategy = SupervisorExtractor.extract_restart_strategy(child)
+
+      assert strategy.type == :permanent
+      assert strategy.is_default == true
+    end
+  end
 end
