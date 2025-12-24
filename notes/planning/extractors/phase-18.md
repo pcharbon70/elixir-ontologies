@@ -93,24 +93,24 @@ Analyze the scope from which variables are captured.
 - [x] 18.2.2.6 Add closure scope tests (13 doctests, 66 tests total)
 
 ### 18.2.3 Capture Mutation Detection
-- [ ] **Task 18.2.3 Pending**
+- [x] **Task 18.2.3 Complete**
 
 Detect potential issues with captured variable mutation patterns.
 
-- [ ] 18.2.3.1 Implement `detect_mutation_patterns/1` for captured variables
-- [ ] 18.2.3.2 Track whether captured variable is rebound in closure
-- [ ] 18.2.3.3 Detect patterns that might cause confusion (shadowing)
-- [ ] 18.2.3.4 Track variable rebinding after closure definition
-- [ ] 18.2.3.5 Create `%MutationPattern{variable: ..., type: :shadow|:rebind|:immutable}` struct
-- [ ] 18.2.3.6 Add mutation detection tests
+- [x] 18.2.3.1 Implement `detect_mutation_patterns/1` for captured variables
+- [x] 18.2.3.2 Track whether captured variable is rebound in closure
+- [x] 18.2.3.3 Detect patterns that might cause confusion (shadowing)
+- [x] 18.2.3.4 Track variable rebinding after closure definition
+- [x] 18.2.3.5 Create `%MutationPattern{variable: ..., type: :shadow|:rebind|:immutable}` struct
+- [x] 18.2.3.6 Add mutation detection tests (17 doctests, 66 tests total)
 
 **Section 18.2 Unit Tests:**
 - [x] Test free variable detection (18.2.1)
 - [x] Test captured variable from function scope (18.2.1, 18.2.2)
 - [x] Test captured variable from module attribute (18.2.2)
 - [x] Test nested closure capture (18.2.1, 18.2.2)
-- [ ] Test shadowed variable detection
-- [ ] Test variable rebinding detection
+- [x] Test shadowed variable detection (18.2.3)
+- [x] Test variable rebinding detection (18.2.3)
 - [x] Test closure with no captures (18.2.1)
 - [x] Test closure with multiple captures (18.2.1, 18.2.2)
 

@@ -193,6 +193,83 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # ===========================================================================
+  # MutationPattern Struct
+  # ===========================================================================
+
+  defmodule MutationPattern do
+    @moduledoc """
+    Represents a mutation pattern for a captured variable in a closure.
+
+    ## Pattern Types
+
+    - `:shadow` - Variable with same name is rebound, hiding the captured value
+    - `:rebind` - Captured variable is rebound using its captured value
+    - `:immutable` - Captured variable is used but never rebound (safe pattern)
+
+    ## Fields
+
+    - `:variable` - The variable name (atom)
+    - `:type` - The pattern type (:shadow, :rebind, or :immutable)
+    - `:locations` - Source locations where the pattern occurs
+    - `:metadata` - Additional information
+    """
+
+    @type pattern_type :: :shadow | :rebind | :immutable
+
+    @type t :: %__MODULE__{
+            variable: atom(),
+            type: pattern_type(),
+            locations: [map()],
+            metadata: map()
+          }
+
+    @enforce_keys [:variable, :type]
+    defstruct [
+      :variable,
+      :type,
+      locations: [],
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
+  # MutationAnalysis Struct
+  # ===========================================================================
+
+  defmodule MutationAnalysis do
+    @moduledoc """
+    Complete analysis of mutation patterns for captured variables.
+
+    ## Fields
+
+    - `:patterns` - List of MutationPattern structs for each captured variable
+    - `:has_shadows` - Whether any shadowing was detected
+    - `:has_rebinds` - Whether any rebinding was detected
+    - `:all_immutable` - Whether all captured variables are immutable
+    - `:metadata` - Additional information
+    """
+
+    alias ElixirOntologies.Extractors.Closure.MutationPattern
+
+    @type t :: %__MODULE__{
+            patterns: [MutationPattern.t()],
+            has_shadows: boolean(),
+            has_rebinds: boolean(),
+            all_immutable: boolean(),
+            metadata: map()
+          }
+
+    @enforce_keys [:patterns]
+    defstruct [
+      :patterns,
+      has_shadows: false,
+      has_rebinds: false,
+      all_immutable: true,
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
   # High-Level Analysis
   # ===========================================================================
 
@@ -504,6 +581,381 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # ===========================================================================
+  # Mutation Pattern Detection
+  # ===========================================================================
+
+  @doc """
+  Detects mutation patterns for captured variables in an anonymous function.
+
+  Analyzes how captured (free) variables are used within the closure body:
+  - `:shadow` - Variable is rebound without using captured value
+  - `:rebind` - Variable is rebound using its captured value
+  - `:immutable` - Variable is used but never rebound
+
+  ## Examples
+
+      iex> ast = quote do: fn -> x + 1 end
+      iex> {:ok, anon} = ElixirOntologies.Extractors.AnonymousFunction.extract(ast)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.detect_mutation_patterns(anon)
+      iex> hd(analysis.patterns).type
+      :immutable
+
+      iex> ast = quote do: fn -> x = 5; x end
+      iex> {:ok, anon} = ElixirOntologies.Extractors.AnonymousFunction.extract(ast)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.detect_mutation_patterns(anon)
+      iex> hd(analysis.patterns).type
+      :shadow
+  """
+  @spec detect_mutation_patterns(AnonymousFunction.t()) :: {:ok, MutationAnalysis.t()}
+  def detect_mutation_patterns(%AnonymousFunction{clauses: clauses} = anon) do
+    # First, get the free variables
+    {:ok, free_var_analysis} = analyze_closure(anon)
+    free_var_names = Enum.map(free_var_analysis.free_variables, & &1.name)
+
+    # Collect all body ASTs
+    bodies = Enum.map(clauses, fn clause -> clause.body end)
+
+    # Find all bindings in the bodies
+    all_bindings = find_bindings_in_list(bodies)
+
+    # Analyze each free variable for mutation patterns
+    patterns =
+      free_var_names
+      |> Enum.map(fn var_name ->
+        analyze_variable_mutation(var_name, bodies, all_bindings)
+      end)
+      |> Enum.sort_by(& &1.variable)
+
+    has_shadows = Enum.any?(patterns, fn p -> p.type == :shadow end)
+    has_rebinds = Enum.any?(patterns, fn p -> p.type == :rebind end)
+    all_immutable = Enum.all?(patterns, fn p -> p.type == :immutable end)
+
+    {:ok,
+     %MutationAnalysis{
+       patterns: patterns,
+       has_shadows: has_shadows,
+       has_rebinds: has_rebinds,
+       all_immutable: all_immutable,
+       metadata: %{}
+     }}
+  end
+
+  @doc """
+  Finds all variable bindings (assignments) in an AST.
+
+  Returns a list of `{name, meta, references_self}` tuples where:
+  - `name` is the variable being bound
+  - `meta` is the AST metadata
+  - `references_self` is true if the RHS references the same variable
+
+  ## Examples
+
+      iex> ast = quote do: x = 1
+      iex> bindings = ElixirOntologies.Extractors.Closure.find_bindings(ast)
+      iex> {name, _meta, refs_self} = hd(bindings)
+      iex> {name, refs_self}
+      {:x, false}
+
+      iex> ast = quote do: x = x + 1
+      iex> bindings = ElixirOntologies.Extractors.Closure.find_bindings(ast)
+      iex> {name, _meta, refs_self} = hd(bindings)
+      iex> {name, refs_self}
+      {:x, true}
+  """
+  @spec find_bindings(Macro.t()) :: [{atom(), keyword(), boolean()}]
+  def find_bindings(ast) do
+    {_, bindings} = do_find_bindings(ast, [])
+    Enum.reverse(bindings)
+  end
+
+  @doc """
+  Finds all variable bindings in a list of AST nodes.
+  """
+  @spec find_bindings_in_list([Macro.t()]) :: [{atom(), keyword(), boolean()}]
+  def find_bindings_in_list(asts) do
+    asts
+    |> Enum.flat_map(&find_bindings/1)
+  end
+
+  # Analyze a single variable for mutation patterns
+  defp analyze_variable_mutation(var_name, _bodies, all_bindings) do
+    # Find bindings of this variable
+    var_bindings =
+      all_bindings
+      |> Enum.filter(fn {name, _meta, _refs_self} -> name == var_name end)
+
+    case var_bindings do
+      [] ->
+        # No bindings - immutable use
+        %MutationPattern{
+          variable: var_name,
+          type: :immutable,
+          locations: [],
+          metadata: %{}
+        }
+
+      bindings ->
+        # Check if any binding references itself (rebind vs shadow)
+        any_self_ref = Enum.any?(bindings, fn {_name, _meta, refs_self} -> refs_self end)
+
+        locations =
+          bindings
+          |> Enum.map(fn {_name, meta, _refs_self} -> extract_binding_location(meta) end)
+          |> Enum.reject(&is_nil/1)
+
+        if any_self_ref do
+          %MutationPattern{
+            variable: var_name,
+            type: :rebind,
+            locations: locations,
+            metadata: %{binding_count: length(bindings)}
+          }
+        else
+          %MutationPattern{
+            variable: var_name,
+            type: :shadow,
+            locations: locations,
+            metadata: %{binding_count: length(bindings)}
+          }
+        end
+    end
+  end
+
+  # Find all bindings in AST, tracking whether RHS references the bound variable
+  defp do_find_bindings(ast, acc)
+
+  # Match expression: x = expr
+  defp do_find_bindings({:=, meta, [left, right]}, acc) do
+    # Extract variables being bound on the left side
+    left_vars = extract_bound_vars(left)
+
+    # Find variable references on the right side
+    right_refs =
+      find_variable_references(right)
+      |> Enum.map(fn {name, _meta} -> name end)
+      |> MapSet.new()
+
+    # For each left-side variable, check if it's referenced on the right
+    new_bindings =
+      Enum.map(left_vars, fn {var_name, var_meta} ->
+        refs_self = MapSet.member?(right_refs, var_name)
+        {var_name, var_meta || meta, refs_self}
+      end)
+
+    # Continue traversing the right side for nested bindings
+    {_, acc2} = do_find_bindings(right, acc)
+
+    {nil, new_bindings ++ acc2}
+  end
+
+  # Block - traverse all expressions
+  defp do_find_bindings({:__block__, _meta, exprs}, acc) when is_list(exprs) do
+    new_acc =
+      Enum.reduce(exprs, acc, fn expr, acc2 ->
+        {_, updated} = do_find_bindings(expr, acc2)
+        updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # Case expression - traverse clauses
+  defp do_find_bindings({:case, _meta, [expr, [do: clauses]]}, acc) do
+    {_, acc2} = do_find_bindings(expr, acc)
+
+    new_acc =
+      Enum.reduce(clauses, acc2, fn {:->, _, [_pattern, body]}, acc3 ->
+        {_, updated} = do_find_bindings(body, acc3)
+        updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # If expression
+  defp do_find_bindings({:if, _meta, [condition, blocks]}, acc) do
+    {_, acc2} = do_find_bindings(condition, acc)
+
+    new_acc =
+      Enum.reduce(blocks, acc2, fn
+        {:do, body}, acc3 ->
+          {_, updated} = do_find_bindings(body, acc3)
+          updated
+
+        {:else, body}, acc3 ->
+          {_, updated} = do_find_bindings(body, acc3)
+          updated
+
+        _, acc3 ->
+          acc3
+      end)
+
+    {nil, new_acc}
+  end
+
+  # Cond expression
+  defp do_find_bindings({:cond, _meta, [[do: clauses]]}, acc) do
+    new_acc =
+      Enum.reduce(clauses, acc, fn {:->, _, [[_condition], body]}, acc2 ->
+        {_, updated} = do_find_bindings(body, acc2)
+        updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # With expression
+  defp do_find_bindings({:with, _meta, args}, acc) do
+    # Process all with clauses and options
+    new_acc =
+      Enum.reduce(args, acc, fn
+        {:<-, _, [_pattern, expr]}, acc2 ->
+          {_, updated} = do_find_bindings(expr, acc2)
+          updated
+
+        [do: body], acc2 ->
+          {_, updated} = do_find_bindings(body, acc2)
+          updated
+
+        [do: body, else: else_clauses], acc2 ->
+          {_, acc3} = do_find_bindings(body, acc2)
+
+          Enum.reduce(else_clauses, acc3, fn {:->, _, [_pattern, clause_body]}, acc4 ->
+            {_, updated} = do_find_bindings(clause_body, acc4)
+            updated
+          end)
+
+        other, acc2 ->
+          {_, updated} = do_find_bindings(other, acc2)
+          updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # For comprehension
+  defp do_find_bindings({:for, _meta, args}, acc) do
+    new_acc =
+      Enum.reduce(args, acc, fn
+        {:<-, _, [_pattern, enumerable]}, acc2 ->
+          {_, updated} = do_find_bindings(enumerable, acc2)
+          updated
+
+        [do: body], acc2 ->
+          {_, updated} = do_find_bindings(body, acc2)
+          updated
+
+        [do: body, into: into_expr], acc2 ->
+          {_, acc3} = do_find_bindings(body, acc2)
+          {_, updated} = do_find_bindings(into_expr, acc3)
+          updated
+
+        filter, acc2 ->
+          {_, updated} = do_find_bindings(filter, acc2)
+          updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # Anonymous function - don't recurse into nested fns
+  defp do_find_bindings({:fn, _meta, _clauses}, acc) do
+    # Don't look inside nested anonymous functions
+    {nil, acc}
+  end
+
+  # Generic tuple with args - traverse args
+  defp do_find_bindings({_op, _meta, args}, acc) when is_list(args) do
+    new_acc =
+      Enum.reduce(args, acc, fn arg, acc2 ->
+        {_, updated} = do_find_bindings(arg, acc2)
+        updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # List - traverse elements
+  defp do_find_bindings(list, acc) when is_list(list) do
+    new_acc =
+      Enum.reduce(list, acc, fn elem, acc2 ->
+        {_, updated} = do_find_bindings(elem, acc2)
+        updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # Two-element tuple
+  defp do_find_bindings({left, right}, acc) do
+    {_, acc2} = do_find_bindings(left, acc)
+    {_, acc3} = do_find_bindings(right, acc2)
+    {nil, acc3}
+  end
+
+  # Anything else - no bindings
+  defp do_find_bindings(_other, acc), do: {nil, acc}
+
+  # Extract variables being bound in a pattern (left side of =)
+  defp extract_bound_vars({name, meta, context}) when is_atom(name) and is_atom(context) do
+    if name != :_ and not Helpers.special_form?(name) do
+      [{name, meta}]
+    else
+      []
+    end
+  end
+
+  defp extract_bound_vars({:=, _meta, [left, right]}) do
+    extract_bound_vars(left) ++ extract_bound_vars(right)
+  end
+
+  defp extract_bound_vars({:|, _meta, [head, tail]}) do
+    extract_bound_vars(head) ++ extract_bound_vars(tail)
+  end
+
+  defp extract_bound_vars({:{}, _meta, elements}) do
+    Enum.flat_map(elements, &extract_bound_vars/1)
+  end
+
+  defp extract_bound_vars({:%{}, _meta, pairs}) do
+    Enum.flat_map(pairs, fn
+      {_key, value} -> extract_bound_vars(value)
+      _ -> []
+    end)
+  end
+
+  defp extract_bound_vars({:%, _meta, [_struct, {:%{}, _, pairs}]}) do
+    Enum.flat_map(pairs, fn
+      {_key, value} -> extract_bound_vars(value)
+      _ -> []
+    end)
+  end
+
+  defp extract_bound_vars(tuple) when is_tuple(tuple) and tuple_size(tuple) == 2 do
+    [left, right] = Tuple.to_list(tuple)
+    extract_bound_vars(left) ++ extract_bound_vars(right)
+  end
+
+  defp extract_bound_vars(list) when is_list(list) do
+    Enum.flat_map(list, &extract_bound_vars/1)
+  end
+
+  defp extract_bound_vars(_), do: []
+
+  defp extract_binding_location(meta) when is_list(meta) do
+    line = Keyword.get(meta, :line)
+    column = Keyword.get(meta, :column)
+
+    if line do
+      %{start_line: line, start_column: column, end_line: nil, end_column: nil}
+    else
+      nil
+    end
+  end
+
+  defp extract_binding_location(_), do: nil
+
+  # ===========================================================================
   # Variable Reference Finding
   # ===========================================================================
 
@@ -660,14 +1112,14 @@ defmodule ElixirOntologies.Extractors.Closure do
 
     # Extract bindings from pattern and add to local scope for left side
     pattern_bindings = extract_pattern_bindings(pattern)
-    new_local = MapSet.union(local_bindings, MapSet.new(pattern_bindings))
+    _new_local = MapSet.union(local_bindings, MapSet.new(pattern_bindings))
 
     # We don't need to process pattern - it's binding, not referencing
     # But the pattern might contain pin operators ^x which reference vars
     {_, acc3} = find_pin_references(pattern, acc2, local_bindings)
 
-    # Return with updated bindings (though bindings don't propagate out of this context)
-    {nil, acc3, new_local}
+    # Return (bindings don't propagate out of this context)
+    {nil, acc3}
   catch
     # If pattern unpacking failed, just process normally
     _ ->
