@@ -96,6 +96,8 @@ defmodule ElixirOntologies.Builders.ClosureBuilder do
       true
   """
   @spec build_closure(AnonymousFunction.t(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  # NOTE: context parameter kept for API consistency with other builders.
+  # Future enhancements may use context for IRI generation of captured variables.
   def build_closure(anon_info, anon_iri, _context) do
     # Analyze the anonymous function for free variables
     {:ok, analysis} = Closure.analyze_closure(anon_info)

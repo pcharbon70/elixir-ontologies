@@ -303,6 +303,48 @@ defmodule ElixirOntologies.Extractors.Helpers do
   def extract_do_body(_), do: []
 
   # ===========================================================================
+  # Clause Parameter Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts parameters and guard from a clause pattern list.
+
+  Parameters can contain a `{:when, _, [params..., guard]}` wrapper for guards.
+  This function splits them into separate components.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Helpers
+      iex> Helpers.extract_params_and_guard([{:x, [], nil}])
+      {[{:x, [], nil}], nil}
+
+      iex> alias ElixirOntologies.Extractors.Helpers
+      iex> params = [{:when, [], [{:x, [], nil}, {:>, [], [{:x, [], nil}, 0]}]}]
+      iex> {extracted_params, guard} = Helpers.extract_params_and_guard(params)
+      iex> length(extracted_params)
+      1
+      iex> guard
+      {:>, [], [{:x, [], nil}, 0]}
+  """
+  @spec extract_params_and_guard(list() | term()) :: {list(), Macro.t() | nil}
+  def extract_params_and_guard(params) when is_list(params) do
+    case params do
+      # With guard: [{:when, _, [param1, param2, ..., guard_expr]}]
+      # All params and guard are inside the when tuple, guard is last
+      [{:when, _meta, when_contents}] when is_list(when_contents) ->
+        # Guard is the last element, params are all others
+        {parameters, [guard_expr]} = Enum.split(when_contents, -1)
+        {parameters, guard_expr}
+
+      # No guard - all are regular parameters
+      params ->
+        {params, nil}
+    end
+  end
+
+  def extract_params_and_guard(_), do: {[], nil}
+
+  # ===========================================================================
   # Moduledoc Extraction
   # ===========================================================================
 

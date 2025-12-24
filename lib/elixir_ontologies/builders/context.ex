@@ -263,7 +263,11 @@ defmodule ElixirOntologies.Builders.Context do
   """
   @spec validate(t()) :: :ok | {:error, atom()}
   def validate(%__MODULE__{base_iri: nil}), do: {:error, :missing_base_iri}
-  def validate(%__MODULE__{base_iri: base_iri}) when is_binary(base_iri) or is_struct(base_iri, RDF.IRI), do: :ok
+
+  def validate(%__MODULE__{base_iri: base_iri})
+      when is_binary(base_iri) or is_struct(base_iri, RDF.IRI),
+      do: :ok
+
   def validate(_), do: {:error, :invalid_context}
 
   # ===========================================================================
@@ -334,6 +338,7 @@ defmodule ElixirOntologies.Builders.Context do
   """
   @spec module_known?(t(), String.t()) :: boolean() | nil
   def module_known?(%__MODULE__{known_modules: nil}, _module_name), do: nil
+
   def module_known?(%__MODULE__{known_modules: known}, module_name) do
     MapSet.member?(known, module_name)
   end
@@ -357,4 +362,62 @@ defmodule ElixirOntologies.Builders.Context do
   @spec cross_module_linking_enabled?(t()) :: boolean()
   def cross_module_linking_enabled?(%__MODULE__{known_modules: nil}), do: false
   def cross_module_linking_enabled?(%__MODULE__{known_modules: _}), do: true
+
+  # ===========================================================================
+  # Context IRI Resolution
+  # ===========================================================================
+
+  @doc """
+  Gets the context IRI based on available context information.
+
+  The resolution order is:
+  1. Module from metadata (if present)
+  2. Parent module IRI (if present)
+  3. File path (if present)
+  4. Fallback namespace appended to base_iri
+
+  This function consolidates the duplicated `get_context_iri/1` pattern
+  used across builders.
+
+  ## Parameters
+
+  - `context` - The builder context
+  - `fallback_namespace` - Namespace to use when no other context is available
+    (e.g., "anonymous", "captures", "closures")
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   metadata: %{module: ["MyApp", "Users"]}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.get_context_iri(context, "anonymous")
+      # Returns IRI for MyApp.Users module
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#"
+      ...> )
+      iex> ElixirOntologies.Builders.Context.get_context_iri(context, "anonymous")
+      ~I<https://example.org/code#anonymous>
+  """
+  @spec get_context_iri(t(), String.t()) :: RDF.IRI.t()
+  def get_context_iri(%__MODULE__{metadata: %{module: module}} = context, _fallback)
+      when is_list(module) and module != [] do
+    module_name = Enum.join(module, ".")
+    ElixirOntologies.IRI.for_module(context.base_iri, module_name)
+  end
+
+  def get_context_iri(%__MODULE__{parent_module: parent_module}, _fallback)
+      when not is_nil(parent_module) do
+    parent_module
+  end
+
+  def get_context_iri(%__MODULE__{file_path: file_path} = context, _fallback)
+      when is_binary(file_path) and file_path != "" do
+    ElixirOntologies.IRI.for_source_file(context.base_iri, file_path)
+  end
+
+  def get_context_iri(%__MODULE__{} = context, fallback_namespace) do
+    RDF.iri("#{context.base_iri}#{fallback_namespace}")
+  end
 end

@@ -5,6 +5,15 @@ defmodule ElixirOntologies.Extractors.Capture do
   This module provides extraction of function captures created with the `&` operator,
   including named function captures and shorthand anonymous function captures.
 
+  ## Ontology Alignment
+
+  Extracted data maps to `struct:CaptureExpression` class with properties:
+  - `struct:captureType` - Named local, named remote, or shorthand
+  - `struct:arity` - Arity of the captured function/expression
+  - `core:referencesFunction` - For named captures, links to the target function
+
+  See `priv/ontologies/elixir-structure.ttl` for class definitions.
+
   ## Capture Types
 
   ### Named Local Captures
@@ -44,6 +53,16 @@ defmodule ElixirOntologies.Extractors.Capture do
   """
 
   alias ElixirOntologies.Extractors.Helpers
+
+  # ===========================================================================
+  # Constants
+  # ===========================================================================
+
+  # Maximum placeholder position (reasonable arity limit, security)
+  @max_placeholder_position 255
+
+  # Maximum number of placeholders to process (security limit)
+  @max_placeholders 100
 
   # ===========================================================================
   # Capture Struct
@@ -98,16 +117,21 @@ defmodule ElixirOntologies.Extractors.Capture do
 
     - `:position` - The placeholder number (1 for &1, 2 for &2, etc.)
     - `:usage_count` - Number of times this placeholder appears
-    - `:locations` - List of source locations where this placeholder is used
+    - `:locations` - List of source location maps with start_line, start_column, etc.
     - `:metadata` - Additional information
     """
 
-    alias ElixirOntologies.Analyzer.Location.SourceLocation
+    @type location_map :: %{
+            start_line: pos_integer(),
+            start_column: pos_integer(),
+            end_line: pos_integer() | nil,
+            end_column: pos_integer() | nil
+          }
 
     @type t :: %__MODULE__{
             position: pos_integer(),
             usage_count: pos_integer(),
-            locations: [SourceLocation.t()],
+            locations: [location_map()],
             metadata: map()
           }
 
@@ -203,7 +227,10 @@ defmodule ElixirOntologies.Extractors.Capture do
       false
   """
   @spec placeholder?(Macro.t()) :: boolean()
-  def placeholder?({:&, _meta, [n]}) when is_integer(n) and n > 0, do: true
+  def placeholder?({:&, _meta, [n]})
+      when is_integer(n) and n > 0 and n <= @max_placeholder_position,
+      do: true
+
   def placeholder?(_), do: false
 
   # ===========================================================================
@@ -286,7 +313,12 @@ defmodule ElixirOntologies.Extractors.Capture do
   def find_placeholders(ast) do
     {_, placeholders} =
       Macro.prewalk(ast, [], fn
-        {:&, _meta, [n]} = node, acc when is_integer(n) and n > 0 ->
+        # Stop collecting if we've hit the limit (security)
+        _node, acc when length(acc) >= @max_placeholders ->
+          {nil, acc}
+
+        {:&, _meta, [n]} = node, acc
+        when is_integer(n) and n > 0 and n <= @max_placeholder_position ->
           {node, [n | acc]}
 
         node, acc ->
@@ -322,7 +354,12 @@ defmodule ElixirOntologies.Extractors.Capture do
     # Find all placeholder nodes with their metadata
     {_, placeholder_nodes} =
       Macro.prewalk(ast, [], fn
-        {:&, meta, [n]} = node, acc when is_integer(n) and n > 0 ->
+        # Stop collecting if we've hit the limit (security)
+        _node, acc when length(acc) >= @max_placeholders ->
+          {nil, acc}
+
+        {:&, meta, [n]} = node, acc
+        when is_integer(n) and n > 0 and n <= @max_placeholder_position ->
           {node, [{n, meta} | acc]}
 
         node, acc ->

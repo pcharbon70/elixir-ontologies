@@ -6,6 +6,14 @@ defmodule ElixirOntologies.Extractors.Closure do
   bound by the function's parameters - they must be captured from the
   enclosing scope, making the function a closure.
 
+  ## Ontology Alignment
+
+  This module supports RDF generation via `ClosureBuilder` which produces:
+  - `core:capturesVariable` - Links function to captured variable names
+  - `struct:AnonymousFunction` - The anonymous function class
+
+  See `priv/ontologies/elixir-structure.ttl` for class definitions.
+
   ## Free Variable Detection
 
   A **free variable** in a function is a variable that:
@@ -33,6 +41,16 @@ defmodule ElixirOntologies.Extractors.Closure do
 
   alias ElixirOntologies.Extractors.AnonymousFunction
   alias ElixirOntologies.Extractors.Helpers
+
+  # ===========================================================================
+  # Constants
+  # ===========================================================================
+
+  # Maximum recursion depth for AST traversal (security limit)
+  @max_recursion_depth Helpers.max_recursion_depth()
+
+  # Maximum number of captured variables to process (security limit)
+  @max_captured_variables 100
 
   # ===========================================================================
   # FreeVariable Struct
@@ -349,9 +367,11 @@ defmodule ElixirOntologies.Extractors.Closure do
     refs_by_name = Enum.group_by(references, fn {name, _meta} -> name end)
 
     # Find free variables (not in bound set)
+    # Limit to @max_captured_variables for security against resource exhaustion
     free_vars =
       refs_by_name
       |> Enum.filter(fn {name, _refs} -> not MapSet.member?(bound_set, name) end)
+      |> Enum.take(@max_captured_variables)
       |> Enum.map(fn {name, refs} ->
         locations =
           refs
@@ -540,7 +560,8 @@ defmodule ElixirOntologies.Extractors.Closure do
       :function
   """
   @spec analyze_closure_with_scope(AnonymousFunction.t(), [map()]) ::
-          {:ok, %{free_variable_analysis: FreeVariableAnalysis.t(), scope_analysis: ScopeAnalysis.t()}}
+          {:ok,
+           %{free_variable_analysis: FreeVariableAnalysis.t(), scope_analysis: ScopeAnalysis.t()}}
   def analyze_closure_with_scope(%AnonymousFunction{} = anon, scope_defs) do
     {:ok, free_var_analysis} = analyze_closure(anon)
 
@@ -722,10 +743,18 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # Find all bindings in AST, tracking whether RHS references the bound variable
-  defp do_find_bindings(ast, acc)
+  # NOTE: do_find_bindings/3 returns {nil, accumulator} tuples where:
+  # - First element is always nil (placeholder for prewalk compatibility)
+  # - Second element is the accumulated list of bindings
+  defp do_find_bindings(ast, acc, depth \\ 0)
+
+  # Stop recursion at depth limit to prevent stack overflow
+  defp do_find_bindings(_ast, acc, depth) when depth > @max_recursion_depth do
+    {nil, acc}
+  end
 
   # Match expression: x = expr
-  defp do_find_bindings({:=, meta, [left, right]}, acc) do
+  defp do_find_bindings({:=, meta, [left, right]}, acc, depth) do
     # Extract variables being bound on the left side
     left_vars = extract_bound_vars(left)
 
@@ -743,16 +772,16 @@ defmodule ElixirOntologies.Extractors.Closure do
       end)
 
     # Continue traversing the right side for nested bindings
-    {_, acc2} = do_find_bindings(right, acc)
+    {_, acc2} = do_find_bindings(right, acc, depth + 1)
 
     {nil, new_bindings ++ acc2}
   end
 
   # Block - traverse all expressions
-  defp do_find_bindings({:__block__, _meta, exprs}, acc) when is_list(exprs) do
+  defp do_find_bindings({:__block__, _meta, exprs}, acc, depth) when is_list(exprs) do
     new_acc =
       Enum.reduce(exprs, acc, fn expr, acc2 ->
-        {_, updated} = do_find_bindings(expr, acc2)
+        {_, updated} = do_find_bindings(expr, acc2, depth + 1)
         updated
       end)
 
@@ -760,12 +789,12 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # Case expression - traverse clauses
-  defp do_find_bindings({:case, _meta, [expr, [do: clauses]]}, acc) do
-    {_, acc2} = do_find_bindings(expr, acc)
+  defp do_find_bindings({:case, _meta, [expr, [do: clauses]]}, acc, depth) do
+    {_, acc2} = do_find_bindings(expr, acc, depth + 1)
 
     new_acc =
       Enum.reduce(clauses, acc2, fn {:->, _, [_pattern, body]}, acc3 ->
-        {_, updated} = do_find_bindings(body, acc3)
+        {_, updated} = do_find_bindings(body, acc3, depth + 1)
         updated
       end)
 
@@ -773,17 +802,17 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # If expression
-  defp do_find_bindings({:if, _meta, [condition, blocks]}, acc) do
-    {_, acc2} = do_find_bindings(condition, acc)
+  defp do_find_bindings({:if, _meta, [condition, blocks]}, acc, depth) do
+    {_, acc2} = do_find_bindings(condition, acc, depth + 1)
 
     new_acc =
       Enum.reduce(blocks, acc2, fn
         {:do, body}, acc3 ->
-          {_, updated} = do_find_bindings(body, acc3)
+          {_, updated} = do_find_bindings(body, acc3, depth + 1)
           updated
 
         {:else, body}, acc3 ->
-          {_, updated} = do_find_bindings(body, acc3)
+          {_, updated} = do_find_bindings(body, acc3, depth + 1)
           updated
 
         _, acc3 ->
@@ -794,10 +823,10 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # Cond expression
-  defp do_find_bindings({:cond, _meta, [[do: clauses]]}, acc) do
+  defp do_find_bindings({:cond, _meta, [[do: clauses]]}, acc, depth) do
     new_acc =
       Enum.reduce(clauses, acc, fn {:->, _, [[_condition], body]}, acc2 ->
-        {_, updated} = do_find_bindings(body, acc2)
+        {_, updated} = do_find_bindings(body, acc2, depth + 1)
         updated
       end)
 
@@ -805,28 +834,28 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # With expression
-  defp do_find_bindings({:with, _meta, args}, acc) do
+  defp do_find_bindings({:with, _meta, args}, acc, depth) do
     # Process all with clauses and options
     new_acc =
       Enum.reduce(args, acc, fn
         {:<-, _, [_pattern, expr]}, acc2 ->
-          {_, updated} = do_find_bindings(expr, acc2)
+          {_, updated} = do_find_bindings(expr, acc2, depth + 1)
           updated
 
         [do: body], acc2 ->
-          {_, updated} = do_find_bindings(body, acc2)
+          {_, updated} = do_find_bindings(body, acc2, depth + 1)
           updated
 
         [do: body, else: else_clauses], acc2 ->
-          {_, acc3} = do_find_bindings(body, acc2)
+          {_, acc3} = do_find_bindings(body, acc2, depth + 1)
 
           Enum.reduce(else_clauses, acc3, fn {:->, _, [_pattern, clause_body]}, acc4 ->
-            {_, updated} = do_find_bindings(clause_body, acc4)
+            {_, updated} = do_find_bindings(clause_body, acc4, depth + 1)
             updated
           end)
 
         other, acc2 ->
-          {_, updated} = do_find_bindings(other, acc2)
+          {_, updated} = do_find_bindings(other, acc2, depth + 1)
           updated
       end)
 
@@ -834,24 +863,24 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # For comprehension
-  defp do_find_bindings({:for, _meta, args}, acc) do
+  defp do_find_bindings({:for, _meta, args}, acc, depth) do
     new_acc =
       Enum.reduce(args, acc, fn
         {:<-, _, [_pattern, enumerable]}, acc2 ->
-          {_, updated} = do_find_bindings(enumerable, acc2)
+          {_, updated} = do_find_bindings(enumerable, acc2, depth + 1)
           updated
 
         [do: body], acc2 ->
-          {_, updated} = do_find_bindings(body, acc2)
+          {_, updated} = do_find_bindings(body, acc2, depth + 1)
           updated
 
         [do: body, into: into_expr], acc2 ->
-          {_, acc3} = do_find_bindings(body, acc2)
-          {_, updated} = do_find_bindings(into_expr, acc3)
+          {_, acc3} = do_find_bindings(body, acc2, depth + 1)
+          {_, updated} = do_find_bindings(into_expr, acc3, depth + 1)
           updated
 
         filter, acc2 ->
-          {_, updated} = do_find_bindings(filter, acc2)
+          {_, updated} = do_find_bindings(filter, acc2, depth + 1)
           updated
       end)
 
@@ -859,16 +888,16 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # Anonymous function - don't recurse into nested fns
-  defp do_find_bindings({:fn, _meta, _clauses}, acc) do
+  defp do_find_bindings({:fn, _meta, _clauses}, acc, _depth) do
     # Don't look inside nested anonymous functions
     {nil, acc}
   end
 
   # Generic tuple with args - traverse args
-  defp do_find_bindings({_op, _meta, args}, acc) when is_list(args) do
+  defp do_find_bindings({_op, _meta, args}, acc, depth) when is_list(args) do
     new_acc =
       Enum.reduce(args, acc, fn arg, acc2 ->
-        {_, updated} = do_find_bindings(arg, acc2)
+        {_, updated} = do_find_bindings(arg, acc2, depth + 1)
         updated
       end)
 
@@ -876,10 +905,10 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # List - traverse elements
-  defp do_find_bindings(list, acc) when is_list(list) do
+  defp do_find_bindings(list, acc, depth) when is_list(list) do
     new_acc =
       Enum.reduce(list, acc, fn elem, acc2 ->
-        {_, updated} = do_find_bindings(elem, acc2)
+        {_, updated} = do_find_bindings(elem, acc2, depth + 1)
         updated
       end)
 
@@ -887,14 +916,14 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # Two-element tuple
-  defp do_find_bindings({left, right}, acc) do
-    {_, acc2} = do_find_bindings(left, acc)
-    {_, acc3} = do_find_bindings(right, acc2)
+  defp do_find_bindings({left, right}, acc, depth) do
+    {_, acc2} = do_find_bindings(left, acc, depth + 1)
+    {_, acc3} = do_find_bindings(right, acc2, depth + 1)
     {nil, acc3}
   end
 
   # Anything else - no bindings
-  defp do_find_bindings(_other, acc), do: {nil, acc}
+  defp do_find_bindings(_other, acc, _depth), do: {nil, acc}
 
   # Extract variables being bound in a pattern (left side of =)
   defp extract_bound_vars({name, meta, context}) when is_atom(name) and is_atom(context) do
@@ -1008,10 +1037,18 @@ defmodule ElixirOntologies.Extractors.Closure do
   # ===========================================================================
 
   # Main traversal function with scope tracking for locally bound variables
-  defp do_find_refs(ast, acc, local_bindings)
+  # NOTE: do_find_refs/4 returns {nil, accumulator} tuples where:
+  # - First element is always nil (placeholder for prewalk compatibility)
+  # - Second element is the accumulated list of variable references
+  defp do_find_refs(ast, acc, local_bindings, depth \\ 0)
+
+  # Stop recursion at depth limit to prevent stack overflow
+  defp do_find_refs(_ast, acc, _local_bindings, depth) when depth > @max_recursion_depth do
+    {nil, acc}
+  end
 
   # Variable reference: {name, meta, context} where context is atom
-  defp do_find_refs({name, meta, context}, acc, local_bindings)
+  defp do_find_refs({name, meta, context}, acc, local_bindings, _depth)
        when is_atom(name) and is_atom(context) do
     cond do
       # Skip underscore/wildcard
@@ -1037,56 +1074,56 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # Remote function call: Module.func(args) - skip module and function name
-  defp do_find_refs({{:., _, [_module, _func]}, _, args}, acc, local_bindings) do
+  defp do_find_refs({{:., _, [_module, _func]}, _, args}, acc, local_bindings, depth) do
     # Only process the arguments, not the module or function
     Enum.reduce(args, acc, fn arg, acc2 ->
-      {_, new_acc} = do_find_refs(arg, acc2, local_bindings)
+      {_, new_acc} = do_find_refs(arg, acc2, local_bindings, depth + 1)
       new_acc
     end)
     |> then(&{nil, &1})
   end
 
   # Anonymous function - creates new scope, parameters are bound
-  defp do_find_refs({:fn, _, clauses}, acc, local_bindings) do
+  defp do_find_refs({:fn, _, clauses}, acc, local_bindings, depth) do
     # Process each clause, adding its parameters to local bindings
     new_acc =
       Enum.reduce(clauses, acc, fn clause, acc2 ->
-        process_fn_clause(clause, acc2, local_bindings)
+        process_fn_clause(clause, acc2, local_bindings, depth + 1)
       end)
 
     {nil, new_acc}
   end
 
   # Case expression - patterns in each clause bind new variables
-  defp do_find_refs({:case, _, [expr, [do: clauses]]}, acc, local_bindings) do
+  defp do_find_refs({:case, _, [expr, [do: clauses]]}, acc, local_bindings, depth) do
     # Process the expression being matched
-    {_, acc2} = do_find_refs(expr, acc, local_bindings)
+    {_, acc2} = do_find_refs(expr, acc, local_bindings, depth + 1)
 
     # Process each clause with pattern bindings
     new_acc =
       Enum.reduce(clauses, acc2, fn clause, acc3 ->
-        process_case_clause(clause, acc3, local_bindings)
+        process_case_clause(clause, acc3, local_bindings, depth + 1)
       end)
 
     {nil, new_acc}
   end
 
   # With expression - each <- binds new variables visible in subsequent matches
-  defp do_find_refs({:with, _, args}, acc, local_bindings) do
-    process_with_expr(args, acc, local_bindings)
+  defp do_find_refs({:with, _, args}, acc, local_bindings, depth) do
+    process_with_expr(args, acc, local_bindings, depth + 1)
   end
 
   # For comprehension - generators bind variables
-  defp do_find_refs({:for, _, args}, acc, local_bindings) do
-    process_for_expr(args, acc, local_bindings)
+  defp do_find_refs({:for, _, args}, acc, local_bindings, depth) do
+    process_for_expr(args, acc, local_bindings, depth + 1)
   end
 
   # Cond expression
-  defp do_find_refs({:cond, _, [[do: clauses]]}, acc, local_bindings) do
+  defp do_find_refs({:cond, _, [[do: clauses]]}, acc, local_bindings, depth) do
     new_acc =
       Enum.reduce(clauses, acc, fn {:->, _, [[condition], body]}, acc2 ->
-        {_, acc3} = do_find_refs(condition, acc2, local_bindings)
-        {_, acc4} = do_find_refs(body, acc3, local_bindings)
+        {_, acc3} = do_find_refs(condition, acc2, local_bindings, depth + 1)
+        {_, acc4} = do_find_refs(body, acc3, local_bindings, depth + 1)
         acc4
       end)
 
@@ -1094,21 +1131,21 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # Receive expression
-  defp do_find_refs({:receive, _, [opts]}, acc, local_bindings) do
-    new_acc = process_receive_opts(opts, acc, local_bindings)
+  defp do_find_refs({:receive, _, [opts]}, acc, local_bindings, depth) do
+    new_acc = process_receive_opts(opts, acc, local_bindings, depth + 1)
     {nil, new_acc}
   end
 
   # Try expression
-  defp do_find_refs({:try, _, [opts]}, acc, local_bindings) do
-    new_acc = process_try_opts(opts, acc, local_bindings)
+  defp do_find_refs({:try, _, [opts]}, acc, local_bindings, depth) do
+    new_acc = process_try_opts(opts, acc, local_bindings, depth + 1)
     {nil, new_acc}
   end
 
   # Match operator = (binding on left side)
-  defp do_find_refs({:=, _, [pattern, expr]}, acc, local_bindings) do
+  defp do_find_refs({:=, _, [pattern, expr]}, acc, local_bindings, depth) do
     # Process the right side first (it can reference existing vars)
-    {_, acc2} = do_find_refs(expr, acc, local_bindings)
+    {_, acc2} = do_find_refs(expr, acc, local_bindings, depth + 1)
 
     # Extract bindings from pattern and add to local scope for left side
     pattern_bindings = extract_pattern_bindings(pattern)
@@ -1116,19 +1153,19 @@ defmodule ElixirOntologies.Extractors.Closure do
 
     # We don't need to process pattern - it's binding, not referencing
     # But the pattern might contain pin operators ^x which reference vars
-    {_, acc3} = find_pin_references(pattern, acc2, local_bindings)
+    {_, acc3} = find_pin_references(pattern, acc2, local_bindings, depth + 1)
 
     # Return (bindings don't propagate out of this context)
     {nil, acc3}
   catch
     # If pattern unpacking failed, just process normally
     _ ->
-      {_, acc2} = do_find_refs(expr, acc, local_bindings)
+      {_, acc2} = do_find_refs(expr, acc, local_bindings, depth + 1)
       {nil, acc2}
   end
 
   # Generic tuple handling (including function calls)
-  defp do_find_refs({op, _, args}, acc, local_bindings) when is_list(args) do
+  defp do_find_refs({op, _, args}, acc, local_bindings, depth) when is_list(args) do
     # Skip function name in local calls
     args_to_process =
       if is_atom(op) and not Helpers.special_form?(op) and not operator?(op) do
@@ -1140,7 +1177,7 @@ defmodule ElixirOntologies.Extractors.Closure do
 
     new_acc =
       Enum.reduce(args_to_process, acc, fn arg, acc2 ->
-        {_, new_acc} = do_find_refs(arg, acc2, local_bindings)
+        {_, new_acc} = do_find_refs(arg, acc2, local_bindings, depth + 1)
         new_acc
       end)
 
@@ -1148,10 +1185,10 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # List
-  defp do_find_refs(list, acc, local_bindings) when is_list(list) do
+  defp do_find_refs(list, acc, local_bindings, depth) when is_list(list) do
     new_acc =
       Enum.reduce(list, acc, fn elem, acc2 ->
-        {_, new_acc} = do_find_refs(elem, acc2, local_bindings)
+        {_, new_acc} = do_find_refs(elem, acc2, local_bindings, depth + 1)
         new_acc
       end)
 
@@ -1159,22 +1196,22 @@ defmodule ElixirOntologies.Extractors.Closure do
   end
 
   # Two-element tuple (common in AST)
-  defp do_find_refs({left, right}, acc, local_bindings) do
-    {_, acc2} = do_find_refs(left, acc, local_bindings)
-    {_, acc3} = do_find_refs(right, acc2, local_bindings)
+  defp do_find_refs({left, right}, acc, local_bindings, depth) do
+    {_, acc2} = do_find_refs(left, acc, local_bindings, depth + 1)
+    {_, acc3} = do_find_refs(right, acc2, local_bindings, depth + 1)
     {nil, acc3}
   end
 
   # Literals and other nodes - no variables here
-  defp do_find_refs(_other, acc, _local_bindings), do: {nil, acc}
+  defp do_find_refs(_other, acc, _local_bindings, _depth), do: {nil, acc}
 
   # ===========================================================================
   # Private Helpers - Control Flow Processing
   # ===========================================================================
 
-  defp process_fn_clause({:->, _, [params_with_guard, body]}, acc, local_bindings) do
+  defp process_fn_clause({:->, _, [params_with_guard, body]}, acc, local_bindings, depth) do
     # Extract parameters (may have guard)
-    {params, guard} = extract_params_and_guard(params_with_guard)
+    {params, guard} = Helpers.extract_params_and_guard(params_with_guard)
 
     # Get bindings from parameters
     param_bindings = Enum.flat_map(params, &extract_pattern_bindings/1)
@@ -1183,18 +1220,18 @@ defmodule ElixirOntologies.Extractors.Closure do
     # Process guard if present (can reference params)
     acc2 =
       if guard do
-        {_, new_acc} = do_find_refs(guard, acc, new_local)
+        {_, new_acc} = do_find_refs(guard, acc, new_local, depth)
         new_acc
       else
         acc
       end
 
     # Process body with parameter bindings
-    {_, acc3} = do_find_refs(body, acc2, new_local)
+    {_, acc3} = do_find_refs(body, acc2, new_local, depth)
     acc3
   end
 
-  defp process_case_clause({:->, _, [patterns, body]}, acc, local_bindings) do
+  defp process_case_clause({:->, _, [patterns, body]}, acc, local_bindings, depth) do
     # patterns is a list (typically with one element, possibly with guard)
     {pattern, guard} = extract_pattern_and_guard(patterns)
 
@@ -1202,23 +1239,23 @@ defmodule ElixirOntologies.Extractors.Closure do
     new_local = MapSet.union(local_bindings, MapSet.new(pattern_bindings))
 
     # Check for pin operators in pattern
-    {_, acc2} = find_pin_references(pattern, acc, local_bindings)
+    {_, acc2} = find_pin_references(pattern, acc, local_bindings, depth)
 
     # Process guard if present
     acc3 =
       if guard do
-        {_, new_acc} = do_find_refs(guard, acc2, new_local)
+        {_, new_acc} = do_find_refs(guard, acc2, new_local, depth)
         new_acc
       else
         acc2
       end
 
     # Process body
-    {_, acc4} = do_find_refs(body, acc3, new_local)
+    {_, acc4} = do_find_refs(body, acc3, new_local, depth)
     acc4
   end
 
-  defp process_with_expr(args, acc, local_bindings) do
+  defp process_with_expr(args, acc, local_bindings, depth) do
     # with can have generators (<-), regular matches (=), and options ([do: ...])
     {generators, opts} = split_with_args(args)
 
@@ -1227,24 +1264,24 @@ defmodule ElixirOntologies.Extractors.Closure do
       Enum.reduce(generators, {acc, local_bindings}, fn
         {:<-, _, [pattern, expr]}, {acc_inner, bindings} ->
           # Process expression first (can use previous bindings)
-          {_, acc3} = do_find_refs(expr, acc_inner, bindings)
+          {_, acc3} = do_find_refs(expr, acc_inner, bindings, depth)
           # Add pattern bindings for next iteration
           new_bindings = MapSet.union(bindings, MapSet.new(extract_pattern_bindings(pattern)))
           {acc3, new_bindings}
 
         {:=, _, [pattern, expr]}, {acc_inner, bindings} ->
           # Match expression
-          {_, acc3} = do_find_refs(expr, acc_inner, bindings)
+          {_, acc3} = do_find_refs(expr, acc_inner, bindings, depth)
           new_bindings = MapSet.union(bindings, MapSet.new(extract_pattern_bindings(pattern)))
           {acc3, new_bindings}
 
         other, {acc_inner, bindings} ->
-          {_, acc3} = do_find_refs(other, acc_inner, bindings)
+          {_, acc3} = do_find_refs(other, acc_inner, bindings, depth)
           {acc3, bindings}
       end)
 
     # Process do/else blocks with accumulated bindings
-    process_with_opts(opts, acc2, final_bindings)
+    process_with_opts(opts, acc2, final_bindings, depth)
   end
 
   defp split_with_args(args) do
@@ -1255,57 +1292,58 @@ defmodule ElixirOntologies.Extractors.Closure do
     end)
   end
 
-  defp process_with_opts([], acc, _bindings), do: {nil, acc}
+  defp process_with_opts([], acc, _bindings, _depth), do: {nil, acc}
 
-  defp process_with_opts([[do: body] | rest], acc, bindings) do
-    {_, acc2} = do_find_refs(body, acc, bindings)
-    process_with_opts(rest, acc2, bindings)
+  defp process_with_opts([[do: body] | rest], acc, bindings, depth) do
+    {_, acc2} = do_find_refs(body, acc, bindings, depth)
+    process_with_opts(rest, acc2, bindings, depth)
   end
 
-  defp process_with_opts([[do: body, else: else_clauses] | rest], acc, bindings) do
-    {_, acc2} = do_find_refs(body, acc, bindings)
+  defp process_with_opts([[do: body, else: else_clauses] | rest], acc, bindings, depth) do
+    {_, acc2} = do_find_refs(body, acc, bindings, depth)
 
     acc3 =
       Enum.reduce(else_clauses, acc2, fn clause, acc_inner ->
-        process_case_clause(clause, acc_inner, bindings)
+        process_case_clause(clause, acc_inner, bindings, depth)
       end)
 
-    process_with_opts(rest, acc3, bindings)
+    process_with_opts(rest, acc3, bindings, depth)
   end
 
-  defp process_with_opts([_ | rest], acc, bindings) do
-    process_with_opts(rest, acc, bindings)
+  defp process_with_opts([_ | rest], acc, bindings, depth) do
+    process_with_opts(rest, acc, bindings, depth)
   end
 
-  defp process_for_expr(args, acc, local_bindings) do
+  defp process_for_expr(args, acc, local_bindings, depth) do
     # Separate generators from options
-    {generators, opts} = Enum.split_while(args, fn
-      [_ | _] -> false
-      _ -> true
-    end)
+    {generators, opts} =
+      Enum.split_while(args, fn
+        [_ | _] -> false
+        _ -> true
+      end)
 
     # Process generators, accumulating bindings
     {acc2, gen_bindings} =
       Enum.reduce(generators, {acc, local_bindings}, fn
         {:<-, _, [pattern, enumerable]}, {acc_inner, bindings} ->
-          {_, acc3} = do_find_refs(enumerable, acc_inner, bindings)
+          {_, acc3} = do_find_refs(enumerable, acc_inner, bindings, depth)
           new_bindings = MapSet.union(bindings, MapSet.new(extract_pattern_bindings(pattern)))
           {acc3, new_bindings}
 
         filter, {acc_inner, bindings} ->
-          {_, acc3} = do_find_refs(filter, acc_inner, bindings)
+          {_, acc3} = do_find_refs(filter, acc_inner, bindings, depth)
           {acc3, bindings}
       end)
 
     # Process do block with generator bindings
     case opts do
       [[do: body] | _] ->
-        {_, acc3} = do_find_refs(body, acc2, gen_bindings)
+        {_, acc3} = do_find_refs(body, acc2, gen_bindings, depth)
         {nil, acc3}
 
       [[do: body, into: into] | _] ->
-        {_, acc3} = do_find_refs(body, acc2, gen_bindings)
-        {_, acc4} = do_find_refs(into, acc3, local_bindings)
+        {_, acc3} = do_find_refs(body, acc2, gen_bindings, depth)
+        {_, acc4} = do_find_refs(into, acc3, local_bindings, depth)
         {nil, acc4}
 
       _ ->
@@ -1313,16 +1351,16 @@ defmodule ElixirOntologies.Extractors.Closure do
     end
   end
 
-  defp process_receive_opts(opts, acc, local_bindings) do
+  defp process_receive_opts(opts, acc, local_bindings, depth) do
     Enum.reduce(opts, acc, fn
       {:do, clauses}, acc2 ->
         Enum.reduce(clauses, acc2, fn clause, acc3 ->
-          process_case_clause(clause, acc3, local_bindings)
+          process_case_clause(clause, acc3, local_bindings, depth)
         end)
 
       {:after, [{:->, _, [[timeout], body]}]}, acc2 ->
-        {_, acc3} = do_find_refs(timeout, acc2, local_bindings)
-        {_, acc4} = do_find_refs(body, acc3, local_bindings)
+        {_, acc3} = do_find_refs(timeout, acc2, local_bindings, depth)
+        {_, acc4} = do_find_refs(body, acc3, local_bindings, depth)
         acc4
 
       _, acc2 ->
@@ -1330,29 +1368,29 @@ defmodule ElixirOntologies.Extractors.Closure do
     end)
   end
 
-  defp process_try_opts(opts, acc, local_bindings) do
+  defp process_try_opts(opts, acc, local_bindings, depth) do
     Enum.reduce(opts, acc, fn
       {:do, body}, acc2 ->
-        {_, new_acc} = do_find_refs(body, acc2, local_bindings)
+        {_, new_acc} = do_find_refs(body, acc2, local_bindings, depth)
         new_acc
 
       {:rescue, clauses}, acc2 ->
         Enum.reduce(clauses, acc2, fn clause, acc3 ->
-          process_rescue_clause(clause, acc3, local_bindings)
+          process_rescue_clause(clause, acc3, local_bindings, depth)
         end)
 
       {:catch, clauses}, acc2 ->
         Enum.reduce(clauses, acc2, fn clause, acc3 ->
-          process_case_clause(clause, acc3, local_bindings)
+          process_case_clause(clause, acc3, local_bindings, depth)
         end)
 
       {:else, clauses}, acc2 ->
         Enum.reduce(clauses, acc2, fn clause, acc3 ->
-          process_case_clause(clause, acc3, local_bindings)
+          process_case_clause(clause, acc3, local_bindings, depth)
         end)
 
       {:after, body}, acc2 ->
-        {_, new_acc} = do_find_refs(body, acc2, local_bindings)
+        {_, new_acc} = do_find_refs(body, acc2, local_bindings, depth)
         new_acc
 
       _, acc2 ->
@@ -1360,14 +1398,14 @@ defmodule ElixirOntologies.Extractors.Closure do
     end)
   end
 
-  defp process_rescue_clause({:->, _, [[pattern], body]}, acc, local_bindings) do
+  defp process_rescue_clause({:->, _, [[pattern], body]}, acc, local_bindings, depth) do
     pattern_bindings = extract_pattern_bindings(pattern)
     new_local = MapSet.union(local_bindings, MapSet.new(pattern_bindings))
-    {_, acc2} = do_find_refs(body, acc, new_local)
+    {_, acc2} = do_find_refs(body, acc, new_local, depth)
     acc2
   end
 
-  defp process_rescue_clause(_, acc, _), do: acc
+  defp process_rescue_clause(_, acc, _, _depth), do: acc
 
   # ===========================================================================
   # Private Helpers - Pattern Analysis
@@ -1459,56 +1497,47 @@ defmodule ElixirOntologies.Extractors.Closure do
   defp extract_bindings_acc(_, acc), do: {nil, acc}
 
   # Find pin operator references (^x references existing variable x)
-  defp find_pin_references({:^, _, [{name, meta, context}]}, acc, _local_bindings)
+  defp find_pin_references(_ast, acc, _local_bindings, depth) when depth > @max_recursion_depth do
+    {nil, acc}
+  end
+
+  defp find_pin_references({:^, _, [{name, meta, context}]}, acc, _local_bindings, _depth)
        when is_atom(name) and is_atom(context) do
     {nil, [{name, meta} | acc]}
   end
 
-  defp find_pin_references({_, _, args}, acc, local_bindings) when is_list(args) do
+  defp find_pin_references({_, _, args}, acc, local_bindings, depth) when is_list(args) do
     new_acc =
       Enum.reduce(args, acc, fn arg, acc2 ->
-        {_, new_acc} = find_pin_references(arg, acc2, local_bindings)
+        {_, new_acc} = find_pin_references(arg, acc2, local_bindings, depth + 1)
         new_acc
       end)
 
     {nil, new_acc}
   end
 
-  defp find_pin_references(list, acc, local_bindings) when is_list(list) do
+  defp find_pin_references(list, acc, local_bindings, depth) when is_list(list) do
     new_acc =
       Enum.reduce(list, acc, fn elem, acc2 ->
-        {_, new_acc} = find_pin_references(elem, acc2, local_bindings)
+        {_, new_acc} = find_pin_references(elem, acc2, local_bindings, depth + 1)
         new_acc
       end)
 
     {nil, new_acc}
   end
 
-  defp find_pin_references(tuple, acc, local_bindings)
+  defp find_pin_references(tuple, acc, local_bindings, depth)
        when is_tuple(tuple) and tuple_size(tuple) == 2 do
     [left, right] = Tuple.to_list(tuple)
-    {_, acc2} = find_pin_references(left, acc, local_bindings)
-    find_pin_references(right, acc2, local_bindings)
+    {_, acc2} = find_pin_references(left, acc, local_bindings, depth + 1)
+    find_pin_references(right, acc2, local_bindings, depth + 1)
   end
 
-  defp find_pin_references(_, acc, _), do: {nil, acc}
+  defp find_pin_references(_, acc, _, _depth), do: {nil, acc}
 
   # ===========================================================================
   # Private Helpers - Utilities
   # ===========================================================================
-
-  defp extract_params_and_guard(params) when is_list(params) do
-    case params do
-      [{:when, _, when_contents}] when is_list(when_contents) ->
-        {parameters, [guard_expr]} = Enum.split(when_contents, -1)
-        {parameters, guard_expr}
-
-      params ->
-        {params, nil}
-    end
-  end
-
-  defp extract_params_and_guard(_), do: {[], nil}
 
   defp extract_pattern_and_guard([{:when, _, [pattern | guard_rest]}]) do
     {pattern, List.last(guard_rest)}

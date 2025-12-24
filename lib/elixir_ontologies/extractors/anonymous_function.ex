@@ -6,6 +6,14 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
   syntax, including support for multi-clause anonymous functions with pattern
   matching and guards.
 
+  ## Ontology Alignment
+
+  Extracted data maps to `struct:AnonymousFunction` class with properties:
+  - `struct:arity` - Number of parameters
+  - `core:hasClause` - Links to clause resources via `rdf:List`
+
+  See `priv/ontologies/elixir-structure.ttl` for class definitions.
+
   ## Anonymous Function Syntax
 
   ### Single-clause
@@ -39,6 +47,9 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
 
   alias ElixirOntologies.Extractors.Helpers
   alias ElixirOntologies.Extractors.Pattern
+
+  # Clause ordering starts at 1 (1-indexed) to match Elixir's pattern matching semantics
+  @clause_start_index 1
 
   # ===========================================================================
   # Clause Struct
@@ -183,19 +194,24 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
   def extract({:fn, _meta, clauses} = node) when is_list(clauses) do
     extracted_clauses =
       clauses
-      |> Enum.with_index(1)
+      |> Enum.with_index(@clause_start_index)
       |> Enum.map(fn {clause_ast, order} -> do_extract_clause(clause_ast, order) end)
 
-    arity = calculate_arity(extracted_clauses)
-    location = Helpers.extract_location(node)
+    case validate_and_calculate_arity(extracted_clauses) do
+      {:ok, arity} ->
+        location = Helpers.extract_location(node)
 
-    {:ok,
-     %__MODULE__{
-       clauses: extracted_clauses,
-       arity: arity,
-       location: location,
-       metadata: %{}
-     }}
+        {:ok,
+         %__MODULE__{
+           clauses: extracted_clauses,
+           arity: arity,
+           location: location,
+           metadata: %{}
+         }}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   def extract(_), do: {:error, :not_anonymous_function}
@@ -255,7 +271,7 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
   def extract_clause(ast, opts \\ [])
 
   def extract_clause({:->, _meta, [params_with_guard, body]} = node, opts) do
-    {parameters, guard} = extract_params_and_guard(params_with_guard)
+    {parameters, guard} = Helpers.extract_params_and_guard(params_with_guard)
     location = Helpers.extract_location(node)
     arity = length(parameters)
     include_patterns = Keyword.get(opts, :include_patterns, true)
@@ -302,7 +318,7 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
 
   def extract_clause_with_order({:->, _meta, [params_with_guard, body]} = node, order, opts)
       when is_integer(order) and order > 0 do
-    {parameters, guard} = extract_params_and_guard(params_with_guard)
+    {parameters, guard} = Helpers.extract_params_and_guard(params_with_guard)
     location = Helpers.extract_location(node)
     arity = length(parameters)
     include_patterns = Keyword.get(opts, :include_patterns, true)
@@ -337,7 +353,7 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
   # Internal clause extraction used by extract/1 for whole function extraction
   # Includes pattern analysis by default for consistency
   defp do_extract_clause({:->, _meta, [params_with_guard, body]} = node, order) do
-    {parameters, guard} = extract_params_and_guard(params_with_guard)
+    {parameters, guard} = Helpers.extract_params_and_guard(params_with_guard)
     location = Helpers.extract_location(node)
     arity = length(parameters)
     {parameter_patterns, bound_variables} = extract_parameter_patterns(parameters)
@@ -355,8 +371,14 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
     }
   end
 
-  # Handle malformed clause AST gracefully
-  defp do_extract_clause(_invalid, order) do
+  # Handle malformed clause AST gracefully with warning
+  defp do_extract_clause(invalid, order) do
+    require Logger
+
+    Logger.warning(
+      "Malformed anonymous function clause at position #{order}: #{inspect(invalid, limit: 50)}"
+    )
+
     %Clause{
       parameters: [],
       guard: nil,
@@ -366,33 +388,28 @@ defmodule ElixirOntologies.Extractors.AnonymousFunction do
       parameter_patterns: nil,
       bound_variables: [],
       location: nil,
-      metadata: %{}
+      metadata: %{malformed: true, original_ast: invalid}
     }
   end
 
-  # Extract parameters and guard from the clause pattern list
-  # Parameters can contain a {:when, _, [params..., guard]} wrapper for guards
-  defp extract_params_and_guard(params) when is_list(params) do
-    case params do
-      # With guard: [{:when, _, [param1, param2, ..., guard_expr]}]
-      # All params and guard are inside the when tuple, guard is last
-      [{:when, _meta, when_contents}] when is_list(when_contents) ->
-        # Guard is the last element, params are all others
-        {parameters, [guard_expr]} = Enum.split(when_contents, -1)
-        {parameters, guard_expr}
+  # Validates that all clauses have consistent arity and returns the arity
+  defp validate_and_calculate_arity([]), do: {:ok, 0}
 
-      # No guard - all are regular parameters
-      params ->
-        {params, nil}
+  defp validate_and_calculate_arity([first_clause | rest]) do
+    expected_arity = first_clause.arity
+
+    inconsistent =
+      Enum.find(rest, fn clause ->
+        clause.arity != expected_arity
+      end)
+
+    case inconsistent do
+      nil ->
+        {:ok, expected_arity}
+
+      _clause ->
+        {:error, :inconsistent_clause_arity}
     end
-  end
-
-  defp extract_params_and_guard(_), do: {[], nil}
-
-  defp calculate_arity([]), do: 0
-
-  defp calculate_arity([first_clause | _]) do
-    length(first_clause.parameters)
   end
 
   defp find_all_anonymous_functions(ast) do

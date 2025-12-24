@@ -101,30 +101,8 @@ defmodule ElixirOntologies.Builders.CaptureBuilder do
 
   # Generate capture IRI based on context
   defp generate_capture_iri(context, index) do
-    context_iri = get_context_iri(context)
+    context_iri = Context.get_context_iri(context, "captures")
     IRI.for_capture(context_iri, index)
-  end
-
-  # Get the context IRI (module or file-based)
-  defp get_context_iri(%Context{metadata: %{module: module}} = context)
-       when is_list(module) and module != [] do
-    module_name = Enum.join(module, ".")
-    IRI.for_module(context.base_iri, module_name)
-  end
-
-  defp get_context_iri(%Context{parent_module: parent_module})
-       when not is_nil(parent_module) do
-    parent_module
-  end
-
-  defp get_context_iri(%Context{file_path: file_path} = context)
-       when is_binary(file_path) and file_path != "" do
-    IRI.for_source_file(context.base_iri, file_path)
-  end
-
-  defp get_context_iri(context) do
-    # Fallback to base_iri with captures namespace
-    RDF.iri("#{context.base_iri}captures")
   end
 
   # ===========================================================================
@@ -234,7 +212,9 @@ defmodule ElixirOntologies.Builders.CaptureBuilder do
     if capture_info.module && capture_info.function do
       module_name = module_to_string(capture_info.module)
       function_name = Atom.to_string(capture_info.function)
-      function_iri = IRI.for_function(context.base_iri, module_name, function_name, capture_info.arity)
+
+      function_iri =
+        IRI.for_function(context.base_iri, module_name, function_name, capture_info.arity)
 
       [Helpers.object_property(capture_iri, Core.refersToFunction(), function_iri)]
     else

@@ -112,30 +112,8 @@ defmodule ElixirOntologies.Builders.AnonymousFunctionBuilder do
 
   # Generate anonymous function IRI based on context
   defp generate_anon_iri(context, index) do
-    context_iri = get_context_iri(context)
+    context_iri = Context.get_context_iri(context, "anonymous")
     IRI.for_anonymous_function(context_iri, index)
-  end
-
-  # Get the context IRI (module or file-based)
-  defp get_context_iri(%Context{metadata: %{module: module}} = context)
-       when is_list(module) and module != [] do
-    module_name = Enum.join(module, ".")
-    IRI.for_module(context.base_iri, module_name)
-  end
-
-  defp get_context_iri(%Context{parent_module: parent_module})
-       when not is_nil(parent_module) do
-    parent_module
-  end
-
-  defp get_context_iri(%Context{file_path: file_path} = context)
-       when is_binary(file_path) and file_path != "" do
-    IRI.for_source_file(context.base_iri, file_path)
-  end
-
-  defp get_context_iri(context) do
-    # Fallback to base_iri with anonymous namespace
-    RDF.iri("#{context.base_iri}anonymous")
   end
 
   # Build rdf:type triple
