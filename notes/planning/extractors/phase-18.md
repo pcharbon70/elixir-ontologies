@@ -171,17 +171,17 @@ Note: Original plan mentioned `CaptureExpression`, `capturesFunction`, `hasExpre
 
 ## Phase 18 Integration Tests
 
-- [ ] **Phase 18 Integration Tests** (12+ tests)
+- [x] **Phase 18 Integration Tests** (31 tests)
 
-- [ ] Test complete anonymous function extraction for complex module
-- [ ] Test closure variable tracking accuracy
-- [ ] Test capture operator coverage
-- [ ] Test anonymous function RDF validates against shapes
-- [ ] Test Pipeline integration with anonymous function extractors
-- [ ] Test Orchestrator coordinates closure builders
-- [ ] Test nested anonymous functions
-- [ ] Test closures in comprehensions
-- [ ] Test captures in pipe chains
-- [ ] Test multi-clause anonymous function handling
-- [ ] Test backward compatibility with existing extractors
-- [ ] Test error handling for complex closure patterns
+- [x] Test complete anonymous function extraction for complex module
+- [x] Test closure variable tracking accuracy
+- [x] Test capture operator coverage
+- [x] Test anonymous function RDF validates against shapes
+- [x] Test Pipeline integration with anonymous function extractors
+- [x] Test Orchestrator coordinates closure builders
+- [x] Test nested anonymous functions
+- [x] Test closures in comprehensions
+- [x] Test captures in pipe chains
+- [x] Test multi-clause anonymous function handling
+- [x] Test backward compatibility with existing extractors
+- [x] Test error handling for complex closure patterns
