@@ -664,6 +664,31 @@ defmodule ElixirOntologies.IRI do
     append_to_iri(anon_iri, "capture/#{var_name}")
   end
 
+  @doc """
+  Generates an IRI for a capture operator expression.
+
+  Pattern: `{context_iri}/&/{index}`
+
+  ## Parameters
+
+  - `context_iri` - The IRI of the containing context (module or file)
+  - `index` - Index of the capture within its context
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> ElixirOntologies.IRI.for_capture(module_iri, 0)
+      ~I<https://example.org/code#MyApp/&/0>
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp.Server")
+      iex> ElixirOntologies.IRI.for_capture(module_iri, 2)
+      ~I<https://example.org/code#MyApp.Server/&/2>
+  """
+  @spec for_capture(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_capture(context_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(context_iri, "&/#{index}")
+  end
+
   # ===========================================================================
   # IRI Utilities
   # ===========================================================================

@@ -145,24 +145,27 @@ Generate RDF triples for closure semantics and captured variables.
 Note: `capturedFrom` and `captureBindingLocation` properties don't exist in the ontology. The implementation uses `core:capturesVariable` to link closures to captured variable IRIs.
 
 ### 18.3.3 Capture Builder
-- [ ] **Task 18.3.3 Pending**
+- [x] **Task 18.3.3 Complete**
 
 Generate RDF triples for capture operator expressions.
 
-- [ ] 18.3.3.1 Implement `build_capture/3` generating capture IRI
-- [ ] 18.3.3.2 Generate `rdf:type structure:CaptureExpression` triple
-- [ ] 18.3.3.3 Generate `structure:capturesFunction` for named captures
-- [ ] 18.3.3.4 Generate `structure:hasExpression` for shorthand captures
-- [ ] 18.3.3.5 Generate `structure:derivedArity` for shorthand capture arity
-- [ ] 18.3.3.6 Add capture builder tests
+- [x] 18.3.3.1 Implement `build/3` generating capture IRI
+- [x] 18.3.3.2 Generate `rdf:type struct:CapturedFunction` for named captures
+- [x] 18.3.3.3 Generate `rdf:type struct:PartialApplication` for shorthand captures
+- [x] 18.3.3.4 Generate `core:refersToFunction` for named captures
+- [x] 18.3.3.5 Generate `core:refersToModule` for remote captures
+- [x] 18.3.3.6 Generate `struct:arity` for all capture types
+- [x] 18.3.3.7 Add capture builder tests (2 doctests, 20 unit tests)
+
+Note: Original plan mentioned `CaptureExpression`, `capturesFunction`, `hasExpression`, and `derivedArity` which don't exist in the ontology. The implementation uses `CapturedFunction`, `PartialApplication`, `refersToFunction`, `refersToModule`, and `arity` from the actual ontology.
 
 **Section 18.3 Unit Tests:**
 - [x] Test anonymous function RDF generation (18.3.1)
 - [x] Test multi-clause function RDF (18.3.1)
 - [x] Test closure RDF with captured variables (18.3.2)
-- [ ] Test capture expression RDF
-- [ ] Test shorthand capture RDF
-- [ ] Test named function capture RDF
+- [x] Test capture expression RDF (18.3.3)
+- [x] Test shorthand capture RDF (18.3.3)
+- [x] Test named function capture RDF (18.3.3)
 - [ ] Test closure-to-scope linking
 - [ ] Test SHACL validation of anonymous function RDF
 
