@@ -69,16 +69,16 @@ Analyze capture placeholders (&1, &2, etc.) in shorthand captures.
 This section implements tracking of variables captured by closures from their enclosing scope.
 
 ### 18.2.1 Free Variable Detection
-- [ ] **Task 18.2.1 Pending**
+- [x] **Task 18.2.1 Complete**
 
 Detect free variables in anonymous functions that reference outer scope.
 
-- [ ] 18.2.1.1 Implement `detect_free_variables/2` comparing inner/outer scopes
-- [ ] 18.2.1.2 Track all variable references in anonymous function body
-- [ ] 18.2.1.3 Track variables bound in function parameters
-- [ ] 18.2.1.4 Identify variables that must be captured (free variables)
-- [ ] 18.2.1.5 Create `%FreeVariable{name: ..., binding_location: ..., captured_at: ...}` struct
-- [ ] 18.2.1.6 Add free variable detection tests
+- [x] 18.2.1.1 Implement `detect_free_variables/2` comparing inner/outer scopes
+- [x] 18.2.1.2 Track all variable references in anonymous function body via `find_variable_references/1`
+- [x] 18.2.1.3 Track variables bound in function parameters (integrates with AnonymousFunction.bound_variables)
+- [x] 18.2.1.4 Identify variables that must be captured (free variables)
+- [x] 18.2.1.5 Create `%FreeVariable{name: ..., reference_count: ..., reference_locations: ..., captured_at: ...}` struct
+- [x] 18.2.1.6 Add free variable detection tests (9 doctests, 42 unit tests)
 
 ### 18.2.2 Closure Scope Analysis
 - [ ] **Task 18.2.2 Pending**
@@ -105,14 +105,14 @@ Detect potential issues with captured variable mutation patterns.
 - [ ] 18.2.3.6 Add mutation detection tests
 
 **Section 18.2 Unit Tests:**
-- [ ] Test free variable detection
-- [ ] Test captured variable from function scope
+- [x] Test free variable detection (18.2.1)
+- [x] Test captured variable from function scope (18.2.1)
 - [ ] Test captured variable from module attribute
-- [ ] Test nested closure capture
+- [x] Test nested closure capture (18.2.1)
 - [ ] Test shadowed variable detection
 - [ ] Test variable rebinding detection
-- [ ] Test closure with no captures
-- [ ] Test closure with multiple captures
+- [x] Test closure with no captures (18.2.1)
+- [x] Test closure with multiple captures (18.2.1)
 
 ## 18.3 Anonymous Function Builder
 
