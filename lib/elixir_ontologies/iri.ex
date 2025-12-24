@@ -638,6 +638,32 @@ defmodule ElixirOntologies.IRI do
     append_to_iri(anon_iri, "clause/#{clause_order}")
   end
 
+  @doc """
+  Generates an IRI for a captured variable in a closure.
+
+  Pattern: `{anon_iri}/capture/{variable_name}`
+
+  ## Parameters
+
+  - `anon_iri` - The IRI of the anonymous function/closure
+  - `variable_name` - The name of the captured variable (atom or string)
+
+  ## Examples
+
+      iex> anon_iri = RDF.iri("https://example.org/code#MyApp/anon/0")
+      iex> ElixirOntologies.IRI.for_captured_variable(anon_iri, :x)
+      ~I<https://example.org/code#MyApp/anon/0/capture/x>
+
+      iex> anon_iri = RDF.iri("https://example.org/code#MyApp/get_user/1/anon/2")
+      iex> ElixirOntologies.IRI.for_captured_variable(anon_iri, "counter")
+      ~I<https://example.org/code#MyApp/get_user/1/anon/2/capture/counter>
+  """
+  @spec for_captured_variable(String.t() | RDF.IRI.t(), atom() | String.t()) :: RDF.IRI.t()
+  def for_captured_variable(anon_iri, variable_name) do
+    var_name = escape_name(variable_name)
+    append_to_iri(anon_iri, "capture/#{var_name}")
+  end
+
   # ===========================================================================
   # IRI Utilities
   # ===========================================================================
