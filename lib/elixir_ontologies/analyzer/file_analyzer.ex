@@ -454,7 +454,9 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
   defp extract_functions(body, module_name_list) do
     body
     |> find_function_nodes()
-    |> Enum.map(&safe_extract(fn -> Extractors.Function.extract(&1, module: module_name_list) end))
+    |> Enum.map(
+      &safe_extract(fn -> Extractors.Function.extract(&1, module: module_name_list) end)
+    )
     |> Enum.reject(&is_nil/1)
   end
 
@@ -617,19 +619,21 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
   defp build_graph(modules, context, config) do
     # Build RDF graph using the Pipeline integration
     # Use relative_path from Git.SourceFile if available
-    file_path = case context.git do
-      %{relative_path: path} -> path
-      _ -> nil
-    end
+    file_path =
+      case context.git do
+        %{relative_path: path} -> path
+        _ -> nil
+      end
 
-    builder_context = Context.new(
-      base_iri: config.base_iri,
-      file_path: file_path,
-      config: %{
-        include_source_text: config.include_source_text,
-        include_git_info: config.include_git_info
-      }
-    )
+    builder_context =
+      Context.new(
+        base_iri: config.base_iri,
+        file_path: file_path,
+        config: %{
+          include_source_text: config.include_source_text,
+          include_git_info: config.include_git_info
+        }
+      )
 
     Pipeline.build_graph_for_modules(modules, builder_context)
   end

@@ -49,7 +49,9 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
 
   describe "build_supervisor/3 - basic building" do
     test "builds minimal Supervisor with use detection" do
-      supervisor_info = build_test_supervisor(supervisor_type: :supervisor, detection_method: :use)
+      supervisor_info =
+        build_test_supervisor(supervisor_type: :supervisor, detection_method: :use)
+
       context = build_test_context()
       module_iri = build_test_module_iri()
 
@@ -131,7 +133,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       context = build_test_context()
       supervisor_iri = build_test_module_iri()
 
-      {strategy_iri, triples} = SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
+      {strategy_iri, triples} =
+        SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
 
       # Verify strategy IRI is predefined individual
       assert strategy_iri == OTP.OneForOne
@@ -147,7 +150,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       context = build_test_context()
       supervisor_iri = build_test_module_iri()
 
-      {strategy_iri, triples} = SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
+      {strategy_iri, triples} =
+        SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
 
       # Verify strategy IRI is predefined individual
       assert strategy_iri == OTP.OneForAll
@@ -163,7 +167,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       context = build_test_context()
       supervisor_iri = build_test_module_iri()
 
-      {strategy_iri, triples} = SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
+      {strategy_iri, triples} =
+        SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
 
       # Verify strategy IRI is predefined individual
       assert strategy_iri == OTP.RestForOne
@@ -196,7 +201,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       context = build_test_context()
       supervisor_iri = build_test_module_iri()
 
-      {_strategy_iri, triples} = SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
+      {_strategy_iri, triples} =
+        SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
 
       # Check for duplicates
       unique_triples = Enum.uniq(triples)
@@ -212,15 +218,17 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
         SupervisorBuilder.build_supervisor(supervisor_info, module_iri, context)
 
       # Count relevant triples
-      has_type = Enum.any?(triples, fn
-        {^supervisor_iri, pred, OTP.Supervisor} -> pred == RDF.type()
-        _ -> false
-      end)
+      has_type =
+        Enum.any?(triples, fn
+          {^supervisor_iri, pred, OTP.Supervisor} -> pred == RDF.type()
+          _ -> false
+        end)
 
-      has_behaviour = Enum.any?(triples, fn
-        {^supervisor_iri, pred, OTP.SupervisorBehaviour} -> pred == OTP.implementsOTPBehaviour()
-        _ -> false
-      end)
+      has_behaviour =
+        Enum.any?(triples, fn
+          {^supervisor_iri, pred, OTP.SupervisorBehaviour} -> pred == OTP.implementsOTPBehaviour()
+          _ -> false
+        end)
 
       assert has_type
       assert has_behaviour
@@ -243,7 +251,9 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
 
       # Build strategy
       strategy_info = build_test_strategy(type: :one_for_one)
-      {strategy_iri, strategy_triples} = SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
+
+      {strategy_iri, strategy_triples} =
+        SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
 
       # Verify Supervisor implementation exists
       assert {supervisor_iri, RDF.type(), OTP.Supervisor} in supervisor_triples
@@ -268,8 +278,11 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       strategy1 = build_test_strategy(type: :one_for_one)
       strategy2 = build_test_strategy(type: :one_for_all)
 
-      {strategy_iri1, triples1} = SupervisorBuilder.build_strategy(strategy1, supervisor_iri, context)
-      {strategy_iri2, triples2} = SupervisorBuilder.build_strategy(strategy2, supervisor_iri, context)
+      {strategy_iri1, triples1} =
+        SupervisorBuilder.build_strategy(strategy1, supervisor_iri, context)
+
+      {strategy_iri2, triples2} =
+        SupervisorBuilder.build_strategy(strategy2, supervisor_iri, context)
 
       # Verify different strategies
       assert strategy_iri1 == OTP.OneForOne
@@ -291,7 +304,9 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
 
       # Verify implementation
       assert {supervisor_iri, RDF.type(), OTP.Supervisor} in triples
-      assert to_string(supervisor_iri) == "https://example.org/code#MyApp.Supervisors.TreeSupervisor"
+
+      assert to_string(supervisor_iri) ==
+               "https://example.org/code#MyApp.Supervisors.TreeSupervisor"
     end
   end
 
@@ -310,7 +325,9 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
 
       # Build strategy
       strategy_info = build_test_strategy(type: :one_for_one)
-      {strategy_iri, strategy_triples} = SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
+
+      {strategy_iri, strategy_triples} =
+        SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
 
       # Verify DynamicSupervisor type
       assert {supervisor_iri, RDF.type(), OTP.DynamicSupervisor} in supervisor_triples
@@ -324,7 +341,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       context = build_test_context()
       supervisor_iri = build_test_module_iri()
 
-      {strategy_iri, triples} = SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
+      {strategy_iri, triples} =
+        SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
 
       # Verify strategy exists (max_restarts/max_seconds not yet captured in RDF)
       assert {supervisor_iri, OTP.hasStrategy(), strategy_iri} in triples

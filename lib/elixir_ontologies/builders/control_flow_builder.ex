@@ -82,7 +82,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
       iex> Enum.any?(triples, fn {_, p, _} -> p == RDF.type() end)
       true
   """
-  @spec build_conditional(Conditional.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  @spec build_conditional(Conditional.t(), Context.t(), keyword()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
   def build_conditional(%Conditional{} = conditional, %Context{} = context, opts \\ []) do
     containing_function = Keyword.get(opts, :containing_function, "unknown/0")
     index = Keyword.get(opts, :index, 0)
@@ -271,7 +272,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
       iex> to_string(iri)
       "https://example.org/code#receive/MyApp/loop/0/0"
   """
-  @spec build_receive(ReceiveExpression.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  @spec build_receive(ReceiveExpression.t(), Context.t(), keyword()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
   def build_receive(%ReceiveExpression{} = receive_expr, %Context{} = context, opts \\ []) do
     containing_function = Keyword.get(opts, :containing_function, "unknown/0")
     index = Keyword.get(opts, :index, 0)
@@ -334,7 +336,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
       iex> to_string(iri)
       "https://example.org/code#for/MyApp/map/1/0"
   """
-  @spec build_comprehension(Comprehension.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  @spec build_comprehension(Comprehension.t(), Context.t(), keyword()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
   def build_comprehension(%Comprehension{} = comprehension, %Context{} = context, opts \\ []) do
     containing_function = Keyword.get(opts, :containing_function, "unknown/0")
     index = Keyword.get(opts, :index, 0)
@@ -432,7 +435,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # For cond expressions, we track that clauses exist via hasClause boolean property
-  defp add_cond_clause_triples(triples, expr_iri, clauses, :cond) when is_list(clauses) and clauses != [] do
+  defp add_cond_clause_triples(triples, expr_iri, clauses, :cond)
+       when is_list(clauses) and clauses != [] do
     # Add hasClause as boolean to indicate clauses are present
     triple = Helpers.datatype_property(expr_iri, Core.hasClause(), true, RDF.XSD.Boolean)
     [triple | triples]
@@ -445,7 +449,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # For case expressions, track that clauses exist and whether any have guards
-  defp add_case_clause_triples(triples, expr_iri, clauses) when is_list(clauses) and clauses != [] do
+  defp add_case_clause_triples(triples, expr_iri, clauses)
+       when is_list(clauses) and clauses != [] do
     # Add hasClause to indicate clauses are present
     clause_triple = Helpers.datatype_property(expr_iri, Core.hasClause(), true, RDF.XSD.Boolean)
 
@@ -467,7 +472,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # For with expressions, track that clauses exist
-  defp add_with_clause_triples(triples, expr_iri, clauses) when is_list(clauses) and clauses != [] do
+  defp add_with_clause_triples(triples, expr_iri, clauses)
+       when is_list(clauses) and clauses != [] do
     # Add hasClause to indicate clauses are present
     triple = Helpers.datatype_property(expr_iri, Core.hasClause(), true, RDF.XSD.Boolean)
     [triple | triples]
@@ -476,7 +482,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   defp add_with_clause_triples(triples, _expr_iri, _clauses), do: triples
 
   # Track presence of else clauses using hasElseClause
-  defp add_has_else_triple(triples, expr_iri, else_clauses) when is_list(else_clauses) and else_clauses != [] do
+  defp add_has_else_triple(triples, expr_iri, else_clauses)
+       when is_list(else_clauses) and else_clauses != [] do
     triple = Helpers.datatype_property(expr_iri, Core.hasElseClause(), true, RDF.XSD.Boolean)
     [triple | triples]
   end
@@ -488,7 +495,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # For receive expressions, track that message clauses exist
-  defp add_receive_clause_triples(triples, expr_iri, clauses) when is_list(clauses) and clauses != [] do
+  defp add_receive_clause_triples(triples, expr_iri, clauses)
+       when is_list(clauses) and clauses != [] do
     triple = Helpers.datatype_property(expr_iri, Core.hasClause(), true, RDF.XSD.Boolean)
     [triple | triples]
   end
@@ -508,7 +516,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # Track presence of generators
-  defp add_generator_triple(triples, expr_iri, generators) when is_list(generators) and generators != [] do
+  defp add_generator_triple(triples, expr_iri, generators)
+       when is_list(generators) and generators != [] do
     triple = Helpers.datatype_property(expr_iri, Core.hasGenerator(), true, RDF.XSD.Boolean)
     [triple | triples]
   end

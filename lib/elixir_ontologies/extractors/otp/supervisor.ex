@@ -89,12 +89,53 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   end
 
   # ===========================================================================
+  # StartSpec Struct
+  # ===========================================================================
+
+  defmodule StartSpec do
+    @moduledoc """
+    Represents the start function specification from a child spec.
+
+    The start function is typically `{Module, :start_link, [args]}` which tells
+    the supervisor how to start the child process.
+
+    ## Fields
+
+    - `:module` - The module containing the start function
+    - `:function` - The function name (typically :start_link)
+    - `:args` - List of arguments to pass to the function
+    - `:metadata` - Additional information
+    """
+
+    @type t :: %__MODULE__{
+            module: atom() | nil,
+            function: atom(),
+            args: [term()],
+            metadata: map()
+          }
+
+    defstruct module: nil,
+              function: :start_link,
+              args: [],
+              metadata: %{}
+  end
+
+  # ===========================================================================
   # ChildSpec Struct
   # ===========================================================================
 
   defmodule ChildSpec do
     @moduledoc """
     Represents a child specification extracted from a Supervisor's init/1 callback.
+
+    ## Child Spec Formats
+
+    Elixir supports multiple child spec formats:
+
+    1. Map syntax: `%{id: MyWorker, start: {MyWorker, :start_link, [arg]}}`
+    2. Module tuple: `{MyWorker, arg}` - implies `start: {MyWorker, :start_link, [arg]}`
+    3. Module only: `MyWorker` - implies `start: {MyWorker, :start_link, []}`
+    4. Legacy tuple: `{id, start, restart, shutdown, type, modules}`
 
     ## Restart Types
 
@@ -111,13 +152,17 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     ## Fields
 
     - `:id` - Child identifier (usually module name)
-    - `:module` - Module implementing the child
+    - `:start` - StartSpec with module, function, and args
+    - `:module` - Module implementing the child (convenience, same as start.module)
     - `:restart` - Restart policy
     - `:shutdown` - Shutdown strategy
     - `:type` - Child type (:worker or :supervisor)
+    - `:modules` - List of modules for code upgrades (defaults to [module])
     - `:location` - Source location
     - `:metadata` - Additional information
     """
+
+    alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
 
     @type restart_type :: :permanent | :temporary | :transient
     @type shutdown_type :: non_neg_integer() | :infinity | :brutal_kill
@@ -125,19 +170,23 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
 
     @type t :: %__MODULE__{
             id: atom() | term(),
+            start: StartSpec.t() | nil,
             module: atom() | nil,
             restart: restart_type(),
             shutdown: shutdown_type() | nil,
             type: child_type(),
+            modules: [atom()] | :dynamic,
             location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
             metadata: map()
           }
 
     defstruct id: nil,
+              start: nil,
               module: nil,
               restart: :permanent,
               shutdown: nil,
               type: :worker,
+              modules: [],
               location: nil,
               metadata: %{}
   end
@@ -1150,7 +1199,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     end)
   end
 
-  # Parse {Module, args} tuple
+  # Parse {Module, args} tuple - implies start: {Module, :start_link, [args]}
   defp parse_child_spec({{:__aliases__, meta, module_parts}, args}, opts) do
     module = Module.concat(module_parts)
     location = Helpers.extract_location_if({:tuple, meta, []}, opts)
@@ -1158,12 +1207,22 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     # Extract options if args is a keyword list with restart/shutdown
     {restart, shutdown, type} = extract_child_options(args)
 
+    # Build the start spec - wraps args in list for start_link/1
+    start_spec = %StartSpec{
+      module: module,
+      function: :start_link,
+      args: [args],
+      metadata: %{inferred: true}
+    }
+
     %ChildSpec{
       id: module,
+      start: start_spec,
       module: module,
       restart: restart,
       shutdown: shutdown,
       type: type,
+      modules: [module],
       location: location,
       metadata: %{
         format: :tuple,
@@ -1176,49 +1235,79 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   defp parse_child_spec({:%{}, meta, pairs}, opts) when is_list(pairs) do
     location = Helpers.extract_location_if({:map, meta, []}, opts)
     id = Keyword.get(pairs, :id)
-    start = Keyword.get(pairs, :start)
+    start_ast = Keyword.get(pairs, :start)
     restart = Keyword.get(pairs, :restart, :permanent)
     shutdown = Keyword.get(pairs, :shutdown)
     type = Keyword.get(pairs, :type, :worker)
+    modules_ast = Keyword.get(pairs, :modules)
 
-    # Extract module from start tuple - AST tuple format must be checked first
-    # because {:{}, meta, args} would match {module, _fun, _args} where :{} is an atom
-    module =
-      case start do
-        # Handle AST tuple format {:{}, meta, [module, fun, args]}
-        {:{}, _, [{:__aliases__, _, parts}, _fun, _args]} -> Module.concat(parts)
-        {:{}, _, [module, _fun, _args]} when is_atom(module) -> module
-        # Regular evaluated tuples
-        {module, _fun, _args} when is_atom(module) -> module
-        {{:__aliases__, _, parts}, _fun, _args} -> Module.concat(parts)
-        _ -> nil
-      end
+    # Extract StartSpec and module from start tuple
+    {start_spec, module} = extract_start_spec(start_ast)
+
+    # Extract modules list
+    modules = extract_modules_list(modules_ast, module)
 
     %ChildSpec{
       id: id,
+      start: start_spec,
       module: module,
       restart: restart,
       shutdown: shutdown,
       type: type,
+      modules: modules,
       location: location,
       metadata: %{
         format: :map,
-        has_start: start != nil
+        has_start: start_ast != nil
       }
     }
   end
 
-  # Parse Module atom (shorthand)
+  # Parse legacy 6-tuple: {id, start, restart, shutdown, type, modules}
+  defp parse_child_spec({:{}, meta, [id, start_ast, restart, shutdown, type, modules_ast]}, opts) do
+    location = Helpers.extract_location_if({:tuple, meta, []}, opts)
+
+    # Extract StartSpec and module from start tuple
+    {start_spec, module} = extract_start_spec(start_ast)
+
+    # Extract modules list
+    modules = extract_modules_list(modules_ast, module)
+
+    %ChildSpec{
+      id: extract_id(id),
+      start: start_spec,
+      module: module,
+      restart: restart,
+      shutdown: shutdown,
+      type: type,
+      modules: modules,
+      location: location,
+      metadata: %{
+        format: :legacy_tuple
+      }
+    }
+  end
+
+  # Parse Module atom (shorthand) - implies start: {Module, :start_link, []}
   defp parse_child_spec({:__aliases__, meta, module_parts}, opts) do
     module = Module.concat(module_parts)
     location = Helpers.extract_location_if({:alias, meta, []}, opts)
 
+    start_spec = %StartSpec{
+      module: module,
+      function: :start_link,
+      args: [],
+      metadata: %{inferred: true}
+    }
+
     %ChildSpec{
       id: module,
+      start: start_spec,
       module: module,
       restart: :permanent,
       shutdown: nil,
       type: :worker,
+      modules: [module],
       location: location,
       metadata: %{
         format: :module_only
@@ -1230,16 +1319,110 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   defp parse_child_spec(_ast, _opts) do
     %ChildSpec{
       id: :unknown,
+      start: nil,
       module: nil,
       restart: :permanent,
       shutdown: nil,
       type: :worker,
+      modules: [],
       location: nil,
       metadata: %{
         format: :unknown
       }
     }
   end
+
+  # Extract StartSpec from start tuple AST
+  defp extract_start_spec(nil), do: {nil, nil}
+
+  # Handle AST tuple format {:{}, meta, [module, fun, args]}
+  defp extract_start_spec({:{}, _, [{:__aliases__, _, parts}, fun, args]}) when is_atom(fun) do
+    module = Module.concat(parts)
+    args_list = normalize_args(args)
+
+    start_spec = %StartSpec{
+      module: module,
+      function: fun,
+      args: args_list,
+      metadata: %{}
+    }
+
+    {start_spec, module}
+  end
+
+  defp extract_start_spec({:{}, _, [module, fun, args]}) when is_atom(module) and is_atom(fun) do
+    args_list = normalize_args(args)
+
+    start_spec = %StartSpec{
+      module: module,
+      function: fun,
+      args: args_list,
+      metadata: %{}
+    }
+
+    {start_spec, module}
+  end
+
+  # Handle regular evaluated tuple {Module, :fun, args}
+  defp extract_start_spec({{:__aliases__, _, parts}, fun, args}) when is_atom(fun) do
+    module = Module.concat(parts)
+    args_list = normalize_args(args)
+
+    start_spec = %StartSpec{
+      module: module,
+      function: fun,
+      args: args_list,
+      metadata: %{}
+    }
+
+    {start_spec, module}
+  end
+
+  defp extract_start_spec({module, fun, args}) when is_atom(module) and is_atom(fun) do
+    args_list = normalize_args(args)
+
+    start_spec = %StartSpec{
+      module: module,
+      function: fun,
+      args: args_list,
+      metadata: %{}
+    }
+
+    {start_spec, module}
+  end
+
+  defp extract_start_spec(_), do: {nil, nil}
+
+  # Normalize args to a list
+  defp normalize_args(args) when is_list(args), do: args
+  defp normalize_args(arg), do: [arg]
+
+  # Extract id from AST (could be alias or atom)
+  defp extract_id({:__aliases__, _, parts}), do: Module.concat(parts)
+  defp extract_id(id) when is_atom(id), do: id
+  defp extract_id(id), do: id
+
+  # Extract modules list from AST
+  defp extract_modules_list(:dynamic, _module), do: :dynamic
+  defp extract_modules_list(nil, nil), do: []
+  defp extract_modules_list(nil, module), do: [module]
+
+  # Handle list of modules (may be atoms or aliases in AST)
+  defp extract_modules_list(modules, _module) when is_list(modules) do
+    Enum.map(modules, fn
+      {:__aliases__, _, parts} -> Module.concat(parts)
+      module when is_atom(module) -> module
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp extract_modules_list({:__aliases__, _, parts}, _module) do
+    [Module.concat(parts)]
+  end
+
+  defp extract_modules_list(_, module) when not is_nil(module), do: [module]
+  defp extract_modules_list(_, _), do: []
 
   defp extract_child_options(args) when is_list(args) do
     # Check if args is a keyword list with options

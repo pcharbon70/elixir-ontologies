@@ -162,8 +162,33 @@ defmodule ElixirOntologies.Extractors.Call do
   def local_call?(_), do: false
 
   # Operators that might appear with list args but aren't local calls
-  @operators [:+, :-, :*, :/, :==, :!=, :===, :!==, :<, :>, :<=, :>=, :&&, :||, :!, :and, :or, :not,
-              :++, :--, :<>, :in, :@, :when, :"not in"]
+  @operators [
+    :+,
+    :-,
+    :*,
+    :/,
+    :==,
+    :!=,
+    :===,
+    :!==,
+    :<,
+    :>,
+    :<=,
+    :>=,
+    :&&,
+    :||,
+    :!,
+    :and,
+    :or,
+    :not,
+    :++,
+    :--,
+    :<>,
+    :in,
+    :@,
+    :when,
+    :"not in"
+  ]
 
   defp operator?(name), do: name in @operators
 
@@ -196,7 +221,9 @@ defmodule ElixirOntologies.Extractors.Call do
   """
   @spec remote_call?(Macro.t()) :: boolean()
   # Elixir module call: Module.function(args)
-  def remote_call?({{:., _dot_meta, [{:__aliases__, _alias_meta, _parts}, func_name]}, _meta, args})
+  def remote_call?(
+        {{:., _dot_meta, [{:__aliases__, _alias_meta, _parts}, func_name]}, _meta, args}
+      )
       when is_atom(func_name) and is_list(args) do
     true
   end
@@ -525,7 +552,8 @@ defmodule ElixirOntologies.Extractors.Call do
   def extract_dynamic({{:., _, [receiver]}, _, args} = node, opts)
       when is_tuple(receiver) and is_list(args) do
     case receiver do
-      {name, _, ctx} when is_atom(name) and is_atom(ctx) and name not in [:__aliases__, :__MODULE__] ->
+      {name, _, ctx}
+      when is_atom(name) and is_atom(ctx) and name not in [:__aliases__, :__MODULE__] ->
         build_anonymous_call(name, args, node, opts)
 
       _ ->
@@ -550,8 +578,11 @@ defmodule ElixirOntologies.Extractors.Call do
   @spec extract_dynamic!(Macro.t(), keyword()) :: FunctionCall.t()
   def extract_dynamic!(ast, opts \\ []) do
     case extract_dynamic(ast, opts) do
-      {:ok, call} -> call
-      {:error, reason} -> raise ArgumentError, "Failed to extract dynamic call: #{inspect(reason)}"
+      {:ok, call} ->
+        call
+
+      {:error, reason} ->
+        raise ArgumentError, "Failed to extract dynamic call: #{inspect(reason)}"
     end
   end
 
@@ -788,7 +819,8 @@ defmodule ElixirOntologies.Extractors.Call do
   defp add_function_info(metadata, _), do: metadata
 
   # Helper to add function variable info for apply/2
-  defp add_function_var_info(metadata, {var_name, _, ctx}) when is_atom(var_name) and is_atom(ctx) do
+  defp add_function_var_info(metadata, {var_name, _, ctx})
+       when is_atom(var_name) and is_atom(ctx) do
     Map.put(metadata, :function_variable, var_name)
   end
 
@@ -810,7 +842,8 @@ defmodule ElixirOntologies.Extractors.Call do
   end
 
   # Handle list of statements
-  defp extract_calls_recursive(statements, opts, depth, max_depth, mode) when is_list(statements) do
+  defp extract_calls_recursive(statements, opts, depth, max_depth, mode)
+       when is_list(statements) do
     Enum.flat_map(statements, &extract_calls_recursive(&1, opts, depth, max_depth, mode))
   end
 

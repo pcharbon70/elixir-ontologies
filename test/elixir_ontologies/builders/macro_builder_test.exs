@@ -228,7 +228,8 @@ defmodule ElixirOntologies.Builders.MacroBuilderTest do
 
       context = Context.new(base_iri: "https://example.org/code#")
 
-      {invocation_iri, _triples} = MacroBuilder.build_macro_invocation(invocation, context, index: 99)
+      {invocation_iri, _triples} =
+        MacroBuilder.build_macro_invocation(invocation, context, index: 99)
 
       assert to_string(invocation_iri) =~ "/99"
     end

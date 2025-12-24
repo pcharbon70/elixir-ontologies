@@ -134,7 +134,7 @@ defmodule ElixirOntologies.Extractors.Attribute do
             | :module_ref
             | :tuple
             | :ast
-            | :nil
+            | nil
 
     @type t :: %__MODULE__{
             type: value_type(),
@@ -316,7 +316,7 @@ defmodule ElixirOntologies.Extractors.Attribute do
         false
     """
 
-    @type format :: :string | :heredoc | :sigil | :false | :nil
+    @type format :: :string | :heredoc | :sigil | false | nil
     @type sigil_type :: :S | :s | :D | :W | :w | nil
 
     @type t :: %__MODULE__{
@@ -1017,7 +1017,7 @@ defmodule ElixirOntologies.Extractors.Attribute do
   """
   @spec extract_typed_value(term()) :: AttributeValue.t()
   def extract_typed_value(nil) do
-    AttributeValue.new(type: :nil, value: nil)
+    AttributeValue.new(type: nil, value: nil)
   end
 
   def extract_typed_value(value) when is_atom(value) do
@@ -1061,7 +1061,11 @@ defmodule ElixirOntologies.Extractors.Attribute do
   def extract_typed_value({:{}, _, elements}) when is_list(elements) do
     case try_evaluate_list(elements) do
       {:ok, evaluated} ->
-        AttributeValue.new(type: :tuple, value: List.to_tuple(evaluated), raw_ast: {:{}, [], elements})
+        AttributeValue.new(
+          type: :tuple,
+          value: List.to_tuple(evaluated),
+          raw_ast: {:{}, [], elements}
+        )
 
       :error ->
         AttributeValue.new(type: :ast, raw_ast: {:{}, [], elements})
@@ -1367,11 +1371,11 @@ defmodule ElixirOntologies.Extractors.Attribute do
 
   # Parse documentation value into DocContent
   defp parse_doc_value(false) do
-    DocContent.new(format: :false, hidden: true)
+    DocContent.new(format: false, hidden: true)
   end
 
   defp parse_doc_value(nil) do
-    DocContent.new(format: :nil)
+    DocContent.new(format: nil)
   end
 
   defp parse_doc_value(content) when is_binary(content) do
@@ -1395,7 +1399,7 @@ defmodule ElixirOntologies.Extractors.Attribute do
 
   # Handle complex/unknown values
   defp parse_doc_value(_) do
-    DocContent.new(format: :nil)
+    DocContent.new(format: nil)
   end
 
   # Detect if content is heredoc format (contains newlines suggesting multi-line)
@@ -1682,7 +1686,8 @@ defmodule ElixirOntologies.Extractors.Attribute do
   end
 
   # Format: {Module, :function}
-  defp parse_callback_spec({{:__aliases__, _, parts}, func}) when is_list(parts) and is_atom(func) do
+  defp parse_callback_spec({{:__aliases__, _, parts}, func})
+       when is_list(parts) and is_atom(func) do
     CallbackSpec.new(module: Module.concat(parts), function: func)
   end
 

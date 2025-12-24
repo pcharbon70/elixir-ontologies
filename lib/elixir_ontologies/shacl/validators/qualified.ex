@@ -139,7 +139,8 @@ defmodule ElixirOntologies.SHACL.Validators.Qualified do
               property_shape,
               "Property has too few values of required type (expected at least #{qualified_min_count} instances of #{inspect(qualified_class)}, found #{qualified_count})",
               %{
-                constraint_component: ~I<http://www.w3.org/ns/shacl#QualifiedMinCountConstraintComponent>,
+                constraint_component:
+                  ~I<http://www.w3.org/ns/shacl#QualifiedMinCountConstraintComponent>,
                 qualified_class: qualified_class,
                 qualified_min_count: qualified_min_count,
                 actual_qualified_count: qualified_count,

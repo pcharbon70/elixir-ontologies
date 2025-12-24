@@ -213,7 +213,9 @@ defmodule ElixirOntologies.Builders.CallGraphBuilder do
 
   # Add call arity triple (reuse structure:arity for the called function arity)
   defp add_arity_triple(triples, call_iri, arity) when is_integer(arity) do
-    triple = Helpers.datatype_property(call_iri, Structure.arity(), arity, RDF.XSD.NonNegativeInteger)
+    triple =
+      Helpers.datatype_property(call_iri, Structure.arity(), arity, RDF.XSD.NonNegativeInteger)
+
     [triple | triples]
   end
 

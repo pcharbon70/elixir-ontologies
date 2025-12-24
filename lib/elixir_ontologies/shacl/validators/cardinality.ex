@@ -103,7 +103,12 @@ defmodule ElixirOntologies.SHACL.Validators.Cardinality do
   end
 
   # Check sh:minCount constraint
-  @spec check_min_count([ValidationResult.t()], RDF.Term.t(), PropertyShape.t(), non_neg_integer()) ::
+  @spec check_min_count(
+          [ValidationResult.t()],
+          RDF.Term.t(),
+          PropertyShape.t(),
+          non_neg_integer()
+        ) ::
           [ValidationResult.t()]
   defp check_min_count(results, focus_node, property_shape, count) do
     case property_shape.min_count do
@@ -134,7 +139,12 @@ defmodule ElixirOntologies.SHACL.Validators.Cardinality do
   end
 
   # Check sh:maxCount constraint
-  @spec check_max_count([ValidationResult.t()], RDF.Term.t(), PropertyShape.t(), non_neg_integer()) ::
+  @spec check_max_count(
+          [ValidationResult.t()],
+          RDF.Term.t(),
+          PropertyShape.t(),
+          non_neg_integer()
+        ) ::
           [ValidationResult.t()]
   defp check_max_count(results, focus_node, property_shape, count) do
     case property_shape.max_count do

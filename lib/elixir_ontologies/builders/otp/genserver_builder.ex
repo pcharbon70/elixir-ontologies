@@ -186,7 +186,9 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilder do
   def build_callback(callback_info, module_iri, context) do
     # Generate callback IRI using function IRI pattern
     module_name = extract_module_name(module_iri)
-    callback_iri = IRI.for_function(context.base_iri, module_name, callback_info.name, callback_info.arity)
+
+    callback_iri =
+      IRI.for_function(context.base_iri, module_name, callback_info.name, callback_info.arity)
 
     # Determine callback-specific class
     callback_class = determine_callback_class(callback_info.type)

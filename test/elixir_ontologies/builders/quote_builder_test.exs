@@ -2,7 +2,14 @@ defmodule ElixirOntologies.Builders.QuoteBuilderTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Builders.{QuoteBuilder, Context}
-  alias ElixirOntologies.Extractors.Quote.{QuotedExpression, QuoteOptions, UnquoteExpression, HygieneViolation}
+
+  alias ElixirOntologies.Extractors.Quote.{
+    QuotedExpression,
+    QuoteOptions,
+    UnquoteExpression,
+    HygieneViolation
+  }
+
   alias ElixirOntologies.NS.{Structure, Core}
   alias ElixirOntologies.Analyzer.Location.SourceLocation
 

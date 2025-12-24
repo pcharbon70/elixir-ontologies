@@ -14,7 +14,8 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
 
   describe "validate/3 basic functionality" do
     test "returns empty list for empty constraint list" do
-      data_graph = RDF.Graph.new([{~I<http://example.org/n1>, RDF.type(), ~I<http://example.org/Thing>}])
+      data_graph =
+        RDF.Graph.new([{~I<http://example.org/n1>, RDF.type(), ~I<http://example.org/Thing>}])
 
       assert SPARQL.validate(data_graph, ~I<http://example.org/n1>, []) == []
     end
@@ -216,7 +217,8 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
         """
       }
 
-      violations = SPARQL.validate(data_graph, ~I<http://example.org/n1>, [constraint1, constraint2])
+      violations =
+        SPARQL.validate(data_graph, ~I<http://example.org/n1>, [constraint1, constraint2])
 
       # Should have 2 violations (one from each constraint)
       assert length(violations) == 2
@@ -469,7 +471,10 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
 
       assert violation.severity == :violation
       assert violation.focus_node == impl
-      assert violation.message == "Protocol implementation should implement all protocol functions"
+
+      assert violation.message ==
+               "Protocol implementation should implement all protocol functions"
+
       # Details should contain protocol and missingFunc variables
       assert is_map(violation.details)
       assert Map.has_key?(violation.details, :protocol)

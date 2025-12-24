@@ -181,9 +181,12 @@ defmodule ElixirOntologies.Builders.OrchestratorTest do
       context = build_test_context()
 
       {:ok, graph_parallel} = Orchestrator.build_module_graph(analysis, context, parallel: true)
-      {:ok, graph_sequential} = Orchestrator.build_module_graph(analysis, context, parallel: false)
 
-      assert RDF.Graph.statement_count(graph_parallel) == RDF.Graph.statement_count(graph_sequential)
+      {:ok, graph_sequential} =
+        Orchestrator.build_module_graph(analysis, context, parallel: false)
+
+      assert RDF.Graph.statement_count(graph_parallel) ==
+               RDF.Graph.statement_count(graph_sequential)
     end
 
     test "respects timeout option" do
@@ -207,7 +210,9 @@ defmodule ElixirOntologies.Builders.OrchestratorTest do
       context = build_test_context()
 
       {:ok, graph_all} = Orchestrator.build_module_graph(analysis, context)
-      {:ok, graph_only_funcs} = Orchestrator.build_module_graph(analysis, context, include: [:functions])
+
+      {:ok, graph_only_funcs} =
+        Orchestrator.build_module_graph(analysis, context, include: [:functions])
 
       # Both should have module triples, but only_funcs should have fewer total
       assert RDF.Graph.statement_count(graph_all) >= RDF.Graph.statement_count(graph_only_funcs)
@@ -220,7 +225,9 @@ defmodule ElixirOntologies.Builders.OrchestratorTest do
       context = build_test_context()
 
       {:ok, graph_all} = Orchestrator.build_module_graph(analysis, context)
-      {:ok, graph_no_funcs} = Orchestrator.build_module_graph(analysis, context, exclude: [:functions])
+
+      {:ok, graph_no_funcs} =
+        Orchestrator.build_module_graph(analysis, context, exclude: [:functions])
 
       # graph_no_funcs should have fewer triples (no function triples)
       assert RDF.Graph.statement_count(graph_all) >= RDF.Graph.statement_count(graph_no_funcs)
@@ -327,6 +334,7 @@ defmodule ElixirOntologies.Builders.OrchestratorTest do
 
     test "handles empty optional fields gracefully" do
       module_info = build_minimal_module()
+
       analysis = %{
         module: module_info,
         functions: [],
@@ -339,6 +347,7 @@ defmodule ElixirOntologies.Builders.OrchestratorTest do
         agents: [],
         tasks: []
       }
+
       context = build_test_context()
 
       {:ok, graph} = Orchestrator.build_module_graph(analysis, context)

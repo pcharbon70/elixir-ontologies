@@ -115,7 +115,7 @@ defmodule ElixirOntologies.SHACL.Reader do
       referenced_shape_ids
       |> Enum.filter(fn ref ->
         (match?(%RDF.BlankNode{}, ref) || match?(%RDF.IRI{}, ref)) &&
-        !MapSet.member?(parsed_ids, ref)
+          !MapSet.member?(parsed_ids, ref)
       end)
 
     # If no new shapes to parse, we're done
@@ -287,7 +287,8 @@ defmodule ElixirOntologies.SHACL.Reader do
 
   # Extract node-level constraints from node shape description
   # These are constraints applied directly to focus nodes (not to their properties)
-  @spec extract_node_constraints(RDF.Graph.t(), RDF.Description.t()) :: {:ok, map()} | {:error, term()}
+  @spec extract_node_constraints(RDF.Graph.t(), RDF.Description.t()) ::
+          {:ok, map()} | {:error, term()}
   defp extract_node_constraints(graph, desc) do
     with {:ok, datatype} <- extract_optional_iri(desc, SHACL.datatype()),
          {:ok, class_iri} <- extract_optional_iri(desc, SHACL.class()),
@@ -788,7 +789,8 @@ defmodule ElixirOntologies.SHACL.Reader do
         qualified_desc = RDF.Graph.description(graph, qualified_shape_id)
 
         with {:ok, qualified_class} <- extract_optional_iri(qualified_desc, SHACL.class()),
-             {:ok, qualified_min_count} <- extract_optional_integer(desc, SHACL.qualified_min_count()) do
+             {:ok, qualified_min_count} <-
+               extract_optional_integer(desc, SHACL.qualified_min_count()) do
           {:ok, {qualified_class, qualified_min_count}}
         end
     end

@@ -2,7 +2,14 @@ defmodule ElixirOntologies.Extractors.ClosureTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.Closure
-  alias ElixirOntologies.Extractors.Closure.{FreeVariable, FreeVariableAnalysis, ClosureScope, ScopeAnalysis}
+
+  alias ElixirOntologies.Extractors.Closure.{
+    FreeVariable,
+    FreeVariableAnalysis,
+    ClosureScope,
+    ScopeAnalysis
+  }
+
   alias ElixirOntologies.Extractors.AnonymousFunction
 
   doctest Closure
@@ -810,7 +817,9 @@ defmodule ElixirOntologies.Extractors.ClosureTest do
 
       {:ok, full_analysis} = Closure.analyze_closure_with_scope(anon, scopes)
 
-      free_names = Enum.map(full_analysis.free_variable_analysis.free_variables, & &1.name) |> Enum.sort()
+      free_names =
+        Enum.map(full_analysis.free_variable_analysis.free_variables, & &1.name) |> Enum.sort()
+
       assert free_names == [:offset, :zero_val]
 
       assert Map.has_key?(full_analysis.scope_analysis.variable_sources, :zero_val)
@@ -862,10 +871,11 @@ defmodule ElixirOntologies.Extractors.ClosureTest do
 
       chain = Closure.build_scope_chain(scopes)
 
-      {:ok, analysis} = Closure.analyze_closure_scope(
-        [:mod_var, :func_var, :closure1_var, :closure2_var],
-        chain
-      )
+      {:ok, analysis} =
+        Closure.analyze_closure_scope(
+          [:mod_var, :func_var, :closure1_var, :closure2_var],
+          chain
+        )
 
       assert analysis.variable_sources[:mod_var].level == 0
       assert analysis.variable_sources[:func_var].level == 1

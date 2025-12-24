@@ -177,7 +177,8 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri(module_name: "MyApp.Users")
 
-      {type_iri, _triples} = TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
+      {type_iri, _triples} =
+        TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
 
       assert to_string(type_iri) == "https://example.org/code#MyApp.Users/type/user_t/0"
     end
@@ -187,7 +188,8 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {type_iri, _triples} = TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
+      {type_iri, _triples} =
+        TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
 
       # ? should be URL-encoded as %3F
       assert to_string(type_iri) == "https://example.org/code#TestModule/type/t%3F/0"
@@ -253,7 +255,8 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {_type_iri, triples} = TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
+      {_type_iri, triples} =
+        TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
 
       # Check for duplicates
       unique_triples = Enum.uniq(triples)

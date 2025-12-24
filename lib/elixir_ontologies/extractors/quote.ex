@@ -73,15 +73,13 @@ defmodule ElixirOntologies.Extractors.Quote do
             generated: boolean() | nil
           }
 
-    defstruct [
-      bind_quoted: nil,
-      context: nil,
-      location: nil,
-      unquote: true,
-      line: nil,
-      file: nil,
-      generated: nil
-    ]
+    defstruct bind_quoted: nil,
+              context: nil,
+              location: nil,
+              unquote: true,
+              line: nil,
+              file: nil,
+              generated: nil
 
     @doc """
     Creates a new QuoteOptions with the given options.
@@ -180,6 +178,7 @@ defmodule ElixirOntologies.Extractors.Quote do
     """
     @spec bind_quoted_vars(t()) :: [atom()]
     def bind_quoted_vars(%__MODULE__{bind_quoted: nil}), do: []
+
     def bind_quoted_vars(%__MODULE__{bind_quoted: bindings}) when is_list(bindings) do
       Keyword.keys(bindings)
     end
@@ -1158,7 +1157,10 @@ defmodule ElixirOntologies.Extractors.Quote do
       iex> ElixirOntologies.Extractors.Quote.count_unquotes_by_kind(ast)
       %{unquote: 0, unquote_splicing: 0}
   """
-  @spec count_unquotes_by_kind(Macro.t()) :: %{unquote: non_neg_integer(), unquote_splicing: non_neg_integer()}
+  @spec count_unquotes_by_kind(Macro.t()) :: %{
+          unquote: non_neg_integer(),
+          unquote_splicing: non_neg_integer()
+        }
   def count_unquotes_by_kind(ast) do
     unquotes = find_unquotes(ast)
 
@@ -1421,7 +1423,10 @@ defmodule ElixirOntologies.Extractors.Quote do
       iex> ElixirOntologies.Extractors.Quote.count_hygiene_violations({:x, [], nil})
       %{var_bang: 0, macro_escape: 0}
   """
-  @spec count_hygiene_violations(Macro.t()) :: %{var_bang: non_neg_integer(), macro_escape: non_neg_integer()}
+  @spec count_hygiene_violations(Macro.t()) :: %{
+          var_bang: non_neg_integer(),
+          macro_escape: non_neg_integer()
+        }
   def count_hygiene_violations(ast) do
     violations = find_hygiene_violations(ast)
 

@@ -119,7 +119,8 @@ defmodule ElixirOntologies.SHACL.Validators.LogicalOperators do
               "AND constraint failed: not all shapes conform",
               %{
                 constraint_component: SHACL.and_constraint_component(),
-                failing_shapes: count_failing_shapes(shape_refs, data_graph, focus_node, shape_map, depth)
+                failing_shapes:
+                  count_failing_shapes(shape_refs, data_graph, focus_node, shape_map, depth)
               }
             )
           ]
@@ -140,7 +141,9 @@ defmodule ElixirOntologies.SHACL.Validators.LogicalOperators do
         # Check if ANY shape passes (no violations)
         any_passes? =
           Enum.any?(shape_refs, fn shape_ref ->
-            results = validate_against_shape(data_graph, focus_node, shape_ref, shape_map, depth + 1)
+            results =
+              validate_against_shape(data_graph, focus_node, shape_ref, shape_map, depth + 1)
+
             Enum.empty?(results)
           end)
 
@@ -176,7 +179,9 @@ defmodule ElixirOntologies.SHACL.Validators.LogicalOperators do
         # Count how many shapes pass
         pass_count =
           Enum.count(shape_refs, fn shape_ref ->
-            results = validate_against_shape(data_graph, focus_node, shape_ref, shape_map, depth + 1)
+            results =
+              validate_against_shape(data_graph, focus_node, shape_ref, shape_map, depth + 1)
+
             Enum.empty?(results)
           end)
 

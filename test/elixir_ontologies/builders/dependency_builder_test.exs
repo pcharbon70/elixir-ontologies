@@ -18,7 +18,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {alias_iri, _triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {alias_iri, _triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       assert to_string(alias_iri) == "#{@base_iri}MyApp/alias/0"
     end
@@ -28,7 +29,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {alias_iri, _triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 5)
+      {alias_iri, _triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 5)
 
       assert to_string(alias_iri) == "#{@base_iri}MyApp/alias/5"
     end
@@ -38,7 +40,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       type_triple = {alias_iri, RDF.type(), Structure.ModuleAlias}
       assert type_triple in triples
@@ -49,13 +52,15 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       # Find aliasName triple
-      alias_name_triple = Enum.find(triples, fn
-        {^alias_iri, pred, _} -> pred == Structure.aliasName()
-        _ -> false
-      end)
+      alias_name_triple =
+        Enum.find(triples, fn
+          {^alias_iri, pred, _} -> pred == Structure.aliasName()
+          _ -> false
+        end)
 
       assert alias_name_triple != nil
       {_, _, literal} = alias_name_triple
@@ -67,13 +72,15 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       # Find aliasName triple
-      alias_name_triple = Enum.find(triples, fn
-        {^alias_iri, pred, _} -> pred == Structure.aliasName()
-        _ -> false
-      end)
+      alias_name_triple =
+        Enum.find(triples, fn
+          {^alias_iri, pred, _} -> pred == Structure.aliasName()
+          _ -> false
+        end)
 
       assert alias_name_triple != nil
       {_, _, literal} = alias_name_triple
@@ -85,7 +92,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       aliased_module_iri = RDF.iri("#{@base_iri}MyApp.Users")
       aliased_triple = {alias_iri, Structure.aliasedModule(), aliased_module_iri}
@@ -97,7 +105,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       has_alias_triple = {module_iri, Structure.hasAlias(), alias_iri}
       assert has_alias_triple in triples
@@ -108,7 +117,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {_alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       assert length(triples) == 4
     end
@@ -118,17 +128,20 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       aliased_module_iri = RDF.iri("#{@base_iri}Enum")
       aliased_triple = {alias_iri, Structure.aliasedModule(), aliased_module_iri}
       assert aliased_triple in triples
 
       # Alias name should be "Enum"
-      alias_name_triple = Enum.find(triples, fn
-        {^alias_iri, pred, _} -> pred == Structure.aliasName()
-        _ -> false
-      end)
+      alias_name_triple =
+        Enum.find(triples, fn
+          {^alias_iri, pred, _} -> pred == Structure.aliasName()
+          _ -> false
+        end)
+
       {_, _, literal} = alias_name_triple
       assert RDF.Literal.value(literal) == "Enum"
     end
@@ -138,7 +151,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       aliased_module_iri = RDF.iri("#{@base_iri}MyApp.Accounts.Users.Permissions")
       aliased_triple = {alias_iri, Structure.aliasedModule(), aliased_module_iri}
@@ -172,6 +186,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
         %AliasDirective{source: [:String], as: :S},
         %AliasDirective{source: [:List], as: nil}
       ]
+
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
@@ -186,6 +201,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
         %AliasDirective{source: [:Enum], as: :E},
         %AliasDirective{source: [:String], as: :S}
       ]
+
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
@@ -213,7 +229,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, _triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, _triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       assert to_string(import_iri) == "#{@base_iri}MyApp/import/0"
     end
@@ -223,7 +240,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, _triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 3)
+      {import_iri, _triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 3)
 
       assert to_string(import_iri) == "#{@base_iri}MyApp/import/3"
     end
@@ -233,7 +251,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       type_triple = {import_iri, RDF.type(), Structure.Import}
       assert type_triple in triples
@@ -244,7 +263,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       imported_module_iri = RDF.iri("#{@base_iri}Enum")
       imports_module_triple = {import_iri, Structure.importsModule(), imported_module_iri}
@@ -256,7 +276,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       has_import_triple = {module_iri, Structure.hasImport(), import_iri}
       assert has_import_triple in triples
@@ -267,12 +288,14 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
-      full_import_triple = Enum.find(triples, fn
-        {^import_iri, pred, _} -> pred == Structure.isFullImport()
-        _ -> false
-      end)
+      full_import_triple =
+        Enum.find(triples, fn
+          {^import_iri, pred, _} -> pred == Structure.isFullImport()
+          _ -> false
+        end)
 
       assert full_import_triple != nil
       {_, _, literal} = full_import_triple
@@ -284,12 +307,14 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
-      full_import_triple = Enum.find(triples, fn
-        {^import_iri, pred, _} -> pred == Structure.isFullImport()
-        _ -> false
-      end)
+      full_import_triple =
+        Enum.find(triples, fn
+          {^import_iri, pred, _} -> pred == Structure.isFullImport()
+          _ -> false
+        end)
 
       assert full_import_triple != nil
       {_, _, literal} = full_import_triple
@@ -301,7 +326,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {_import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       assert length(triples) == 4
     end
@@ -311,7 +337,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       imported_module_iri = RDF.iri("#{@base_iri}MyApp.Accounts.Users")
       imports_module_triple = {import_iri, Structure.importsModule(), imported_module_iri}
@@ -325,7 +352,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       map_func_iri = RDF.iri("#{@base_iri}Enum/map/2")
       filter_func_iri = RDF.iri("#{@base_iri}Enum/filter/2")
@@ -342,7 +370,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {_import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       # 4 base + 2 function triples
       assert length(triples) == 6
@@ -353,7 +382,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       func_iri = RDF.iri("#{@base_iri}String/upcase/1")
       func_triple = {import_iri, Structure.importsFunction(), func_iri}
@@ -368,7 +398,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       reduce_func_iri = RDF.iri("#{@base_iri}Enum/reduce/3")
       each_func_iri = RDF.iri("#{@base_iri}Enum/each/2")
@@ -385,7 +416,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {_import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       # 4 base + 2 excluded function triples
       assert length(triples) == 6
@@ -396,12 +428,14 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
-      full_import_triple = Enum.find(triples, fn
-        {^import_iri, pred, _} -> pred == Structure.isFullImport()
-        _ -> false
-      end)
+      full_import_triple =
+        Enum.find(triples, fn
+          {^import_iri, pred, _} -> pred == Structure.isFullImport()
+          _ -> false
+        end)
 
       {_, _, literal} = full_import_triple
       assert RDF.Literal.value(literal) == false
@@ -414,12 +448,14 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
-      type_triple = Enum.find(triples, fn
-        {^import_iri, pred, _} -> pred == Structure.importType()
-        _ -> false
-      end)
+      type_triple =
+        Enum.find(triples, fn
+          {^import_iri, pred, _} -> pred == Structure.importType()
+          _ -> false
+        end)
 
       assert type_triple != nil
       {_, _, literal} = type_triple
@@ -431,12 +467,14 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
-      type_triple = Enum.find(triples, fn
-        {^import_iri, pred, _} -> pred == Structure.importType()
-        _ -> false
-      end)
+      type_triple =
+        Enum.find(triples, fn
+          {^import_iri, pred, _} -> pred == Structure.importType()
+          _ -> false
+        end)
 
       assert type_triple != nil
       {_, _, literal} = type_triple
@@ -448,12 +486,14 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
-      type_triple = Enum.find(triples, fn
-        {^import_iri, pred, _} -> pred == Structure.importType()
-        _ -> false
-      end)
+      type_triple =
+        Enum.find(triples, fn
+          {^import_iri, pred, _} -> pred == Structure.importType()
+          _ -> false
+        end)
 
       assert type_triple != nil
       {_, _, literal} = type_triple
@@ -465,7 +505,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {_import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       # 4 base + 1 importType triple
       assert length(triples) == 5
@@ -498,6 +539,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
         %ImportDirective{module: [:String]},
         %ImportDirective{module: [:List]}
       ]
+
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
@@ -512,6 +554,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
         %ImportDirective{module: [:Enum]},
         %ImportDirective{module: [:String]}
       ]
+
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
@@ -534,6 +577,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
         %ImportDirective{module: [:String], only: [upcase: 1]},
         %ImportDirective{module: [:Kernel], only: :macros}
       ]
+
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
@@ -556,7 +600,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {require_iri, _triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      {require_iri, _triples} =
+        DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
 
       assert to_string(require_iri) == "#{@base_iri}MyApp/require/0"
     end
@@ -566,7 +611,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {require_iri, _triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 2)
+      {require_iri, _triples} =
+        DependencyBuilder.build_require_dependency(require_info, module_iri, context, 2)
 
       assert to_string(require_iri) == "#{@base_iri}MyApp/require/2"
     end
@@ -576,7 +622,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      {require_iri, triples} =
+        DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
 
       type_triple = {require_iri, RDF.type(), Structure.Require}
       assert type_triple in triples
@@ -587,7 +634,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      {require_iri, triples} =
+        DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
 
       required_module_iri = RDF.iri("#{@base_iri}Logger")
       require_module_triple = {require_iri, Structure.requireModule(), required_module_iri}
@@ -599,7 +647,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      {require_iri, triples} =
+        DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
 
       has_require_triple = {module_iri, Structure.hasRequire(), require_iri}
       assert has_require_triple in triples
@@ -610,7 +659,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      {_require_iri, triples} =
+        DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
 
       assert length(triples) == 3
     end
@@ -620,12 +670,14 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      {require_iri, triples} =
+        DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
 
-      alias_triple = Enum.find(triples, fn
-        {^require_iri, pred, _} -> pred == Structure.requireAlias()
-        _ -> false
-      end)
+      alias_triple =
+        Enum.find(triples, fn
+          {^require_iri, pred, _} -> pred == Structure.requireAlias()
+          _ -> false
+        end)
 
       assert alias_triple != nil
       {_, _, literal} = alias_triple
@@ -637,7 +689,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      {_require_iri, triples} =
+        DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
 
       assert length(triples) == 4
     end
@@ -647,7 +700,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      {require_iri, triples} =
+        DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
 
       required_module_iri = RDF.iri("#{@base_iri}Ecto.Query")
       require_module_triple = {require_iri, Structure.requireModule(), required_module_iri}
@@ -680,6 +734,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
         %RequireDirective{module: [:Logger]},
         %RequireDirective{module: [:Ecto, :Query], as: :Q}
       ]
+
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
@@ -695,6 +750,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
         %RequireDirective{module: [:Logger]},
         %RequireDirective{module: [:Ecto, :Query]}
       ]
+
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
@@ -721,7 +777,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {use_iri, _triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {use_iri, _triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       assert to_string(use_iri) == "#{@base_iri}MyApp/use/0"
     end
@@ -731,7 +788,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {use_iri, _triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 3)
+      {use_iri, _triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 3)
 
       assert to_string(use_iri) == "#{@base_iri}MyApp/use/3"
     end
@@ -741,7 +799,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       type_triple = {use_iri, RDF.type(), Structure.Use}
       assert type_triple in triples
@@ -752,7 +811,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       used_module_iri = RDF.iri("#{@base_iri}GenServer")
       use_module_triple = {use_iri, Structure.useModule(), used_module_iri}
@@ -764,7 +824,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       has_use_triple = {module_iri, Structure.hasUse(), use_iri}
       assert has_use_triple in triples
@@ -775,7 +836,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       assert length(triples) == 3
     end
@@ -785,7 +847,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       used_module_iri = RDF.iri("#{@base_iri}Plug.Builder")
       use_module_triple = {use_iri, Structure.useModule(), used_module_iri}
@@ -799,12 +862,14 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
-      option_triples = Enum.filter(triples, fn
-        {^use_iri, pred, _} -> pred == Structure.hasUseOption()
-        _ -> false
-      end)
+      option_triples =
+        Enum.filter(triples, fn
+          {^use_iri, pred, _} -> pred == Structure.hasUseOption()
+          _ -> false
+        end)
 
       assert length(option_triples) == 1
     end
@@ -814,7 +879,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       option_iri = RDF.iri("#{@base_iri}MyApp/use/0/option/0")
       type_triple = {option_iri, RDF.type(), Structure.UseOption}
@@ -826,13 +892,16 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       option_iri = RDF.iri("#{@base_iri}MyApp/use/0/option/0")
-      key_triple = Enum.find(triples, fn
-        {^option_iri, pred, _} -> pred == Structure.optionKey()
-        _ -> false
-      end)
+
+      key_triple =
+        Enum.find(triples, fn
+          {^option_iri, pred, _} -> pred == Structure.optionKey()
+          _ -> false
+        end)
 
       assert key_triple != nil
       {_, _, literal} = key_triple
@@ -844,13 +913,16 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       option_iri = RDF.iri("#{@base_iri}MyApp/use/0/option/0")
-      value_triple = Enum.find(triples, fn
-        {^option_iri, pred, _} -> pred == Structure.optionValue()
-        _ -> false
-      end)
+
+      value_triple =
+        Enum.find(triples, fn
+          {^option_iri, pred, _} -> pred == Structure.optionValue()
+          _ -> false
+        end)
 
       assert value_triple != nil
       {_, _, literal} = value_triple
@@ -862,13 +934,16 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       option_iri = RDF.iri("#{@base_iri}MyApp/use/0/option/0")
-      type_triple = Enum.find(triples, fn
-        {^option_iri, pred, _} -> pred == Structure.optionValueType()
-        _ -> false
-      end)
+
+      type_triple =
+        Enum.find(triples, fn
+          {^option_iri, pred, _} -> pred == Structure.optionValueType()
+          _ -> false
+        end)
 
       assert type_triple != nil
       {_, _, literal} = type_triple
@@ -880,13 +955,16 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       option_iri = RDF.iri("#{@base_iri}MyApp/use/0/option/0")
-      dynamic_triple = Enum.find(triples, fn
-        {^option_iri, pred, _} -> pred == Structure.isDynamicOption()
-        _ -> false
-      end)
+
+      dynamic_triple =
+        Enum.find(triples, fn
+          {^option_iri, pred, _} -> pred == Structure.isDynamicOption()
+          _ -> false
+        end)
 
       assert dynamic_triple != nil
       {_, _, literal} = dynamic_triple
@@ -898,23 +976,30 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       # 3 base + 6 option triples (type, link, key, value, valueType, dynamic)
       assert length(triples) == 9
     end
 
     test "handles multiple options" do
-      use_info = %UseDirective{module: [:Plug, :Builder], options: [init_mode: :runtime, log_on_halt: :debug]}
+      use_info = %UseDirective{
+        module: [:Plug, :Builder],
+        options: [init_mode: :runtime, log_on_halt: :debug]
+      }
+
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
-      option_triples = Enum.filter(triples, fn
-        {^use_iri, pred, _} -> pred == Structure.hasUseOption()
-        _ -> false
-      end)
+      option_triples =
+        Enum.filter(triples, fn
+          {^use_iri, pred, _} -> pred == Structure.hasUseOption()
+          _ -> false
+        end)
 
       assert length(option_triples) == 2
     end
@@ -924,21 +1009,26 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       option_iri = RDF.iri("#{@base_iri}MyApp/use/0/option/0")
 
-      value_triple = Enum.find(triples, fn
-        {^option_iri, pred, _} -> pred == Structure.optionValue()
-        _ -> false
-      end)
+      value_triple =
+        Enum.find(triples, fn
+          {^option_iri, pred, _} -> pred == Structure.optionValue()
+          _ -> false
+        end)
+
       {_, _, literal} = value_triple
       assert RDF.Literal.value(literal) == "5000"
 
-      type_triple = Enum.find(triples, fn
-        {^option_iri, pred, _} -> pred == Structure.optionValueType()
-        _ -> false
-      end)
+      type_triple =
+        Enum.find(triples, fn
+          {^option_iri, pred, _} -> pred == Structure.optionValueType()
+          _ -> false
+        end)
+
       {_, _, type_literal} = type_triple
       assert RDF.Literal.value(type_literal) == "integer"
     end
@@ -948,14 +1038,17 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       option_iri = RDF.iri("#{@base_iri}MyApp/use/0/option/0")
 
-      type_triple = Enum.find(triples, fn
-        {^option_iri, pred, _} -> pred == Structure.optionValueType()
-        _ -> false
-      end)
+      type_triple =
+        Enum.find(triples, fn
+          {^option_iri, pred, _} -> pred == Structure.optionValueType()
+          _ -> false
+        end)
+
       {_, _, type_literal} = type_triple
       assert RDF.Literal.value(type_literal) == "string"
     end
@@ -965,14 +1058,17 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       option_iri = RDF.iri("#{@base_iri}MyApp/use/0/option/0")
 
-      type_triple = Enum.find(triples, fn
-        {^option_iri, pred, _} -> pred == Structure.optionValueType()
-        _ -> false
-      end)
+      type_triple =
+        Enum.find(triples, fn
+          {^option_iri, pred, _} -> pred == Structure.optionValueType()
+          _ -> false
+        end)
+
       {_, _, type_literal} = type_triple
       assert RDF.Literal.value(type_literal) == "boolean"
     end
@@ -985,23 +1081,28 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       option_iri = RDF.iri("#{@base_iri}MyApp/use/0/option/0")
 
       # Key should be empty for positional
-      key_triple = Enum.find(triples, fn
-        {^option_iri, pred, _} -> pred == Structure.optionKey()
-        _ -> false
-      end)
+      key_triple =
+        Enum.find(triples, fn
+          {^option_iri, pred, _} -> pred == Structure.optionKey()
+          _ -> false
+        end)
+
       {_, _, literal} = key_triple
       assert RDF.Literal.value(literal) == ""
 
       # Value should be the atom
-      value_triple = Enum.find(triples, fn
-        {^option_iri, pred, _} -> pred == Structure.optionValue()
-        _ -> false
-      end)
+      value_triple =
+        Enum.find(triples, fn
+          {^option_iri, pred, _} -> pred == Structure.optionValue()
+          _ -> false
+        end)
+
       {_, _, value_literal} = value_triple
       assert RDF.Literal.value(value_literal) == "controller"
     end
@@ -1032,6 +1133,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
         %UseDirective{module: [:GenServer]},
         %UseDirective{module: [:Supervisor], options: [strategy: :one_for_one]}
       ]
+
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
@@ -1047,6 +1149,7 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
         %UseDirective{module: [:GenServer]},
         %UseDirective{module: [:Supervisor]}
       ]
+
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
@@ -1073,12 +1176,14 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp")
       context = Context.new(base_iri: @base_iri)
 
-      {_alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {_alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
-      external_triples = Enum.filter(triples, fn
-        {_, pred, _} -> pred == Structure.isExternalModule()
-        _ -> false
-      end)
+      external_triples =
+        Enum.filter(triples, fn
+          {_, pred, _} -> pred == Structure.isExternalModule()
+          _ -> false
+        end)
 
       assert external_triples == []
     end
@@ -1089,7 +1194,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Users", "MyApp.Accounts"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       external_triple = {alias_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)}
       assert external_triple in triples
@@ -1101,7 +1207,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Users", "MyApp.Accounts"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       external_triple = {alias_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)}
       assert external_triple in triples
@@ -1113,7 +1220,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Users"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {_alias_iri, triples} = DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
+      {_alias_iri, triples} =
+        DependencyBuilder.build_alias_dependency(alias_info, module_iri, context, 0)
 
       # 4 base triples + 1 isExternalModule triple
       assert length(triples) == 5
@@ -1127,7 +1235,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Helpers"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       external_triple = {import_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)}
       assert external_triple in triples
@@ -1139,7 +1248,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Users"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(import_info, module_iri, context, 0)
 
       external_triple = {import_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)}
       assert external_triple in triples
@@ -1153,7 +1263,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Macros"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      {require_iri, triples} =
+        DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
 
       external_triple = {require_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)}
       assert external_triple in triples
@@ -1165,7 +1276,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Users"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {require_iri, triples} = DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
+      {require_iri, triples} =
+        DependencyBuilder.build_require_dependency(require_info, module_iri, context, 0)
 
       external_triple = {require_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)}
       assert external_triple in triples
@@ -1179,7 +1291,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Behaviour"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       external_triple = {use_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)}
       assert external_triple in triples
@@ -1191,7 +1304,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Users"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       external_triple = {use_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)}
       assert external_triple in triples
@@ -1203,7 +1317,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Behaviour"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       using_macro_iri = RDF.iri("#{@base_iri}MyApp.Behaviour/__using__/1")
       invokes_using_triple = {use_iri, Structure.invokesUsing(), using_macro_iri}
@@ -1216,12 +1331,14 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Users"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
-      invokes_using_triples = Enum.filter(triples, fn
-        {_, pred, _} -> pred == Structure.invokesUsing()
-        _ -> false
-      end)
+      invokes_using_triples =
+        Enum.filter(triples, fn
+          {_, pred, _} -> pred == Structure.invokesUsing()
+          _ -> false
+        end)
 
       assert invokes_using_triples == []
     end
@@ -1231,12 +1348,14 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp.Worker")
       context = Context.new(base_iri: @base_iri)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
-      invokes_using_triples = Enum.filter(triples, fn
-        {_, pred, _} -> pred == Structure.invokesUsing()
-        _ -> false
-      end)
+      invokes_using_triples =
+        Enum.filter(triples, fn
+          {_, pred, _} -> pred == Structure.invokesUsing()
+          _ -> false
+        end)
 
       assert invokes_using_triples == []
     end
@@ -1247,7 +1366,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Behaviour"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       # 3 base + 1 isExternalModule + 1 invokesUsing
       assert length(triples) == 5
@@ -1259,7 +1379,8 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       known_modules = MapSet.new(["MyApp.Users"])
       context = Context.new(base_iri: @base_iri, known_modules: known_modules)
 
-      {_use_iri, triples} = DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
+      {_use_iri, triples} =
+        DependencyBuilder.build_use_dependency(use_info, module_iri, context, 0)
 
       # 3 base + 1 isExternalModule (no invokesUsing for external)
       assert length(triples) == 4
@@ -1273,31 +1394,47 @@ defmodule ElixirOntologies.Builders.DependencyBuilderTest do
       module_iri = RDF.iri("#{@base_iri}MyApp.Controller")
 
       # Internal alias
-      {alias_iri, alias_triples} = DependencyBuilder.build_alias_dependency(
-        %AliasDirective{source: [:MyApp, :Users], as: :U},
-        module_iri, context, 0
-      )
+      {alias_iri, alias_triples} =
+        DependencyBuilder.build_alias_dependency(
+          %AliasDirective{source: [:MyApp, :Users], as: :U},
+          module_iri,
+          context,
+          0
+        )
+
       assert {alias_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)} in alias_triples
 
       # External import
-      {import_iri, import_triples} = DependencyBuilder.build_import_dependency(
-        %ImportDirective{module: [:Enum]},
-        module_iri, context, 0
-      )
+      {import_iri, import_triples} =
+        DependencyBuilder.build_import_dependency(
+          %ImportDirective{module: [:Enum]},
+          module_iri,
+          context,
+          0
+        )
+
       assert {import_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)} in import_triples
 
       # Internal require
-      {require_iri, require_triples} = DependencyBuilder.build_require_dependency(
-        %RequireDirective{module: [:MyApp, :Repo]},
-        module_iri, context, 0
-      )
+      {require_iri, require_triples} =
+        DependencyBuilder.build_require_dependency(
+          %RequireDirective{module: [:MyApp, :Repo]},
+          module_iri,
+          context,
+          0
+        )
+
       assert {require_iri, Structure.isExternalModule(), RDF.XSD.boolean(false)} in require_triples
 
       # External use
-      {use_iri, use_triples} = DependencyBuilder.build_use_dependency(
-        %UseDirective{module: [:GenServer]},
-        module_iri, context, 0
-      )
+      {use_iri, use_triples} =
+        DependencyBuilder.build_use_dependency(
+          %UseDirective{module: [:GenServer]},
+          module_iri,
+          context,
+          0
+        )
+
       assert {use_iri, Structure.isExternalModule(), RDF.XSD.boolean(true)} in use_triples
     end
   end

@@ -81,7 +81,15 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
           metadata: map()
         }
 
-  @type category :: :definition | :control_flow | :import | :attribute | :quote | :library | :custom | :other
+  @type category ::
+          :definition
+          | :control_flow
+          | :import
+          | :attribute
+          | :quote
+          | :library
+          | :custom
+          | :other
   @type resolution_status :: :resolved | :unresolved | :kernel
 
   defstruct [
@@ -360,24 +368,71 @@ defmodule ElixirOntologies.Extractors.MacroInvocation do
 
   # Ecto.Query macros
   @ecto_query_macros [
-    :from, :where, :select, :join, :order_by, :group_by, :having, :limit, :offset,
-    :preload, :distinct, :update, :exclude, :lock, :windows, :combinations,
-    :with_cte, :recursive_ctes, :subquery, :dynamic, :fragment, :type, :field,
-    :as, :parent_as
+    :from,
+    :where,
+    :select,
+    :join,
+    :order_by,
+    :group_by,
+    :having,
+    :limit,
+    :offset,
+    :preload,
+    :distinct,
+    :update,
+    :exclude,
+    :lock,
+    :windows,
+    :combinations,
+    :with_cte,
+    :recursive_ctes,
+    :subquery,
+    :dynamic,
+    :fragment,
+    :type,
+    :field,
+    :as,
+    :parent_as
   ]
 
   # Phoenix macros
   @phoenix_macros [
-    :get, :post, :put, :patch, :delete, :options, :head, :connect, :trace,
-    :resources, :resource, :scope, :pipe_through, :pipeline, :forward, :live,
-    :plug, :socket, :channel
+    :get,
+    :post,
+    :put,
+    :patch,
+    :delete,
+    :options,
+    :head,
+    :connect,
+    :trace,
+    :resources,
+    :resource,
+    :scope,
+    :pipe_through,
+    :pipeline,
+    :forward,
+    :live,
+    :plug,
+    :socket,
+    :channel
   ]
 
   # ExUnit macros
   @exunit_macros [
-    :test, :describe, :setup, :setup_all, :assert, :refute, :assert_raise,
-    :assert_receive, :refute_receive, :assert_received, :refute_received,
-    :flunk, :doctest
+    :test,
+    :describe,
+    :setup,
+    :setup_all,
+    :assert,
+    :refute,
+    :assert_raise,
+    :assert_receive,
+    :refute_receive,
+    :assert_received,
+    :refute_received,
+    :flunk,
+    :doctest
   ]
 
   # Map of known library modules to their macros

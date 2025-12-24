@@ -41,10 +41,11 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
     {:defmodule, _, [_name, [do: body]]} = ast
 
     # Flatten the body to get all expressions
-    exprs = case body do
-      {:__block__, _, exprs} -> exprs
-      expr -> [expr]
-    end
+    exprs =
+      case body do
+        {:__block__, _, exprs} -> exprs
+        expr -> [expr]
+      end
 
     aliases = extract_all_aliases(exprs)
     imports = extract_all_imports(exprs)
@@ -209,10 +210,11 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
     test "total directive count matches expected" do
       directives = extract_directives_from_module(@complex_module)
 
-      total = length(directives.aliases) +
-              length(directives.imports) +
-              length(directives.requires) +
-              length(directives.uses)
+      total =
+        length(directives.aliases) +
+          length(directives.imports) +
+          length(directives.requires) +
+          length(directives.uses)
 
       assert total == 9
     end
@@ -227,9 +229,10 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       directives = extract_directives_from_module(@multi_alias_module)
 
       # MyApp.{Users, Accounts, Helpers} should expand to 3 aliases
-      myapp_aliases = Enum.filter(directives.aliases, fn alias_dir ->
-        match?([:MyApp | _], alias_dir.source)
-      end)
+      myapp_aliases =
+        Enum.filter(directives.aliases, fn alias_dir ->
+          match?([:MyApp | _], alias_dir.source)
+        end)
 
       assert length(myapp_aliases) == 3
     end
@@ -238,9 +241,10 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       directives = extract_directives_from_module(@multi_alias_module)
 
       # Other.{Sub.A, Sub.B} should expand to 2 aliases
-      other_aliases = Enum.filter(directives.aliases, fn alias_dir ->
-        match?([:Other | _], alias_dir.source)
-      end)
+      other_aliases =
+        Enum.filter(directives.aliases, fn alias_dir ->
+          match?([:Other | _], alias_dir.source)
+        end)
 
       assert length(other_aliases) == 2
 
@@ -287,12 +291,13 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       context = build_context()
       module_iri = build_module_iri("UseOptionsModule")
 
-      all_triples = directives.uses
-      |> Enum.with_index()
-      |> Enum.flat_map(fn {use_dir, idx} ->
-        {_, triples} = DependencyBuilder.build_use_dependency(use_dir, module_iri, context, idx)
-        triples
-      end)
+      all_triples =
+        directives.uses
+        |> Enum.with_index()
+        |> Enum.flat_map(fn {use_dir, idx} ->
+          {_, triples} = DependencyBuilder.build_use_dependency(use_dir, module_iri, context, idx)
+          triples
+        end)
 
       # Should have UseOption type triples
       option_count = count_triples_with_type(all_triples, Structure.UseOption)
@@ -312,21 +317,33 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       module_iri = build_module_iri("ComplexDirectives")
 
       # Build all dependency triples
-      alias_triples = DependencyBuilder.build_alias_dependencies(
-        directives.aliases, module_iri, context
-      )
+      alias_triples =
+        DependencyBuilder.build_alias_dependencies(
+          directives.aliases,
+          module_iri,
+          context
+        )
 
-      import_triples = DependencyBuilder.build_import_dependencies(
-        directives.imports, module_iri, context
-      )
+      import_triples =
+        DependencyBuilder.build_import_dependencies(
+          directives.imports,
+          module_iri,
+          context
+        )
 
-      require_triples = DependencyBuilder.build_require_dependencies(
-        directives.requires, module_iri, context
-      )
+      require_triples =
+        DependencyBuilder.build_require_dependencies(
+          directives.requires,
+          module_iri,
+          context
+        )
 
-      use_triples = DependencyBuilder.build_use_dependencies(
-        directives.uses, module_iri, context
-      )
+      use_triples =
+        DependencyBuilder.build_use_dependencies(
+          directives.uses,
+          module_iri,
+          context
+        )
 
       all_triples = alias_triples ++ import_triples ++ require_triples ++ use_triples
 
@@ -342,13 +359,19 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       context = build_context()
       module_iri = build_module_iri("ComplexDirectives")
 
-      alias_triples = DependencyBuilder.build_alias_dependencies(
-        directives.aliases, module_iri, context
-      )
+      alias_triples =
+        DependencyBuilder.build_alias_dependencies(
+          directives.aliases,
+          module_iri,
+          context
+        )
 
-      import_triples = DependencyBuilder.build_import_dependencies(
-        directives.imports, module_iri, context
-      )
+      import_triples =
+        DependencyBuilder.build_import_dependencies(
+          directives.imports,
+          module_iri,
+          context
+        )
 
       all_triples = alias_triples ++ import_triples
 
@@ -373,14 +396,18 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       context = build_context()
       module_iri = build_module_iri("ComplexDirectives")
 
-      alias_triples = DependencyBuilder.build_alias_dependencies(
-        directives.aliases, module_iri, context
-      )
+      alias_triples =
+        DependencyBuilder.build_alias_dependencies(
+          directives.aliases,
+          module_iri,
+          context
+        )
 
-      has_alias_triples = Enum.filter(alias_triples, fn
-        {s, p, _} -> s == module_iri and p == Structure.hasAlias()
-        _ -> false
-      end)
+      has_alias_triples =
+        Enum.filter(alias_triples, fn
+          {s, p, _} -> s == module_iri and p == Structure.hasAlias()
+          _ -> false
+        end)
 
       assert length(has_alias_triples) == 3
     end
@@ -397,34 +424,46 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       context = build_context(known_modules: known_modules)
       module_iri = build_module_iri("ComplexDirectives")
 
-      alias_triples = DependencyBuilder.build_alias_dependencies(
-        directives.aliases, module_iri, context
-      )
+      alias_triples =
+        DependencyBuilder.build_alias_dependencies(
+          directives.aliases,
+          module_iri,
+          context
+        )
 
-      import_triples = DependencyBuilder.build_import_dependencies(
-        directives.imports, module_iri, context
-      )
+      import_triples =
+        DependencyBuilder.build_import_dependencies(
+          directives.imports,
+          module_iri,
+          context
+        )
 
       all_triples = alias_triples ++ import_triples
 
       # All aliases are to known modules - isExternalModule should be false
-      external_alias_triples = Enum.filter(all_triples, fn
-        {_, p, o} ->
-          p == Structure.isExternalModule() and
-          String.contains?(to_string(RDF.Literal.value(o)), "false")
-        _ -> false
-      end)
+      external_alias_triples =
+        Enum.filter(all_triples, fn
+          {_, p, o} ->
+            p == Structure.isExternalModule() and
+              String.contains?(to_string(RDF.Literal.value(o)), "false")
+
+          _ ->
+            false
+        end)
 
       # All 3 aliases should have isExternalModule = false
       assert length(external_alias_triples) == 3
 
       # Imports are to Enum and String which are NOT in known_modules
-      external_import_triples = Enum.filter(all_triples, fn
-        {_, p, o} ->
-          p == Structure.isExternalModule() and
-          RDF.Literal.value(o) == true
-        _ -> false
-      end)
+      external_import_triples =
+        Enum.filter(all_triples, fn
+          {_, p, o} ->
+            p == Structure.isExternalModule() and
+              RDF.Literal.value(o) == true
+
+          _ ->
+            false
+        end)
 
       # Both imports should have isExternalModule = true
       assert length(external_import_triples) == 2
@@ -432,17 +471,22 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
 
     test "no isExternalModule triples when known_modules not configured" do
       directives = extract_directives_from_module(@complex_module)
-      context = build_context()  # No known_modules
+      # No known_modules
+      context = build_context()
       module_iri = build_module_iri("ComplexDirectives")
 
-      alias_triples = DependencyBuilder.build_alias_dependencies(
-        directives.aliases, module_iri, context
-      )
+      alias_triples =
+        DependencyBuilder.build_alias_dependencies(
+          directives.aliases,
+          module_iri,
+          context
+        )
 
-      external_triples = Enum.filter(alias_triples, fn
-        {_, p, _} -> p == Structure.isExternalModule()
-        _ -> false
-      end)
+      external_triples =
+        Enum.filter(alias_triples, fn
+          {_, p, _} -> p == Structure.isExternalModule()
+          _ -> false
+        end)
 
       assert external_triples == []
     end
@@ -461,10 +505,11 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
 
       {use_iri, triples} = DependencyBuilder.build_use_dependency(use_dir, module_iri, context, 0)
 
-      invokes_using_triples = Enum.filter(triples, fn
-        {^use_iri, p, _} -> p == Structure.invokesUsing()
-        _ -> false
-      end)
+      invokes_using_triples =
+        Enum.filter(triples, fn
+          {^use_iri, p, _} -> p == Structure.invokesUsing()
+          _ -> false
+        end)
 
       assert length(invokes_using_triples) == 1
 
@@ -480,10 +525,11 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
 
       {_, triples} = DependencyBuilder.build_use_dependency(use_dir, module_iri, context, 0)
 
-      invokes_using_triples = Enum.filter(triples, fn
-        {_, p, _} -> p == Structure.invokesUsing()
-        _ -> false
-      end)
+      invokes_using_triples =
+        Enum.filter(triples, fn
+          {_, p, _} -> p == Structure.invokesUsing()
+          _ -> false
+        end)
 
       assert invokes_using_triples == []
     end
@@ -507,7 +553,7 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       assert conflict.function == {:map, 2}
 
       # Check that both imports are in the conflict
-      conflict_modules = Enum.map(conflict.imports, &(&1.module))
+      conflict_modules = Enum.map(conflict.imports, & &1.module)
       assert [:Enum] in conflict_modules
       assert [:Stream] in conflict_modules
     end
@@ -581,18 +627,33 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       context = build_context()
       module_iri = build_module_iri("ComplexDirectives")
 
-      alias_triples = DependencyBuilder.build_alias_dependencies(
-        directives.aliases, module_iri, context
-      )
-      import_triples = DependencyBuilder.build_import_dependencies(
-        directives.imports, module_iri, context
-      )
-      require_triples = DependencyBuilder.build_require_dependencies(
-        directives.requires, module_iri, context
-      )
-      use_triples = DependencyBuilder.build_use_dependencies(
-        directives.uses, module_iri, context
-      )
+      alias_triples =
+        DependencyBuilder.build_alias_dependencies(
+          directives.aliases,
+          module_iri,
+          context
+        )
+
+      import_triples =
+        DependencyBuilder.build_import_dependencies(
+          directives.imports,
+          module_iri,
+          context
+        )
+
+      require_triples =
+        DependencyBuilder.build_require_dependencies(
+          directives.requires,
+          module_iri,
+          context
+        )
+
+      use_triples =
+        DependencyBuilder.build_use_dependencies(
+          directives.uses,
+          module_iri,
+          context
+        )
 
       _all_triples = alias_triples ++ import_triples ++ require_triples ++ use_triples
 
@@ -611,14 +672,16 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       module_iri = build_module_iri("ComplexDirectives")
 
       # Collect all directive IRIs
-      alias_iris = directives.aliases
+      alias_iris =
+        directives.aliases
         |> Enum.with_index()
         |> Enum.map(fn {a, i} ->
           {iri, _} = DependencyBuilder.build_alias_dependency(a, module_iri, context, i)
           iri
         end)
 
-      import_iris = directives.imports
+      import_iris =
+        directives.imports
         |> Enum.with_index()
         |> Enum.map(fn {imp, i} ->
           {iri, _} = DependencyBuilder.build_import_dependency(imp, module_iri, context, i)
@@ -646,10 +709,12 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
 
     test "handles invalid import option" do
       # Import with both only and except (invalid but should not crash)
-      ast = {:import, [line: 1], [
-        {:__aliases__, [line: 1], [:Enum]},
-        [only: [map: 2], except: [filter: 2]]
-      ]}
+      ast =
+        {:import, [line: 1],
+         [
+           {:__aliases__, [line: 1], [:Enum]},
+           [only: [map: 2], except: [filter: 2]]
+         ]}
 
       result = Import.extract(ast)
 
@@ -658,6 +723,7 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
         {:ok, directive} ->
           # Both options present
           assert directive.only != nil or directive.except != nil
+
         {:error, _} ->
           # Error is also acceptable
           assert true
@@ -691,11 +757,12 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
     end
 
     test "dependency builder context is compatible with other builders" do
-      context = build_context(
-        base_iri: "https://example.org/code#",
-        file_path: "lib/test.ex",
-        known_modules: MapSet.new(["MyApp.Module"])
-      )
+      context =
+        build_context(
+          base_iri: "https://example.org/code#",
+          file_path: "lib/test.ex",
+          known_modules: MapSet.new(["MyApp.Module"])
+        )
 
       # Context should work with standard operations
       assert context.base_iri == "https://example.org/code#"
@@ -721,14 +788,19 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       context = build_context()
       module_iri = build_module_iri("TestModule")
 
-      {require_iri, triples} = DependencyBuilder.build_require_dependency(
-        require_dir, module_iri, context, 0
-      )
+      {require_iri, triples} =
+        DependencyBuilder.build_require_dependency(
+          require_dir,
+          module_iri,
+          context,
+          0
+        )
 
-      alias_triple = Enum.find(triples, fn
-        {^require_iri, p, _} -> p == Structure.requireAlias()
-        _ -> false
-      end)
+      alias_triple =
+        Enum.find(triples, fn
+          {^require_iri, p, _} -> p == Structure.requireAlias()
+          _ -> false
+        end)
 
       assert alias_triple != nil
       {_, _, literal} = alias_triple
@@ -768,15 +840,20 @@ defmodule ElixirOntologies.Extractors.Phase16IntegrationTest do
       context = build_context()
       module_iri = build_module_iri("TestModule")
 
-      {import_iri, triples} = DependencyBuilder.build_import_dependency(
-        import_dir, module_iri, context, 0
-      )
+      {import_iri, triples} =
+        DependencyBuilder.build_import_dependency(
+          import_dir,
+          module_iri,
+          context,
+          0
+        )
 
       # Should have importType triple
-      type_triple = Enum.find(triples, fn
-        {^import_iri, p, _} -> p == Structure.importType()
-        _ -> false
-      end)
+      type_triple =
+        Enum.find(triples, fn
+          {^import_iri, p, _} -> p == Structure.importType()
+          _ -> false
+        end)
 
       assert type_triple != nil
       {_, _, literal} = type_triple

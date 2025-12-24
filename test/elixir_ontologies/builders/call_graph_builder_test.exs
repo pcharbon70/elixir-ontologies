@@ -50,7 +50,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :helper, arity: 0, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0", index: 0)
 
       type_triple = find_triple(triples, call_iri, RDF.type())
       assert type_triple != nil
@@ -61,7 +62,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :process_data, arity: 2, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/run/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/run/0", index: 0)
 
       name_triple = find_triple(triples, call_iri, Structure.functionName())
       assert name_triple != nil
@@ -72,7 +74,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :foo, arity: 3, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/bar/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/bar/0", index: 0)
 
       arity_triple = find_triple(triples, call_iri, Structure.arity())
       assert arity_triple != nil
@@ -83,7 +86,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :helper, arity: 0, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/main/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/main/0", index: 0)
 
       belongs_triple = find_triple(triples, call_iri, Structure.belongsTo())
       assert belongs_triple != nil
@@ -107,10 +111,18 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
 
   describe "build/3 with remote calls" do
     test "generates type triple for remote call" do
-      call = %FunctionCall{type: :remote, name: :upcase, arity: 1, module: [:String], metadata: %{}}
+      call = %FunctionCall{
+        type: :remote,
+        name: :upcase,
+        arity: 1,
+        module: [:String],
+        metadata: %{}
+      }
+
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0", index: 0)
 
       type_triple = find_triple(triples, call_iri, RDF.type())
       assert type_triple != nil
@@ -121,7 +133,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :remote, name: :get, arity: 2, module: [:Map], metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/run/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/run/0", index: 0)
 
       module_triple = find_triple(triples, call_iri, Structure.moduleName())
       assert module_triple != nil
@@ -129,10 +142,18 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
     end
 
     test "generates module name for nested modules" do
-      call = %FunctionCall{type: :remote, name: :fetch, arity: 2, module: [:MyApp, :Data, :Store], metadata: %{}}
+      call = %FunctionCall{
+        type: :remote,
+        name: :fetch,
+        arity: 2,
+        module: [:MyApp, :Data, :Store],
+        metadata: %{}
+      }
+
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "Test/run/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "Test/run/0", index: 0)
 
       module_triple = find_triple(triples, call_iri, Structure.moduleName())
       assert module_triple != nil
@@ -140,10 +161,18 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
     end
 
     test "generates callsFunction triple for remote call" do
-      call = %FunctionCall{type: :remote, name: :upcase, arity: 1, module: [:String], metadata: %{}}
+      call = %FunctionCall{
+        type: :remote,
+        name: :upcase,
+        arity: 1,
+        module: [:String],
+        metadata: %{}
+      }
+
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0", index: 0)
 
       calls_triple = find_triple(triples, call_iri, Structure.callsFunction())
       assert calls_triple != nil
@@ -155,7 +184,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :remote, name: :new, arity: 2, module: :ets, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/init/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/init/0", index: 0)
 
       module_triple = find_triple(triples, call_iri, Structure.moduleName())
       assert module_triple != nil
@@ -172,7 +202,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :dynamic, name: :apply, arity: 3, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/dispatch/1", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/dispatch/1", index: 0)
 
       type_triple = find_triple(triples, call_iri, RDF.type())
       assert type_triple != nil
@@ -184,7 +215,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :dynamic, name: :callback, arity: 1, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/run/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/run/0", index: 0)
 
       name_triple = find_triple(triples, call_iri, Structure.functionName())
       arity_triple = find_triple(triples, call_iri, Structure.arity())
@@ -204,7 +236,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :foo, arity: 0, location: location, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0", index: 0)
 
       line_triple = find_triple(triples, call_iri, Core.startLine())
       assert line_triple != nil
@@ -215,7 +248,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :foo, arity: 0, location: nil, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0", index: 0)
 
       line_triple = find_triple(triples, call_iri, Core.startLine())
       assert line_triple == nil
@@ -233,9 +267,11 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
         %FunctionCall{type: :local, name: :bar, arity: 1, metadata: %{}},
         %FunctionCall{type: :remote, name: :baz, arity: 2, module: [:Other], metadata: %{}}
       ]
+
       context = Context.new(base_iri: @base_iri)
 
-      {iris, triples} = CallGraphBuilder.build_all(calls, context, caller_function: "MyApp/main/0")
+      {iris, triples} =
+        CallGraphBuilder.build_all(calls, context, caller_function: "MyApp/main/0")
 
       assert length(iris) == 3
       assert to_string(Enum.at(iris, 0)) == "https://example.org/code#call/MyApp/main/0/0"
@@ -260,9 +296,11 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
         %FunctionCall{type: :local, name: :a, arity: 0, metadata: %{}},
         %FunctionCall{type: :local, name: :b, arity: 0, metadata: %{}}
       ]
+
       context = Context.new(base_iri: @base_iri)
 
-      {_iris, triples} = CallGraphBuilder.build_all(calls, context, caller_function: "MyApp/test/0")
+      {_iris, triples} =
+        CallGraphBuilder.build_all(calls, context, caller_function: "MyApp/test/0")
 
       # Find function names - should have both "a" and "b"
       name_values =
@@ -284,7 +322,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :test, arity: 0, module: nil, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/run/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/run/0", index: 0)
 
       # Should not have module triple
       module_triple = find_triple(triples, call_iri, Structure.moduleName())
@@ -299,7 +338,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :remote, name: :test, arity: 0, module: [], metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/run/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/run/0", index: 0)
 
       # Should not have module triple for empty list
       module_triple = find_triple(triples, call_iri, Structure.moduleName())
@@ -310,7 +350,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :foo, arity: 0, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, _triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0")
+      {call_iri, _triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/test/0")
 
       assert to_string(call_iri) == "https://example.org/code#call/MyApp/test/0/0"
     end
@@ -328,9 +369,11 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
         %FunctionCall{type: :remote, name: :baz, arity: 2, module: [:Other], metadata: %{}},
         %FunctionCall{type: :local, name: :qux, arity: 3, metadata: %{}}
       ]
+
       context = Context.new(base_iri: @base_iri)
 
-      {iris, triples} = CallGraphBuilder.build_all(calls, context, caller_function: "MyApp/main/0")
+      {iris, triples} =
+        CallGraphBuilder.build_all(calls, context, caller_function: "MyApp/main/0")
 
       # All calls should have IRIs
       assert length(iris) == 4
@@ -349,9 +392,11 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
         %FunctionCall{type: :local, name: :b, arity: 0, metadata: %{}},
         %FunctionCall{type: :local, name: :c, arity: 0, metadata: %{}}
       ]
+
       context = Context.new(base_iri: @base_iri)
 
-      {iris, _triples} = CallGraphBuilder.build_all(calls, context, caller_function: "MyApp/test/0")
+      {iris, _triples} =
+        CallGraphBuilder.build_all(calls, context, caller_function: "MyApp/test/0")
 
       assert to_string(Enum.at(iris, 0)) =~ "/0"
       assert to_string(Enum.at(iris, 1)) =~ "/1"
@@ -364,9 +409,11 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
         %FunctionCall{type: :local, name: :second, arity: 0, metadata: %{}},
         %FunctionCall{type: :local, name: :third, arity: 0, metadata: %{}}
       ]
+
       context = Context.new(base_iri: @base_iri)
 
-      {iris, triples} = CallGraphBuilder.build_all(calls, context, caller_function: "MyApp/test/0")
+      {iris, triples} =
+        CallGraphBuilder.build_all(calls, context, caller_function: "MyApp/test/0")
 
       # Get function names from triples in order
       name_triples =
@@ -383,9 +430,16 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
     test "handles mixed local and remote calls" do
       calls = [
         %FunctionCall{type: :local, name: :local_fn, arity: 0, metadata: %{}},
-        %FunctionCall{type: :remote, name: :remote_fn, arity: 1, module: [:External], metadata: %{}},
+        %FunctionCall{
+          type: :remote,
+          name: :remote_fn,
+          arity: 1,
+          module: [:External],
+          metadata: %{}
+        },
         %FunctionCall{type: :local, name: :another_local, arity: 2, metadata: %{}}
       ]
+
       context = Context.new(base_iri: @base_iri)
 
       {iris, triples} = CallGraphBuilder.build_all(calls, context, caller_function: "MyApp/mix/0")
@@ -394,8 +448,11 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       assert length(iris) == 3
 
       # Count local and remote type triples
-      local_count = Enum.count(triples, fn {_, p, o} -> p == RDF.type() and o == Core.LocalCall end)
-      remote_count = Enum.count(triples, fn {_, p, o} -> p == RDF.type() and o == Core.RemoteCall end)
+      local_count =
+        Enum.count(triples, fn {_, p, o} -> p == RDF.type() and o == Core.LocalCall end)
+
+      remote_count =
+        Enum.count(triples, fn {_, p, o} -> p == RDF.type() and o == Core.RemoteCall end)
 
       assert local_count == 2
       assert remote_count == 1
@@ -411,7 +468,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :test, arity: 0, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {_call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/func/0", index: 0)
+      {_call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/func/0", index: 0)
 
       # All subjects should be IRIs
       Enum.each(triples, fn {s, _, _} ->
@@ -423,7 +481,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :remote, name: :test, arity: 1, module: [:Mod], metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {_call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/func/0", index: 0)
+      {_call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/func/0", index: 0)
 
       # All predicates should be IRIs
       Enum.each(triples, fn {_, p, _} ->
@@ -435,7 +494,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :test, arity: 0, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/func/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/func/0", index: 0)
 
       type_triple = find_triple(triples, call_iri, RDF.type())
       # Object should be a class IRI (LocalCall or RemoteCall)
@@ -446,7 +506,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :my_function, arity: 0, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/func/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/func/0", index: 0)
 
       name_triple = find_triple(triples, call_iri, Structure.functionName())
       assert %RDF.Literal{} = elem(name_triple, 2)
@@ -457,7 +518,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       call = %FunctionCall{type: :local, name: :test, arity: 5, metadata: %{}}
       context = Context.new(base_iri: @base_iri)
 
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/func/0", index: 0)
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/func/0", index: 0)
 
       arity_triple = find_triple(triples, call_iri, Structure.arity())
       assert %RDF.Literal{} = elem(arity_triple, 2)
@@ -476,7 +538,9 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       context = Context.new(base_iri: @base_iri)
 
       call = %FunctionCall{type: :local, name: :helper, arity: 0, metadata: %{}}
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: function_fragment, index: 0)
+
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: function_fragment, index: 0)
 
       # Call IRI should include the function fragment
       assert to_string(call_iri) == "https://example.org/code#call/MyApp.Users/get_user/1/0"
@@ -484,7 +548,9 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
       # belongsTo should link to the function IRI
       belongs_triple = find_triple(triples, call_iri, Structure.belongsTo())
       assert belongs_triple != nil
-      assert to_string(elem(belongs_triple, 2)) == "https://example.org/code#MyApp.Users/get_user/1"
+
+      assert to_string(elem(belongs_triple, 2)) ==
+               "https://example.org/code#MyApp.Users/get_user/1"
     end
 
     test "multiple calls from same function share caller reference" do
@@ -496,13 +562,15 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
         %FunctionCall{type: :local, name: :step2, arity: 1, metadata: %{}}
       ]
 
-      {iris, triples} = CallGraphBuilder.build_all(calls, context, caller_function: function_fragment)
+      {iris, triples} =
+        CallGraphBuilder.build_all(calls, context, caller_function: function_fragment)
 
       # Get all belongsTo triples
       belongs_triples = Enum.filter(triples, fn {_, p, _} -> p == Structure.belongsTo() end)
 
       # All should point to same function
       function_iri = RDF.iri("#{@base_iri}#{function_fragment}")
+
       Enum.each(belongs_triples, fn {_, _, o} ->
         assert o == function_iri
       end)
@@ -515,8 +583,16 @@ defmodule ElixirOntologies.Builders.CallGraphBuilderTest do
     test "remote call generates callsFunction to target function" do
       context = Context.new(base_iri: @base_iri)
 
-      call = %FunctionCall{type: :remote, name: :upcase, arity: 1, module: [:String], metadata: %{}}
-      {call_iri, triples} = CallGraphBuilder.build(call, context, caller_function: "MyApp/format/1", index: 0)
+      call = %FunctionCall{
+        type: :remote,
+        name: :upcase,
+        arity: 1,
+        module: [:String],
+        metadata: %{}
+      }
+
+      {call_iri, triples} =
+        CallGraphBuilder.build(call, context, caller_function: "MyApp/format/1", index: 0)
 
       # callsFunction should link to target function IRI
       calls_triple = find_triple(triples, call_iri, Structure.callsFunction())

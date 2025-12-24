@@ -495,12 +495,13 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
     alias Attribute.AttributeValue
 
     test "new/1 creates struct with all fields" do
-      val = AttributeValue.new(
-        type: :literal,
-        value: 42,
-        raw_ast: nil,
-        accumulated: true
-      )
+      val =
+        AttributeValue.new(
+          type: :literal,
+          value: 42,
+          raw_ast: nil,
+          accumulated: true
+        )
 
       assert val.type == :literal
       assert val.value == 42
@@ -602,7 +603,7 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
 
     test "extracts nil value" do
       val = Attribute.extract_typed_value(nil)
-      assert val.type == :nil
+      assert val.type == nil
       assert val.value == nil
     end
   end
@@ -635,13 +636,13 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
 
   describe "extract_typed_value/1 keyword lists" do
     test "extracts keyword list" do
-      val = Attribute.extract_typed_value([a: 1, b: 2])
+      val = Attribute.extract_typed_value(a: 1, b: 2)
       assert val.type == :keyword_list
       assert val.value == [a: 1, b: 2]
     end
 
     test "extracts keyword list with complex values" do
-      val = Attribute.extract_typed_value([only: [:foo, :bar], except: [:baz]])
+      val = Attribute.extract_typed_value(only: [:foo, :bar], except: [:baz])
       assert val.type == :keyword_list
       assert val.value == [only: [:foo, :bar], except: [:baz]]
     end
@@ -723,7 +724,7 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
 
   describe "keyword_list?/1" do
     test "returns true for keyword list" do
-      assert Attribute.keyword_list?([a: 1, b: 2])
+      assert Attribute.keyword_list?(a: 1, b: 2)
     end
 
     test "returns true for explicit tuple keyword list" do
@@ -808,9 +809,9 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
 
   describe "extract_accumulated_attributes/1" do
     test "extracts accumulated attributes" do
-      {:ok, ast} = Code.string_to_quoted(
-        "Module.register_attribute(__MODULE__, :items, accumulate: true)"
-      )
+      {:ok, ast} =
+        Code.string_to_quoted("Module.register_attribute(__MODULE__, :items, accumulate: true)")
+
       body = {:__block__, [], [ast]}
 
       result = Attribute.extract_accumulated_attributes(body)
@@ -818,9 +819,7 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
     end
 
     test "ignores non-accumulated attributes" do
-      {:ok, ast} = Code.string_to_quoted(
-        "Module.register_attribute(__MODULE__, :other, [])"
-      )
+      {:ok, ast} = Code.string_to_quoted("Module.register_attribute(__MODULE__, :other, [])")
       body = {:__block__, [], [ast]}
 
       result = Attribute.extract_accumulated_attributes(body)
@@ -828,9 +827,9 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
     end
 
     test "ignores explicitly non-accumulated attributes" do
-      {:ok, ast} = Code.string_to_quoted(
-        "Module.register_attribute(__MODULE__, :single, accumulate: false)"
-      )
+      {:ok, ast} =
+        Code.string_to_quoted("Module.register_attribute(__MODULE__, :single, accumulate: false)")
+
       body = {:__block__, [], [ast]}
 
       result = Attribute.extract_accumulated_attributes(body)
@@ -838,12 +837,14 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
     end
 
     test "extracts multiple accumulated attributes" do
-      {:ok, ast1} = Code.string_to_quoted(
-        "Module.register_attribute(__MODULE__, :items, accumulate: true)"
-      )
-      {:ok, ast2} = Code.string_to_quoted(
-        "Module.register_attribute(__MODULE__, :callbacks, accumulate: true)"
-      )
+      {:ok, ast1} =
+        Code.string_to_quoted("Module.register_attribute(__MODULE__, :items, accumulate: true)")
+
+      {:ok, ast2} =
+        Code.string_to_quoted(
+          "Module.register_attribute(__MODULE__, :callbacks, accumulate: true)"
+        )
+
       body = {:__block__, [], [ast1, ast2]}
 
       result = Attribute.extract_accumulated_attributes(body)
@@ -858,9 +859,9 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
 
   describe "accumulated?/2" do
     test "returns true for accumulated attribute" do
-      {:ok, ast} = Code.string_to_quoted(
-        "Module.register_attribute(__MODULE__, :items, accumulate: true)"
-      )
+      {:ok, ast} =
+        Code.string_to_quoted("Module.register_attribute(__MODULE__, :items, accumulate: true)")
+
       body = {:__block__, [], [ast]}
 
       assert Attribute.accumulated?(:items, body)
@@ -880,12 +881,13 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
     alias Attribute.DocContent
 
     test "new/1 creates struct with all fields" do
-      doc = DocContent.new(
-        content: "My docs",
-        format: :string,
-        sigil_type: nil,
-        hidden: false
-      )
+      doc =
+        DocContent.new(
+          content: "My docs",
+          format: :string,
+          sigil_type: nil,
+          hidden: false
+        )
 
       assert doc.content == "My docs"
       assert doc.format == :string
@@ -904,7 +906,7 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
 
     test "has_content?/1 returns true for non-empty content" do
       assert DocContent.has_content?(DocContent.new(content: "docs", format: :string))
-      refute DocContent.has_content?(DocContent.new(content: nil, format: :nil))
+      refute DocContent.has_content?(DocContent.new(content: nil, format: nil))
       refute DocContent.has_content?(DocContent.new(content: "", format: :string))
     end
 
@@ -953,7 +955,7 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
       doc = Attribute.extract_doc_content(attr)
 
       assert doc.hidden == true
-      assert doc.format == :false
+      assert doc.format == false
       assert doc.content == nil
     end
 
@@ -963,7 +965,7 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
       doc = Attribute.extract_doc_content(attr)
 
       assert doc.hidden == true
-      assert doc.format == :false
+      assert doc.format == false
     end
 
     test "returns nil for non-doc attributes" do
@@ -1131,7 +1133,7 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
       ast = {:@, [], [{:doc, [], [false]}]}
       {:ok, attr} = Attribute.extract(ast)
 
-      assert Attribute.doc_format(attr) == :false
+      assert Attribute.doc_format(attr) == false
     end
 
     test "returns nil for non-doc attributes" do
@@ -1200,13 +1202,14 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
     alias Attribute.CompileOptions
 
     test "new/1 creates struct with all fields" do
-      opts = CompileOptions.new(
-        inline: [{:foo, 1}],
-        no_warn_undefined: [SomeModule],
-        warnings_as_errors: true,
-        debug_info: true,
-        raw_options: [:inline, :debug_info]
-      )
+      opts =
+        CompileOptions.new(
+          inline: [{:foo, 1}],
+          no_warn_undefined: [SomeModule],
+          warnings_as_errors: true,
+          debug_info: true,
+          raw_options: [:inline, :debug_info]
+        )
 
       assert opts.inline == [{:foo, 1}]
       assert opts.no_warn_undefined == [SomeModule]
@@ -1250,11 +1253,12 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
     alias Attribute.CallbackSpec
 
     test "new/1 creates struct with all fields" do
-      spec = CallbackSpec.new(
-        module: MyModule,
-        function: :callback,
-        is_current_module: false
-      )
+      spec =
+        CallbackSpec.new(
+          module: MyModule,
+          function: :callback,
+          is_current_module: false
+        )
 
       assert spec.module == MyModule
       assert spec.function == :callback
@@ -1630,40 +1634,48 @@ defmodule ElixirOntologies.Extractors.AttributeTest do
 
   describe "extract_external_resources/1" do
     test "extracts single @external_resource" do
-      body = {:__block__, [], [
-        {:@, [], [{:external_resource, [], ["priv/data.json"]}]}
-      ]}
+      body =
+        {:__block__, [],
+         [
+           {:@, [], [{:external_resource, [], ["priv/data.json"]}]}
+         ]}
 
       result = Attribute.extract_external_resources(body)
       assert result == ["priv/data.json"]
     end
 
     test "extracts multiple @external_resource" do
-      body = {:__block__, [], [
-        {:@, [], [{:external_resource, [], ["priv/data.json"]}]},
-        {:@, [], [{:external_resource, [], ["priv/config.yml"]}]},
-        {:@, [], [{:external_resource, [], ["priv/schema.xsd"]}]}
-      ]}
+      body =
+        {:__block__, [],
+         [
+           {:@, [], [{:external_resource, [], ["priv/data.json"]}]},
+           {:@, [], [{:external_resource, [], ["priv/config.yml"]}]},
+           {:@, [], [{:external_resource, [], ["priv/schema.xsd"]}]}
+         ]}
 
       result = Attribute.extract_external_resources(body)
       assert result == ["priv/data.json", "priv/config.yml", "priv/schema.xsd"]
     end
 
     test "ignores non-external_resource attributes" do
-      body = {:__block__, [], [
-        {:@, [], [{:external_resource, [], ["priv/data.json"]}]},
-        {:@, [], [{:doc, [], ["docs"]}]},
-        {:@, [], [{:moduledoc, [], ["module docs"]}]}
-      ]}
+      body =
+        {:__block__, [],
+         [
+           {:@, [], [{:external_resource, [], ["priv/data.json"]}]},
+           {:@, [], [{:doc, [], ["docs"]}]},
+           {:@, [], [{:moduledoc, [], ["module docs"]}]}
+         ]}
 
       result = Attribute.extract_external_resources(body)
       assert result == ["priv/data.json"]
     end
 
     test "returns empty list for no external resources" do
-      body = {:__block__, [], [
-        {:@, [], [{:doc, [], ["docs"]}]}
-      ]}
+      body =
+        {:__block__, [],
+         [
+           {:@, [], [{:doc, [], ["docs"]}]}
+         ]}
 
       result = Attribute.extract_external_resources(body)
       assert result == []

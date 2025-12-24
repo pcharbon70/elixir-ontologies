@@ -278,7 +278,8 @@ defmodule ElixirOntologies.SHACL.Validators.String do
                   node_shape,
                   "Focus node does not match required pattern #{inspect(pattern.source)}",
                   %{
-                    constraint_component: ~I<http://www.w3.org/ns/shacl#PatternConstraintComponent>,
+                    constraint_component:
+                      ~I<http://www.w3.org/ns/shacl#PatternConstraintComponent>,
                     pattern: pattern.source,
                     actual_value: str
                   }
@@ -321,7 +322,8 @@ defmodule ElixirOntologies.SHACL.Validators.String do
                   node_shape,
                   "Focus node is too short (expected at least #{min_length} characters, found #{actual_length})",
                   %{
-                    constraint_component: ~I<http://www.w3.org/ns/shacl#MinLengthConstraintComponent>,
+                    constraint_component:
+                      ~I<http://www.w3.org/ns/shacl#MinLengthConstraintComponent>,
                     min_length: min_length,
                     actual_length: actual_length,
                     actual_value: str
@@ -365,7 +367,8 @@ defmodule ElixirOntologies.SHACL.Validators.String do
                   node_shape,
                   "Focus node is too long (expected at most #{max_length} characters, found #{actual_length})",
                   %{
-                    constraint_component: ~I<http://www.w3.org/ns/shacl#MaxLengthConstraintComponent>,
+                    constraint_component:
+                      ~I<http://www.w3.org/ns/shacl#MaxLengthConstraintComponent>,
                     max_length: max_length,
                     actual_length: actual_length,
                     actual_value: str
@@ -394,7 +397,12 @@ defmodule ElixirOntologies.SHACL.Validators.String do
     end
   end
 
-  defp check_language_in_constraint(results, %RDF.Literal{} = focus_node, node_shape, allowed_languages) do
+  defp check_language_in_constraint(
+         results,
+         %RDF.Literal{} = focus_node,
+         node_shape,
+         allowed_languages
+       ) do
     case RDF.Literal.language(focus_node) do
       nil ->
         violation =
@@ -421,7 +429,8 @@ defmodule ElixirOntologies.SHACL.Validators.String do
               node_shape,
               "Language tag '#{lang}' is not in the allowed list",
               %{
-                constraint_component: ~I<http://www.w3.org/ns/shacl#LanguageInConstraintComponent>,
+                constraint_component:
+                  ~I<http://www.w3.org/ns/shacl#LanguageInConstraintComponent>,
                 allowed_languages: allowed_languages,
                 actual_language: lang,
                 actual_value: focus_node

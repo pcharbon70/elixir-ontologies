@@ -115,8 +115,7 @@ defmodule ElixirOntologies.Extractors.Directive.AliasTest do
       ast =
         {:alias, [],
          [
-           {{:., [], [{:__aliases__, [], [:MyApp]}, :{}]}, [],
-            [{:__aliases__, [], [:Users]}]}
+           {{:., [], [{:__aliases__, [], [:MyApp]}, :{}]}, [], [{:__aliases__, [], [:Users]}]}
          ]}
 
       refute Alias.simple_alias?(ast)
@@ -700,6 +699,7 @@ defmodule ElixirOntologies.Extractors.Directive.AliasTest do
 
       directives = Alias.extract_all(ast)
       assert length(directives) == 3
+
       assert Enum.map(directives, & &1.source) == [
                [:MyApp, :Sub, :A],
                [:MyApp, :Sub, :B],

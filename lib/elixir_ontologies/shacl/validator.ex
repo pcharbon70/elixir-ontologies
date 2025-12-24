@@ -61,7 +61,13 @@ defmodule ElixirOntologies.SHACL.Validator do
   require Logger
 
   alias ElixirOntologies.SHACL.{Reader, Validators}
-  alias ElixirOntologies.SHACL.Model.{NodeShape, PropertyShape, ValidationReport, ValidationResult}
+
+  alias ElixirOntologies.SHACL.Model.{
+    NodeShape,
+    PropertyShape,
+    ValidationReport,
+    ValidationResult
+  }
 
   @type validation_option ::
           {:parallel, boolean()}
@@ -276,7 +282,8 @@ defmodule ElixirOntologies.SHACL.Validator do
       end)
 
     # Finally validate SPARQL constraints (node-level)
-    sparql_results = Validators.SPARQL.validate(data_graph, focus_node, node_shape.sparql_constraints)
+    sparql_results =
+      Validators.SPARQL.validate(data_graph, focus_node, node_shape.sparql_constraints)
 
     node_results ++ property_results ++ sparql_results
   end
@@ -294,7 +301,9 @@ defmodule ElixirOntologies.SHACL.Validator do
     |> concat(Validators.Type.validate_node(data_graph, focus_node, node_shape))
     |> concat(Validators.String.validate_node(data_graph, focus_node, node_shape))
     |> concat(Validators.Value.validate_node(data_graph, focus_node, node_shape))
-    |> concat(Validators.LogicalOperators.validate_node(data_graph, focus_node, node_shape, shape_map))
+    |> concat(
+      Validators.LogicalOperators.validate_node(data_graph, focus_node, node_shape, shape_map)
+    )
   end
 
   # Dispatch to appropriate constraint validators for a PropertyShape

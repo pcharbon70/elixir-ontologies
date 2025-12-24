@@ -579,7 +579,7 @@ defmodule ElixirOntologies.Extractors.Directive.UseTest do
       option = Use.parse_option({:default, nil})
       assert option.key == :default
       assert option.value == nil
-      assert option.value_type == :nil
+      assert option.value_type == nil
       refute option.dynamic
     end
   end
@@ -662,7 +662,7 @@ defmodule ElixirOntologies.Extractors.Directive.UseTest do
     end
 
     test "classifies nil" do
-      assert Use.value_type(nil) == :nil
+      assert Use.value_type(nil) == nil
     end
 
     test "classifies lists" do
@@ -710,7 +710,8 @@ defmodule ElixirOntologies.Extractors.Directive.UseTest do
     end
 
     test "extracts module reference as list of atoms" do
-      assert Use.extract_literal_value({:__aliases__, [], [:MyApp, :Web]}) == {:ok, [:MyApp, :Web]}
+      assert Use.extract_literal_value({:__aliases__, [], [:MyApp, :Web]}) ==
+               {:ok, [:MyApp, :Web]}
     end
 
     test "extracts literal lists" do

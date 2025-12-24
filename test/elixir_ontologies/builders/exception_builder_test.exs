@@ -119,10 +119,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -137,10 +141,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/handle/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/handle/0",
+          index: 0
+        )
 
       rescue_triple = find_triple(triples, expr_iri, Core.hasRescueClause())
       assert rescue_triple != nil
@@ -155,10 +163,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       rescue_triple = find_triple(triples, expr_iri, Core.hasRescueClause())
       assert rescue_triple == nil
@@ -172,10 +184,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [%CatchClause{kind: :throw, pattern: :done, body: :ok}],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/handle/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/handle/0",
+          index: 0
+        )
 
       catch_triple = find_triple(triples, expr_iri, Core.hasCatchClause())
       assert catch_triple != nil
@@ -190,10 +206,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       catch_triple = find_triple(triples, expr_iri, Core.hasCatchClause())
       assert catch_triple == nil
@@ -208,10 +228,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/handle/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/handle/0",
+          index: 0
+        )
 
       after_triple = find_triple(triples, expr_iri, Core.hasAfterClause())
       assert after_triple != nil
@@ -227,10 +251,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       after_triple = find_triple(triples, expr_iri, Core.hasAfterClause())
       assert after_triple == nil
@@ -244,10 +272,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: [%Exception.ElseClause{pattern: {:ok, :result}, body: :result}]
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/handle/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/handle/0",
+          index: 0
+        )
 
       else_triple = find_triple(triples, expr_iri, Core.hasElseClause())
       assert else_triple != nil
@@ -262,10 +294,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       else_triple = find_triple(triples, expr_iri, Core.hasElseClause())
       assert else_triple == nil
@@ -283,10 +319,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         else_clauses: [%Exception.ElseClause{pattern: :ok, body: :ok}],
         after_body: :cleanup
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/complete/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/complete/0",
+          index: 0
+        )
 
       assert find_triple(triples, expr_iri, Core.hasRescueClause()) != nil
       assert find_triple(triples, expr_iri, Core.hasCatchClause()) != nil
@@ -304,8 +344,11 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       raise_expr = %RaiseExpression{message: "error"}
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_raise(raise_expr, context,
-        containing_function: "MyApp/fail/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_raise(raise_expr, context,
+          containing_function: "MyApp/fail/0",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -316,8 +359,11 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       raise_expr = %RaiseExpression{exception: ArgumentError, message: "bad argument"}
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_raise(raise_expr, context,
-        containing_function: "MyApp/validate/1", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_raise(raise_expr, context,
+          containing_function: "MyApp/validate/1",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -330,10 +376,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         is_reraise: true,
         stacktrace: {:__STACKTRACE__, [], nil}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_raise(raise_expr, context,
-        containing_function: "MyApp/rethrow/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_raise(raise_expr, context,
+          containing_function: "MyApp/rethrow/0",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -350,8 +400,11 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       throw_expr = %ThrowExpression{value: :done}
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_throw(throw_expr, context,
-        containing_function: "MyApp/abort/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_throw(throw_expr, context,
+          containing_function: "MyApp/abort/0",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -362,8 +415,11 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       throw_expr = %ThrowExpression{value: {:error, :not_found}}
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_throw(throw_expr, context,
-        containing_function: "MyApp/search/1", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_throw(throw_expr, context,
+          containing_function: "MyApp/search/1",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -380,8 +436,11 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       exit_expr = %ExitExpression{reason: :normal}
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_exit(exit_expr, context,
-        containing_function: "MyApp/stop/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_exit(exit_expr, context,
+          containing_function: "MyApp/stop/0",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -392,8 +451,11 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       exit_expr = %ExitExpression{reason: :shutdown}
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_exit(exit_expr, context,
-        containing_function: "MyApp/terminate/1", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_exit(exit_expr, context,
+          containing_function: "MyApp/terminate/1",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -404,8 +466,11 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       exit_expr = %ExitExpression{reason: {:shutdown, :timeout}}
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_exit(exit_expr, context,
-        containing_function: "MyApp/handle_timeout/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_exit(exit_expr, context,
+          containing_function: "MyApp/handle_timeout/0",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -416,8 +481,11 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       exit_expr = %ExitExpression{reason: :normal, location: %{line: 88}}
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_exit(exit_expr, context,
-        containing_function: "MyApp/stop/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_exit(exit_expr, context,
+          containing_function: "MyApp/stop/0",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple != nil
@@ -428,8 +496,8 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       exit_expr = %ExitExpression{reason: :normal}
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, _triples} = ExceptionBuilder.build_exit(exit_expr, context,
-        containing_function: "MyApp/stop/0")
+      {expr_iri, _triples} =
+        ExceptionBuilder.build_exit(exit_expr, context, containing_function: "MyApp/stop/0")
 
       assert to_string(expr_iri) == "https://example.org/code#exit/MyApp/stop/0/0"
     end
@@ -457,10 +525,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         else_clauses: [],
         location: %{line: 42}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple != nil
@@ -471,8 +543,11 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       raise_expr = %RaiseExpression{message: "error", location: %{line: 100}}
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_raise(raise_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_raise(raise_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple != nil
@@ -483,8 +558,11 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       throw_expr = %ThrowExpression{value: :done, location: %{line: 55}}
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_throw(throw_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_throw(throw_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple != nil
@@ -499,10 +577,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         else_clauses: [],
         location: nil
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple == nil
@@ -521,10 +603,11 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, _triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0")
+      {expr_iri, _triples} =
+        ExceptionBuilder.build_try(try_expr, context, containing_function: "MyApp/test/0")
 
       assert to_string(expr_iri) == "https://example.org/code#try/MyApp/test/0/0"
     end
@@ -536,6 +619,7 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
       {expr_iri, _triples} = ExceptionBuilder.build_try(try_expr, context)
@@ -551,10 +635,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       assert find_triple(triples, expr_iri, Core.hasRescueClause()) != nil
       assert find_triple(triples, expr_iri, Core.hasCatchClause()) == nil
@@ -571,10 +659,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         catch_clauses: [],
         else_clauses: []
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       assert find_triple(triples, expr_iri, Core.hasRescueClause()) == nil
       assert find_triple(triples, expr_iri, Core.hasCatchClause()) == nil
@@ -599,10 +691,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         after_body: :cleanup,
         location: %{line: 10}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {_expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {_expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       for {subject, _predicate, _object} <- triples do
         assert %RDF.IRI{} = subject
@@ -619,10 +715,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         else_clauses: [],
         location: %{line: 10}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {_expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {_expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       for {_subject, predicate, _object} <- triples do
         assert %RDF.IRI{} = predicate
@@ -636,14 +736,29 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
       exit_expr = %ExitExpression{reason: :normal}
       context = Context.new(base_iri: @base_iri)
 
-      {try_iri, try_triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
-      {raise_iri, raise_triples} = ExceptionBuilder.build_raise(raise_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
-      {throw_iri, throw_triples} = ExceptionBuilder.build_throw(throw_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
-      {exit_iri, exit_triples} = ExceptionBuilder.build_exit(exit_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {try_iri, try_triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
+
+      {raise_iri, raise_triples} =
+        ExceptionBuilder.build_raise(raise_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
+
+      {throw_iri, throw_triples} =
+        ExceptionBuilder.build_throw(throw_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
+
+      {exit_iri, exit_triples} =
+        ExceptionBuilder.build_exit(exit_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       try_type = find_triple(try_triples, try_iri, RDF.type())
       raise_type = find_triple(raise_triples, raise_iri, RDF.type())
@@ -668,10 +783,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         else_clauses: [%Exception.ElseClause{pattern: :ok, body: :ok}],
         after_body: :cleanup
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       rescue_triple = find_triple(triples, expr_iri, Core.hasRescueClause())
       catch_triple = find_triple(triples, expr_iri, Core.hasCatchClause())
@@ -693,10 +812,14 @@ defmodule ElixirOntologies.Builders.ExceptionBuilderTest do
         else_clauses: [],
         location: %{line: 42}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ExceptionBuilder.build_try(try_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ExceptionBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       literal = elem(line_triple, 2)

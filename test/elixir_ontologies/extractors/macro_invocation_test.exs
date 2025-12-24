@@ -1015,13 +1015,14 @@ defmodule ElixirOntologies.Extractors.MacroInvocationTest do
     alias MacroInvocation.MacroContext
 
     test "new/1 creates context with all fields" do
-      ctx = MacroContext.new(
-        module: MyModule,
-        file: "lib/my_module.ex",
-        line: 42,
-        function: {:foo, 2},
-        aliases: [{A, Some.Module}]
-      )
+      ctx =
+        MacroContext.new(
+          module: MyModule,
+          file: "lib/my_module.ex",
+          line: 42,
+          function: {:foo, 2},
+          aliases: [{A, Some.Module}]
+        )
 
       assert ctx.module == MyModule
       assert ctx.file == "lib/my_module.ex"
@@ -1118,7 +1119,9 @@ defmodule ElixirOntologies.Extractors.MacroInvocationTest do
     test "merges context options with AST metadata" do
       ast = {:case, [line: 15], [{:x, [], nil}, [do: [{:->, [], [[:_], :ok]}]]]}
 
-      assert {:ok, inv} = MacroInvocation.extract_with_context(ast, module: TestMod, function: {:baz, 2})
+      assert {:ok, inv} =
+               MacroInvocation.extract_with_context(ast, module: TestMod, function: {:baz, 2})
+
       ctx = MacroInvocation.get_context(inv)
 
       assert ctx.line == 15
@@ -1175,10 +1178,12 @@ defmodule ElixirOntologies.Extractors.MacroInvocationTest do
     end
 
     test "preserves individual line numbers" do
-      body = {:__block__, [], [
-        {:def, [line: 5], [{:foo, [], []}, [do: :ok]]},
-        {:if, [line: 10], [true, [do: :ok]]}
-      ]}
+      body =
+        {:__block__, [],
+         [
+           {:def, [line: 5], [{:foo, [], []}, [do: :ok]]},
+           {:if, [line: 10], [true, [do: :ok]]}
+         ]}
 
       results = MacroInvocation.extract_all_recursive_with_context(body, module: TestMod)
 
@@ -1317,7 +1322,8 @@ defmodule ElixirOntologies.Extractors.MacroInvocationTest do
     test "qualified calls can have context" do
       ast = {{:., [], [{:__aliases__, [], [:Logger]}, :debug]}, [line: 25], ["msg"]}
 
-      {:ok, inv} = MacroInvocation.extract_with_context(ast, module: MyMod, function: {:log_it, 1})
+      {:ok, inv} =
+        MacroInvocation.extract_with_context(ast, module: MyMod, function: {:log_it, 1})
 
       assert MacroInvocation.has_context?(inv)
       assert MacroInvocation.context_module(inv) == MyMod

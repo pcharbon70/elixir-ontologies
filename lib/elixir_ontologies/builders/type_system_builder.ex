@@ -309,7 +309,12 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
 
   # Build struct:typeName triple
   defp build_type_name_triple(type_iri, name) do
-    Helpers.datatype_property(type_iri, Structure.typeName(), Atom.to_string(name), RDF.XSD.String)
+    Helpers.datatype_property(
+      type_iri,
+      Structure.typeName(),
+      Atom.to_string(name),
+      RDF.XSD.String
+    )
   end
 
   # Build struct:typeArity triple
@@ -540,7 +545,10 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
   # Build literal type: structure:BasicType with literal value
   @spec build_literal_type(TypeExpression.t(), Context.t()) ::
           {RDF.BlankNode.t(), [RDF.Triple.t()]}
-  defp build_literal_type(%TypeExpression{kind: :literal, name: name, metadata: metadata}, _context) do
+  defp build_literal_type(
+         %TypeExpression{kind: :literal, name: name, metadata: metadata},
+         _context
+       ) do
     node = RDF.BlankNode.new()
 
     # Type triple - literals are represented as BasicType with literal value
@@ -552,16 +560,32 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
     name_triple =
       case literal_type do
         :atom when is_atom(name) ->
-          Helpers.datatype_property(node, Structure.typeName(), Atom.to_string(name), RDF.XSD.String)
+          Helpers.datatype_property(
+            node,
+            Structure.typeName(),
+            Atom.to_string(name),
+            RDF.XSD.String
+          )
 
         :integer when is_integer(name) ->
-          Helpers.datatype_property(node, Structure.typeName(), Integer.to_string(name), RDF.XSD.String)
+          Helpers.datatype_property(
+            node,
+            Structure.typeName(),
+            Integer.to_string(name),
+            RDF.XSD.String
+          )
 
         :range ->
           # For ranges, format as "start..end"
           range_start = Map.get(metadata, :range_start, 0)
           range_end = Map.get(metadata, :range_end, 0)
-          Helpers.datatype_property(node, Structure.typeName(), "#{range_start}..#{range_end}", RDF.XSD.String)
+
+          Helpers.datatype_property(
+            node,
+            Structure.typeName(),
+            "#{range_start}..#{range_end}",
+            RDF.XSD.String
+          )
 
         _ ->
           name_str = if name, do: to_string(name), else: "literal"
@@ -614,7 +638,10 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
 
   # Build map type: structure:MapType with key/value types
   @spec build_map_type(TypeExpression.t(), Context.t()) :: {RDF.BlankNode.t(), [RDF.Triple.t()]}
-  defp build_map_type(%TypeExpression{kind: :map, key_type: key_type, value_type: value_type}, context) do
+  defp build_map_type(
+         %TypeExpression{kind: :map, key_type: key_type, value_type: value_type},
+         context
+       ) do
     node = RDF.BlankNode.new()
 
     type_triple = Helpers.type_triple(node, Structure.MapType)
@@ -706,7 +733,8 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
         mod when is_atom(mod) -> "%" <> Atom.to_string(mod) <> "{}"
       end
 
-    name_triple = Helpers.datatype_property(node, Structure.typeName(), module_str, RDF.XSD.String)
+    name_triple =
+      Helpers.datatype_property(node, Structure.typeName(), module_str, RDF.XSD.String)
 
     {node, [type_triple, name_triple]}
   end

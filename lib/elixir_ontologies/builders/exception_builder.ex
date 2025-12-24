@@ -143,7 +143,8 @@ defmodule ElixirOntologies.Builders.ExceptionBuilder do
       iex> to_string(iri)
       "https://example.org/code#raise/MyApp/run/0/0"
   """
-  @spec build_raise(RaiseExpression.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  @spec build_raise(RaiseExpression.t(), Context.t(), keyword()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
   def build_raise(%RaiseExpression{} = raise_expr, %Context{} = context, opts \\ []) do
     containing_function = Keyword.get(opts, :containing_function, "unknown/0")
     index = Keyword.get(opts, :index, 0)
@@ -204,7 +205,8 @@ defmodule ElixirOntologies.Builders.ExceptionBuilder do
       iex> to_string(iri)
       "https://example.org/code#throw/MyApp/run/0/0"
   """
-  @spec build_throw(ThrowExpression.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  @spec build_throw(ThrowExpression.t(), Context.t(), keyword()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
   def build_throw(%ThrowExpression{} = throw_expr, %Context{} = context, opts \\ []) do
     containing_function = Keyword.get(opts, :containing_function, "unknown/0")
     index = Keyword.get(opts, :index, 0)

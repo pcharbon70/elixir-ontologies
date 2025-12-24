@@ -689,8 +689,7 @@ defmodule ElixirOntologies.Extractors.FunctionSpecTest do
          [
            {:@, [], [{:spec, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]},
            {:@, [], [{:callback, [], [{:"::", [], [{:bar, [], []}, :ok]}]}]},
-           {:@, [],
-            [{:macrocallback, [], [{:"::", [], [{:baz, [], [{:opts, [], nil}]}, :ok]}]}]}
+           {:@, [], [{:macrocallback, [], [{:"::", [], [{:baz, [], [{:opts, [], nil}]}, :ok]}]}]}
          ]}
 
       results = FunctionSpec.extract_all(body)

@@ -753,7 +753,13 @@ defmodule ElixirOntologies.Extractors.CaseWith do
   end
 
   # Handle case expression
-  defp extract_expressions_recursive({:case, _meta, [_subject, body_opts]} = ast, type, opts, depth, max) do
+  defp extract_expressions_recursive(
+         {:case, _meta, [_subject, body_opts]} = ast,
+         type,
+         opts,
+         depth,
+         max
+       ) do
     result =
       if type == :case do
         case extract_case(ast, opts) do

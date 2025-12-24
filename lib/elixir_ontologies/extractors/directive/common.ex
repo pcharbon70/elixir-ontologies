@@ -251,7 +251,9 @@ defmodule ElixirOntologies.Extractors.Directive.Common do
     Keyword.get(body_opts, :do, nil)
   end
 
-  def extract_function_body({def_type, _meta, [{:when, _, [{_name, _, _args}, _guard]}, body_opts]})
+  def extract_function_body(
+        {def_type, _meta, [{:when, _, [{_name, _, _args}, _guard]}, body_opts]}
+      )
       when def_type in [:def, :defp, :defmacro, :defmacrop] do
     Keyword.get(body_opts, :do, nil)
   end

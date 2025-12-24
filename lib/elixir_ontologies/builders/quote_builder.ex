@@ -45,7 +45,14 @@ defmodule ElixirOntologies.Builders.QuoteBuilder do
 
   alias ElixirOntologies.Builders.{Context, Helpers}
   alias ElixirOntologies.{IRI, NS}
-  alias ElixirOntologies.Extractors.Quote.{QuotedExpression, QuoteOptions, UnquoteExpression, HygieneViolation}
+
+  alias ElixirOntologies.Extractors.Quote.{
+    QuotedExpression,
+    QuoteOptions,
+    UnquoteExpression,
+    HygieneViolation
+  }
+
   alias NS.Structure
 
   # ===========================================================================

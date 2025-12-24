@@ -930,9 +930,14 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
       context = build_test_context()
 
       # Build three clauses
-      clause_info_1 = build_test_clause(order: 1, head: %{parameters: [{:x, [], nil}], guard: nil})
-      clause_info_2 = build_test_clause(order: 2, head: %{parameters: [{:y, [], nil}], guard: nil})
-      clause_info_3 = build_test_clause(order: 3, head: %{parameters: [{:z, [], nil}], guard: nil})
+      clause_info_1 =
+        build_test_clause(order: 1, head: %{parameters: [{:x, [], nil}], guard: nil})
+
+      clause_info_2 =
+        build_test_clause(order: 2, head: %{parameters: [{:y, [], nil}], guard: nil})
+
+      clause_info_3 =
+        build_test_clause(order: 3, head: %{parameters: [{:z, [], nil}], guard: nil})
 
       {clause_iri_1, triples1} = ClauseBuilder.build_clause(clause_info_1, function_iri, context)
       {clause_iri_2, triples2} = ClauseBuilder.build_clause(clause_info_2, function_iri, context)

@@ -104,6 +104,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
         build_test_field(name: :email),
         build_test_field(name: :age)
       ]
+
       struct_info = build_test_struct(fields: fields)
       context = build_test_context()
       module_iri = build_test_module_iri()
@@ -138,6 +139,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
 
       # Verify no hasDefaultFieldValue triple
       default_pred = Structure.hasDefaultFieldValue()
+
       refute Enum.any?(triples, fn
                {^field_iri, ^default_pred, _} -> true
                _ -> false
@@ -169,8 +171,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
       field_iri = RDF.iri("#{struct_iri}/field/status")
 
       # Verify hasDefaultFieldValue triple (inspected value includes quotes)
-      assert {field_iri, Structure.hasDefaultFieldValue(),
-              RDF.XSD.String.new("\"active\"")} in triples
+      assert {field_iri, Structure.hasDefaultFieldValue(), RDF.XSD.String.new("\"active\"")} in triples
     end
 
     test "builds field with default value (list)" do
@@ -203,6 +204,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
 
       # Verify no hasEnforcedKey triples
       enforced_pred = Structure.hasEnforcedKey()
+
       refute Enum.any?(triples, fn
                {^struct_iri, ^enforced_pred, _} -> true
                _ -> false
@@ -229,6 +231,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
         build_test_field(name: :email),
         build_test_field(name: :age)
       ]
+
       struct_info = build_test_struct(fields: fields, enforce_keys: [:name, :email])
       context = build_test_context()
       module_iri = build_test_module_iri()
@@ -263,6 +266,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
 
       # Verify no derivesProtocol triples
       derives_pred = Structure.derivesProtocol()
+
       refute Enum.any?(triples, fn
                {^struct_iri, ^derives_pred, _} -> true
                _ -> false
@@ -274,6 +278,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
         protocols: [%{protocol: [:Inspect], options: nil}],
         location: nil
       }
+
       struct_info = build_test_struct(derives: [derive_info])
       context = build_test_context()
       module_iri = build_test_module_iri()
@@ -291,6 +296,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
         protocols: [%{protocol: :Inspect, options: nil}],
         location: nil
       }
+
       struct_info = build_test_struct(derives: [derive_info])
       context = build_test_context()
       module_iri = build_test_module_iri()
@@ -311,6 +317,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
         ],
         location: nil
       }
+
       struct_info = build_test_struct(derives: [derive_info])
       context = build_test_context()
       module_iri = build_test_module_iri()
@@ -351,10 +358,13 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
 
     test "builds exception with message field and default" do
       field = build_test_field(name: :message, has_default: true, default_value: "error")
-      exception_info = build_test_exception(
-        fields: [field],
-        default_message: "error"
-      )
+
+      exception_info =
+        build_test_exception(
+          fields: [field],
+          default_message: "error"
+        )
+
       context = build_test_context()
       module_iri = build_test_module_iri(module_name: "MyError")
 
@@ -370,7 +380,9 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
     end
 
     test "builds exception with custom message" do
-      exception_info = build_test_exception(has_custom_message: true, default_message: "custom error")
+      exception_info =
+        build_test_exception(has_custom_message: true, default_message: "custom error")
+
       context = build_test_context()
       module_iri = build_test_module_iri(module_name: "MyError")
 
@@ -391,6 +403,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
 
       # Verify no exceptionMessage triple
       exception_msg_pred = Structure.exceptionMessage()
+
       refute Enum.any?(triples, fn
                {^exception_iri, ^exception_msg_pred, _} -> true
                _ -> false
@@ -399,10 +412,13 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
 
     test "builds exception with enforced keys" do
       field = build_test_field(name: :code)
-      exception_info = build_test_exception(
-        fields: [field],
-        enforce_keys: [:code]
-      )
+
+      exception_info =
+        build_test_exception(
+          fields: [field],
+          enforce_keys: [:code]
+        )
+
       context = build_test_context()
       module_iri = build_test_module_iri(module_name: "MyError")
 
@@ -448,6 +464,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
         build_test_field(name: :name),
         build_test_field(name: :email)
       ]
+
       struct_info = build_test_struct(fields: fields)
       context = build_test_context()
       module_iri = build_test_module_iri()
@@ -505,11 +522,14 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
 
     test "generates all expected triples for exception" do
       field = build_test_field(name: :message, has_default: true, default_value: "error")
-      exception_info = build_test_exception(
-        fields: [field],
-        has_custom_message: true,
-        default_message: "error"
-      )
+
+      exception_info =
+        build_test_exception(
+          fields: [field],
+          has_custom_message: true,
+          default_message: "error"
+        )
+
       context = build_test_context()
       module_iri = build_test_module_iri(module_name: "MyError")
 

@@ -496,7 +496,10 @@ defmodule ElixirOntologies.Extractors.Exception do
     Enum.map(clauses, &extract_single_else_clause(&1, opts))
   end
 
-  defp extract_single_else_clause({:->, _meta, [[{:when, _, [pattern, guard]}], body]} = node, opts) do
+  defp extract_single_else_clause(
+         {:->, _meta, [[{:when, _, [pattern, guard]}], body]} = node,
+         opts
+       ) do
     %ElseClause{
       pattern: pattern,
       guard: guard,

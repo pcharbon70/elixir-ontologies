@@ -265,6 +265,7 @@ defmodule ElixirOntologies.Builders.StructBuilder do
     if field.has_default do
       # Convert default value to string representation
       default_string = inspect(field.default_value)
+
       [
         Helpers.datatype_property(
           field_iri,

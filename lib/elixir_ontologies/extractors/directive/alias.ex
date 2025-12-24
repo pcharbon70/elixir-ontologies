@@ -608,7 +608,14 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
     combined_prefix = prefix ++ nested_prefix_parts
     # Recursively expand the nested suffixes with incremented depth
     result =
-      expand_multi_alias(combined_prefix, nested_suffixes, location, idx, current_depth + 1, max_depth)
+      expand_multi_alias(
+        combined_prefix,
+        nested_suffixes,
+        location,
+        idx,
+        current_depth + 1,
+        max_depth
+      )
 
     case result do
       {:ok, nested_directives} ->

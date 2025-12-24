@@ -490,7 +490,8 @@ defmodule ElixirOntologies.SHACL.Validators.ValueTest do
       for {value, should_pass} <- test_cases do
         graph =
           RDF.Graph.new([
-            {@function_iri, @arity_prop, RDF.Literal.new(value, datatype: @xsd_non_negative_integer)}
+            {@function_iri, @arity_prop,
+             RDF.Literal.new(value, datatype: @xsd_non_negative_integer)}
           ])
 
         violations = Value.validate(graph, @function_iri, shape)

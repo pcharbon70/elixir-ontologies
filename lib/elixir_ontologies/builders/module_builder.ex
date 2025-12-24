@@ -259,7 +259,9 @@ defmodule ElixirOntologies.Builders.ModuleBuilder do
   defp build_containment_triples(module_iri, module_info, context) do
     module_name = extract_module_name_from_iri(module_iri)
 
-    function_triples = build_function_containment(module_iri, module_name, module_info.functions, context)
+    function_triples =
+      build_function_containment(module_iri, module_name, module_info.functions, context)
+
     macro_triples = build_macro_containment(module_iri, module_name, module_info.macros, context)
     type_triples = build_type_containment(module_iri, module_name, module_info.types, context)
 

@@ -293,7 +293,9 @@ defmodule ElixirOntologies.Builders.ProtocolBuilder do
   # Build function documentation triple if present
   defp build_function_doc_triple(func_iri, func) do
     case func.doc do
-      nil -> []
+      nil ->
+        []
+
       doc when is_binary(doc) ->
         [Helpers.datatype_property(func_iri, Structure.docstring(), doc, RDF.XSD.String)]
     end

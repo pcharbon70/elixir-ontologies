@@ -542,7 +542,10 @@ defmodule ElixirOntologies.Extractors.CallTest do
     end
 
     test "includes location when available" do
-      ast = {{:., [line: 10], [{:__aliases__, [line: 10], [:String]}, :upcase]}, [line: 10, column: 5], ["hello"]}
+      ast =
+        {{:., [line: 10], [{:__aliases__, [line: 10], [:String]}, :upcase]},
+         [line: 10, column: 5], ["hello"]}
+
       assert {:ok, call} = Call.extract_remote(ast)
       assert call.location != nil
     end
@@ -753,16 +756,25 @@ defmodule ElixirOntologies.Extractors.CallTest do
     end
 
     test "returns true for Kernel.apply/3" do
-      ast = {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
-        {:__aliases__, [], [:Module]}, :func, [1, 2]
-      ]}
+      ast =
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [],
+         [
+           {:__aliases__, [], [:Module]},
+           :func,
+           [1, 2]
+         ]}
+
       assert Call.dynamic_call?(ast)
     end
 
     test "returns true for Kernel.apply/2" do
-      ast = {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
-        {:fun, [], Elixir}, [1, 2]
-      ]}
+      ast =
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [],
+         [
+           {:fun, [], Elixir},
+           [1, 2]
+         ]}
+
       assert Call.dynamic_call?(ast)
     end
 
@@ -861,9 +873,14 @@ defmodule ElixirOntologies.Extractors.CallTest do
     end
 
     test "extracts Kernel.apply/3" do
-      ast = {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
-        {:__aliases__, [], [:Module]}, :func, [1, 2]
-      ]}
+      ast =
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [],
+         [
+           {:__aliases__, [], [:Module]},
+           :func,
+           [1, 2]
+         ]}
+
       assert {:ok, call} = Call.extract_dynamic(ast)
       assert call.type == :dynamic
       assert call.metadata.dynamic_type == :apply_3
@@ -871,9 +888,13 @@ defmodule ElixirOntologies.Extractors.CallTest do
     end
 
     test "extracts Kernel.apply/2" do
-      ast = {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
-        {:fun, [], Elixir}, [1, 2]
-      ]}
+      ast =
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [],
+         [
+           {:fun, [], Elixir},
+           [1, 2]
+         ]}
+
       assert {:ok, call} = Call.extract_dynamic(ast)
       assert call.metadata.dynamic_type == :apply_2
       assert call.metadata.function_variable == :fun
@@ -984,12 +1005,17 @@ defmodule ElixirOntologies.Extractors.CallTest do
 
     test "extracts Kernel.apply calls" do
       body = [
-        {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
-          {:__aliases__, [], [:M]}, :f, [1]
-        ]},
-        {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [], [
-          {:fun, [], Elixir}, [2]
-        ]}
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [],
+         [
+           {:__aliases__, [], [:M]},
+           :f,
+           [1]
+         ]},
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :apply]}, [],
+         [
+           {:fun, [], Elixir},
+           [2]
+         ]}
       ]
 
       calls = Call.extract_dynamic_calls(body)

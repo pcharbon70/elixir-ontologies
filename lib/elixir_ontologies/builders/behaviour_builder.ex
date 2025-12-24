@@ -112,7 +112,8 @@ defmodule ElixirOntologies.Builders.BehaviourBuilder do
       iex> Enum.any?(triples, fn {^behaviour_iri, ^type_pred, _} -> true; _ -> false end)
       true
   """
-  @spec build_behaviour(Behaviour.t(), RDF.IRI.t(), Context.t()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  @spec build_behaviour(Behaviour.t(), RDF.IRI.t(), Context.t()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
   def build_behaviour(behaviour_info, module_iri, context) do
     # Behaviour IRI is the same as module IRI
     behaviour_iri = module_iri
@@ -283,7 +284,9 @@ defmodule ElixirOntologies.Builders.BehaviourBuilder do
   # Build callback documentation triple if present
   defp build_callback_doc_triple(callback_iri, callback) do
     case callback.doc do
-      nil -> []
+      nil ->
+        []
+
       doc when is_binary(doc) ->
         [Helpers.datatype_property(callback_iri, Structure.docstring(), doc, RDF.XSD.String)]
     end

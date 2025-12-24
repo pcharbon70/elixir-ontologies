@@ -11,7 +11,15 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
 
   alias ElixirOntologies.Builders.{ControlFlowBuilder, Context}
   alias ElixirOntologies.Extractors.Conditional.{Conditional, Branch}
-  alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, CaseClause, WithExpression, WithClause, ReceiveExpression}
+
+  alias ElixirOntologies.Extractors.CaseWith.{
+    CaseExpression,
+    CaseClause,
+    WithExpression,
+    WithClause,
+    ReceiveExpression
+  }
+
   alias ElixirOntologies.Extractors.Comprehension
   alias ElixirOntologies.NS.Core
 
@@ -88,10 +96,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         branches: [%Branch{type: :then, body: :ok}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -105,10 +117,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         branches: [%Branch{type: :then, body: :positive}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/check/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/check/1",
+          index: 0
+        )
 
       condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
       assert condition_triple != nil
@@ -122,10 +138,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         branches: [%Branch{type: :then, body: :yes}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       then_triple = find_triple(triples, expr_iri, Core.hasThenBranch())
       assert then_triple != nil
@@ -142,10 +162,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         ],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       else_triple = find_triple(triples, expr_iri, Core.hasElseBranch())
       assert else_triple != nil
@@ -165,10 +189,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         branches: [%Branch{type: :then, body: :ok}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/check/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/check/1",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -182,10 +210,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         branches: [%Branch{type: :then, body: :proceed}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
       assert condition_triple != nil
@@ -203,15 +235,24 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         condition: nil,
         branches: [],
         clauses: [
-          %{condition: {:>, [], [{:x, [], nil}, 0]}, body: :positive, index: 0, is_catch_all: false},
+          %{
+            condition: {:>, [], [{:x, [], nil}, 0]},
+            body: :positive,
+            index: 0,
+            is_catch_all: false
+          },
           %{condition: true, body: :default, index: 1, is_catch_all: true}
         ],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/classify/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/classify/1",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -229,10 +270,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         ],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/select/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/select/0",
+          index: 0
+        )
 
       clause_triple = find_triple(triples, expr_iri, Core.hasClause())
       assert clause_triple != nil
@@ -247,10 +292,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         clauses: [%{condition: true, body: :ok, index: 0, is_catch_all: true}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
       assert condition_triple == nil
@@ -268,10 +317,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         clauses: [%CaseClause{index: 0, pattern: :ok, body: :success, has_guard: false}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_case(case_expr, context,
-        containing_function: "MyApp/handle/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/handle/1",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -287,10 +340,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         ],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_case(case_expr, context,
-        containing_function: "MyApp/process/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/process/1",
+          index: 0
+        )
 
       clause_triple = find_triple(triples, expr_iri, Core.hasClause())
       assert clause_triple != nil
@@ -301,15 +358,25 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       case_expr = %CaseExpression{
         subject: {:n, [], nil},
         clauses: [
-          %CaseClause{index: 0, pattern: :x, guard: {:>, [], [:x, 0]}, body: :positive, has_guard: true},
+          %CaseClause{
+            index: 0,
+            pattern: :x,
+            guard: {:>, [], [:x, 0]},
+            body: :positive,
+            has_guard: true
+          },
           %CaseClause{index: 1, pattern: :_, body: :other, has_guard: false}
         ],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_case(case_expr, context,
-        containing_function: "MyApp/classify/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/classify/1",
+          index: 0
+        )
 
       guard_triple = find_triple(triples, expr_iri, Core.hasGuard())
       assert guard_triple != nil
@@ -325,10 +392,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         ],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_case(case_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       guard_triple = find_triple(triples, expr_iri, Core.hasGuard())
       assert guard_triple == nil
@@ -342,15 +413,21 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   describe "build_with/3" do
     test "generates type triple for with expression" do
       with_expr = %WithExpression{
-        clauses: [%WithClause{index: 0, type: :match, pattern: {:ok, :x}, expression: {:fetch, [], []}}],
+        clauses: [
+          %WithClause{index: 0, type: :match, pattern: {:ok, :x}, expression: {:fetch, [], []}}
+        ],
         body: :x,
         else_clauses: [],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_with(with_expr, context,
-        containing_function: "MyApp/process/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/process/0",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -367,10 +444,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         else_clauses: [],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_with(with_expr, context,
-        containing_function: "MyApp/chain/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/chain/0",
+          index: 0
+        )
 
       clause_triple = find_triple(triples, expr_iri, Core.hasClause())
       assert clause_triple != nil
@@ -384,10 +465,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         else_clauses: [%CaseClause{index: 0, pattern: :error, body: :default, has_guard: false}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_with(with_expr, context,
-        containing_function: "MyApp/safe/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/safe/0",
+          index: 0
+        )
 
       else_triple = find_triple(triples, expr_iri, Core.hasElseClause())
       assert else_triple != nil
@@ -401,10 +486,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         else_clauses: [],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_with(with_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       else_triple = find_triple(triples, expr_iri, Core.hasElseClause())
       assert else_triple == nil
@@ -457,10 +546,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         has_after: false,
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_receive(receive_expr, context,
-        containing_function: "MyApp/listen/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/listen/0",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -477,10 +570,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         has_after: false,
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_receive(receive_expr, context,
-        containing_function: "MyApp/handle/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/handle/0",
+          index: 0
+        )
 
       clause_triple = find_triple(triples, expr_iri, Core.hasClause())
       assert clause_triple != nil
@@ -494,10 +591,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         has_after: true,
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_receive(receive_expr, context,
-        containing_function: "MyApp/wait/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/wait/0",
+          index: 0
+        )
 
       after_triple = find_triple(triples, expr_iri, Core.hasAfterTimeout())
       assert after_triple != nil
@@ -511,10 +612,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         has_after: false,
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_receive(receive_expr, context,
-        containing_function: "MyApp/listen/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/listen/0",
+          index: 0
+        )
 
       after_triple = find_triple(triples, expr_iri, Core.hasAfterTimeout())
       assert after_triple == nil
@@ -528,10 +633,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         location: %{line: 25},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_receive(receive_expr, context,
-        containing_function: "MyApp/wait/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/wait/0",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple != nil
@@ -553,10 +662,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         options: %{},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
-        containing_function: "MyApp/transform/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(comprehension, context,
+          containing_function: "MyApp/transform/1",
+          index: 0
+        )
 
       type_triple = find_triple(triples, expr_iri, RDF.type())
       assert type_triple != nil
@@ -572,10 +685,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         options: %{},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
-        containing_function: "MyApp/product/2", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(comprehension, context,
+          containing_function: "MyApp/product/2",
+          index: 0
+        )
 
       generator_triple = find_triple(triples, expr_iri, Core.hasGenerator())
       assert generator_triple != nil
@@ -591,10 +708,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         options: %{},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
-        containing_function: "MyApp/filter/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(comprehension, context,
+          containing_function: "MyApp/filter/1",
+          index: 0
+        )
 
       filter_triple = find_triple(triples, expr_iri, Core.hasFilter())
       assert filter_triple != nil
@@ -610,10 +731,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         options: %{into: %{}},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
-        containing_function: "MyApp/into_map/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(comprehension, context,
+          containing_function: "MyApp/into_map/1",
+          index: 0
+        )
 
       into_triple = find_triple(triples, expr_iri, Core.hasIntoOption())
       assert into_triple != nil
@@ -629,10 +754,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         options: %{reduce: 0},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
-        containing_function: "MyApp/sum/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(comprehension, context,
+          containing_function: "MyApp/sum/1",
+          index: 0
+        )
 
       reduce_triple = find_triple(triples, expr_iri, Core.hasReduceOption())
       assert reduce_triple != nil
@@ -648,10 +777,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         options: %{uniq: true},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
-        containing_function: "MyApp/unique/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(comprehension, context,
+          containing_function: "MyApp/unique/1",
+          index: 0
+        )
 
       uniq_triple = find_triple(triples, expr_iri, Core.hasUniqOption())
       assert uniq_triple != nil
@@ -667,10 +800,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         options: %{},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
-        containing_function: "MyApp/map/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(comprehension, context,
+          containing_function: "MyApp/map/1",
+          index: 0
+        )
 
       filter_triple = find_triple(triples, expr_iri, Core.hasFilter())
       assert filter_triple == nil
@@ -686,10 +823,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         location: %{line: 50},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_comprehension(comprehension, context,
-        containing_function: "MyApp/transform/1", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(comprehension, context,
+          containing_function: "MyApp/transform/1",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple != nil
@@ -710,10 +851,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         location: %{line: 42},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple != nil
@@ -727,10 +872,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         location: %{line: 100},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_case(case_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple != nil
@@ -745,10 +894,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         location: %{line: 55},
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_with(with_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple != nil
@@ -763,10 +916,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         location: nil,
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple == nil
@@ -785,10 +942,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         branches: [%Branch{type: :then, body: :ok}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, _triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/test/0")
+      {expr_iri, _triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0"
+        )
 
       assert to_string(expr_iri) == "https://example.org/code#cond/MyApp/test/0/0"
     end
@@ -800,6 +960,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         branches: [%Branch{type: :then, body: :ok}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
       {expr_iri, _triples} = ControlFlowBuilder.build_conditional(conditional, context)
@@ -814,10 +975,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         branches: [%Branch{type: :then, body: :ok}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       # Should still have type triple
       type_triple = find_triple(triples, expr_iri, RDF.type())
@@ -834,10 +999,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         clauses: [],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_case(case_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       # Should have type triple
       type_triple = find_triple(triples, expr_iri, RDF.type())
@@ -855,10 +1024,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         else_clauses: [],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_with(with_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       # Should have type triple
       type_triple = find_triple(triples, expr_iri, RDF.type())
@@ -882,10 +1055,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         branches: [%Branch{type: :then, body: :ok}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {_expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {_expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       Enum.each(triples, fn {s, _, _} ->
         assert %RDF.IRI{} = s
@@ -898,10 +1075,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         clauses: [%CaseClause{index: 0, pattern: :ok, body: :ok, has_guard: false}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {_expr_iri, triples} = ControlFlowBuilder.build_case(case_expr, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {_expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       Enum.each(triples, fn {_, p, _} ->
         assert %RDF.IRI{} = p
@@ -912,24 +1093,55 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       context = Context.new(base_iri: @base_iri)
 
       # Test if expression
-      if_cond = %Conditional{type: :if, condition: :x, branches: [%Branch{type: :then, body: 1}], metadata: %{}}
-      {iri, triples} = ControlFlowBuilder.build_conditional(if_cond, context, containing_function: "MyApp/test/0", index: 0)
+      if_cond = %Conditional{
+        type: :if,
+        condition: :x,
+        branches: [%Branch{type: :then, body: 1}],
+        metadata: %{}
+      }
+
+      {iri, triples} =
+        ControlFlowBuilder.build_conditional(if_cond, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
+
       type_triple = find_triple(triples, iri, RDF.type())
       assert elem(type_triple, 2) == Core.IfExpression
 
       # Test case expression
       case_clause = %CaseClause{index: 0, pattern: :ok, body: 1, has_guard: false}
       case_expr = %CaseExpression{subject: :x, clauses: [case_clause], metadata: %{}}
-      {iri2, triples2} = ControlFlowBuilder.build_case(
-        case_expr, context, containing_function: "MyApp/test/0", index: 0)
+
+      {iri2, triples2} =
+        ControlFlowBuilder.build_case(
+          case_expr,
+          context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
+
       type_triple2 = find_triple(triples2, iri2, RDF.type())
       assert elem(type_triple2, 2) == Core.CaseExpression
 
       # Test with expression
       with_clause = %WithClause{index: 0, type: :match, pattern: :ok, expression: :x}
-      with_expr = %WithExpression{clauses: [with_clause], body: :ok, else_clauses: [], metadata: %{}}
-      {iri3, triples3} = ControlFlowBuilder.build_with(
-        with_expr, context, containing_function: "MyApp/test/0", index: 0)
+
+      with_expr = %WithExpression{
+        clauses: [with_clause],
+        body: :ok,
+        else_clauses: [],
+        metadata: %{}
+      }
+
+      {iri3, triples3} =
+        ControlFlowBuilder.build_with(
+          with_expr,
+          context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
+
       type_triple3 = find_triple(triples3, iri3, RDF.type())
       assert elem(type_triple3, 2) == Core.WithExpression
     end
@@ -941,10 +1153,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         branches: [%Branch{type: :then, body: :ok}, %Branch{type: :else, body: :err}],
         metadata: %{}
       }
+
       context = Context.new(base_iri: @base_iri)
 
-      {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context,
-        containing_function: "MyApp/test/0", index: 0)
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+        )
 
       # Check hasCondition is boolean
       cond_triple = find_triple(triples, expr_iri, Core.hasCondition())

@@ -244,7 +244,12 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
       # Link to imported module
       Helpers.object_property(import_iri, Structure.importsModule(), imported_module_iri),
       # Full import flag
-      Helpers.datatype_property(import_iri, Structure.isFullImport(), is_full_import, RDF.XSD.Boolean),
+      Helpers.datatype_property(
+        import_iri,
+        Structure.isFullImport(),
+        is_full_import,
+        RDF.XSD.Boolean
+      ),
       # Link from containing module
       Helpers.object_property(module_iri, Structure.hasImport(), import_iri)
     ]
@@ -258,12 +263,18 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
 
     # Add excluded function triples if applicable
     excluded_triples =
-      build_excluded_function_triples(import_iri, import_info.except, imported_module_name, context)
+      build_excluded_function_triples(
+        import_iri,
+        import_info.except,
+        imported_module_name,
+        context
+      )
 
     # Add external module detection triple if cross-module linking is enabled
     external_triples = build_external_module_triple(import_iri, imported_module_name, context)
 
-    triples = base_triples ++ type_triples ++ function_triples ++ excluded_triples ++ external_triples
+    triples =
+      base_triples ++ type_triples ++ function_triples ++ excluded_triples ++ external_triples
 
     {import_iri, triples}
   end
@@ -356,7 +367,12 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
       iex> length(triples)
       4
   """
-  @spec build_require_dependency(RequireDirective.t(), RDF.IRI.t(), Context.t(), non_neg_integer()) ::
+  @spec build_require_dependency(
+          RequireDirective.t(),
+          RDF.IRI.t(),
+          Context.t(),
+          non_neg_integer()
+        ) ::
           {RDF.IRI.t(), [RDF.Triple.t()]}
   def build_require_dependency(require_info, module_iri, context, index) do
     # Generate require IRI
@@ -591,7 +607,15 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
       is_known ->
         # Generate triple: external = not known
         is_external = not is_known
-        [Helpers.datatype_property(directive_iri, Structure.isExternalModule(), is_external, RDF.XSD.Boolean)]
+
+        [
+          Helpers.datatype_property(
+            directive_iri,
+            Structure.isExternalModule(),
+            is_external,
+            RDF.XSD.Boolean
+          )
+        ]
     end
   end
 
@@ -649,9 +673,18 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
   # ===========================================================================
 
   # Build require alias triple if as: is present
-  defp build_require_alias_triple(require_iri, as_name) when is_atom(as_name) and not is_nil(as_name) do
+  defp build_require_alias_triple(require_iri, as_name)
+       when is_atom(as_name) and not is_nil(as_name) do
     alias_string = Atom.to_string(as_name)
-    [Helpers.datatype_property(require_iri, Structure.requireAlias(), alias_string, RDF.XSD.String)]
+
+    [
+      Helpers.datatype_property(
+        require_iri,
+        Structure.requireAlias(),
+        alias_string,
+        RDF.XSD.String
+      )
+    ]
   end
 
   defp build_require_alias_triple(_require_iri, _as_name), do: []
@@ -684,13 +717,33 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
       # Link from use directive
       Helpers.object_property(use_iri, Structure.hasUseOption(), option_iri),
       # Option key
-      Helpers.datatype_property(option_iri, Structure.optionKey(), Atom.to_string(key), RDF.XSD.String),
+      Helpers.datatype_property(
+        option_iri,
+        Structure.optionKey(),
+        Atom.to_string(key),
+        RDF.XSD.String
+      ),
       # Option value
-      Helpers.datatype_property(option_iri, Structure.optionValue(), value_string, RDF.XSD.String),
+      Helpers.datatype_property(
+        option_iri,
+        Structure.optionValue(),
+        value_string,
+        RDF.XSD.String
+      ),
       # Value type
-      Helpers.datatype_property(option_iri, Structure.optionValueType(), value_type, RDF.XSD.String),
+      Helpers.datatype_property(
+        option_iri,
+        Structure.optionValueType(),
+        value_type,
+        RDF.XSD.String
+      ),
       # Dynamic flag
-      Helpers.datatype_property(option_iri, Structure.isDynamicOption(), is_dynamic, RDF.XSD.Boolean)
+      Helpers.datatype_property(
+        option_iri,
+        Structure.isDynamicOption(),
+        is_dynamic,
+        RDF.XSD.Boolean
+      )
     ]
   end
 
@@ -710,11 +763,26 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
       # Option key
       Helpers.datatype_property(option_iri, Structure.optionKey(), key_string, RDF.XSD.String),
       # Option value
-      Helpers.datatype_property(option_iri, Structure.optionValue(), value_string, RDF.XSD.String),
+      Helpers.datatype_property(
+        option_iri,
+        Structure.optionValue(),
+        value_string,
+        RDF.XSD.String
+      ),
       # Value type
-      Helpers.datatype_property(option_iri, Structure.optionValueType(), value_type, RDF.XSD.String),
+      Helpers.datatype_property(
+        option_iri,
+        Structure.optionValueType(),
+        value_type,
+        RDF.XSD.String
+      ),
       # Dynamic flag
-      Helpers.datatype_property(option_iri, Structure.isDynamicOption(), opt.dynamic, RDF.XSD.Boolean)
+      Helpers.datatype_property(
+        option_iri,
+        Structure.isDynamicOption(),
+        opt.dynamic,
+        RDF.XSD.Boolean
+      )
     ]
   end
 
@@ -732,11 +800,26 @@ defmodule ElixirOntologies.Builders.DependencyBuilder do
       # Option key (empty for positional)
       Helpers.datatype_property(option_iri, Structure.optionKey(), "", RDF.XSD.String),
       # Option value
-      Helpers.datatype_property(option_iri, Structure.optionValue(), value_string, RDF.XSD.String),
+      Helpers.datatype_property(
+        option_iri,
+        Structure.optionValue(),
+        value_string,
+        RDF.XSD.String
+      ),
       # Value type
-      Helpers.datatype_property(option_iri, Structure.optionValueType(), value_type, RDF.XSD.String),
+      Helpers.datatype_property(
+        option_iri,
+        Structure.optionValueType(),
+        value_type,
+        RDF.XSD.String
+      ),
       # Dynamic flag
-      Helpers.datatype_property(option_iri, Structure.isDynamicOption(), is_dynamic, RDF.XSD.Boolean)
+      Helpers.datatype_property(
+        option_iri,
+        Structure.isDynamicOption(),
+        is_dynamic,
+        RDF.XSD.Boolean
+      )
     ]
   end
 

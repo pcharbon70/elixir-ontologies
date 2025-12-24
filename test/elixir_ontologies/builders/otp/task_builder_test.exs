@@ -133,10 +133,11 @@ defmodule ElixirOntologies.Builders.OTP.TaskBuilderTest do
         TaskBuilder.build_task(task_info, module_iri, context)
 
       # Count type triples
-      has_type = Enum.any?(triples, fn
-        {^task_iri, pred, OTP.Task} -> pred == RDF.type()
-        _ -> false
-      end)
+      has_type =
+        Enum.any?(triples, fn
+          {^task_iri, pred, OTP.Task} -> pred == RDF.type()
+          _ -> false
+        end)
 
       assert has_type
     end
@@ -150,10 +151,11 @@ defmodule ElixirOntologies.Builders.OTP.TaskBuilderTest do
         TaskBuilder.build_task(task_info, module_iri, context)
 
       # Verify TaskSupervisor type
-      has_type = Enum.any?(triples, fn
-        {^task_iri, pred, OTP.TaskSupervisor} -> pred == RDF.type()
-        _ -> false
-      end)
+      has_type =
+        Enum.any?(triples, fn
+          {^task_iri, pred, OTP.TaskSupervisor} -> pred == RDF.type()
+          _ -> false
+        end)
 
       assert has_type
     end
@@ -257,12 +259,14 @@ defmodule ElixirOntologies.Builders.OTP.TaskBuilderTest do
     end
 
     test "Task with context that has no file_path" do
-      task_info = build_test_task(
-        location: %ElixirOntologies.Analyzer.Location.SourceLocation{
-          start_line: 10,
-          start_column: 1
-        }
-      )
+      task_info =
+        build_test_task(
+          location: %ElixirOntologies.Analyzer.Location.SourceLocation{
+            start_line: 10,
+            start_column: 1
+          }
+        )
+
       context = build_test_context(file_path: nil)
       module_iri = build_test_module_iri()
 
@@ -274,12 +278,14 @@ defmodule ElixirOntologies.Builders.OTP.TaskBuilderTest do
     end
 
     test "Task with metadata" do
-      task_info = build_test_task(
-        metadata: %{
-          custom_key: "custom_value",
-          call_count: 5
-        }
-      )
+      task_info =
+        build_test_task(
+          metadata: %{
+            custom_key: "custom_value",
+            call_count: 5
+          }
+        )
+
       context = build_test_context()
       module_iri = build_test_module_iri()
 

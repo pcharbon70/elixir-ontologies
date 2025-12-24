@@ -195,8 +195,22 @@ defmodule ElixirOntologies.Builders.ProtocolBuilderTest do
     test "builds protocol with multiple functions" do
       functions = [
         %{name: :count, arity: 1, parameters: [:enumerable], doc: nil, spec: nil, location: nil},
-        %{name: :member?, arity: 2, parameters: [:enumerable, :element], doc: nil, spec: nil, location: nil},
-        %{name: :reduce, arity: 3, parameters: [:enumerable, :acc, :fun], doc: nil, spec: nil, location: nil}
+        %{
+          name: :member?,
+          arity: 2,
+          parameters: [:enumerable, :element],
+          doc: nil,
+          spec: nil,
+          location: nil
+        },
+        %{
+          name: :reduce,
+          arity: 3,
+          parameters: [:enumerable, :acc, :fun],
+          doc: nil,
+          spec: nil,
+          location: nil
+        }
       ]
 
       protocol_info = build_test_protocol(name: [:Enumerable], functions: functions)
@@ -307,10 +321,11 @@ defmodule ElixirOntologies.Builders.ProtocolBuilderTest do
     end
 
     test "handles namespaced protocol implementation" do
-      impl_info = build_test_implementation(
-        protocol: [:String, :Chars],
-        for_type: [:Integer]
-      )
+      impl_info =
+        build_test_implementation(
+          protocol: [:String, :Chars],
+          for_type: [:Integer]
+        )
 
       context = build_test_context()
 
@@ -357,11 +372,12 @@ defmodule ElixirOntologies.Builders.ProtocolBuilderTest do
         %{name: :reduce, arity: 3, has_body: true, location: nil}
       ]
 
-      impl_info = build_test_implementation(
-        protocol: [:Enumerable],
-        for_type: [:List],
-        functions: functions
-      )
+      impl_info =
+        build_test_implementation(
+          protocol: [:Enumerable],
+          for_type: [:List],
+          functions: functions
+        )
 
       context = build_test_context()
 
@@ -391,7 +407,9 @@ defmodule ElixirOntologies.Builders.ProtocolBuilderTest do
     test "adds location triple when location and file path available" do
       location = %{start_line: 10, end_line: 15, start_column: 1, end_column: 5}
       protocol_info = build_test_protocol(location: location)
-      context = Context.new(base_iri: "https://example.org/code#", file_path: "lib/my_protocol.ex")
+
+      context =
+        Context.new(base_iri: "https://example.org/code#", file_path: "lib/my_protocol.ex")
 
       {_protocol_iri, triples} = ProtocolBuilder.build_protocol(protocol_info, context)
 
@@ -403,7 +421,9 @@ defmodule ElixirOntologies.Builders.ProtocolBuilderTest do
 
     test "omits location triple when location is nil" do
       protocol_info = build_test_protocol(location: nil)
-      context = Context.new(base_iri: "https://example.org/code#", file_path: "lib/my_protocol.ex")
+
+      context =
+        Context.new(base_iri: "https://example.org/code#", file_path: "lib/my_protocol.ex")
 
       {_protocol_iri, triples} = ProtocolBuilder.build_protocol(protocol_info, context)
 
@@ -457,10 +477,11 @@ defmodule ElixirOntologies.Builders.ProtocolBuilderTest do
     end
 
     test "implementation IRI uses Protocol.for.Type pattern" do
-      impl_info = build_test_implementation(
-        protocol: [:MyApp, :MyProtocol],
-        for_type: [:MyApp, :MyType]
-      )
+      impl_info =
+        build_test_implementation(
+          protocol: [:MyApp, :MyProtocol],
+          for_type: [:MyApp, :MyType]
+        )
 
       context = build_test_context()
 
@@ -488,11 +509,12 @@ defmodule ElixirOntologies.Builders.ProtocolBuilderTest do
         %{name: :my_func, arity: 2, has_body: true, location: nil}
       ]
 
-      impl_info = build_test_implementation(
-        protocol: [:MyProtocol],
-        for_type: [:MyType],
-        functions: functions
-      )
+      impl_info =
+        build_test_implementation(
+          protocol: [:MyProtocol],
+          for_type: [:MyType],
+          functions: functions
+        )
 
       context = build_test_context()
 
@@ -513,12 +535,13 @@ defmodule ElixirOntologies.Builders.ProtocolBuilderTest do
         %{name: :count, arity: 1, parameters: [:enum], doc: nil, spec: nil, location: nil}
       ]
 
-      protocol_info = build_test_protocol(
-        name: [:Enumerable],
-        functions: functions,
-        fallback_to_any: true,
-        doc: "Enumeration protocol"
-      )
+      protocol_info =
+        build_test_protocol(
+          name: [:Enumerable],
+          functions: functions,
+          fallback_to_any: true,
+          doc: "Enumeration protocol"
+        )
 
       context = build_test_context()
 
@@ -528,16 +551,24 @@ defmodule ElixirOntologies.Builders.ProtocolBuilderTest do
       assert {protocol_iri, RDF.type(), Structure.Protocol} in triples
 
       # Verify protocolName
-      assert Enum.any?(triples, fn {s, p, _} -> s == protocol_iri and p == Structure.protocolName() end)
+      assert Enum.any?(triples, fn {s, p, _} ->
+               s == protocol_iri and p == Structure.protocolName()
+             end)
 
       # Verify fallbackToAny
-      assert Enum.any?(triples, fn {s, p, _} -> s == protocol_iri and p == Structure.fallbackToAny() end)
+      assert Enum.any?(triples, fn {s, p, _} ->
+               s == protocol_iri and p == Structure.fallbackToAny()
+             end)
 
       # Verify docstring
-      assert Enum.any?(triples, fn {s, p, _} -> s == protocol_iri and p == Structure.docstring() end)
+      assert Enum.any?(triples, fn {s, p, _} ->
+               s == protocol_iri and p == Structure.docstring()
+             end)
 
       # Verify definesProtocolFunction
-      assert Enum.any?(triples, fn {s, p, _} -> s == protocol_iri and p == Structure.definesProtocolFunction() end)
+      assert Enum.any?(triples, fn {s, p, _} ->
+               s == protocol_iri and p == Structure.definesProtocolFunction()
+             end)
 
       # Verify ProtocolFunction type
       assert Enum.any?(triples, fn {_s, _p, o} -> o == Structure.ProtocolFunction end)
@@ -548,11 +579,12 @@ defmodule ElixirOntologies.Builders.ProtocolBuilderTest do
         %{name: :count, arity: 1, has_body: true, location: nil}
       ]
 
-      impl_info = build_test_implementation(
-        protocol: [:Enumerable],
-        for_type: [:List],
-        functions: functions
-      )
+      impl_info =
+        build_test_implementation(
+          protocol: [:Enumerable],
+          for_type: [:List],
+          functions: functions
+        )
 
       context = build_test_context()
 
@@ -562,13 +594,17 @@ defmodule ElixirOntologies.Builders.ProtocolBuilderTest do
       assert {impl_iri, RDF.type(), Structure.ProtocolImplementation} in triples
 
       # Verify implementsProtocol
-      assert Enum.any?(triples, fn {s, p, _} -> s == impl_iri and p == Structure.implementsProtocol() end)
+      assert Enum.any?(triples, fn {s, p, _} ->
+               s == impl_iri and p == Structure.implementsProtocol()
+             end)
 
       # Verify forDataType
       assert Enum.any?(triples, fn {s, p, _} -> s == impl_iri and p == Structure.forDataType() end)
 
       # Verify containsFunction
-      assert Enum.any?(triples, fn {s, p, _} -> s == impl_iri and p == Structure.containsFunction() end)
+      assert Enum.any?(triples, fn {s, p, _} ->
+               s == impl_iri and p == Structure.containsFunction()
+             end)
     end
 
     test "no duplicate triples in protocol" do

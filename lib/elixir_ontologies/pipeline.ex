@@ -262,6 +262,7 @@ defmodule ElixirOntologies.Pipeline do
   end
 
   defp extract_otp_pattern(nil, _key), do: []
+
   defp extract_otp_pattern(otp_patterns, key) when is_map(otp_patterns) do
     case Map.get(otp_patterns, key) do
       nil -> []

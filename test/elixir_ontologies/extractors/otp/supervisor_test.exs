@@ -1002,4 +1002,317 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
       assert strategy.metadata.source == :dynamic_supervisor_init
     end
   end
+
+  # ===========================================================================
+  # StartSpec and Enhanced ChildSpec Tests
+  # ===========================================================================
+
+  describe "StartSpec extraction" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+
+    test "extracts StartSpec from tuple format child" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [{MyWorker, [:arg1, :arg2]}]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert length(children) == 1
+      child = hd(children)
+
+      assert %StartSpec{} = child.start
+      assert child.start.module == MyWorker
+      assert child.start.function == :start_link
+      assert child.start.args == [[:arg1, :arg2]]
+      assert child.start.metadata.inferred == true
+    end
+
+    test "extracts StartSpec from module-only format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [MyWorker]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert length(children) == 1
+      child = hd(children)
+
+      assert %StartSpec{} = child.start
+      assert child.start.module == MyWorker
+      assert child.start.function == :start_link
+      assert child.start.args == []
+      assert child.start.metadata.inferred == true
+    end
+
+    test "extracts StartSpec from map format with explicit start" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :worker, start: {MyWorker, :start_link, [:config]}}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert length(children) == 1
+      child = hd(children)
+
+      assert %StartSpec{} = child.start
+      assert child.start.module == MyWorker
+      assert child.start.function == :start_link
+      assert child.start.args == [:config]
+    end
+
+    test "extracts StartSpec with custom start function" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :worker, start: {MyWorker, :custom_start, [:arg1, :arg2]}}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.start.function == :custom_start
+      assert child.start.args == [:arg1, :arg2]
+    end
+  end
+
+  describe "modules field extraction" do
+    test "modules defaults to [module] for tuple format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [{MyWorker, []}]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.modules == [MyWorker]
+    end
+
+    test "modules defaults to [module] for module-only format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [MyWorker]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.modules == [MyWorker]
+    end
+
+    test "modules defaults to [module] for map format without explicit modules" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :worker, start: {MyWorker, :start_link, []}}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.modules == [MyWorker]
+    end
+  end
+
+  describe "legacy tuple format extraction" do
+    test "extracts child spec from legacy 6-tuple format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {:worker_id, {MyWorker, :start_link, [:arg]}, :permanent, 5000, :worker, [MyWorker]}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      assert length(children) == 1
+      child = hd(children)
+
+      assert child.id == :worker_id
+      assert child.module == MyWorker
+      assert child.restart == :permanent
+      assert child.shutdown == 5000
+      assert child.type == :worker
+      assert child.modules == [MyWorker]
+      assert child.metadata.format == :legacy_tuple
+    end
+
+    test "extracts StartSpec from legacy tuple format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {:my_gen, {MyGenServer, :start_link, [:init_arg]}, :transient, :infinity, :worker, [MyGenServer]}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.start.module == MyGenServer
+      assert child.start.function == :start_link
+      assert child.start.args == [:init_arg]
+      assert child.restart == :transient
+      assert child.shutdown == :infinity
+    end
+
+    test "extracts supervisor child from legacy tuple format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {:child_sup, {ChildSupervisor, :start_link, []}, :permanent, :infinity, :supervisor, [ChildSupervisor]}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.type == :supervisor
+      assert child.shutdown == :infinity
+    end
+  end
+
+  describe "child spec format metadata" do
+    test "tuple format has correct metadata" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [{Worker, [:arg]}]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.metadata.format == :tuple
+      assert child.metadata.has_args == true
+    end
+
+    test "module-only format has correct metadata" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [Worker]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.metadata.format == :module_only
+    end
+
+    test "map format has correct metadata" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [%{id: :w, start: {W, :start_link, []}}]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.metadata.format == :map
+      assert child.metadata.has_start == true
+    end
+
+    test "legacy tuple format has correct metadata" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {:id, {W, :start_link, []}, :permanent, 5000, :worker, [W]}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.metadata.format == :legacy_tuple
+    end
+  end
 end

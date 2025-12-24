@@ -166,15 +166,17 @@ defmodule ElixirOntologies.Builders.OTP.AgentBuilderTest do
         AgentBuilder.build_agent(agent_info, module_iri, context)
 
       # Count relevant triples
-      has_type = Enum.any?(triples, fn
-        {^agent_iri, pred, OTP.Agent} -> pred == RDF.type()
-        _ -> false
-      end)
+      has_type =
+        Enum.any?(triples, fn
+          {^agent_iri, pred, OTP.Agent} -> pred == RDF.type()
+          _ -> false
+        end)
 
-      has_behaviour = Enum.any?(triples, fn
-        {^agent_iri, pred, OTP.Agent} -> pred == OTP.implementsOTPBehaviour()
-        _ -> false
-      end)
+      has_behaviour =
+        Enum.any?(triples, fn
+          {^agent_iri, pred, OTP.Agent} -> pred == OTP.implementsOTPBehaviour()
+          _ -> false
+        end)
 
       assert has_type
       assert has_behaviour
@@ -291,12 +293,14 @@ defmodule ElixirOntologies.Builders.OTP.AgentBuilderTest do
     end
 
     test "Agent with context that has no file_path" do
-      agent_info = build_test_agent(
-        location: %ElixirOntologies.Analyzer.Location.SourceLocation{
-          start_line: 5,
-          start_column: 1
-        }
-      )
+      agent_info =
+        build_test_agent(
+          location: %ElixirOntologies.Analyzer.Location.SourceLocation{
+            start_line: 5,
+            start_column: 1
+          }
+        )
+
       context = build_test_context(file_path: nil)
       module_iri = build_test_module_iri()
 
@@ -308,13 +312,15 @@ defmodule ElixirOntologies.Builders.OTP.AgentBuilderTest do
     end
 
     test "Agent with metadata" do
-      agent_info = build_test_agent(
-        metadata: %{
-          otp_behaviour: :agent,
-          has_options: true,
-          custom_key: "custom_value"
-        }
-      )
+      agent_info =
+        build_test_agent(
+          metadata: %{
+            otp_behaviour: :agent,
+            has_options: true,
+            custom_key: "custom_value"
+          }
+        )
+
       context = build_test_context()
       module_iri = build_test_module_iri()
 

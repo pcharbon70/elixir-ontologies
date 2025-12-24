@@ -100,8 +100,16 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
     """
 
     @type value_type ::
-            :atom | :string | :integer | :float | :boolean | :nil | :list | :tuple | :module |
-            :dynamic
+            :atom
+            | :string
+            | :integer
+            | :float
+            | :boolean
+            | nil
+            | :list
+            | :tuple
+            | :module
+            | :dynamic
 
     @type source_kind :: :literal | :variable | :function_call | :module_attribute | :other
 
@@ -542,7 +550,7 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
       :dynamic
   """
   @spec value_type(term()) :: UseOption.value_type()
-  def value_type(nil), do: :nil
+  def value_type(nil), do: nil
   def value_type(value) when is_boolean(value), do: :boolean
   def value_type(value) when is_atom(value), do: :atom
   def value_type(value) when is_binary(value), do: :string
@@ -597,18 +605,21 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
     if dynamic_value?(value) do
       {:dynamic, value}
     else
-      extracted = Enum.map(value, fn
-        {k, v} when is_atom(k) ->
-          case extract_literal_value(v) do
-            {:ok, val} -> {k, val}
-            {:dynamic, _} -> {k, v}
-          end
-        item ->
-          case extract_literal_value(item) do
-            {:ok, val} -> val
-            {:dynamic, _} -> item
-          end
-      end)
+      extracted =
+        Enum.map(value, fn
+          {k, v} when is_atom(k) ->
+            case extract_literal_value(v) do
+              {:ok, val} -> {k, val}
+              {:dynamic, _} -> {k, v}
+            end
+
+          item ->
+            case extract_literal_value(item) do
+              {:ok, val} -> val
+              {:dynamic, _} -> item
+            end
+        end)
+
       {:ok, extracted}
     end
   end
@@ -630,6 +641,7 @@ defmodule ElixirOntologies.Extractors.Directive.Use do
     else
       # Convert tuple to list, extract, convert back
       list = Tuple.to_list(value)
+
       case extract_literal_value(list) do
         {:ok, extracted} -> {:ok, List.to_tuple(extracted)}
         {:dynamic, _} -> {:dynamic, value}

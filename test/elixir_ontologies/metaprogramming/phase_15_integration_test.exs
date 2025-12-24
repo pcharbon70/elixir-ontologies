@@ -9,7 +9,14 @@ defmodule ElixirOntologies.Metaprogramming.Phase15IntegrationTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.{MacroInvocation, Attribute, Quote}
-  alias ElixirOntologies.Extractors.Quote.{QuotedExpression, QuoteOptions, UnquoteExpression, HygieneViolation}
+
+  alias ElixirOntologies.Extractors.Quote.{
+    QuotedExpression,
+    QuoteOptions,
+    UnquoteExpression,
+    HygieneViolation
+  }
+
   alias ElixirOntologies.Builders.{MacroBuilder, AttributeBuilder, QuoteBuilder, Context}
   alias ElixirOntologies.NS.Structure
 
@@ -434,7 +441,9 @@ defmodule ElixirOntologies.Metaprogramming.Phase15IntegrationTest do
       }
 
       context = build_context()
-      {quote_iri, triples} = QuoteBuilder.build(quote_expr, context, module: [:MyMacros], index: 0)
+
+      {quote_iri, triples} =
+        QuoteBuilder.build(quote_expr, context, module: [:MyMacros], index: 0)
 
       assert to_string(quote_iri) =~ "quote/0"
       assert has_triple?(triples, quote_iri, RDF.type(), Structure.QuotedExpression)

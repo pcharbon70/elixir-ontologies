@@ -552,7 +552,12 @@ defmodule ElixirOntologies.Extractors.Conditional do
   end
 
   # Handle if expression
-  defp extract_conditionals_recursive({:if, _meta, [_condition, body_opts]} = ast, opts, depth, max_depth) do
+  defp extract_conditionals_recursive(
+         {:if, _meta, [_condition, body_opts]} = ast,
+         opts,
+         depth,
+         max_depth
+       ) do
     case extract_if(ast, opts) do
       {:ok, cond} ->
         # Also extract from branches
@@ -565,7 +570,12 @@ defmodule ElixirOntologies.Extractors.Conditional do
   end
 
   # Handle unless expression
-  defp extract_conditionals_recursive({:unless, _meta, [_condition, body_opts]} = ast, opts, depth, max_depth) do
+  defp extract_conditionals_recursive(
+         {:unless, _meta, [_condition, body_opts]} = ast,
+         opts,
+         depth,
+         max_depth
+       ) do
     case extract_unless(ast, opts) do
       {:ok, cond} ->
         nested = extract_from_branches(body_opts, opts, depth + 1, max_depth)

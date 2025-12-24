@@ -39,7 +39,7 @@ defmodule ElixirOntologies.Extractors.AnonymousFunctionTest do
     end
 
     test "returns false for regular function definition" do
-      ast = quote do: (def foo(x), do: x)
+      ast = quote do: def(foo(x), do: x)
       refute AnonymousFunction.anonymous_function?(ast)
     end
 
@@ -297,7 +297,7 @@ defmodule ElixirOntologies.Extractors.AnonymousFunctionTest do
 
   describe "extract/1 error handling" do
     test "returns error for non-anonymous function" do
-      ast = quote do: (def foo(x), do: x)
+      ast = quote do: def(foo(x), do: x)
       assert {:error, :not_anonymous_function} = AnonymousFunction.extract(ast)
     end
 
@@ -377,7 +377,9 @@ defmodule ElixirOntologies.Extractors.AnonymousFunctionTest do
 
     test "captures location when available" do
       # Create AST with location metadata (needs both line and column)
-      ast = {:fn, [line: 42, column: 5], [{:->, [line: 42, column: 8], [[{:x, [], nil}], {:x, [], nil}]}]}
+      ast =
+        {:fn, [line: 42, column: 5],
+         [{:->, [line: 42, column: 8], [[{:x, [], nil}], {:x, [], nil}]}]}
 
       assert {:ok, result} = AnonymousFunction.extract(ast)
       assert result.location != nil
@@ -521,7 +523,8 @@ defmodule ElixirOntologies.Extractors.AnonymousFunctionTest do
     end
 
     test "returns error for non-clause AST" do
-      assert {:error, :not_clause} = AnonymousFunction.extract_clause_with_order({:def, [], []}, 1)
+      assert {:error, :not_clause} =
+               AnonymousFunction.extract_clause_with_order({:def, [], []}, 1)
     end
   end
 

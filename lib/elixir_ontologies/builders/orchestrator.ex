@@ -242,7 +242,9 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     behaviours = Map.get(analysis, :behaviours, [])
 
     Enum.flat_map(behaviours, fn behaviour_info ->
-      {_behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+      {_behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
       triples
     end)
   end
@@ -260,7 +262,9 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     types = Map.get(analysis, :types, [])
 
     Enum.flat_map(types, fn type_info ->
-      {_type_iri, triples} = TypeSystemBuilder.build_type_definition(type_info, module_iri, context)
+      {_type_iri, triples} =
+        TypeSystemBuilder.build_type_definition(type_info, module_iri, context)
+
       triples
     end)
   end
@@ -269,7 +273,9 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     genservers = Map.get(analysis, :genservers, [])
 
     Enum.flat_map(genservers, fn genserver_info ->
-      {_genserver_iri, triples} = GenServerBuilder.build_genserver(genserver_info, module_iri, context)
+      {_genserver_iri, triples} =
+        GenServerBuilder.build_genserver(genserver_info, module_iri, context)
+
       triples
     end)
   end
@@ -278,7 +284,9 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     supervisors = Map.get(analysis, :supervisors, [])
 
     Enum.flat_map(supervisors, fn supervisor_info ->
-      {_supervisor_iri, triples} = SupervisorBuilder.build_supervisor(supervisor_info, module_iri, context)
+      {_supervisor_iri, triples} =
+        SupervisorBuilder.build_supervisor(supervisor_info, module_iri, context)
+
       triples
     end)
   end
@@ -540,5 +548,4 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     |> Enum.filter(fn {key, _fn} -> key in include end)
     |> Enum.reject(fn {key, _fn} -> key in exclude end)
   end
-
 end

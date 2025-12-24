@@ -76,7 +76,9 @@ defmodule ElixirOntologies.Extractors.Directive.RequireTest do
     end
 
     test "extracts require with multi-part as" do
-      ast = {:require, [], [{:__aliases__, [], [:MyApp, :Macros]}, [as: {:__aliases__, [], [:M]}]]}
+      ast =
+        {:require, [], [{:__aliases__, [], [:MyApp, :Macros]}, [as: {:__aliases__, [], [:M]}]]}
+
       assert {:ok, directive} = Require.extract(ast)
       assert directive.module == [:MyApp, :Macros]
       assert directive.as == :M

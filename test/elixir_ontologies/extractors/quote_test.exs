@@ -412,15 +412,16 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
     alias Quote.QuoteOptions
 
     test "new/1 creates struct with all fields" do
-      opts = QuoteOptions.new(
-        bind_quoted: [x: 1],
-        context: :match,
-        location: :keep,
-        unquote: false,
-        line: 42,
-        file: "test.ex",
-        generated: true
-      )
+      opts =
+        QuoteOptions.new(
+          bind_quoted: [x: 1],
+          context: :match,
+          location: :keep,
+          unquote: false,
+          line: 42,
+          file: "test.ex",
+          generated: true
+        )
 
       assert opts.bind_quoted == [x: 1]
       assert opts.context == :match
@@ -460,7 +461,11 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
     end
 
     test "bind_quoted_vars/1 gets variable names" do
-      assert QuoteOptions.bind_quoted_vars(QuoteOptions.new(bind_quoted: [x: 1, y: 2])) == [:x, :y]
+      assert QuoteOptions.bind_quoted_vars(QuoteOptions.new(bind_quoted: [x: 1, y: 2])) == [
+               :x,
+               :y
+             ]
+
       assert QuoteOptions.bind_quoted_vars(QuoteOptions.new()) == []
     end
 
@@ -513,13 +518,18 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
     end
 
     test "extracts combined options" do
-      ast = {:quote, [], [[
-        bind_quoted: [x: 1],
-        context: :match,
-        location: :keep,
-        line: 100,
-        generated: true
-      ], [do: :ok]]}
+      ast =
+        {:quote, [],
+         [
+           [
+             bind_quoted: [x: 1],
+             context: :match,
+             location: :keep,
+             line: 100,
+             generated: true
+           ],
+           [do: :ok]
+         ]}
 
       assert {:ok, result} = Quote.extract(ast)
       assert result.options.bind_quoted == [x: 1]
@@ -760,9 +770,7 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
         {:quote, [],
          [
            [
-             do:
-               {:quote, [],
-                [[do: {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}]]}
+             do: {:quote, [], [[do: {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}]]}
            ]
          ]}
 
@@ -788,8 +796,7 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
                          {:__block__, [],
                           [
                             {:unquote, [], [{:b, [], nil}]},
-                            {:quote, [],
-                             [[do: {:unquote, [], [{:c, [], nil}]}]]}
+                            {:quote, [], [[do: {:unquote, [], [{:c, [], nil}]}]]}
                           ]}
                      ]
                    ]}
@@ -856,9 +863,7 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
         {:quote, [],
          [
            [
-             do:
-               {:quote, [],
-                [[do: {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}]]}
+             do: {:quote, [], [[do: {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}]]}
            ]
          ]}
 

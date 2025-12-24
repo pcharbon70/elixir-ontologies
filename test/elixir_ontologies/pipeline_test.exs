@@ -87,14 +87,18 @@ defmodule ElixirOntologies.PipelineTest do
     end
 
     test "builds graph for multiple modules" do
-      module1 = build_minimal_module_analysis(
-        name: ModuleA,
-        module_info: build_minimal_module_info(name: [:ModuleA])
-      )
-      module2 = build_minimal_module_analysis(
-        name: ModuleB,
-        module_info: build_minimal_module_info(name: [:ModuleB])
-      )
+      module1 =
+        build_minimal_module_analysis(
+          name: ModuleA,
+          module_info: build_minimal_module_info(name: [:ModuleA])
+        )
+
+      module2 =
+        build_minimal_module_analysis(
+          name: ModuleB,
+          module_info: build_minimal_module_info(name: [:ModuleB])
+        )
+
       context = build_test_context()
 
       graph = Pipeline.build_graph_for_modules([module1, module2], context)
@@ -138,8 +142,11 @@ defmodule ElixirOntologies.PipelineTest do
       module_analysis = build_minimal_module_analysis()
       context = build_test_context()
 
-      graph_parallel = Pipeline.build_graph_for_modules([module_analysis], context, parallel: true)
-      graph_sequential = Pipeline.build_graph_for_modules([module_analysis], context, parallel: false)
+      graph_parallel =
+        Pipeline.build_graph_for_modules([module_analysis], context, parallel: true)
+
+      graph_sequential =
+        Pipeline.build_graph_for_modules([module_analysis], context, parallel: false)
 
       assert Graph.statement_count(graph_parallel) == Graph.statement_count(graph_sequential)
     end
@@ -309,10 +316,12 @@ defmodule ElixirOntologies.PipelineTest do
     end
 
     test "handles module with nested name" do
-      module_analysis = build_minimal_module_analysis(
-        name: MyApp.Services.UserManager,
-        module_info: build_minimal_module_info(name: [:MyApp, :Services, :UserManager])
-      )
+      module_analysis =
+        build_minimal_module_analysis(
+          name: MyApp.Services.UserManager,
+          module_info: build_minimal_module_info(name: [:MyApp, :Services, :UserManager])
+        )
+
       context = build_test_context()
 
       graph = Pipeline.build_graph_for_modules([module_analysis], context)
@@ -321,12 +330,14 @@ defmodule ElixirOntologies.PipelineTest do
     end
 
     test "handles large number of modules in parallel" do
-      modules = for i <- 1..10 do
-        build_minimal_module_analysis(
-          name: :"Module#{i}",
-          module_info: build_minimal_module_info(name: [:"Module#{i}"])
-        )
-      end
+      modules =
+        for i <- 1..10 do
+          build_minimal_module_analysis(
+            name: :"Module#{i}",
+            module_info: build_minimal_module_info(name: [:"Module#{i}"])
+          )
+        end
+
       context = build_test_context()
 
       graph = Pipeline.build_graph_for_modules(modules, context, parallel: true)
@@ -380,11 +391,14 @@ defmodule ElixirOntologies.PipelineTest do
       # Using test helpers where we control the module context in function metadata
       func1 = build_minimal_function_info(name: :add, arity: 2)
       func2 = build_minimal_function_info(name: :subtract, arity: 2)
-      module_analysis = build_minimal_module_analysis(
-        name: :"MyApp.Calculator",
-        module_info: build_minimal_module_info(name: [:MyApp, :Calculator]),
-        functions: [func1, func2]
-      )
+
+      module_analysis =
+        build_minimal_module_analysis(
+          name: :"MyApp.Calculator",
+          module_info: build_minimal_module_info(name: [:MyApp, :Calculator]),
+          functions: [func1, func2]
+        )
+
       context = build_test_context()
 
       graph = Pipeline.build_graph_for_modules([module_analysis], context)

@@ -147,7 +147,8 @@ defmodule ElixirOntologies.SHACL.Validators.Type do
                   property_shape,
                   "Value does not have required datatype #{inspect(datatype_iri)}",
                   %{
-                    constraint_component: ~I<http://www.w3.org/ns/shacl#DatatypeConstraintComponent>,
+                    constraint_component:
+                      ~I<http://www.w3.org/ns/shacl#DatatypeConstraintComponent>,
                     expected_datatype: datatype_iri,
                     actual_value: value
                   }

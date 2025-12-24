@@ -553,7 +553,9 @@ defmodule ElixirOntologies.Builders.ModuleBuilderTest do
     end
 
     test "generates correct IRI format for deeply nested modules" do
-      module_info = create_minimal_module(:nested_module, [:MyApp, :Web, :Controllers, :UserController])
+      module_info =
+        create_minimal_module(:nested_module, [:MyApp, :Web, :Controllers, :UserController])
+
       context = Context.new(base_iri: "https://example.org/code#")
 
       {module_iri, _triples} = ModuleBuilder.build(module_info, context)

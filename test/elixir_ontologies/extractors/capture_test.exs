@@ -17,8 +17,7 @@ defmodule ElixirOntologies.Extractors.CaptureTest do
       ast =
         {:&, [],
          [
-           {:/, [],
-            [{{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], []}, 1]}
+           {:/, [], [{{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], []}, 1]}
          ]}
 
       assert Capture.capture?(ast)
@@ -116,8 +115,7 @@ defmodule ElixirOntologies.Extractors.CaptureTest do
       ast =
         {:&, [],
          [
-           {:/, [],
-            [{{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], []}, 1]}
+           {:/, [], [{{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], []}, 1]}
          ]}
 
       assert {:ok, capture} = Capture.extract(ast)
@@ -147,8 +145,7 @@ defmodule ElixirOntologies.Extractors.CaptureTest do
 
     test "extracts Erlang module function capture" do
       ast =
-        {:&, [],
-         [{:/, [], [{{:., [], [:erlang, :element]}, [], []}, 2]}]}
+        {:&, [], [{:/, [], [{{:., [], [:erlang, :element]}, [], []}, 2]}]}
 
       assert {:ok, capture} = Capture.extract(ast)
       assert capture.type == :named_remote
@@ -159,8 +156,7 @@ defmodule ElixirOntologies.Extractors.CaptureTest do
 
     test "extracts :lists module function capture" do
       ast =
-        {:&, [],
-         [{:/, [], [{{:., [], [:lists, :reverse]}, [], []}, 1]}]}
+        {:&, [], [{:/, [], [{{:., [], [:lists, :reverse]}, [], []}, 1]}]}
 
       assert {:ok, capture} = Capture.extract(ast)
       assert capture.type == :named_remote
@@ -198,8 +194,7 @@ defmodule ElixirOntologies.Extractors.CaptureTest do
       ast =
         {:&, [],
          [
-           {{:., [], [{:__aliases__, [], [:String]}, :split]}, [],
-            [{:&, [], [1]}, ","]}
+           {{:., [], [{:__aliases__, [], [:String]}, :split]}, [], [{:&, [], [1]}, ","]}
          ]}
 
       assert {:ok, capture} = Capture.extract(ast)
@@ -403,8 +398,7 @@ defmodule ElixirOntologies.Extractors.CaptureTest do
       ast =
         {:&, [],
          [
-           {:/, [],
-            [{{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], []}, 1]}
+           {:/, [], [{{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], []}, 1]}
          ]}
 
       assert {:ok, capture} = Capture.extract(ast)

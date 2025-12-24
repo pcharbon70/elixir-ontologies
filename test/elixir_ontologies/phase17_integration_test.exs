@@ -12,7 +12,14 @@ defmodule ElixirOntologies.Phase17IntegrationTest do
   alias ElixirOntologies.Extractors.{Call, Conditional, Comprehension, Exception}
   alias ElixirOntologies.Extractors.Pipe
   alias ElixirOntologies.Extractors.CaseWith
-  alias ElixirOntologies.Builders.{Context, CallGraphBuilder, ControlFlowBuilder, ExceptionBuilder}
+
+  alias ElixirOntologies.Builders.{
+    Context,
+    CallGraphBuilder,
+    ControlFlowBuilder,
+    ExceptionBuilder
+  }
+
   alias ElixirOntologies.NS.Core
 
   @moduletag :integration
@@ -772,9 +779,11 @@ defmodule ElixirOntologies.Phase17IntegrationTest do
 
       # Find call triples (LocalCall type)
       triples = RDF.Graph.triples(graph)
-      call_triples = Enum.filter(triples, fn {s, _p, _o} ->
-        to_string(s) =~ "call/"
-      end)
+
+      call_triples =
+        Enum.filter(triples, fn {s, _p, _o} ->
+          to_string(s) =~ "call/"
+        end)
 
       assert length(call_triples) > 0
     end

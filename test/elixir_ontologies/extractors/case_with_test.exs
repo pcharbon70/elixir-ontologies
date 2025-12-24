@@ -57,19 +57,25 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "returns true for with with multiple clauses" do
-      ast = {:with, [], [
-        {:<-, [], [:ok, {:a, [], []}]},
-        {:<-, [], [:ok, {:b, [], []}]},
-        [do: :ok]
-      ]}
+      ast =
+        {:with, [],
+         [
+           {:<-, [], [:ok, {:a, [], []}]},
+           {:<-, [], [:ok, {:b, [], []}]},
+           [do: :ok]
+         ]}
+
       assert CaseWith.with_expression?(ast)
     end
 
     test "returns true for with with else" do
-      ast = {:with, [], [
-        {:<-, [], [:ok, {:get, [], []}]},
-        [do: :ok, else: [{:->, [], [[{:error, {:e, [], nil}}], {:e, [], nil}]}]]
-      ]}
+      ast =
+        {:with, [],
+         [
+           {:<-, [], [:ok, {:get, [], []}]},
+           [do: :ok, else: [{:->, [], [[{:error, {:e, [], nil}}], {:e, [], nil}]}]]
+         ]}
+
       assert CaseWith.with_expression?(ast)
     end
 
@@ -104,11 +110,18 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts case with multiple clauses" do
-      ast = {:case, [], [{:x, [], nil}, [do: [
-        {:->, [], [[:a], 1]},
-        {:->, [], [[:b], 2]},
-        {:->, [], [[:c], 3]}
-      ]]]}
+      ast =
+        {:case, [],
+         [
+           {:x, [], nil},
+           [
+             do: [
+               {:->, [], [[:a], 1]},
+               {:->, [], [[:b], 2]},
+               {:->, [], [[:c], 3]}
+             ]
+           ]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_case(ast)
       assert length(expr.clauses) == 3
@@ -116,11 +129,18 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts clause indices correctly" do
-      ast = {:case, [], [{:x, [], nil}, [do: [
-        {:->, [], [[:a], 1]},
-        {:->, [], [[:b], 2]},
-        {:->, [], [[:c], 3]}
-      ]]]}
+      ast =
+        {:case, [],
+         [
+           {:x, [], nil},
+           [
+             do: [
+               {:->, [], [[:a], 1]},
+               {:->, [], [[:b], 2]},
+               {:->, [], [[:c], 3]}
+             ]
+           ]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_case(ast)
       indices = Enum.map(expr.clauses, & &1.index)
@@ -128,10 +148,17 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts clause patterns" do
-      ast = {:case, [], [{:result, [], nil}, [do: [
-        {:->, [], [[{:ok, {:value, [], nil}}], {:value, [], nil}]},
-        {:->, [], [[{:error, {:reason, [], nil}}], {:reason, [], nil}]}
-      ]]]}
+      ast =
+        {:case, [],
+         [
+           {:result, [], nil},
+           [
+             do: [
+               {:->, [], [[{:ok, {:value, [], nil}}], {:value, [], nil}]},
+               {:->, [], [[{:error, {:reason, [], nil}}], {:reason, [], nil}]}
+             ]
+           ]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_case(ast)
       [clause1, clause2] = expr.clauses
@@ -141,9 +168,16 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts clause bodies" do
-      ast = {:case, [], [{:x, [], nil}, [do: [
-        {:->, [], [[:a], {:do_something, [], []}]}
-      ]]]}
+      ast =
+        {:case, [],
+         [
+           {:x, [], nil},
+           [
+             do: [
+               {:->, [], [[:a], {:do_something, [], []}]}
+             ]
+           ]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_case(ast)
       [clause] = expr.clauses
@@ -151,10 +185,18 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts clauses with guards" do
-      ast = {:case, [], [{:x, [], nil}, [do: [
-        {:->, [], [[{:when, [], [{:n, [], nil}, {:>, [], [{:n, [], nil}, 0]}]}], :positive]},
-        {:->, [], [[{:_, [], nil}], :other]}
-      ]]]}
+      ast =
+        {:case, [],
+         [
+           {:x, [], nil},
+           [
+             do: [
+               {:->, [],
+                [[{:when, [], [{:n, [], nil}, {:>, [], [{:n, [], nil}, 0]}]}], :positive]},
+               {:->, [], [[{:_, [], nil}], :other]}
+             ]
+           ]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_case(ast)
       [guarded_clause, simple_clause] = expr.clauses
@@ -168,13 +210,27 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "tracks has_guards in metadata" do
-      ast_with_guards = {:case, [], [{:x, [], nil}, [do: [
-        {:->, [], [[{:when, [], [{:n, [], nil}, {:>, [], [{:n, [], nil}, 0]}]}], :ok]}
-      ]]]}
+      ast_with_guards =
+        {:case, [],
+         [
+           {:x, [], nil},
+           [
+             do: [
+               {:->, [], [[{:when, [], [{:n, [], nil}, {:>, [], [{:n, [], nil}, 0]}]}], :ok]}
+             ]
+           ]
+         ]}
 
-      ast_without_guards = {:case, [], [{:x, [], nil}, [do: [
-        {:->, [], [[:a], 1]}
-      ]]]}
+      ast_without_guards =
+        {:case, [],
+         [
+           {:x, [], nil},
+           [
+             do: [
+               {:->, [], [[:a], 1]}
+             ]
+           ]
+         ]}
 
       assert {:ok, expr_with} = CaseWith.extract_case(ast_with_guards)
       assert {:ok, expr_without} = CaseWith.extract_case(ast_without_guards)
@@ -220,10 +276,12 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
 
   describe "extract_with/2" do
     test "extracts with with single match clause" do
-      ast = {:with, [], [
-        {:<-, [], [{:ok, {:a, [], nil}}, {:get, [], []}]},
-        [do: {:a, [], nil}]
-      ]}
+      ast =
+        {:with, [],
+         [
+           {:<-, [], [{:ok, {:a, [], nil}}, {:get, [], []}]},
+           [do: {:a, [], nil}]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_with(ast)
       assert %WithExpression{} = expr
@@ -232,12 +290,14 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts with with multiple clauses" do
-      ast = {:with, [], [
-        {:<-, [], [{:ok, {:a, [], nil}}, {:get_a, [], []}]},
-        {:<-, [], [{:ok, {:b, [], nil}}, {:get_b, [], []}]},
-        {:<-, [], [{:ok, {:c, [], nil}}, {:get_c, [], []}]},
-        [do: :ok]
-      ]}
+      ast =
+        {:with, [],
+         [
+           {:<-, [], [{:ok, {:a, [], nil}}, {:get_a, [], []}]},
+           {:<-, [], [{:ok, {:b, [], nil}}, {:get_b, [], []}]},
+           {:<-, [], [{:ok, {:c, [], nil}}, {:get_c, [], []}]},
+           [do: :ok]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_with(ast)
       assert length(expr.clauses) == 3
@@ -245,11 +305,13 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts clause indices correctly" do
-      ast = {:with, [], [
-        {:<-, [], [:a, {:a, [], []}]},
-        {:<-, [], [:b, {:b, [], []}]},
-        [do: :ok]
-      ]}
+      ast =
+        {:with, [],
+         [
+           {:<-, [], [:a, {:a, [], []}]},
+           {:<-, [], [:b, {:b, [], []}]},
+           [do: :ok]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_with(ast)
       indices = Enum.map(expr.clauses, & &1.index)
@@ -257,10 +319,12 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts match clause patterns and expressions" do
-      ast = {:with, [], [
-        {:<-, [], [{:ok, {:value, [], nil}}, {:fetch, [], []}]},
-        [do: {:value, [], nil}]
-      ]}
+      ast =
+        {:with, [],
+         [
+           {:<-, [], [{:ok, {:value, [], nil}}, {:fetch, [], []}]},
+           [do: {:value, [], nil}]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_with(ast)
       [clause] = expr.clauses
@@ -271,11 +335,13 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts bare match clauses" do
-      ast = {:with, [], [
-        {:<-, [], [:ok, {:validate, [], []}]},
-        {:=, [], [{:user, [], nil}, {:fetch_user, [], []}]},
-        [do: {:user, [], nil}]
-      ]}
+      ast =
+        {:with, [],
+         [
+           {:<-, [], [:ok, {:validate, [], []}]},
+           {:=, [], [{:user, [], nil}, {:fetch_user, [], []}]},
+           [do: {:user, [], nil}]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_with(ast)
       [match_clause, bare_clause] = expr.clauses
@@ -287,15 +353,19 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "tracks has_bare_match in metadata" do
-      ast_with_bare = {:with, [], [
-        {:=, [], [{:x, [], nil}, {:get, [], []}]},
-        [do: :ok]
-      ]}
+      ast_with_bare =
+        {:with, [],
+         [
+           {:=, [], [{:x, [], nil}, {:get, [], []}]},
+           [do: :ok]
+         ]}
 
-      ast_without_bare = {:with, [], [
-        {:<-, [], [:ok, {:get, [], []}]},
-        [do: :ok]
-      ]}
+      ast_without_bare =
+        {:with, [],
+         [
+           {:<-, [], [:ok, {:get, [], []}]},
+           [do: :ok]
+         ]}
 
       assert {:ok, with_bare} = CaseWith.extract_with(ast_with_bare)
       assert {:ok, without_bare} = CaseWith.extract_with(ast_without_bare)
@@ -306,26 +376,31 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
 
     test "extracts body expression" do
       body = {:ok, {:+, [], [{:a, [], nil}, {:b, [], nil}]}}
-      ast = {:with, [], [
-        {:<-, [], [:ok, {:get, [], []}]},
-        [do: body]
-      ]}
+
+      ast =
+        {:with, [],
+         [
+           {:<-, [], [:ok, {:get, [], []}]},
+           [do: body]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_with(ast)
       assert expr.body == body
     end
 
     test "extracts else clauses" do
-      ast = {:with, [], [
-        {:<-, [], [{:ok, {:a, [], nil}}, {:get, [], []}]},
-        [
-          do: {:a, [], nil},
-          else: [
-            {:->, [], [[{:error, {:reason, [], nil}}], {:error, {:reason, [], nil}}]},
-            {:->, [], [[{:_, [], nil}], {:error, :unknown}]}
-          ]
-        ]
-      ]}
+      ast =
+        {:with, [],
+         [
+           {:<-, [], [{:ok, {:a, [], nil}}, {:get, [], []}]},
+           [
+             do: {:a, [], nil},
+             else: [
+               {:->, [], [[{:error, {:reason, [], nil}}], {:error, {:reason, [], nil}}]},
+               {:->, [], [[{:_, [], nil}], {:error, :unknown}]}
+             ]
+           ]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_with(ast)
       assert expr.has_else == true
@@ -339,10 +414,12 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "handles with without else" do
-      ast = {:with, [], [
-        {:<-, [], [:ok, {:get, [], []}]},
-        [do: :ok]
-      ]}
+      ast =
+        {:with, [],
+         [
+           {:<-, [], [:ok, {:get, [], []}]},
+           [do: :ok]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_with(ast)
       assert expr.has_else == false
@@ -421,10 +498,12 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "handles block structures" do
-      block = {:__block__, [], [
-        {:case, [], [{:a, [], nil}, [do: [{:->, [], [[:x], 1]}]]]},
-        {:case, [], [{:b, [], nil}, [do: [{:->, [], [[:y], 2]}]]]}
-      ]}
+      block =
+        {:__block__, [],
+         [
+           {:case, [], [{:a, [], nil}, [do: [{:->, [], [[:x], 1]}]]]},
+           {:case, [], [{:b, [], nil}, [do: [{:->, [], [[:y], 2]}]]]}
+         ]}
 
       exprs = CaseWith.extract_case_expressions(block)
       assert length(exprs) == 2
@@ -719,11 +798,17 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts receive with multiple clauses" do
-      ast = {:receive, [], [[do: [
-        {:->, [], [[:ping], :pong]},
-        {:->, [], [[{:msg, {:data, [], nil}}], {:data, [], nil}]},
-        {:->, [], [[{:_, [], nil}], :unknown]}
-      ]]]}
+      ast =
+        {:receive, [],
+         [
+           [
+             do: [
+               {:->, [], [[:ping], :pong]},
+               {:->, [], [[{:msg, {:data, [], nil}}], {:data, [], nil}]},
+               {:->, [], [[{:_, [], nil}], :unknown]}
+             ]
+           ]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_receive(ast)
       assert length(expr.clauses) == 3
@@ -731,10 +816,16 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts clause patterns" do
-      ast = {:receive, [], [[do: [
-        {:->, [], [[{:msg, {:data, [], nil}}], {:data, [], nil}]},
-        {:->, [], [[:ping], :pong]}
-      ]]]}
+      ast =
+        {:receive, [],
+         [
+           [
+             do: [
+               {:->, [], [[{:msg, {:data, [], nil}}], {:data, [], nil}]},
+               {:->, [], [[:ping], :pong]}
+             ]
+           ]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_receive(ast)
       [clause1, clause2] = expr.clauses
@@ -744,9 +835,16 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts clauses with guards" do
-      ast = {:receive, [], [[do: [
-        {:->, [], [[{:when, [], [{:n, [], nil}, {:>, [], [{:n, [], nil}, 0]}]}], :positive]}
-      ]]]}
+      ast =
+        {:receive, [],
+         [
+           [
+             do: [
+               {:->, [],
+                [[{:when, [], [{:n, [], nil}, {:>, [], [{:n, [], nil}, 0]}]}], :positive]}
+             ]
+           ]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_receive(ast)
       [clause] = expr.clauses
@@ -757,10 +855,14 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "extracts receive with after clause" do
-      ast = {:receive, [], [[
-        do: [{:->, [], [[:msg], :ok]}],
-        after: [{:->, [], [[5000], :timeout]}]
-      ]]}
+      ast =
+        {:receive, [],
+         [
+           [
+             do: [{:->, [], [[:msg], :ok]}],
+             after: [{:->, [], [[5000], :timeout]}]
+           ]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_receive(ast)
       assert expr.has_after == true
@@ -771,10 +873,14 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
     end
 
     test "detects immediate timeout (timeout 0)" do
-      ast = {:receive, [], [[
-        do: [{:->, [], [[:msg], :ok]}],
-        after: [{:->, [], [[0], :no_messages]}]
-      ]]}
+      ast =
+        {:receive, [],
+         [
+           [
+             do: [{:->, [], [[:msg], :ok]}],
+             after: [{:->, [], [[0], :no_messages]}]
+           ]
+         ]}
 
       assert {:ok, expr} = CaseWith.extract_receive(ast)
       assert expr.after_clause.is_immediate == true
@@ -795,16 +901,24 @@ defmodule ElixirOntologies.Extractors.CaseWithTest do
       ast_blocking = {:receive, [], [[do: [{:->, [], [[:msg], :ok]}]]]}
 
       # Receive with non-zero after is still potentially blocking
-      ast_with_timeout = {:receive, [], [[
-        do: [{:->, [], [[:msg], :ok]}],
-        after: [{:->, [], [[5000], :timeout]}]
-      ]]}
+      ast_with_timeout =
+        {:receive, [],
+         [
+           [
+             do: [{:->, [], [[:msg], :ok]}],
+             after: [{:->, [], [[5000], :timeout]}]
+           ]
+         ]}
 
       # Receive with timeout 0 is non-blocking
-      ast_immediate = {:receive, [], [[
-        do: [{:->, [], [[:msg], :ok]}],
-        after: [{:->, [], [[0], :no_messages]}]
-      ]]}
+      ast_immediate =
+        {:receive, [],
+         [
+           [
+             do: [{:->, [], [[:msg], :ok]}],
+             after: [{:->, [], [[0], :no_messages]}]
+           ]
+         ]}
 
       assert {:ok, blocking} = CaseWith.extract_receive(ast_blocking)
       assert {:ok, with_timeout} = CaseWith.extract_receive(ast_with_timeout)

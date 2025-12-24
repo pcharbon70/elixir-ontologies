@@ -178,10 +178,11 @@ defmodule ElixirOntologies.SHACL.W3CTestRunner do
     test_desc = Graph.description(manifest_graph, IRI.new(test_id))
 
     # Get mf:action node
-    action_node = case RDF.Description.get(test_desc, mf_action) do
-      nodes when is_list(nodes) -> List.first(nodes)
-      node -> node
-    end
+    action_node =
+      case RDF.Description.get(test_desc, mf_action) do
+        nodes when is_list(nodes) -> List.first(nodes)
+        node -> node
+      end
 
     case action_node do
       nil ->
@@ -212,10 +213,11 @@ defmodule ElixirOntologies.SHACL.W3CTestRunner do
     test_desc = Graph.description(manifest_graph, IRI.new(test_id))
 
     # Get mf:action node
-    action_node = case RDF.Description.get(test_desc, mf_action) do
-      nodes when is_list(nodes) -> List.first(nodes)
-      node -> node
-    end
+    action_node =
+      case RDF.Description.get(test_desc, mf_action) do
+        nodes when is_list(nodes) -> List.first(nodes)
+        node -> node
+      end
 
     case action_node do
       nil ->
@@ -241,10 +243,11 @@ defmodule ElixirOntologies.SHACL.W3CTestRunner do
   # Load external graph file if it exists as a relative path
   defp load_external_graph(ref, manifest_file_path, fallback_graph) do
     # Handle both IRI objects and lists
-    ref_term = case ref do
-      refs when is_list(refs) -> List.first(refs)
-      r -> r
-    end
+    ref_term =
+      case ref do
+        refs when is_list(refs) -> List.first(refs)
+        r -> r
+      end
 
     case ref_term do
       nil ->
@@ -335,7 +338,10 @@ defmodule ElixirOntologies.SHACL.W3CTestRunner do
 
       types when is_list(types) ->
         # Multiple types - find the test type
-        type_iri = Enum.find(types, fn t -> String.ends_with?(to_string(t), "Validate") end) || List.first(types)
+        type_iri =
+          Enum.find(types, fn t -> String.ends_with?(to_string(t), "Validate") end) ||
+            List.first(types)
+
         type_str = to_string(type_iri)
 
         if String.ends_with?(type_str, "Validate") do

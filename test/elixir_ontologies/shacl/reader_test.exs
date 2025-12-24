@@ -589,6 +589,7 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
         |> Enum.flat_map(fn {node, idx} ->
           if idx < length(list_nodes) - 1 do
             next_node = Enum.at(list_nodes, idx + 1)
+
             [
               {node, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#first>,
                RDF.literal("item#{idx}")},
@@ -758,8 +759,7 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
           {~I<http://example.org/Shape1>, ~I<http://www.w3.org/ns/shacl#property>, prop_node},
           {prop_node, ~I<http://www.w3.org/ns/shacl#path>, ~I<http://example.org/items>},
           {prop_node, ~I<http://www.w3.org/ns/shacl#in>, list_node},
-          {list_node, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#first>,
-           RDF.literal("item1")}
+          {list_node, ~I<http://www.w3.org/1999/02/22-rdf-syntax-ns#first>, RDF.literal("item1")}
         ])
 
       {:error, reason} = Reader.parse_shapes(graph)

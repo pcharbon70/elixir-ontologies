@@ -29,7 +29,9 @@ defmodule ElixirOntologies.Builders.HelpersTest do
   describe "datatype_property/4" do
     test "generates datatype property triple with explicit datatype" do
       subject = ~I<https://example.org/code#MyApp>
-      {s, p, o} = Helpers.datatype_property(subject, Structure.moduleName(), "MyApp", RDF.XSD.String)
+
+      {s, p, o} =
+        Helpers.datatype_property(subject, Structure.moduleName(), "MyApp", RDF.XSD.String)
 
       assert s == subject
       assert p == Structure.moduleName()
@@ -38,7 +40,9 @@ defmodule ElixirOntologies.Builders.HelpersTest do
 
     test "generates integer datatype property" do
       subject = ~I<https://example.org/code#MyApp/hello/0>
-      {_s, _p, o} = Helpers.datatype_property(subject, Structure.arity(), 0, RDF.XSD.NonNegativeInteger)
+
+      {_s, _p, o} =
+        Helpers.datatype_property(subject, Structure.arity(), 0, RDF.XSD.NonNegativeInteger)
 
       assert RDF.Literal.value(o) == 0
     end
@@ -96,7 +100,8 @@ defmodule ElixirOntologies.Builders.HelpersTest do
       {head, triples} = Helpers.build_rdf_list([item])
 
       assert is_struct(head, RDF.BlankNode)
-      assert length(triples) == 2  # first + rest
+      # first + rest
+      assert length(triples) == 2
 
       # Check structure
       {_s, p1, o1} = Enum.at(triples, 0)
