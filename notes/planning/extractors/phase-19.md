@@ -43,16 +43,16 @@ Extract restart strategy options from child specs.
 - [x] 19.1.3.6 Add restart strategy tests
 
 ### 19.1.4 Shutdown and Type Extraction
-- [ ] **Task 19.1.4 Pending**
+- [x] **Task 19.1.4 Complete**
 
 Extract shutdown strategy and child type from child specs.
 
-- [ ] 19.1.4.1 Implement `extract_shutdown/1` for shutdown options
-- [ ] 19.1.4.2 Define `%ShutdownSpec{type: :brutal_kill|:timeout|:infinity, value: ...}` struct
-- [ ] 19.1.4.3 Extract `shutdown: :brutal_kill`
-- [ ] 19.1.4.4 Extract `shutdown: timeout_ms` (integer)
-- [ ] 19.1.4.5 Extract `type: :worker | :supervisor` option
-- [ ] 19.1.4.6 Add shutdown/type extraction tests
+- [x] 19.1.4.1 Implement `extract_shutdown/1` for shutdown options
+- [x] 19.1.4.2 Define `%ShutdownSpec{type: :brutal_kill|:timeout|:infinity, value: ...}` struct
+- [x] 19.1.4.3 Extract `shutdown: :brutal_kill`
+- [x] 19.1.4.4 Extract `shutdown: timeout_ms` (integer)
+- [x] 19.1.4.5 Extract `type: :worker | :supervisor` option
+- [x] 19.1.4.6 Add shutdown/type extraction tests
 
 **Section 19.1 Unit Tests:**
 - [ ] Test child spec map extraction

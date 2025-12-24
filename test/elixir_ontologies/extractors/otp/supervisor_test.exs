@@ -1730,4 +1730,282 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
       assert strategy.is_default == true
     end
   end
+
+  # ===========================================================================
+  # ShutdownSpec Struct Tests
+  # ===========================================================================
+
+  describe "ShutdownSpec struct" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ShutdownSpec
+
+    test "has default values" do
+      spec = %ShutdownSpec{}
+      assert spec.type == :timeout
+      assert spec.value == 5000
+      assert spec.is_default == true
+      assert spec.metadata == %{}
+    end
+
+    test "can be created with all shutdown types" do
+      assert %ShutdownSpec{type: :brutal_kill, value: nil}.type == :brutal_kill
+      assert %ShutdownSpec{type: :infinity, value: nil}.type == :infinity
+      assert %ShutdownSpec{type: :timeout, value: 10000}.type == :timeout
+    end
+  end
+
+  # ===========================================================================
+  # extract_shutdown/1 Tests
+  # ===========================================================================
+
+  describe "extract_shutdown/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ShutdownSpec}
+
+    test "extracts timeout shutdown" do
+      spec = %ChildSpec{id: :worker, shutdown: 5000, metadata: %{format: :map}}
+      shutdown = SupervisorExtractor.extract_shutdown(spec)
+
+      assert %ShutdownSpec{} = shutdown
+      assert shutdown.type == :timeout
+      assert shutdown.value == 5000
+      assert shutdown.is_default == false
+    end
+
+    test "extracts brutal_kill shutdown" do
+      spec = %ChildSpec{id: :worker, shutdown: :brutal_kill, metadata: %{format: :map}}
+      shutdown = SupervisorExtractor.extract_shutdown(spec)
+
+      assert shutdown.type == :brutal_kill
+      assert shutdown.value == nil
+      assert shutdown.is_default == false
+    end
+
+    test "extracts infinity shutdown" do
+      spec = %ChildSpec{id: :supervisor, shutdown: :infinity, metadata: %{format: :map}}
+      shutdown = SupervisorExtractor.extract_shutdown(spec)
+
+      assert shutdown.type == :infinity
+      assert shutdown.value == nil
+      assert shutdown.is_default == false
+    end
+
+    test "defaults to 5000ms timeout for workers" do
+      spec = %ChildSpec{id: :worker, shutdown: nil, type: :worker, metadata: %{format: :tuple}}
+      shutdown = SupervisorExtractor.extract_shutdown(spec)
+
+      assert shutdown.type == :timeout
+      assert shutdown.value == 5000
+      assert shutdown.is_default == true
+    end
+
+    test "defaults to infinity for supervisors" do
+      spec = %ChildSpec{id: :sup, shutdown: nil, type: :supervisor, metadata: %{format: :map}}
+      shutdown = SupervisorExtractor.extract_shutdown(spec)
+
+      assert shutdown.type == :infinity
+      assert shutdown.value == nil
+      assert shutdown.is_default == true
+    end
+
+    test "includes child type in metadata" do
+      spec = %ChildSpec{id: :worker, shutdown: 5000, type: :worker, metadata: %{format: :map}}
+      shutdown = SupervisorExtractor.extract_shutdown(spec)
+
+      assert shutdown.metadata.child_type == :worker
+    end
+  end
+
+  # ===========================================================================
+  # shutdown_timeout/1 Tests
+  # ===========================================================================
+
+  describe "shutdown_timeout/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+
+    test "returns timeout value" do
+      spec = %ChildSpec{shutdown: 10000}
+      assert SupervisorExtractor.shutdown_timeout(spec) == 10000
+    end
+
+    test "returns nil for infinity" do
+      spec = %ChildSpec{shutdown: :infinity}
+      assert SupervisorExtractor.shutdown_timeout(spec) == nil
+    end
+
+    test "returns nil for brutal_kill" do
+      spec = %ChildSpec{shutdown: :brutal_kill}
+      assert SupervisorExtractor.shutdown_timeout(spec) == nil
+    end
+
+    test "returns default 5000 for worker with nil shutdown" do
+      spec = %ChildSpec{shutdown: nil, type: :worker}
+      assert SupervisorExtractor.shutdown_timeout(spec) == 5000
+    end
+  end
+
+  # ===========================================================================
+  # shutdown_description/1 Tests
+  # ===========================================================================
+
+  describe "shutdown_description/1" do
+    test "returns description for brutal_kill" do
+      assert SupervisorExtractor.shutdown_description(:brutal_kill) == "Kill immediately"
+    end
+
+    test "returns description for infinity" do
+      assert SupervisorExtractor.shutdown_description(:infinity) == "Wait indefinitely"
+    end
+
+    test "returns description for timeout" do
+      assert SupervisorExtractor.shutdown_description(5000) == "Wait up to 5000ms"
+      assert SupervisorExtractor.shutdown_description(10000) == "Wait up to 10000ms"
+    end
+  end
+
+  # ===========================================================================
+  # Child Type Tests
+  # ===========================================================================
+
+  describe "worker?/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+
+    test "returns true for worker type" do
+      assert SupervisorExtractor.worker?(%ChildSpec{type: :worker}) == true
+    end
+
+    test "returns false for supervisor type" do
+      assert SupervisorExtractor.worker?(%ChildSpec{type: :supervisor}) == false
+    end
+  end
+
+  describe "supervisor_child?/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+
+    test "returns true for supervisor type" do
+      assert SupervisorExtractor.supervisor_child?(%ChildSpec{type: :supervisor}) == true
+    end
+
+    test "returns false for worker type" do
+      assert SupervisorExtractor.supervisor_child?(%ChildSpec{type: :worker}) == false
+    end
+  end
+
+  describe "child_type/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+
+    test "returns worker type" do
+      assert SupervisorExtractor.child_type(%ChildSpec{type: :worker}) == :worker
+    end
+
+    test "returns supervisor type" do
+      assert SupervisorExtractor.child_type(%ChildSpec{type: :supervisor}) == :supervisor
+    end
+  end
+
+  describe "child_type_description/1" do
+    test "returns description for worker" do
+      assert SupervisorExtractor.child_type_description(:worker) == "Worker process"
+    end
+
+    test "returns description for supervisor" do
+      assert SupervisorExtractor.child_type_description(:supervisor) == "Supervisor process"
+    end
+  end
+
+  # ===========================================================================
+  # Shutdown Extraction from Full Child Specs
+  # ===========================================================================
+
+  describe "shutdown extraction from parsed child specs" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ShutdownSpec
+
+    test "extracts shutdown from map format child spec" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :worker, start: {MyWorker, :start_link, []}, shutdown: 10000}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      shutdown = SupervisorExtractor.extract_shutdown(child)
+
+      assert shutdown.type == :timeout
+      assert shutdown.value == 10000
+      assert shutdown.is_default == false
+    end
+
+    test "extracts shutdown from legacy tuple format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {:id, {MyWorker, :start_link, []}, :permanent, :infinity, :supervisor, [MyWorker]}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      shutdown = SupervisorExtractor.extract_shutdown(child)
+
+      assert shutdown.type == :infinity
+      assert shutdown.value == nil
+    end
+
+    test "module-only format has default shutdown for worker" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [MyWorker]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      shutdown = SupervisorExtractor.extract_shutdown(child)
+
+      assert shutdown.type == :timeout
+      assert shutdown.value == 5000
+      assert shutdown.is_default == true
+    end
+
+    test "extracts type: :supervisor from map format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :child_sup, start: {ChildSup, :start_link, []}, type: :supervisor}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert SupervisorExtractor.supervisor_child?(child)
+      assert SupervisorExtractor.child_type(child) == :supervisor
+    end
+  end
 end

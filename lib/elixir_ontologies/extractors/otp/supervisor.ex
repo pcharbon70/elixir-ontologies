@@ -166,6 +166,48 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   end
 
   # ===========================================================================
+  # ShutdownSpec Struct
+  # ===========================================================================
+
+  defmodule ShutdownSpec do
+    @moduledoc """
+    Represents the shutdown specification for a child.
+
+    The shutdown strategy determines how the supervisor terminates the child:
+
+    - `:brutal_kill` - Kill immediately with `Process.exit(child, :kill)`
+    - `:infinity` - Wait indefinitely for child to terminate
+    - `timeout` (integer) - Wait up to timeout milliseconds
+
+    ## Default Values
+
+    - Workers default to 5000ms timeout
+    - Supervisors default to `:infinity`
+
+    ## Fields
+
+    - `:type` - The shutdown type (`:brutal_kill`, `:timeout`, `:infinity`)
+    - `:value` - The timeout value in ms (nil for brutal_kill/infinity)
+    - `:is_default` - Whether this is the default value
+    - `:metadata` - Additional information
+    """
+
+    @type shutdown_type :: :brutal_kill | :timeout | :infinity
+
+    @type t :: %__MODULE__{
+            type: shutdown_type(),
+            value: non_neg_integer() | nil,
+            is_default: boolean(),
+            metadata: map()
+          }
+
+    defstruct type: :timeout,
+              value: 5000,
+              is_default: true,
+              metadata: %{}
+  end
+
+  # ===========================================================================
   # ChildSpec Struct
   # ===========================================================================
 
@@ -1273,6 +1315,192 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   def restart_description(:permanent), do: "Always restart the child process"
   def restart_description(:temporary), do: "Never restart the child process"
   def restart_description(:transient), do: "Restart only if child exits abnormally"
+
+  # ===========================================================================
+  # Shutdown Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts the shutdown specification from a ChildSpec.
+
+  Returns a `%ShutdownSpec{}` struct with the shutdown type, value, and
+  whether it was explicitly set or defaulted.
+
+  ## Shutdown Types
+
+  - `:brutal_kill` - Kill immediately
+  - `:infinity` - Wait forever
+  - `:timeout` - Wait up to specified milliseconds
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ShutdownSpec}
+      iex> spec = %ChildSpec{id: :worker, shutdown: 5000, metadata: %{format: :map}}
+      iex> shutdown = SupervisorExtractor.extract_shutdown(spec)
+      iex> shutdown.type
+      :timeout
+      iex> shutdown.value
+      5000
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ShutdownSpec}
+      iex> spec = %ChildSpec{id: :worker, shutdown: :brutal_kill, metadata: %{format: :map}}
+      iex> shutdown = SupervisorExtractor.extract_shutdown(spec)
+      iex> shutdown.type
+      :brutal_kill
+      iex> shutdown.value
+      nil
+  """
+  @spec extract_shutdown(ChildSpec.t()) :: ShutdownSpec.t()
+  def extract_shutdown(%ChildSpec{shutdown: shutdown, type: child_type, metadata: metadata}) do
+    {type, value} = categorize_shutdown(shutdown, child_type)
+    is_default = shutdown == nil
+
+    %ShutdownSpec{
+      type: type,
+      value: value,
+      is_default: is_default,
+      metadata: %{
+        source_format: Map.get(metadata, :format),
+        child_type: child_type
+      }
+    }
+  end
+
+  # Categorize shutdown value into type and value
+  defp categorize_shutdown(:brutal_kill, _child_type), do: {:brutal_kill, nil}
+  defp categorize_shutdown(:infinity, _child_type), do: {:infinity, nil}
+  defp categorize_shutdown(timeout, _child_type) when is_integer(timeout), do: {:timeout, timeout}
+  # Default based on child type
+  defp categorize_shutdown(nil, :supervisor), do: {:infinity, nil}
+  defp categorize_shutdown(nil, :worker), do: {:timeout, 5000}
+
+  @doc """
+  Returns the shutdown timeout value in milliseconds.
+
+  Returns nil for `:brutal_kill` and `:infinity` shutdown types.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.shutdown_timeout(%ChildSpec{shutdown: 10000})
+      10000
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.shutdown_timeout(%ChildSpec{shutdown: :infinity})
+      nil
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.shutdown_timeout(%ChildSpec{shutdown: nil, type: :worker})
+      5000
+  """
+  @spec shutdown_timeout(ChildSpec.t()) :: non_neg_integer() | nil
+  def shutdown_timeout(%ChildSpec{} = spec) do
+    extract_shutdown(spec).value
+  end
+
+  @doc """
+  Returns the shutdown description for a shutdown specification.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.shutdown_description(:brutal_kill)
+      "Kill immediately"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.shutdown_description(:infinity)
+      "Wait indefinitely"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.shutdown_description(5000)
+      "Wait up to 5000ms"
+  """
+  @spec shutdown_description(:brutal_kill | :infinity | non_neg_integer()) :: String.t()
+  def shutdown_description(:brutal_kill), do: "Kill immediately"
+  def shutdown_description(:infinity), do: "Wait indefinitely"
+  def shutdown_description(timeout) when is_integer(timeout), do: "Wait up to #{timeout}ms"
+
+  # ===========================================================================
+  # Child Type Extraction
+  # ===========================================================================
+
+  @doc """
+  Checks if a child spec is for a worker process.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.worker?(%ChildSpec{type: :worker})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.worker?(%ChildSpec{type: :supervisor})
+      false
+  """
+  @spec worker?(ChildSpec.t()) :: boolean()
+  def worker?(%ChildSpec{type: :worker}), do: true
+  def worker?(_), do: false
+
+  @doc """
+  Checks if a child spec is for a supervisor process.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.supervisor_child?(%ChildSpec{type: :supervisor})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.supervisor_child?(%ChildSpec{type: :worker})
+      false
+  """
+  @spec supervisor_child?(ChildSpec.t()) :: boolean()
+  def supervisor_child?(%ChildSpec{type: :supervisor}), do: true
+  def supervisor_child?(_), do: false
+
+  @doc """
+  Returns the child type from a ChildSpec.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.child_type(%ChildSpec{type: :worker})
+      :worker
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.child_type(%ChildSpec{type: :supervisor})
+      :supervisor
+  """
+  @spec child_type(ChildSpec.t()) :: ChildSpec.child_type()
+  def child_type(%ChildSpec{type: type}), do: type
+
+  @doc """
+  Returns the child type description.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.child_type_description(:worker)
+      "Worker process"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.child_type_description(:supervisor)
+      "Supervisor process"
+  """
+  @spec child_type_description(ChildSpec.child_type()) :: String.t()
+  def child_type_description(:worker), do: "Worker process"
+  def child_type_description(:supervisor), do: "Supervisor process"
 
   # ===========================================================================
   # Strategy Extraction Helpers
