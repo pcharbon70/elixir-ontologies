@@ -43,16 +43,16 @@ Extract capture operator expressions (&) for creating function references.
 - [x] 18.1.3.6 Add capture operator tests (14 doctests, 42 unit tests)
 
 ### 18.1.4 Capture Placeholder Analysis
-- [ ] **Task 18.1.4 Pending**
+- [x] **Task 18.1.4 Complete**
 
 Analyze capture placeholders (&1, &2, etc.) in shorthand captures.
 
-- [ ] 18.1.4.1 Implement `extract_capture_placeholders/1` finding all &N references
-- [ ] 18.1.4.2 Track highest placeholder number (determines arity)
-- [ ] 18.1.4.3 Detect gaps in placeholder numbering
-- [ ] 18.1.4.4 Track placeholder positions in expressions
-- [ ] 18.1.4.5 Create `%CapturePlaceholder{position: ..., usage_locations: [...]}` struct
-- [ ] 18.1.4.6 Add placeholder analysis tests
+- [x] 18.1.4.1 Implement `extract_capture_placeholders/1` finding all &N references
+- [x] 18.1.4.2 Track highest placeholder number (determines arity)
+- [x] 18.1.4.3 Detect gaps in placeholder numbering
+- [x] 18.1.4.4 Track placeholder positions in expressions
+- [x] 18.1.4.5 Create `%Placeholder{position: ..., usage_count: ..., locations: [...]}` struct
+- [x] 18.1.4.6 Add placeholder analysis tests (17 doctests, 62 tests total)
 
 **Section 18.1 Unit Tests:**
 - [x] Test single-clause anonymous function extraction (18.1.1)
@@ -61,7 +61,7 @@ Analyze capture placeholders (&1, &2, etc.) in shorthand captures.
 - [x] Test named function capture (`&func/1`) (18.1.3)
 - [x] Test remote function capture (`&Module.func/2`) (18.1.3)
 - [x] Test shorthand capture (`&(&1 + 1)`) (18.1.3)
-- [ ] Test placeholder counting (18.1.4)
+- [x] Test placeholder counting (18.1.4)
 - [x] Test capture arity calculation (18.1.3)
 
 ## 18.2 Closure Variable Tracking

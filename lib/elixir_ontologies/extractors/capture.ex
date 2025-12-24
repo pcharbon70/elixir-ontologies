@@ -87,6 +87,83 @@ defmodule ElixirOntologies.Extractors.Capture do
   ]
 
   # ===========================================================================
+  # CapturePlaceholder Struct
+  # ===========================================================================
+
+  defmodule Placeholder do
+    @moduledoc """
+    Represents a capture placeholder (&1, &2, etc.) with usage information.
+
+    ## Fields
+
+    - `:position` - The placeholder number (1 for &1, 2 for &2, etc.)
+    - `:usage_count` - Number of times this placeholder appears
+    - `:locations` - List of source locations where this placeholder is used
+    - `:metadata` - Additional information
+    """
+
+    alias ElixirOntologies.Analyzer.Location.SourceLocation
+
+    @type t :: %__MODULE__{
+            position: pos_integer(),
+            usage_count: pos_integer(),
+            locations: [SourceLocation.t()],
+            metadata: map()
+          }
+
+    @enforce_keys [:position, :usage_count]
+    defstruct [
+      :position,
+      :usage_count,
+      locations: [],
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
+  # PlaceholderAnalysis Struct
+  # ===========================================================================
+
+  defmodule PlaceholderAnalysis do
+    @moduledoc """
+    Complete analysis of placeholders in a shorthand capture expression.
+
+    ## Fields
+
+    - `:placeholders` - List of Placeholder structs with detailed info
+    - `:highest` - Highest placeholder number (determines arity)
+    - `:arity` - Derived arity from highest placeholder
+    - `:gaps` - List of missing placeholder numbers (e.g., [2] if &1, &3 used)
+    - `:has_gaps` - Whether there are gaps in placeholder numbering
+    - `:total_usages` - Total number of placeholder usages
+    - `:metadata` - Additional information
+    """
+
+    alias ElixirOntologies.Extractors.Capture.Placeholder
+
+    @type t :: %__MODULE__{
+            placeholders: [Placeholder.t()],
+            highest: pos_integer() | nil,
+            arity: non_neg_integer(),
+            gaps: [pos_integer()],
+            has_gaps: boolean(),
+            total_usages: non_neg_integer(),
+            metadata: map()
+          }
+
+    @enforce_keys [:placeholders, :arity]
+    defstruct [
+      :placeholders,
+      :highest,
+      :arity,
+      gaps: [],
+      has_gaps: false,
+      total_usages: 0,
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
   # Type Detection
   # ===========================================================================
 
@@ -222,8 +299,128 @@ defmodule ElixirOntologies.Extractors.Capture do
   end
 
   # ===========================================================================
+  # Placeholder Analysis
+  # ===========================================================================
+
+  @doc """
+  Extracts all capture placeholders from an AST with location information.
+
+  Returns a list of `%Placeholder{}` structs, each containing the position,
+  usage count, and locations where that placeholder appears.
+
+  ## Examples
+
+      iex> ast = {:+, [], [{:&, [line: 1, column: 1], [1]}, {:&, [line: 1, column: 5], [2]}]}
+      iex> placeholders = ElixirOntologies.Extractors.Capture.extract_capture_placeholders(ast)
+      iex> length(placeholders)
+      2
+      iex> Enum.map(placeholders, & &1.position)
+      [1, 2]
+  """
+  @spec extract_capture_placeholders(Macro.t()) :: [Placeholder.t()]
+  def extract_capture_placeholders(ast) do
+    # Find all placeholder nodes with their metadata
+    {_, placeholder_nodes} =
+      Macro.prewalk(ast, [], fn
+        {:&, meta, [n]} = node, acc when is_integer(n) and n > 0 ->
+          {node, [{n, meta} | acc]}
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    # Group by position and build Placeholder structs
+    placeholder_nodes
+    |> Enum.group_by(fn {position, _meta} -> position end)
+    |> Enum.map(fn {position, occurrences} ->
+      locations =
+        occurrences
+        |> Enum.map(fn {_pos, meta} ->
+          extract_placeholder_location(meta)
+        end)
+        |> Enum.reject(&is_nil/1)
+
+      %Placeholder{
+        position: position,
+        usage_count: length(occurrences),
+        locations: locations,
+        metadata: %{}
+      }
+    end)
+    |> Enum.sort_by(& &1.position)
+  end
+
+  @doc """
+  Performs complete analysis of placeholders in a shorthand capture expression.
+
+  Returns a `%PlaceholderAnalysis{}` struct with all placeholder details,
+  including gap detection and arity calculation.
+
+  ## Examples
+
+      iex> ast = {:+, [], [{:&, [], [1]}, {:&, [], [2]}]}
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Capture.analyze_placeholders(ast)
+      iex> analysis.arity
+      2
+      iex> analysis.has_gaps
+      false
+
+      iex> ast = {:+, [], [{:&, [], [1]}, {:&, [], [3]}]}
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Capture.analyze_placeholders(ast)
+      iex> analysis.has_gaps
+      true
+      iex> analysis.gaps
+      [2]
+  """
+  @spec analyze_placeholders(Macro.t()) :: {:ok, PlaceholderAnalysis.t()}
+  def analyze_placeholders(ast) do
+    placeholders = extract_capture_placeholders(ast)
+    positions = Enum.map(placeholders, & &1.position)
+
+    highest = if positions == [], do: nil, else: Enum.max(positions)
+    arity = highest || 0
+
+    # Detect gaps - positions that are missing between 1 and highest
+    gaps =
+      if highest do
+        expected = MapSet.new(1..highest)
+        actual = MapSet.new(positions)
+        MapSet.difference(expected, actual) |> MapSet.to_list() |> Enum.sort()
+      else
+        []
+      end
+
+    total_usages = Enum.sum(Enum.map(placeholders, & &1.usage_count))
+
+    {:ok,
+     %PlaceholderAnalysis{
+       placeholders: placeholders,
+       highest: highest,
+       arity: arity,
+       gaps: gaps,
+       has_gaps: gaps != [],
+       total_usages: total_usages,
+       metadata: %{}
+     }}
+  end
+
+  # ===========================================================================
   # Private Helpers
   # ===========================================================================
+
+  # Extract location from placeholder metadata
+  defp extract_placeholder_location(meta) when is_list(meta) do
+    line = Keyword.get(meta, :line)
+    column = Keyword.get(meta, :column)
+
+    if line && column do
+      %{start_line: line, start_column: column, end_line: nil, end_column: nil}
+    else
+      nil
+    end
+  end
+
+  defp extract_placeholder_location(_), do: nil
 
   # Classify the capture content and extract data
   defp classify_and_extract({:/, _meta, [target, arity]}) when is_integer(arity) do
