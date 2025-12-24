@@ -1315,4 +1315,177 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
       assert child.metadata.format == :legacy_tuple
     end
   end
+
+  # ===========================================================================
+  # Start Function Arity Tests
+  # ===========================================================================
+
+  describe "start_function_arity/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+
+    test "returns arity from StartSpec struct" do
+      spec = %StartSpec{module: MyWorker, function: :start_link, args: [:arg1, :arg2], arity: 2}
+      assert SupervisorExtractor.start_function_arity(spec) == 2
+    end
+
+    test "returns 0 for empty args" do
+      spec = %StartSpec{module: MyWorker, function: :start_link, args: [], arity: 0}
+      assert SupervisorExtractor.start_function_arity(spec) == 0
+    end
+
+    test "calculates arity from args length when arity is default 0" do
+      # When arity is the default 0 but args are present, calculate from args
+      spec = %StartSpec{module: MyWorker, function: :start_link, args: [:a, :b, :c], arity: 0}
+      assert SupervisorExtractor.start_function_arity(spec) == 3
+    end
+
+    test "returns nil for nil input" do
+      assert SupervisorExtractor.start_function_arity(nil) == nil
+    end
+  end
+
+  describe "start_function_mfa/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+
+    test "returns MFA tuple from StartSpec" do
+      spec = %StartSpec{module: MyWorker, function: :start_link, args: [:arg], arity: 1}
+      assert SupervisorExtractor.start_function_mfa(spec) == {MyWorker, :start_link, 1}
+    end
+
+    test "returns MFA tuple with 0 arity" do
+      spec = %StartSpec{module: MyWorker, function: :start_link, args: [], arity: 0}
+      assert SupervisorExtractor.start_function_mfa(spec) == {MyWorker, :start_link, 0}
+    end
+
+    test "returns nil for nil input" do
+      assert SupervisorExtractor.start_function_mfa(nil) == nil
+    end
+
+    test "returns nil when module is nil" do
+      spec = %StartSpec{module: nil, function: :start_link, args: []}
+      assert SupervisorExtractor.start_function_mfa(spec) == nil
+    end
+  end
+
+  describe "child_start_mfa/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, StartSpec}
+
+    test "returns MFA from child spec's start field" do
+      child = %ChildSpec{
+        id: :my_worker,
+        start: %StartSpec{module: MyWorker, function: :start_link, args: [:config], arity: 1}
+      }
+
+      assert SupervisorExtractor.child_start_mfa(child) == {MyWorker, :start_link, 1}
+    end
+
+    test "returns nil when start is nil" do
+      child = %ChildSpec{id: :worker, start: nil}
+      assert SupervisorExtractor.child_start_mfa(child) == nil
+    end
+  end
+
+  # ===========================================================================
+  # Arity Extraction from Child Specs
+  # ===========================================================================
+
+  describe "arity extraction from child specs" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+
+    test "extracts arity 1 from tuple format child" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [{MyWorker, [:arg1]}]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.start.arity == 1
+    end
+
+    test "extracts arity 0 from module-only format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [MyWorker]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.start.arity == 0
+    end
+
+    test "extracts arity from map format start tuple" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :worker, start: {MyWorker, :start_link, [:arg1, :arg2]}}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.start.arity == 2
+    end
+
+    test "extracts arity from legacy tuple format" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {:id, {MyWorker, :start_link, [:a, :b, :c]}, :permanent, 5000, :worker, [MyWorker]}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert child.start.arity == 3
+    end
+
+    test "child_start_mfa returns correct arity for extracted child" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :worker, start: {MyWorker, :custom_start, [:config, :opts]}}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, children} = SupervisorExtractor.extract_children(body)
+
+      child = hd(children)
+      assert SupervisorExtractor.child_start_mfa(child) == {MyWorker, :custom_start, 2}
+    end
+  end
 end

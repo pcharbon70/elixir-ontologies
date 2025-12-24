@@ -19,16 +19,16 @@ Extract child specification maps/tuples from supervisor init/1 callbacks.
 - [x] 19.1.1.6 Add child spec structure tests
 
 ### 19.1.2 Start Function Extraction
-- [ ] **Task 19.1.2 Pending**
+- [x] **Task 19.1.2 Complete**
 
 Extract the start function specification from child specs.
 
-- [ ] 19.1.2.1 Define `%StartSpec{module: ..., function: ..., args: [...]}` struct
-- [ ] 19.1.2.2 Extract `start: {Module, :start_link, [args]}` form
-- [ ] 19.1.2.3 Extract `start: {Module, :start_link, args}` shorthand
-- [ ] 19.1.2.4 Handle module-only shorthand (implies start_link/1)
-- [ ] 19.1.2.5 Track start function arity and arguments
-- [ ] 19.1.2.6 Add start function extraction tests
+- [x] 19.1.2.1 Define `%StartSpec{module: ..., function: ..., args: [...]}` struct
+- [x] 19.1.2.2 Extract `start: {Module, :start_link, [args]}` form
+- [x] 19.1.2.3 Extract `start: {Module, :start_link, args}` shorthand
+- [x] 19.1.2.4 Handle module-only shorthand (implies start_link/1)
+- [x] 19.1.2.5 Track start function arity and arguments
+- [x] 19.1.2.6 Add start function extraction tests
 
 ### 19.1.3 Restart Strategy Extraction
 - [ ] **Task 19.1.3 Pending**

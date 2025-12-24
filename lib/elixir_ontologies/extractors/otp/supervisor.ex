@@ -104,19 +104,30 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     - `:module` - The module containing the start function
     - `:function` - The function name (typically :start_link)
     - `:args` - List of arguments to pass to the function
+    - `:arity` - The arity of the start function (length of args)
     - `:metadata` - Additional information
+
+    ## Arity Tracking
+
+    The arity is automatically calculated from the args list length.
+    For example:
+    - `{MyModule, :start_link, []}` has arity 0
+    - `{MyModule, :start_link, [arg]}` has arity 1
+    - `{MyModule, :start_link, [arg1, arg2]}` has arity 2
     """
 
     @type t :: %__MODULE__{
             module: atom() | nil,
             function: atom(),
             args: [term()],
+            arity: non_neg_integer(),
             metadata: map()
           }
 
     defstruct module: nil,
               function: :start_link,
               args: [],
+              arity: 0,
               metadata: %{}
   end
 
@@ -1031,6 +1042,87 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   def transient?(_), do: false
 
   # ===========================================================================
+  # Start Function Helpers
+  # ===========================================================================
+
+  @doc """
+  Returns the arity of the start function from a StartSpec.
+
+  Uses the arity field if set (non-zero), otherwise calculates from args length.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+      iex> SupervisorExtractor.start_function_arity(%StartSpec{args: [:arg1, :arg2], arity: 2})
+      2
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+      iex> SupervisorExtractor.start_function_arity(%StartSpec{args: [], arity: 0})
+      0
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.start_function_arity(nil)
+      nil
+  """
+  @spec start_function_arity(StartSpec.t() | nil) :: non_neg_integer() | nil
+  def start_function_arity(nil), do: nil
+  def start_function_arity(%StartSpec{arity: arity}) when is_integer(arity) and arity > 0, do: arity
+  def start_function_arity(%StartSpec{args: args}) when is_list(args), do: length(args)
+  def start_function_arity(%StartSpec{}), do: 0
+
+  @doc """
+  Returns the MFA tuple {module, function, arity} from a StartSpec.
+
+  This is useful for identifying the start function in a consistent format.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+      iex> spec = %StartSpec{module: MyWorker, function: :start_link, args: [:arg], arity: 1}
+      iex> SupervisorExtractor.start_function_mfa(spec)
+      {MyWorker, :start_link, 1}
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.start_function_mfa(nil)
+      nil
+  """
+  @spec start_function_mfa(StartSpec.t() | nil) :: {atom(), atom(), non_neg_integer()} | nil
+  def start_function_mfa(nil), do: nil
+
+  def start_function_mfa(%StartSpec{module: module, function: function} = spec)
+      when not is_nil(module) and not is_nil(function) do
+    {module, function, start_function_arity(spec)}
+  end
+
+  def start_function_mfa(%StartSpec{}), do: nil
+
+  @doc """
+  Returns the start function MFA from a ChildSpec.
+
+  This extracts the MFA from the child spec's start field.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, StartSpec}
+      iex> spec = %ChildSpec{
+      ...>   start: %StartSpec{module: MyWorker, function: :start_link, args: [], arity: 0}
+      ...> }
+      iex> SupervisorExtractor.child_start_mfa(spec)
+      {MyWorker, :start_link, 0}
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.child_start_mfa(%ChildSpec{start: nil})
+      nil
+  """
+  @spec child_start_mfa(ChildSpec.t()) :: {atom(), atom(), non_neg_integer()} | nil
+  def child_start_mfa(%ChildSpec{start: start}), do: start_function_mfa(start)
+
+  # ===========================================================================
   # Strategy Extraction Helpers
   # ===========================================================================
 
@@ -1212,6 +1304,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       module: module,
       function: :start_link,
       args: [args],
+      arity: 1,
       metadata: %{inferred: true}
     }
 
@@ -1297,6 +1390,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       module: module,
       function: :start_link,
       args: [],
+      arity: 0,
       metadata: %{inferred: true}
     }
 
@@ -1344,6 +1438,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       module: module,
       function: fun,
       args: args_list,
+      arity: length(args_list),
       metadata: %{}
     }
 
@@ -1357,6 +1452,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       module: module,
       function: fun,
       args: args_list,
+      arity: length(args_list),
       metadata: %{}
     }
 
@@ -1372,6 +1468,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       module: module,
       function: fun,
       args: args_list,
+      arity: length(args_list),
       metadata: %{}
     }
 
@@ -1385,6 +1482,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       module: module,
       function: fun,
       args: args_list,
+      arity: length(args_list),
       metadata: %{}
     }
 
