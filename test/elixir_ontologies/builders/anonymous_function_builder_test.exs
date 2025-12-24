@@ -312,4 +312,203 @@ defmodule ElixirOntologies.Builders.AnonymousFunctionBuilderTest do
              end)
     end
   end
+
+  # ===========================================================================
+  # RDF Triple Validation Tests
+  # ===========================================================================
+
+  describe "build/3 RDF validation" do
+    test "all subjects are valid RDF.IRI structs" do
+      ast = quote do: fn x, y -> x + y end
+      {:ok, anon} = AnonymousFunction.extract(ast)
+
+      context = Context.new(base_iri: "https://example.org/code#", metadata: %{module: [:MyApp]})
+
+      {_anon_iri, triples} = AnonymousFunctionBuilder.build(anon, context, 0)
+
+      # Every triple subject must be an IRI or BlankNode
+      Enum.each(triples, fn {subject, _pred, _obj} ->
+        assert is_struct(subject, RDF.IRI) or is_struct(subject, RDF.BlankNode),
+               "Subject must be IRI or BlankNode, got: #{inspect(subject)}"
+      end)
+    end
+
+    test "all predicates are valid RDF.IRI structs" do
+      ast = quote do: fn x -> x + 1 end
+      {:ok, anon} = AnonymousFunction.extract(ast)
+
+      context = Context.new(base_iri: "https://example.org/code#", metadata: %{module: [:MyApp]})
+
+      {_anon_iri, triples} = AnonymousFunctionBuilder.build(anon, context, 0)
+
+      # Every predicate must be an IRI
+      Enum.each(triples, fn {_subj, predicate, _obj} ->
+        assert is_struct(predicate, RDF.IRI),
+               "Predicate must be IRI, got: #{inspect(predicate)}"
+      end)
+    end
+
+    test "type triples reference valid ontology classes" do
+      ast =
+        quote do
+          fn
+            0 -> :zero
+            n -> n
+          end
+        end
+
+      {:ok, anon} = AnonymousFunction.extract(ast)
+
+      context = Context.new(base_iri: "https://example.org/code#", metadata: %{module: [:MyApp]})
+
+      {_anon_iri, triples} = AnonymousFunctionBuilder.build(anon, context, 0)
+
+      # Filter for rdf:type triples
+      type_triples = Enum.filter(triples, fn {_s, p, _o} -> p == RDF.type() end)
+
+      # Should have at least one type triple (for AnonymousFunction)
+      assert length(type_triples) >= 1
+
+      # All type objects should be RDF-compatible terms (IRI or NS module)
+      Enum.each(type_triples, fn {_subj, _pred, obj} ->
+        # The object can be an RDF.IRI or an RDF vocabulary term (module)
+        # Convert to IRI to get the string representation
+        iri = RDF.IRI.new(obj)
+        iri_string = iri.value
+
+        # Should be from the elixir-code ontology or W3C namespace
+        assert String.contains?(iri_string, "elixir-code") or
+                 String.contains?(iri_string, "w3.org"),
+               "Type should be from elixir-code or W3C namespace, got: #{iri_string}"
+      end)
+    end
+
+    test "arity literals have correct xsd:nonNegativeInteger datatype" do
+      ast = quote do: fn x, y, z -> x + y + z end
+      {:ok, anon} = AnonymousFunction.extract(ast)
+
+      context = Context.new(base_iri: "https://example.org/code#", metadata: %{module: [:MyApp]})
+
+      {anon_iri, triples} = AnonymousFunctionBuilder.build(anon, context, 0)
+
+      # Find the arity triple
+      arity_triple =
+        Enum.find(triples, fn
+          {^anon_iri, pred, _obj} -> pred == Structure.arity()
+          _ -> false
+        end)
+
+      assert arity_triple != nil, "Arity triple should exist"
+
+      {_s, _p, arity_literal} = arity_triple
+
+      # Verify it's a literal with correct value
+      assert is_struct(arity_literal, RDF.Literal)
+      assert RDF.Literal.value(arity_literal) == 3
+
+      # Verify datatype is xsd:nonNegativeInteger
+      datatype_id = RDF.Literal.datatype_id(arity_literal)
+      assert datatype_id == RDF.XSD.NonNegativeInteger.id()
+    end
+
+    test "clauseOrder literals have correct xsd:positiveInteger datatype" do
+      ast =
+        quote do
+          fn
+            0 -> :zero
+            n -> n
+          end
+        end
+
+      {:ok, anon} = AnonymousFunction.extract(ast)
+
+      context = Context.new(base_iri: "https://example.org/code#", metadata: %{module: [:MyApp]})
+
+      {_anon_iri, triples} = AnonymousFunctionBuilder.build(anon, context, 0)
+
+      # Find clauseOrder triples
+      order_triples =
+        Enum.filter(triples, fn
+          {_s, pred, _obj} -> pred == Structure.clauseOrder()
+          _ -> false
+        end)
+
+      # Should have 2 clause order triples (for 2 clauses)
+      assert length(order_triples) == 2
+
+      # Verify datatypes and values
+      Enum.each(order_triples, fn {_s, _p, order_literal} ->
+        assert is_struct(order_literal, RDF.Literal)
+        assert RDF.Literal.datatype_id(order_literal) == RDF.XSD.PositiveInteger.id()
+
+        # Values should be 1 or 2 (1-indexed)
+        value = RDF.Literal.value(order_literal)
+        assert value in [1, 2]
+      end)
+    end
+
+    test "guard literals have correct xsd:boolean datatype" do
+      ast =
+        quote do
+          fn
+            n when n > 0 -> :positive
+            _ -> :other
+          end
+        end
+
+      {:ok, anon} = AnonymousFunction.extract(ast)
+
+      context = Context.new(base_iri: "https://example.org/code#", metadata: %{module: [:MyApp]})
+
+      {_anon_iri, triples} = AnonymousFunctionBuilder.build(anon, context, 0)
+
+      # Find hasGuard triple
+      guard_triple =
+        Enum.find(triples, fn
+          {_s, pred, _obj} -> pred == Core.hasGuard()
+          _ -> false
+        end)
+
+      assert guard_triple != nil, "Guard triple should exist for guarded clause"
+
+      {_s, _p, guard_literal} = guard_triple
+
+      assert is_struct(guard_literal, RDF.Literal)
+      assert RDF.Literal.value(guard_literal) == true
+      assert RDF.Literal.datatype_id(guard_literal) == RDF.XSD.Boolean.id()
+    end
+
+    test "all triples form valid RDF graph" do
+      ast =
+        quote do
+          fn
+            0 -> :zero
+            n when n > 0 -> :positive
+            n -> n
+          end
+        end
+
+      {:ok, anon} = AnonymousFunction.extract(ast)
+
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          file_path: "lib/my_app.ex",
+          metadata: %{module: [:MyApp]}
+        )
+
+      anon = %{anon | location: %{start_line: 1, end_line: 5}}
+
+      {_anon_iri, triples} = AnonymousFunctionBuilder.build(anon, context, 0)
+
+      # Create an RDF graph from the triples
+      graph = RDF.Graph.new(triples)
+
+      # Graph should not be empty
+      assert RDF.Graph.triple_count(graph) > 0
+
+      # Triples should match the input
+      assert RDF.Graph.triple_count(graph) == length(Enum.uniq(triples))
+    end
+  end
 end

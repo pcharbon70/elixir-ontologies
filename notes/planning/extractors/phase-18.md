@@ -166,8 +166,8 @@ Note: Original plan mentioned `CaptureExpression`, `capturesFunction`, `hasExpre
 - [x] Test capture expression RDF (18.3.3)
 - [x] Test shorthand capture RDF (18.3.3)
 - [x] Test named function capture RDF (18.3.3)
-- [ ] Test closure-to-scope linking
-- [ ] Test SHACL validation of anonymous function RDF
+- [x] Test closure-to-scope linking
+- [x] Test SHACL validation of anonymous function RDF
 
 ## Phase 18 Integration Tests
 

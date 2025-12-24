@@ -4,7 +4,7 @@ defmodule ElixirOntologies.Builders.ClosureBuilderTest do
   import RDF.Sigils
 
   alias ElixirOntologies.Builders.{ClosureBuilder, Context}
-  alias ElixirOntologies.Extractors.AnonymousFunction
+  alias ElixirOntologies.Extractors.{AnonymousFunction, Closure}
   alias ElixirOntologies.NS.Core
 
   doctest ClosureBuilder
@@ -215,6 +215,157 @@ defmodule ElixirOntologies.Builders.ClosureBuilderTest do
       var_iri = ~I<https://example.org/code#MyApp/anon/0/capture/_unused>
 
       assert {anon_iri, Core.capturesVariable(), var_iri} in triples
+    end
+  end
+
+  # ===========================================================================
+  # Closure-to-Scope Linking Tests
+  # ===========================================================================
+
+  describe "closure-to-scope linking" do
+    test "scope chain building with module and function levels" do
+      # Build a scope chain representing module -> function -> closure
+      scopes = [
+        %{type: :module, name: "MyModule", variables: [:config, :version]},
+        %{type: :function, name: "my_func", variables: [:arg1, :arg2]},
+        %{type: :closure, variables: []}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      # Should have 3 scopes
+      assert length(chain) == 3
+
+      # First in chain is module (outermost), last is closure (innermost)
+      assert hd(chain).type == :module
+      assert hd(chain).level == 0
+
+      innermost = List.last(chain)
+      assert innermost.type == :closure
+      assert innermost.level == 2
+      assert innermost.parent != nil
+
+      # Function scope is in the middle
+      function_scope = Enum.at(chain, 1)
+      assert function_scope.type == :function
+      assert function_scope.name == "my_func"
+      assert :arg1 in function_scope.variables
+    end
+
+    test "variable source identification from outer scope" do
+      # Create a scope chain where y comes from function scope
+      scopes = [
+        %{type: :module, name: "MyModule", variables: [:config]},
+        %{type: :function, name: "my_func", variables: [:y]},
+        %{type: :closure, variables: [:x]}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      # Analyze which scope provides the free variable :y
+      {:ok, analysis} = Closure.analyze_closure_scope([:y], chain)
+
+      # y should be found in the function scope
+      assert Map.has_key?(analysis.variable_sources, :y)
+      assert analysis.variable_sources[:y].type == :function
+      assert analysis.variable_sources[:y].name == "my_func"
+    end
+
+    test "variable source identification from module scope" do
+      # Create a scope chain where config comes from module scope
+      scopes = [
+        %{type: :module, name: "MyModule", variables: [:config]},
+        %{type: :function, name: "my_func", variables: [:x]},
+        %{type: :closure, variables: []}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      {:ok, analysis} = Closure.analyze_closure_scope([:config], chain)
+
+      # config should be found in the module scope
+      assert Map.has_key?(analysis.variable_sources, :config)
+      assert analysis.variable_sources[:config].type == :module
+    end
+
+    test "nested closure scope chain" do
+      # Build a scope chain for nested closures: module -> function -> outer closure -> inner closure
+      scopes = [
+        %{type: :module, name: "MyModule", variables: [:module_var]},
+        %{type: :function, name: "my_func", variables: [:func_var]},
+        %{type: :closure, variables: [:outer_var]},
+        %{type: :closure, variables: [:inner_var]}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      # Should have 4 scopes
+      assert length(chain) == 4
+
+      # First is module (level 0), last is inner closure (level 3)
+      assert hd(chain).type == :module
+      assert hd(chain).level == 0
+
+      innermost = List.last(chain)
+      assert innermost.level == 3
+      assert innermost.type == :closure
+    end
+
+    test "multiple free variables from different scopes" do
+      scopes = [
+        %{type: :module, name: "MyModule", variables: [:module_config]},
+        %{type: :function, name: "my_func", variables: [:local_state]},
+        %{type: :closure, variables: []}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      # Both module_config and local_state are free variables
+      {:ok, analysis} = Closure.analyze_closure_scope([:module_config, :local_state], chain)
+
+      # module_config from module scope
+      assert analysis.variable_sources[:module_config].type == :module
+
+      # local_state from function scope
+      assert analysis.variable_sources[:local_state].type == :function
+    end
+
+    test "closure builder generates triples consistent with scope analysis" do
+      # Create a closure that captures from enclosing scope
+      ast = quote do: fn -> outer_var + 1 end
+      {:ok, anon} = AnonymousFunction.extract(ast)
+
+      anon_iri = ~I<https://example.org/code#MyApp/anon/0>
+      context = Context.new(base_iri: "https://example.org/code#")
+
+      # Build closure triples
+      triples = ClosureBuilder.build_closure(anon, anon_iri, context)
+
+      # Verify capturesVariable triple exists for outer_var
+      var_iri = ~I<https://example.org/code#MyApp/anon/0/capture/outer_var>
+      assert {anon_iri, Core.capturesVariable(), var_iri} in triples
+
+      # Also verify we can analyze the scope for this closure
+      {:ok, closure_analysis} = Closure.analyze_closure(anon)
+      assert closure_analysis.has_captures
+      assert Enum.any?(closure_analysis.free_variables, fn fv -> fv.name == :outer_var end)
+    end
+
+    test "unfound variables not in variable_sources" do
+      # Create a scope chain where the variable doesn't exist in any scope
+      scopes = [
+        %{type: :module, name: "MyModule", variables: []},
+        %{type: :function, name: "my_func", variables: [:x]},
+        %{type: :closure, variables: []}
+      ]
+
+      chain = Closure.build_scope_chain(scopes)
+
+      # Try to find :unknown_var which doesn't exist in any scope
+      {:ok, analysis} = Closure.analyze_closure_scope([:unknown_var], chain)
+
+      # unknown_var should not be in variable_sources since it wasn't found
+      refute Map.has_key?(analysis.variable_sources, :unknown_var)
     end
   end
 end
