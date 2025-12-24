@@ -69,16 +69,16 @@ Extract shutdown strategy and child type from child specs.
 This section extracts supervisor-level strategies that control how the supervisor handles child failures.
 
 ### 19.2.1 Strategy Type Extraction
-- [ ] **Task 19.2.1 Pending**
+- [x] **Task 19.2.1 Complete**
 
 Extract the supervision strategy type from supervisor init/1.
 
-- [ ] 19.2.1.1 Implement `extract_supervision_strategy/1` from init return value
-- [ ] 19.2.1.2 Define `%SupervisionStrategy{type: ..., max_restarts: ..., max_seconds: ...}` struct
-- [ ] 19.2.1.3 Extract `:one_for_one` strategy
-- [ ] 19.2.1.4 Extract `:one_for_all` strategy
-- [ ] 19.2.1.5 Extract `:rest_for_one` strategy
-- [ ] 19.2.1.6 Add strategy type tests
+- [x] 19.2.1.1 Implement `extract_supervision_strategy/1` from init return value
+- [x] 19.2.1.2 Define `%SupervisionStrategy{type: ..., max_restarts: ..., max_seconds: ...}` struct
+- [x] 19.2.1.3 Extract `:one_for_one` strategy
+- [x] 19.2.1.4 Extract `:one_for_all` strategy
+- [x] 19.2.1.5 Extract `:rest_for_one` strategy
+- [x] 19.2.1.6 Add strategy type tests
 
 ### 19.2.2 Restart Intensity Extraction
 - [ ] **Task 19.2.2 Pending**

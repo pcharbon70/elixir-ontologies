@@ -1915,6 +1915,313 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
   # Shutdown Extraction from Full Child Specs
   # ===========================================================================
 
+  # ===========================================================================
+  # Strategy Struct Enhanced Tests
+  # ===========================================================================
+
+  describe "Strategy struct enhanced fields" do
+    test "has is_default_max_restarts field" do
+      strategy = %Strategy{}
+      assert strategy.is_default_max_restarts == true
+    end
+
+    test "has is_default_max_seconds field" do
+      strategy = %Strategy{}
+      assert strategy.is_default_max_seconds == true
+    end
+
+    test "can create with explicit max_restarts/max_seconds" do
+      strategy = %Strategy{
+        type: :one_for_all,
+        max_restarts: 10,
+        max_seconds: 60,
+        is_default_max_restarts: false,
+        is_default_max_seconds: false
+      }
+
+      assert strategy.max_restarts == 10
+      assert strategy.max_seconds == 60
+      assert strategy.is_default_max_restarts == false
+      assert strategy.is_default_max_seconds == false
+    end
+  end
+
+  # ===========================================================================
+  # extract_supervision_strategy/1 Tests
+  # ===========================================================================
+
+  describe "extract_supervision_strategy/1" do
+    test "is an alias for extract_strategy/1" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy1} = SupervisorExtractor.extract_strategy(body)
+      {:ok, strategy2} = SupervisorExtractor.extract_supervision_strategy(body)
+
+      assert strategy1.type == strategy2.type
+      assert strategy1.max_restarts == strategy2.max_restarts
+      assert strategy1.max_seconds == strategy2.max_seconds
+    end
+
+    test "extracts all strategy types" do
+      for strategy_type <- [:one_for_one, :one_for_all, :rest_for_one] do
+        code = """
+        defmodule MySup do
+          use Supervisor
+          def init(_) do
+            Supervisor.init([], strategy: #{inspect(strategy_type)})
+          end
+        end
+        """
+
+        body = parse_module_body(code)
+        {:ok, strategy} = SupervisorExtractor.extract_supervision_strategy(body)
+
+        assert strategy.type == strategy_type
+      end
+    end
+  end
+
+  # ===========================================================================
+  # strategy_description/1 Tests
+  # ===========================================================================
+
+  describe "strategy_description/1" do
+    test "returns description for one_for_one" do
+      assert SupervisorExtractor.strategy_description(:one_for_one) == "Only restart the failed child"
+    end
+
+    test "returns description for one_for_all" do
+      assert SupervisorExtractor.strategy_description(:one_for_all) == "Restart all children on any failure"
+    end
+
+    test "returns description for rest_for_one" do
+      assert SupervisorExtractor.strategy_description(:rest_for_one) == "Restart failed child and all started after it"
+    end
+  end
+
+  # ===========================================================================
+  # default_max_restarts?/1 and default_max_seconds?/1 Tests
+  # ===========================================================================
+
+  describe "default_max_restarts?/1" do
+    test "returns true when is_default_max_restarts is true" do
+      strategy = %Strategy{is_default_max_restarts: true}
+      assert SupervisorExtractor.default_max_restarts?(strategy) == true
+    end
+
+    test "returns false when is_default_max_restarts is false" do
+      strategy = %Strategy{max_restarts: 10, is_default_max_restarts: false}
+      assert SupervisorExtractor.default_max_restarts?(strategy) == false
+    end
+  end
+
+  describe "default_max_seconds?/1" do
+    test "returns true when is_default_max_seconds is true" do
+      strategy = %Strategy{is_default_max_seconds: true}
+      assert SupervisorExtractor.default_max_seconds?(strategy) == true
+    end
+
+    test "returns false when is_default_max_seconds is false" do
+      strategy = %Strategy{max_seconds: 60, is_default_max_seconds: false}
+      assert SupervisorExtractor.default_max_seconds?(strategy) == false
+    end
+  end
+
+  # ===========================================================================
+  # effective_max_restarts/1 and effective_max_seconds/1 Tests
+  # ===========================================================================
+
+  describe "effective_max_restarts/1" do
+    test "returns explicit value when set" do
+      strategy = %Strategy{max_restarts: 10}
+      assert SupervisorExtractor.effective_max_restarts(strategy) == 10
+    end
+
+    test "returns OTP default 3 when nil" do
+      strategy = %Strategy{max_restarts: nil}
+      assert SupervisorExtractor.effective_max_restarts(strategy) == 3
+    end
+  end
+
+  describe "effective_max_seconds/1" do
+    test "returns explicit value when set" do
+      strategy = %Strategy{max_seconds: 60}
+      assert SupervisorExtractor.effective_max_seconds(strategy) == 60
+    end
+
+    test "returns OTP default 5 when nil" do
+      strategy = %Strategy{max_seconds: nil}
+      assert SupervisorExtractor.effective_max_seconds(strategy) == 5
+    end
+  end
+
+  # ===========================================================================
+  # restart_intensity/1 Tests
+  # ===========================================================================
+
+  describe "restart_intensity/1" do
+    test "calculates intensity from explicit values" do
+      strategy = %Strategy{max_restarts: 3, max_seconds: 5}
+      assert SupervisorExtractor.restart_intensity(strategy) == 0.6
+    end
+
+    test "calculates intensity using defaults" do
+      strategy = %Strategy{max_restarts: nil, max_seconds: nil}
+      assert SupervisorExtractor.restart_intensity(strategy) == 0.6
+    end
+
+    test "calculates intensity with custom values" do
+      strategy = %Strategy{max_restarts: 10, max_seconds: 5}
+      assert SupervisorExtractor.restart_intensity(strategy) == 2.0
+    end
+
+    test "calculates intensity with larger time window" do
+      strategy = %Strategy{max_restarts: 3, max_seconds: 60}
+      assert SupervisorExtractor.restart_intensity(strategy) == 0.05
+    end
+  end
+
+  # ===========================================================================
+  # Strategy Extraction with Default Detection
+  # ===========================================================================
+
+  describe "strategy extraction with default detection" do
+    test "marks max_restarts as default when not specified" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert strategy.max_restarts == nil
+      assert strategy.is_default_max_restarts == true
+    end
+
+    test "marks max_seconds as default when not specified" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert strategy.max_seconds == nil
+      assert strategy.is_default_max_seconds == true
+    end
+
+    test "marks max_restarts as non-default when specified" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one, max_restarts: 10)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert strategy.max_restarts == 10
+      assert strategy.is_default_max_restarts == false
+    end
+
+    test "marks max_seconds as non-default when specified" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one, max_seconds: 60)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert strategy.max_seconds == 60
+      assert strategy.is_default_max_seconds == false
+    end
+
+    test "marks both as non-default when both specified" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one, max_restarts: 10, max_seconds: 60)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert strategy.max_restarts == 10
+      assert strategy.max_seconds == 60
+      assert strategy.is_default_max_restarts == false
+      assert strategy.is_default_max_seconds == false
+    end
+  end
+
+  # ===========================================================================
+  # Strategy Extraction from DynamicSupervisor
+  # ===========================================================================
+
+  describe "DynamicSupervisor strategy extraction" do
+    test "extracts strategy from DynamicSupervisor.init" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_supervision_strategy(body)
+
+      assert strategy.type == :one_for_one
+      assert strategy.metadata.source == :dynamic_supervisor_init
+    end
+
+    test "extracts max_restarts from DynamicSupervisor.init" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(strategy: :one_for_one, max_restarts: 5)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, strategy} = SupervisorExtractor.extract_strategy(body)
+
+      assert strategy.max_restarts == 5
+      assert strategy.is_default_max_restarts == false
+    end
+  end
+
   describe "shutdown extraction from parsed child specs" do
     alias ElixirOntologies.Extractors.OTP.Supervisor.ShutdownSpec
 

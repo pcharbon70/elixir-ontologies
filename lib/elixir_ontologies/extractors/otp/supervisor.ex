@@ -56,17 +56,27 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     @moduledoc """
     Represents a supervision strategy extracted from a Supervisor's init/1 callback.
 
+    Also known as SupervisionStrategy in the ontology context.
+
     ## Strategy Types
 
     - `:one_for_one` - Only restart the failed child
     - `:one_for_all` - Restart all children on any failure
     - `:rest_for_one` - Restart failed child and all started after it
 
+    ## Default Values
+
+    OTP defaults for restart intensity:
+    - `max_restarts`: 3 (maximum restart attempts)
+    - `max_seconds`: 5 (time window in seconds)
+
     ## Fields
 
     - `:type` - The strategy type atom
     - `:max_restarts` - Maximum restarts allowed in time window (default: 3)
     - `:max_seconds` - Time window in seconds (default: 5)
+    - `:is_default_max_restarts` - Whether max_restarts uses default value
+    - `:is_default_max_seconds` - Whether max_seconds uses default value
     - `:location` - Source location of the strategy
     - `:metadata` - Additional information
     """
@@ -77,6 +87,8 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
             type: strategy_type(),
             max_restarts: non_neg_integer() | nil,
             max_seconds: non_neg_integer() | nil,
+            is_default_max_restarts: boolean(),
+            is_default_max_seconds: boolean(),
             location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
             metadata: map()
           }
@@ -84,9 +96,15 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     defstruct type: :one_for_one,
               max_restarts: nil,
               max_seconds: nil,
+              is_default_max_restarts: true,
+              is_default_max_seconds: true,
               location: nil,
               metadata: %{}
   end
+
+  # Alias for semantic clarity matching ontology terminology
+  @typedoc "Alias for Strategy struct (matches ontology SupervisionStrategy)"
+  @type supervision_strategy :: Strategy.t()
 
   # ===========================================================================
   # StartSpec Struct
@@ -983,6 +1001,159 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   def rest_for_one?(%Strategy{type: :rest_for_one}), do: true
   def rest_for_one?(_), do: false
 
+  @doc """
+  Extracts the supervision strategy from a module body.
+
+  This is an alias for `extract_strategy/1` matching ontology terminology.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = ~S'''
+      ...> defmodule MySup do
+      ...>   use Supervisor
+      ...>   def init(_) do
+      ...>     Supervisor.init([], strategy: :one_for_one)
+      ...>   end
+      ...> end
+      ...> '''
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> {:ok, strategy} = SupervisorExtractor.extract_supervision_strategy(body)
+      iex> strategy.type
+      :one_for_one
+  """
+  @spec extract_supervision_strategy(Macro.t(), keyword()) ::
+          {:ok, Strategy.t()} | {:error, String.t()}
+  defdelegate extract_supervision_strategy(body, opts \\ []), to: __MODULE__, as: :extract_strategy
+
+  @doc """
+  Returns a human-readable description for a strategy type.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.strategy_description(:one_for_one)
+      "Only restart the failed child"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.strategy_description(:one_for_all)
+      "Restart all children on any failure"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.strategy_description(:rest_for_one)
+      "Restart failed child and all started after it"
+  """
+  @spec strategy_description(Strategy.strategy_type()) :: String.t()
+  def strategy_description(:one_for_one), do: "Only restart the failed child"
+  def strategy_description(:one_for_all), do: "Restart all children on any failure"
+  def strategy_description(:rest_for_one), do: "Restart failed child and all started after it"
+
+  @doc """
+  Checks if a strategy is using the default max_restarts value.
+
+  The OTP default for max_restarts is 3.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.default_max_restarts?(%Strategy{is_default_max_restarts: true})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.default_max_restarts?(%Strategy{max_restarts: 10, is_default_max_restarts: false})
+      false
+  """
+  @spec default_max_restarts?(Strategy.t()) :: boolean()
+  def default_max_restarts?(%Strategy{is_default_max_restarts: is_default}), do: is_default
+
+  @doc """
+  Checks if a strategy is using the default max_seconds value.
+
+  The OTP default for max_seconds is 5.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.default_max_seconds?(%Strategy{is_default_max_seconds: true})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.default_max_seconds?(%Strategy{max_seconds: 60, is_default_max_seconds: false})
+      false
+  """
+  @spec default_max_seconds?(Strategy.t()) :: boolean()
+  def default_max_seconds?(%Strategy{is_default_max_seconds: is_default}), do: is_default
+
+  @doc """
+  Returns the effective max_restarts value.
+
+  Returns the explicitly set value, or the OTP default (3) if not set.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.effective_max_restarts(%Strategy{max_restarts: 10})
+      10
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.effective_max_restarts(%Strategy{max_restarts: nil})
+      3
+  """
+  @spec effective_max_restarts(Strategy.t()) :: non_neg_integer()
+  def effective_max_restarts(%Strategy{max_restarts: nil}), do: 3
+  def effective_max_restarts(%Strategy{max_restarts: max_restarts}), do: max_restarts
+
+  @doc """
+  Returns the effective max_seconds value.
+
+  Returns the explicitly set value, or the OTP default (5) if not set.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.effective_max_seconds(%Strategy{max_seconds: 60})
+      60
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.effective_max_seconds(%Strategy{max_seconds: nil})
+      5
+  """
+  @spec effective_max_seconds(Strategy.t()) :: non_neg_integer()
+  def effective_max_seconds(%Strategy{max_seconds: nil}), do: 5
+  def effective_max_seconds(%Strategy{max_seconds: max_seconds}), do: max_seconds
+
+  @doc """
+  Calculates the restart intensity as restarts per second.
+
+  This is the ratio of max_restarts to max_seconds.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.restart_intensity(%Strategy{max_restarts: 3, max_seconds: 5})
+      0.6
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.restart_intensity(%Strategy{max_restarts: nil, max_seconds: nil})
+      0.6
+  """
+  @spec restart_intensity(Strategy.t()) :: float()
+  def restart_intensity(%Strategy{} = strategy) do
+    max_restarts = effective_max_restarts(strategy)
+    max_seconds = effective_max_seconds(strategy)
+    max_restarts / max_seconds
+  end
+
   # ===========================================================================
   # Child Spec Extraction
   # ===========================================================================
@@ -1569,6 +1740,8 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       type: strategy,
       max_restarts: max_restarts,
       max_seconds: max_seconds,
+      is_default_max_restarts: false,
+      is_default_max_seconds: false,
       location: location,
       metadata: %{
         source: :tuple_return,
@@ -1591,6 +1764,8 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       type: strategy,
       max_restarts: max_restarts,
       max_seconds: max_seconds,
+      is_default_max_restarts: max_restarts == nil,
+      is_default_max_seconds: max_seconds == nil,
       location: location,
       metadata: %{
         source: source,
