@@ -198,6 +198,41 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   end
 
   # ===========================================================================
+  # ChildOrder Struct
+  # ===========================================================================
+
+  defmodule ChildOrder do
+    @moduledoc """
+    Represents the ordered position of a child in a supervision tree.
+
+    Child ordering is critical for the `:rest_for_one` strategy, where
+    all children started after a failed child are also restarted.
+
+    ## Fields
+
+    - `:position` - Zero-based position in the children list
+    - `:child_spec` - The extracted ChildSpec struct
+    - `:id` - Child ID from the spec (for quick access)
+    - `:is_dynamic` - Whether this child is in a DynamicSupervisor
+    - `:metadata` - Additional ordering information
+    """
+
+    @type t :: %__MODULE__{
+            position: non_neg_integer(),
+            child_spec: ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec.t(),
+            id: term(),
+            is_dynamic: boolean(),
+            metadata: map()
+          }
+
+    defstruct position: 0,
+              child_spec: nil,
+              id: nil,
+              is_dynamic: false,
+              metadata: %{}
+  end
+
+  # ===========================================================================
   # StartSpec Struct
   # ===========================================================================
 
@@ -1048,6 +1083,248 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       _ ->
         nil
     end
+  end
+
+  # ===========================================================================
+  # Child Ordering Functions
+  # ===========================================================================
+
+  @doc """
+  Extracts ordered children from a supervisor module body.
+
+  Returns a list of `%ChildOrder{}` structs preserving the original
+  definition order. Each struct includes the position (0-indexed) and
+  the child spec.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = ~S'''
+      ...> defmodule MySup do
+      ...>   use Supervisor
+      ...>   def init(_) do
+      ...>     children = [
+      ...>       {Worker1, []},
+      ...>       {Worker2, []}
+      ...>     ]
+      ...>     Supervisor.init(children, strategy: :rest_for_one)
+      ...>   end
+      ...> end
+      ...> '''
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+      iex> length(ordered)
+      2
+      iex> hd(ordered).position
+      0
+  """
+  @spec extract_ordered_children(Macro.t(), keyword()) :: {:ok, [ChildOrder.t()]}
+  def extract_ordered_children(body, opts \\ []) do
+    is_dynamic = dynamic_supervisor?(body)
+    {:ok, children} = extract_children(body, opts)
+
+    ordered =
+      children
+      |> Enum.with_index()
+      |> Enum.map(fn {child_spec, index} ->
+        %ChildOrder{
+          position: index,
+          child_spec: child_spec,
+          id: child_spec.id,
+          is_dynamic: is_dynamic,
+          metadata: %{
+            total_children: length(children),
+            is_first: index == 0,
+            is_last: index == length(children) - 1
+          }
+        }
+      end)
+
+    {:ok, ordered}
+  end
+
+  @doc """
+  Extracts ordered children, raising on error.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = ~S'''
+      ...> defmodule MySup do
+      ...>   use Supervisor
+      ...>   def init(_) do
+      ...>     Supervisor.init([{Worker, []}], strategy: :one_for_one)
+      ...>   end
+      ...> end
+      ...> '''
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> [first] = SupervisorExtractor.extract_ordered_children!(body)
+      iex> first.position
+      0
+  """
+  @spec extract_ordered_children!(Macro.t(), keyword()) :: [ChildOrder.t()]
+  def extract_ordered_children!(body, opts \\ []) do
+    {:ok, ordered} = extract_ordered_children(body, opts)
+    ordered
+  end
+
+  @doc """
+  Gets the child at a specific position in the ordered list.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0, id: :first}, %ChildOrder{position: 1, id: :second}]
+      iex> SupervisorExtractor.child_at_position(ordered, 1).id
+      :second
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.child_at_position([], 0)
+      nil
+  """
+  @spec child_at_position([ChildOrder.t()], non_neg_integer()) :: ChildOrder.t() | nil
+  def child_at_position(ordered_children, position) do
+    Enum.find(ordered_children, fn child -> child.position == position end)
+  end
+
+  @doc """
+  Returns the number of ordered children.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0}, %ChildOrder{position: 1}]
+      iex> SupervisorExtractor.ordered_child_count(ordered)
+      2
+  """
+  @spec ordered_child_count([ChildOrder.t()]) :: non_neg_integer()
+  def ordered_child_count(ordered_children), do: length(ordered_children)
+
+  @doc """
+  Returns the first child in the ordered list.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0, id: :first}, %ChildOrder{position: 1, id: :second}]
+      iex> SupervisorExtractor.first_child(ordered).id
+      :first
+  """
+  @spec first_child([ChildOrder.t()]) :: ChildOrder.t() | nil
+  def first_child([first | _]), do: first
+  def first_child([]), do: nil
+
+  @doc """
+  Returns the last child in the ordered list.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0, id: :first}, %ChildOrder{position: 1, id: :last}]
+      iex> SupervisorExtractor.last_child(ordered).id
+      :last
+  """
+  @spec last_child([ChildOrder.t()]) :: ChildOrder.t() | nil
+  def last_child([]), do: nil
+  def last_child(ordered_children), do: List.last(ordered_children)
+
+  @doc """
+  Returns all children after the given position.
+
+  This is useful for analyzing `:rest_for_one` behavior, where all
+  children started after a failed child are also restarted.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [
+      ...>   %ChildOrder{position: 0, id: :a},
+      ...>   %ChildOrder{position: 1, id: :b},
+      ...>   %ChildOrder{position: 2, id: :c}
+      ...> ]
+      iex> after_b = SupervisorExtractor.children_after(ordered, 1)
+      iex> Enum.map(after_b, & &1.id)
+      [:c]
+  """
+  @spec children_after([ChildOrder.t()], non_neg_integer()) :: [ChildOrder.t()]
+  def children_after(ordered_children, position) do
+    Enum.filter(ordered_children, fn child -> child.position > position end)
+  end
+
+  @doc """
+  Returns all children before the given position.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [
+      ...>   %ChildOrder{position: 0, id: :a},
+      ...>   %ChildOrder{position: 1, id: :b},
+      ...>   %ChildOrder{position: 2, id: :c}
+      ...> ]
+      iex> before_c = SupervisorExtractor.children_before(ordered, 2)
+      iex> Enum.map(before_c, & &1.id)
+      [:a, :b]
+  """
+  @spec children_before([ChildOrder.t()], non_neg_integer()) :: [ChildOrder.t()]
+  def children_before(ordered_children, position) do
+    Enum.filter(ordered_children, fn child -> child.position < position end)
+  end
+
+  @doc """
+  Checks if the ordered children list has correct sequential positions.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0}, %ChildOrder{position: 1}]
+      iex> SupervisorExtractor.is_ordered?(ordered)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> broken = [%ChildOrder{position: 0}, %ChildOrder{position: 5}]
+      iex> SupervisorExtractor.is_ordered?(broken)
+      false
+  """
+  @spec is_ordered?([ChildOrder.t()]) :: boolean()
+  def is_ordered?([]), do: true
+
+  def is_ordered?(ordered_children) do
+    positions = Enum.map(ordered_children, & &1.position)
+    expected = Enum.to_list(0..(length(ordered_children) - 1))
+    positions == expected
+  end
+
+  @doc """
+  Returns a human-readable description of the child ordering.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0, id: :a}, %ChildOrder{position: 1, id: :b}]
+      iex> SupervisorExtractor.ordering_description(ordered)
+      "2 children in order: a -> b"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.ordering_description([])
+      "No children"
+  """
+  @spec ordering_description([ChildOrder.t()]) :: String.t()
+  def ordering_description([]), do: "No children"
+
+  def ordering_description(ordered_children) do
+    count = length(ordered_children)
+    ids = Enum.map(ordered_children, & &1.id) |> Enum.join(" -> ")
+    "#{count} children in order: #{ids}"
   end
 
   @doc """

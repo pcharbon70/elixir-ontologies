@@ -2910,4 +2910,480 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
       assert config.is_dynamic == true
     end
   end
+
+  # ===========================================================================
+  # ChildOrder Struct Tests
+  # ===========================================================================
+
+  describe "ChildOrder struct" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+
+    test "has default values" do
+      order = %ChildOrder{}
+      assert order.position == 0
+      assert order.child_spec == nil
+      assert order.id == nil
+      assert order.is_dynamic == false
+      assert order.metadata == %{}
+    end
+
+    test "can be created with custom values" do
+      order = %ChildOrder{
+        position: 2,
+        id: :my_worker,
+        is_dynamic: true,
+        metadata: %{total_children: 5}
+      }
+
+      assert order.position == 2
+      assert order.id == :my_worker
+      assert order.is_dynamic == true
+      assert order.metadata.total_children == 5
+    end
+  end
+
+  # ===========================================================================
+  # extract_ordered_children/1 Tests
+  # ===========================================================================
+
+  describe "extract_ordered_children/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+
+    test "extracts ordered children with positions" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {Worker1, []},
+            {Worker2, []},
+            {Worker3, []}
+          ]
+          Supervisor.init(children, strategy: :rest_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+
+      assert length(ordered) == 3
+      assert Enum.all?(ordered, fn o -> %ChildOrder{} = o end)
+
+      [first, second, third] = ordered
+      assert first.position == 0
+      assert second.position == 1
+      assert third.position == 2
+    end
+
+    test "preserves original definition order" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            %{id: :alpha, start: {A, :start_link, []}},
+            %{id: :beta, start: {B, :start_link, []}},
+            %{id: :gamma, start: {C, :start_link, []}}
+          ]
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+
+      ids = Enum.map(ordered, & &1.id)
+      assert ids == [:alpha, :beta, :gamma]
+    end
+
+    test "includes child spec in each order" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([{Worker, []}], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, [order]} = SupervisorExtractor.extract_ordered_children(body)
+
+      assert order.child_spec != nil
+      assert order.child_spec.id == Worker
+    end
+
+    test "includes metadata about position" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([{A, []}, {B, []}, {C, []}], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+
+      [first, second, third] = ordered
+
+      assert first.metadata.is_first == true
+      assert first.metadata.is_last == false
+      assert first.metadata.total_children == 3
+
+      assert second.metadata.is_first == false
+      assert second.metadata.is_last == false
+
+      assert third.metadata.is_first == false
+      assert third.metadata.is_last == true
+    end
+
+    test "marks DynamicSupervisor children as dynamic" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+
+      # DynamicSupervisor has no static children, but the is_dynamic flag
+      # would be set if there were any
+      assert ordered == []
+    end
+
+    test "returns empty list for supervisor with no children" do
+      code = """
+      defmodule EmptySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+
+      assert ordered == []
+    end
+  end
+
+  # ===========================================================================
+  # extract_ordered_children!/1 Tests
+  # ===========================================================================
+
+  describe "extract_ordered_children!/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+
+    test "returns ordered children directly" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([{Worker, []}], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      ordered = SupervisorExtractor.extract_ordered_children!(body)
+
+      assert [%ChildOrder{}] = ordered
+    end
+  end
+
+  # ===========================================================================
+  # child_at_position/2 Tests
+  # ===========================================================================
+
+  describe "child_at_position/2" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+
+    test "returns child at specified position" do
+      ordered = [
+        %ChildOrder{position: 0, id: :first},
+        %ChildOrder{position: 1, id: :second},
+        %ChildOrder{position: 2, id: :third}
+      ]
+
+      assert SupervisorExtractor.child_at_position(ordered, 0).id == :first
+      assert SupervisorExtractor.child_at_position(ordered, 1).id == :second
+      assert SupervisorExtractor.child_at_position(ordered, 2).id == :third
+    end
+
+    test "returns nil for non-existent position" do
+      ordered = [%ChildOrder{position: 0, id: :only}]
+
+      assert SupervisorExtractor.child_at_position(ordered, 5) == nil
+    end
+
+    test "returns nil for empty list" do
+      assert SupervisorExtractor.child_at_position([], 0) == nil
+    end
+  end
+
+  # ===========================================================================
+  # ordered_child_count/1 Tests
+  # ===========================================================================
+
+  describe "ordered_child_count/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+
+    test "returns count of ordered children" do
+      ordered = [
+        %ChildOrder{position: 0},
+        %ChildOrder{position: 1},
+        %ChildOrder{position: 2}
+      ]
+
+      assert SupervisorExtractor.ordered_child_count(ordered) == 3
+    end
+
+    test "returns 0 for empty list" do
+      assert SupervisorExtractor.ordered_child_count([]) == 0
+    end
+  end
+
+  # ===========================================================================
+  # first_child/1 and last_child/1 Tests
+  # ===========================================================================
+
+  describe "first_child/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+
+    test "returns first child" do
+      ordered = [
+        %ChildOrder{position: 0, id: :first},
+        %ChildOrder{position: 1, id: :second}
+      ]
+
+      assert SupervisorExtractor.first_child(ordered).id == :first
+    end
+
+    test "returns nil for empty list" do
+      assert SupervisorExtractor.first_child([]) == nil
+    end
+  end
+
+  describe "last_child/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+
+    test "returns last child" do
+      ordered = [
+        %ChildOrder{position: 0, id: :first},
+        %ChildOrder{position: 1, id: :last}
+      ]
+
+      assert SupervisorExtractor.last_child(ordered).id == :last
+    end
+
+    test "returns nil for empty list" do
+      assert SupervisorExtractor.last_child([]) == nil
+    end
+  end
+
+  # ===========================================================================
+  # children_after/2 and children_before/2 Tests
+  # ===========================================================================
+
+  describe "children_after/2" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+
+    test "returns children after position" do
+      ordered = [
+        %ChildOrder{position: 0, id: :a},
+        %ChildOrder{position: 1, id: :b},
+        %ChildOrder{position: 2, id: :c},
+        %ChildOrder{position: 3, id: :d}
+      ]
+
+      after_b = SupervisorExtractor.children_after(ordered, 1)
+      ids = Enum.map(after_b, & &1.id)
+
+      assert ids == [:c, :d]
+    end
+
+    test "returns empty list when no children after" do
+      ordered = [%ChildOrder{position: 0, id: :only}]
+
+      assert SupervisorExtractor.children_after(ordered, 0) == []
+    end
+
+    test "returns all children when position is -1" do
+      ordered = [
+        %ChildOrder{position: 0, id: :a},
+        %ChildOrder{position: 1, id: :b}
+      ]
+
+      after_none = SupervisorExtractor.children_after(ordered, -1)
+      assert length(after_none) == 2
+    end
+  end
+
+  describe "children_before/2" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+
+    test "returns children before position" do
+      ordered = [
+        %ChildOrder{position: 0, id: :a},
+        %ChildOrder{position: 1, id: :b},
+        %ChildOrder{position: 2, id: :c}
+      ]
+
+      before_c = SupervisorExtractor.children_before(ordered, 2)
+      ids = Enum.map(before_c, & &1.id)
+
+      assert ids == [:a, :b]
+    end
+
+    test "returns empty list when no children before" do
+      ordered = [%ChildOrder{position: 0, id: :first}]
+
+      assert SupervisorExtractor.children_before(ordered, 0) == []
+    end
+  end
+
+  # ===========================================================================
+  # is_ordered?/1 Tests
+  # ===========================================================================
+
+  describe "is_ordered?/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+
+    test "returns true for sequential positions" do
+      ordered = [
+        %ChildOrder{position: 0},
+        %ChildOrder{position: 1},
+        %ChildOrder{position: 2}
+      ]
+
+      assert SupervisorExtractor.is_ordered?(ordered)
+    end
+
+    test "returns true for empty list" do
+      assert SupervisorExtractor.is_ordered?([])
+    end
+
+    test "returns true for single element" do
+      ordered = [%ChildOrder{position: 0}]
+      assert SupervisorExtractor.is_ordered?(ordered)
+    end
+
+    test "returns false for non-sequential positions" do
+      ordered = [
+        %ChildOrder{position: 0},
+        %ChildOrder{position: 5}
+      ]
+
+      refute SupervisorExtractor.is_ordered?(ordered)
+    end
+
+    test "returns false for out of order positions" do
+      ordered = [
+        %ChildOrder{position: 1},
+        %ChildOrder{position: 0}
+      ]
+
+      refute SupervisorExtractor.is_ordered?(ordered)
+    end
+  end
+
+  # ===========================================================================
+  # ordering_description/1 Tests
+  # ===========================================================================
+
+  describe "ordering_description/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+
+    test "returns description for children" do
+      ordered = [
+        %ChildOrder{position: 0, id: :worker_a},
+        %ChildOrder{position: 1, id: :worker_b}
+      ]
+
+      desc = SupervisorExtractor.ordering_description(ordered)
+      assert desc == "2 children in order: worker_a -> worker_b"
+    end
+
+    test "returns 'No children' for empty list" do
+      assert SupervisorExtractor.ordering_description([]) == "No children"
+    end
+
+    test "handles single child" do
+      ordered = [%ChildOrder{position: 0, id: :only}]
+
+      desc = SupervisorExtractor.ordering_description(ordered)
+      assert desc == "1 children in order: only"
+    end
+  end
+
+  # ===========================================================================
+  # Child Ordering Integration Tests
+  # ===========================================================================
+
+  describe "child ordering integration" do
+    test "works with rest_for_one strategy analysis" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          children = [
+            {Database, []},
+            {Cache, []},
+            {WebServer, []}
+          ]
+          Supervisor.init(children, strategy: :rest_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+
+      # If Cache (position 1) fails, WebServer (position 2) would also restart
+      cache_position = 1
+      affected = SupervisorExtractor.children_after(ordered, cache_position)
+
+      assert length(affected) == 1
+      assert hd(affected).id == WebServer
+    end
+
+    test "extracts ordering from complex supervisor" do
+      code = """
+      defmodule ComplexSup do
+        use Supervisor
+
+        def init(_) do
+          children = [
+            %{id: :registry, start: {Registry, :start_link, [[keys: :unique, name: MyRegistry]]}},
+            {DynamicSupervisor, name: WorkerSupervisor, strategy: :one_for_one},
+            %{id: :scheduler, start: {Scheduler, :start_link, []}, restart: :transient}
+          ]
+
+          Supervisor.init(children, strategy: :one_for_all, max_restarts: 3, max_seconds: 5)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+
+      assert SupervisorExtractor.ordered_child_count(ordered) == 3
+      assert SupervisorExtractor.is_ordered?(ordered)
+
+      first = SupervisorExtractor.first_child(ordered)
+      last = SupervisorExtractor.last_child(ordered)
+
+      assert first.id == :registry
+      assert last.id == :scheduler
+    end
+  end
 end

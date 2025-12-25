@@ -119,16 +119,16 @@ Extract DynamicSupervisor-specific configuration.
 This section builds the supervision tree structure showing parent-child relationships.
 
 ### 19.3.1 Child Ordering Extraction
-- [ ] **Task 19.3.1 Pending**
+- [x] **Task 19.3.1 Complete**
 
 Extract the order of children in supervision tree (important for rest_for_one).
 
-- [ ] 19.3.1.1 Track child position in children list
-- [ ] 19.3.1.2 Create ordered list of child specs
-- [ ] 19.3.1.3 Preserve original definition order
-- [ ] 19.3.1.4 Handle dynamic children markers
-- [ ] 19.3.1.5 Create `%ChildOrder{position: ..., child_spec: ...}` struct
-- [ ] 19.3.1.6 Add child ordering tests
+- [x] 19.3.1.1 Track child position in children list
+- [x] 19.3.1.2 Create ordered list of child specs
+- [x] 19.3.1.3 Preserve original definition order
+- [x] 19.3.1.4 Handle dynamic children markers
+- [x] 19.3.1.5 Create `%ChildOrder{position: ..., child_spec: ...}` struct (enriched with id, is_dynamic, metadata)
+- [x] 19.3.1.6 Add child ordering tests (38 tests)
 
 ### 19.3.2 Nested Supervisor Detection
 - [ ] **Task 19.3.2 Pending**
