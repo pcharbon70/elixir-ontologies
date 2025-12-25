@@ -4,11 +4,15 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
   alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
   alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
   alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+  alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+  alias ElixirOntologies.Extractors.OTP.Supervisor.NestedSupervisor
 
   # Run doctests from the Supervisor module
   doctest ElixirOntologies.Extractors.OTP.Supervisor
   doctest ElixirOntologies.Extractors.OTP.Supervisor.Strategy
   doctest ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+  doctest ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+  doctest ElixirOntologies.Extractors.OTP.Supervisor.NestedSupervisor
 
   # ===========================================================================
   # Helper Functions
@@ -3384,6 +3388,612 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
 
       assert first.id == :registry
       assert last.id == :scheduler
+    end
+  end
+
+  # ===========================================================================
+  # Nested Supervisor Detection Tests
+  # ===========================================================================
+
+  describe "NestedSupervisor struct" do
+    test "has expected default values" do
+      ns = %NestedSupervisor{}
+      assert ns.child_spec == nil
+      assert ns.module == nil
+      assert ns.position == 0
+      assert ns.detection_method == :explicit_type
+      assert ns.is_confirmed == true
+      assert ns.metadata == %{}
+    end
+
+    test "can be constructed with custom values" do
+      spec = %ChildSpec{id: :sub_sup, type: :supervisor, module: MySupervisor}
+
+      ns = %NestedSupervisor{
+        child_spec: spec,
+        module: MySupervisor,
+        position: 2,
+        detection_method: :name_heuristic,
+        is_confirmed: false,
+        metadata: %{reason: "test"}
+      }
+
+      assert ns.module == MySupervisor
+      assert ns.position == 2
+      assert ns.detection_method == :name_heuristic
+      assert ns.is_confirmed == false
+    end
+  end
+
+  describe "nested_supervisor?/1" do
+    test "returns true for explicit type: :supervisor" do
+      child = %ChildOrder{
+        position: 0,
+        id: :sub_sup,
+        child_spec: %ChildSpec{type: :supervisor, module: MySup}
+      }
+
+      assert SupervisorExtractor.nested_supervisor?(child)
+    end
+
+    test "returns true for module name ending with Supervisor" do
+      child = %ChildOrder{
+        position: 0,
+        id: :sub_sup,
+        child_spec: %ChildSpec{type: :worker, module: MyAppSupervisor}
+      }
+
+      assert SupervisorExtractor.nested_supervisor?(child)
+    end
+
+    test "returns false for worker type with non-Supervisor module name" do
+      child = %ChildOrder{
+        position: 0,
+        id: :worker,
+        child_spec: %ChildSpec{type: :worker, module: MyWorker}
+      }
+
+      refute SupervisorExtractor.nested_supervisor?(child)
+    end
+
+    test "returns false for nil module" do
+      child = %ChildOrder{
+        position: 0,
+        id: :worker,
+        child_spec: %ChildSpec{type: :worker, module: nil}
+      }
+
+      refute SupervisorExtractor.nested_supervisor?(child)
+    end
+
+    test "returns false for missing child_spec" do
+      child = %ChildOrder{position: 0, id: :worker}
+      refute SupervisorExtractor.nested_supervisor?(child)
+    end
+  end
+
+  describe "supervisor_module?/1" do
+    test "returns true for module name ending with Supervisor" do
+      assert SupervisorExtractor.supervisor_module?(MySupervisor)
+      assert SupervisorExtractor.supervisor_module?(MyApp.SubSupervisor)
+      assert SupervisorExtractor.supervisor_module?(MyApp.Workers.TaskSupervisor)
+    end
+
+    test "returns false for non-Supervisor module names" do
+      refute SupervisorExtractor.supervisor_module?(MyWorker)
+      refute SupervisorExtractor.supervisor_module?(MyApp.Server)
+      refute SupervisorExtractor.supervisor_module?(MyApp.GenServer)
+    end
+
+    test "returns false for nil" do
+      refute SupervisorExtractor.supervisor_module?(nil)
+    end
+
+    test "handles DynamicSupervisor pattern" do
+      # DynamicSupervisor ends with Supervisor
+      assert SupervisorExtractor.supervisor_module?(MyApp.DynamicSupervisor)
+    end
+  end
+
+  describe "extract_nested_supervisors/1" do
+    test "extracts supervisor with explicit type" do
+      ordered = [
+        %ChildOrder{
+          position: 0,
+          id: :worker,
+          child_spec: %ChildSpec{id: :worker, type: :worker, module: MyWorker}
+        },
+        %ChildOrder{
+          position: 1,
+          id: :sub_sup,
+          child_spec: %ChildSpec{id: :sub_sup, type: :supervisor, module: MySupervisor}
+        }
+      ]
+
+      {:ok, nested} = SupervisorExtractor.extract_nested_supervisors(ordered)
+      assert length(nested) == 1
+
+      [ns] = nested
+      assert ns.module == MySupervisor
+      assert ns.position == 1
+      assert ns.detection_method == :explicit_type
+      assert ns.is_confirmed == true
+    end
+
+    test "extracts supervisor via name heuristic" do
+      ordered = [
+        %ChildOrder{
+          position: 0,
+          id: :sub_sup,
+          child_spec: %ChildSpec{id: :sub_sup, type: :worker, module: MyChildSupervisor}
+        }
+      ]
+
+      {:ok, nested} = SupervisorExtractor.extract_nested_supervisors(ordered)
+      assert length(nested) == 1
+
+      [ns] = nested
+      assert ns.module == MyChildSupervisor
+      assert ns.detection_method == :name_heuristic
+      assert ns.is_confirmed == false
+    end
+
+    test "returns empty list for no supervisors" do
+      ordered = [
+        %ChildOrder{
+          position: 0,
+          id: :worker1,
+          child_spec: %ChildSpec{type: :worker, module: Worker1}
+        },
+        %ChildOrder{
+          position: 1,
+          id: :worker2,
+          child_spec: %ChildSpec{type: :worker, module: Worker2}
+        }
+      ]
+
+      {:ok, nested} = SupervisorExtractor.extract_nested_supervisors(ordered)
+      assert nested == []
+    end
+
+    test "returns empty list for empty input" do
+      {:ok, nested} = SupervisorExtractor.extract_nested_supervisors([])
+      assert nested == []
+    end
+
+    test "extracts multiple nested supervisors" do
+      ordered = [
+        %ChildOrder{
+          position: 0,
+          id: :sup1,
+          child_spec: %ChildSpec{id: :sup1, type: :supervisor, module: Sup1}
+        },
+        %ChildOrder{
+          position: 1,
+          id: :worker,
+          child_spec: %ChildSpec{id: :worker, type: :worker, module: MyWorker}
+        },
+        %ChildOrder{
+          position: 2,
+          id: :sup2,
+          child_spec: %ChildSpec{id: :sup2, type: :supervisor, module: Sup2}
+        }
+      ]
+
+      {:ok, nested} = SupervisorExtractor.extract_nested_supervisors(ordered)
+      assert length(nested) == 2
+
+      assert Enum.map(nested, & &1.module) == [Sup1, Sup2]
+      assert Enum.map(nested, & &1.position) == [0, 2]
+    end
+
+    test "prioritizes explicit type over name heuristic" do
+      # If type is :supervisor, detection_method should be :explicit_type
+      # even if module name ends with Supervisor
+      ordered = [
+        %ChildOrder{
+          position: 0,
+          id: :sub_sup,
+          child_spec: %ChildSpec{id: :sub_sup, type: :supervisor, module: MyChildSupervisor}
+        }
+      ]
+
+      {:ok, nested} = SupervisorExtractor.extract_nested_supervisors(ordered)
+      [ns] = nested
+
+      assert ns.detection_method == :explicit_type
+      assert ns.is_confirmed == true
+    end
+  end
+
+  describe "extract_nested_supervisors!/1" do
+    test "returns result directly" do
+      result = SupervisorExtractor.extract_nested_supervisors!([])
+      assert result == []
+    end
+  end
+
+  describe "nested_supervisor_count/1" do
+    test "counts supervisors correctly" do
+      ordered = [
+        %ChildOrder{
+          position: 0,
+          id: :sup,
+          child_spec: %ChildSpec{type: :supervisor}
+        },
+        %ChildOrder{
+          position: 1,
+          id: :worker,
+          child_spec: %ChildSpec{type: :worker, module: MyWorker}
+        },
+        %ChildOrder{
+          position: 2,
+          id: :sup2,
+          child_spec: %ChildSpec{type: :worker, module: SubSupervisor}
+        }
+      ]
+
+      assert SupervisorExtractor.nested_supervisor_count(ordered) == 2
+    end
+
+    test "returns 0 for no supervisors" do
+      ordered = [
+        %ChildOrder{
+          position: 0,
+          id: :worker,
+          child_spec: %ChildSpec{type: :worker, module: MyWorker}
+        }
+      ]
+
+      assert SupervisorExtractor.nested_supervisor_count(ordered) == 0
+    end
+
+    test "returns 0 for empty list" do
+      assert SupervisorExtractor.nested_supervisor_count([]) == 0
+    end
+  end
+
+  describe "supervisor_children/1" do
+    test "filters to only supervisors" do
+      ordered = [
+        %ChildOrder{
+          position: 0,
+          id: :sup,
+          child_spec: %ChildSpec{type: :supervisor}
+        },
+        %ChildOrder{
+          position: 1,
+          id: :worker,
+          child_spec: %ChildSpec{type: :worker, module: MyWorker}
+        }
+      ]
+
+      result = SupervisorExtractor.supervisor_children(ordered)
+      assert length(result) == 1
+      assert hd(result).id == :sup
+    end
+
+    test "returns empty list when no supervisors" do
+      ordered = [
+        %ChildOrder{
+          position: 0,
+          id: :worker,
+          child_spec: %ChildSpec{type: :worker, module: MyWorker}
+        }
+      ]
+
+      assert SupervisorExtractor.supervisor_children(ordered) == []
+    end
+  end
+
+  describe "worker_children/1" do
+    test "filters to only workers" do
+      ordered = [
+        %ChildOrder{
+          position: 0,
+          id: :sup,
+          child_spec: %ChildSpec{type: :supervisor}
+        },
+        %ChildOrder{
+          position: 1,
+          id: :worker,
+          child_spec: %ChildSpec{type: :worker, module: MyWorker}
+        }
+      ]
+
+      result = SupervisorExtractor.worker_children(ordered)
+      assert length(result) == 1
+      assert hd(result).id == :worker
+    end
+
+    test "excludes heuristically detected supervisors" do
+      ordered = [
+        %ChildOrder{
+          position: 0,
+          id: :sub_sup,
+          child_spec: %ChildSpec{type: :worker, module: MyChildSupervisor}
+        },
+        %ChildOrder{
+          position: 1,
+          id: :worker,
+          child_spec: %ChildSpec{type: :worker, module: MyWorker}
+        }
+      ]
+
+      result = SupervisorExtractor.worker_children(ordered)
+      assert length(result) == 1
+      assert hd(result).id == :worker
+    end
+  end
+
+  describe "has_nested_supervisors?/1" do
+    test "returns true when supervisors exist" do
+      ordered = [
+        %ChildOrder{child_spec: %ChildSpec{type: :supervisor}}
+      ]
+
+      assert SupervisorExtractor.has_nested_supervisors?(ordered)
+    end
+
+    test "returns false when no supervisors" do
+      ordered = [
+        %ChildOrder{child_spec: %ChildSpec{type: :worker, module: MyWorker}}
+      ]
+
+      refute SupervisorExtractor.has_nested_supervisors?(ordered)
+    end
+
+    test "returns false for empty list" do
+      refute SupervisorExtractor.has_nested_supervisors?([])
+    end
+  end
+
+  describe "supervision_depth/1" do
+    test "returns 1 for flat tree" do
+      ordered = [
+        %ChildOrder{child_spec: %ChildSpec{type: :worker, module: MyWorker}}
+      ]
+
+      assert SupervisorExtractor.supervision_depth(ordered) == 1
+    end
+
+    test "returns 2 for nested tree" do
+      ordered = [
+        %ChildOrder{child_spec: %ChildSpec{type: :supervisor}}
+      ]
+
+      assert SupervisorExtractor.supervision_depth(ordered) == 2
+    end
+
+    test "returns 1 for empty list" do
+      assert SupervisorExtractor.supervision_depth([]) == 1
+    end
+  end
+
+  describe "nested_supervisor_summary/1" do
+    test "returns message for empty list" do
+      assert SupervisorExtractor.nested_supervisor_summary([]) == "No nested supervisors"
+    end
+
+    test "summarizes confirmed supervisors" do
+      nested = [
+        %NestedSupervisor{
+          module: MySup,
+          detection_method: :explicit_type,
+          is_confirmed: true
+        }
+      ]
+
+      summary = SupervisorExtractor.nested_supervisor_summary(nested)
+      assert summary =~ "1 nested supervisor"
+      assert summary =~ "1 confirmed"
+      assert summary =~ "MySup"
+    end
+
+    test "summarizes heuristic supervisors" do
+      nested = [
+        %NestedSupervisor{
+          module: MyChildSupervisor,
+          detection_method: :name_heuristic,
+          is_confirmed: false
+        }
+      ]
+
+      summary = SupervisorExtractor.nested_supervisor_summary(nested)
+      assert summary =~ "1 nested supervisor"
+      assert summary =~ "1 heuristic"
+      assert summary =~ "MyChildSupervisor"
+    end
+
+    test "summarizes mixed detection methods" do
+      nested = [
+        %NestedSupervisor{module: Sup1, is_confirmed: true},
+        %NestedSupervisor{module: Sup2, is_confirmed: false},
+        %NestedSupervisor{module: Sup3, is_confirmed: true}
+      ]
+
+      summary = SupervisorExtractor.nested_supervisor_summary(nested)
+      assert summary =~ "3 nested supervisor"
+      assert summary =~ "2 confirmed"
+      assert summary =~ "1 heuristic"
+    end
+  end
+
+  describe "supervision_tree_description/1" do
+    test "describes empty tree" do
+      assert SupervisorExtractor.supervision_tree_description([]) == "Empty supervision tree"
+    end
+
+    test "describes flat tree" do
+      ordered = [
+        %ChildOrder{child_spec: %ChildSpec{type: :worker, module: MyWorker}},
+        %ChildOrder{child_spec: %ChildSpec{type: :worker, module: Worker2}}
+      ]
+
+      desc = SupervisorExtractor.supervision_tree_description(ordered)
+      assert desc == "Flat tree with 2 worker(s)"
+    end
+
+    test "describes nested tree" do
+      ordered = [
+        %ChildOrder{child_spec: %ChildSpec{type: :supervisor}},
+        %ChildOrder{child_spec: %ChildSpec{type: :worker, module: MyWorker}},
+        %ChildOrder{child_spec: %ChildSpec{type: :worker, module: Worker2}}
+      ]
+
+      desc = SupervisorExtractor.supervision_tree_description(ordered)
+      assert desc == "Nested tree with 1 supervisor(s) and 2 worker(s)"
+    end
+  end
+
+  describe "nested_detection_method/1" do
+    test "returns the detection method" do
+      ns = %NestedSupervisor{detection_method: :explicit_type}
+      assert SupervisorExtractor.nested_detection_method(ns) == :explicit_type
+
+      ns = %NestedSupervisor{detection_method: :name_heuristic}
+      assert SupervisorExtractor.nested_detection_method(ns) == :name_heuristic
+    end
+  end
+
+  describe "detection_method_description/1" do
+    test "describes explicit_type" do
+      desc = SupervisorExtractor.detection_method_description(:explicit_type)
+      assert desc =~ "Explicit"
+      assert desc =~ ":supervisor"
+    end
+
+    test "describes name_heuristic" do
+      desc = SupervisorExtractor.detection_method_description(:name_heuristic)
+      assert desc =~ "Module name"
+      assert desc =~ "Supervisor"
+    end
+
+    test "describes behaviour_hint" do
+      desc = SupervisorExtractor.detection_method_description(:behaviour_hint)
+      assert desc =~ "behaviour"
+    end
+  end
+
+  describe "integration: nested supervisor detection from AST" do
+    test "detects explicit nested supervisor from supervisor code" do
+      code = """
+      defmodule MyApp.MainSupervisor do
+        use Supervisor
+
+        def start_link(init_arg) do
+          Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
+        end
+
+        def init(_init_arg) do
+          children = [
+            {MyApp.WorkerSupervisor, strategy: :one_for_one, type: :supervisor},
+            {MyApp.Worker, []}
+          ]
+
+          Supervisor.init(children, strategy: :one_for_all)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+      {:ok, nested} = SupervisorExtractor.extract_nested_supervisors(ordered)
+
+      # The first child has type: :supervisor
+      assert length(nested) == 1
+      [ns] = nested
+      assert ns.detection_method == :explicit_type
+      assert ns.is_confirmed == true
+      assert ns.position == 0
+    end
+
+    test "detects heuristic nested supervisor from module name" do
+      code = """
+      defmodule MyApp.RootSupervisor do
+        use Supervisor
+
+        def init(_) do
+          children = [
+            {MyApp.TaskSupervisor, []},
+            {MyApp.Worker, []}
+          ]
+
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+      {:ok, nested} = SupervisorExtractor.extract_nested_supervisors(ordered)
+
+      # TaskSupervisor ends with "Supervisor" so is detected heuristically
+      assert length(nested) == 1
+      [ns] = nested
+      assert ns.detection_method == :name_heuristic
+      assert ns.is_confirmed == false
+    end
+
+    test "handles supervisor with no nested supervisors" do
+      code = """
+      defmodule MyApp.FlatSupervisor do
+        use Supervisor
+
+        def init(_) do
+          children = [
+            {MyApp.Worker1, []},
+            {MyApp.Worker2, []},
+            {MyApp.Server, []}
+          ]
+
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+      {:ok, nested} = SupervisorExtractor.extract_nested_supervisors(ordered)
+
+      assert nested == []
+      refute SupervisorExtractor.has_nested_supervisors?(ordered)
+      assert SupervisorExtractor.supervision_depth(ordered) == 1
+      assert SupervisorExtractor.supervision_tree_description(ordered) == "Flat tree with 3 worker(s)"
+    end
+
+    test "handles mixed explicit and heuristic detection" do
+      code = """
+      defmodule MyApp.MixedSupervisor do
+        use Supervisor
+
+        def init(_) do
+          children = [
+            %{id: :explicit_sup, start: {ExplicitSup, :start_link, []}, type: :supervisor},
+            {MyApp.TaskSupervisor, []},
+            {MyApp.Worker, []}
+          ]
+
+          Supervisor.init(children, strategy: :rest_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+      {:ok, nested} = SupervisorExtractor.extract_nested_supervisors(ordered)
+
+      assert length(nested) == 2
+      confirmed = Enum.count(nested, & &1.is_confirmed)
+      heuristic = length(nested) - confirmed
+
+      assert confirmed == 1
+      assert heuristic == 1
+
+      summary = SupervisorExtractor.nested_supervisor_summary(nested)
+      assert summary =~ "2 nested supervisor"
+      assert summary =~ "1 confirmed"
+      assert summary =~ "1 heuristic"
     end
   end
 end

@@ -233,6 +233,53 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   end
 
   # ===========================================================================
+  # NestedSupervisor Struct
+  # ===========================================================================
+
+  defmodule NestedSupervisor do
+    @moduledoc """
+    Represents a detected nested supervisor within a supervision tree.
+
+    When a child of a supervisor is itself a supervisor, it creates a nested
+    supervision tree. This struct captures information about such nested
+    supervisors detected during local (in-module) analysis.
+
+    ## Detection Methods
+
+    - `:explicit_type` - Child spec has `type: :supervisor` (definitive)
+    - `:name_heuristic` - Module name ends with "Supervisor" (suggestive)
+    - `:behaviour_hint` - Module appears to implement Supervisor behaviour
+
+    ## Fields
+
+    - `:child_spec` - The ChildSpec that is a supervisor
+    - `:module` - The module name of the nested supervisor
+    - `:position` - Position in children list (0-based)
+    - `:detection_method` - How the nested supervisor was detected
+    - `:is_confirmed` - Whether detection is definitive (true) or heuristic (false)
+    - `:metadata` - Additional information
+    """
+
+    @type detection_method :: :explicit_type | :name_heuristic | :behaviour_hint
+
+    @type t :: %__MODULE__{
+            child_spec: ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec.t() | nil,
+            module: atom() | nil,
+            position: non_neg_integer(),
+            detection_method: detection_method(),
+            is_confirmed: boolean(),
+            metadata: map()
+          }
+
+    defstruct child_spec: nil,
+              module: nil,
+              position: 0,
+              detection_method: :explicit_type,
+              is_confirmed: true,
+              metadata: %{}
+  end
+
+  # ===========================================================================
   # StartSpec Struct
   # ===========================================================================
 
@@ -1325,6 +1372,364 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     count = length(ordered_children)
     ids = Enum.map(ordered_children, & &1.id) |> Enum.join(" -> ")
     "#{count} children in order: #{ids}"
+  end
+
+  # ===========================================================================
+  # Nested Supervisor Detection
+  # ===========================================================================
+
+  @doc """
+  Extracts nested supervisors from a list of ordered children.
+
+  Returns a list of `%NestedSupervisor{}` structs for each child that is
+  detected as a supervisor. Detection can be definitive (explicit `type: :supervisor`)
+  or heuristic (module name ends with "Supervisor").
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child1 = %ChildOrder{position: 0, id: :worker, child_spec: %ChildSpec{id: :worker, type: :worker, module: MyWorker}}
+      iex> child2 = %ChildOrder{position: 1, id: :sub_sup, child_spec: %ChildSpec{id: :sub_sup, type: :supervisor, module: MySupervisor}}
+      iex> {:ok, nested} = SupervisorExtractor.extract_nested_supervisors([child1, child2])
+      iex> length(nested)
+      1
+      iex> hd(nested).module
+      MySupervisor
+      iex> hd(nested).detection_method
+      :explicit_type
+  """
+  @spec extract_nested_supervisors([ChildOrder.t()]) :: {:ok, [NestedSupervisor.t()]}
+  def extract_nested_supervisors(ordered_children) when is_list(ordered_children) do
+    nested =
+      ordered_children
+      |> Enum.filter(&nested_supervisor?/1)
+      |> Enum.map(&build_nested_supervisor/1)
+
+    {:ok, nested}
+  end
+
+  @doc """
+  Bang version of extract_nested_supervisors/1.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.extract_nested_supervisors!([])
+      []
+  """
+  @spec extract_nested_supervisors!([ChildOrder.t()]) :: [NestedSupervisor.t()]
+  def extract_nested_supervisors!(ordered_children) do
+    {:ok, result} = extract_nested_supervisors(ordered_children)
+    result
+  end
+
+  @doc """
+  Checks if a ChildOrder represents a nested supervisor.
+
+  Uses multiple detection methods:
+  1. Explicit `type: :supervisor` in the child spec (definitive)
+  2. Module name ends with "Supervisor" (heuristic)
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :supervisor}}
+      iex> SupervisorExtractor.nested_supervisor?(child)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :worker, module: MySupervisor}}
+      iex> SupervisorExtractor.nested_supervisor?(child)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :worker, module: MyWorker}}
+      iex> SupervisorExtractor.nested_supervisor?(child)
+      false
+  """
+  @spec nested_supervisor?(ChildOrder.t()) :: boolean()
+  def nested_supervisor?(%ChildOrder{child_spec: %ChildSpec{type: :supervisor}}), do: true
+
+  def nested_supervisor?(%ChildOrder{child_spec: %ChildSpec{module: module}}) when is_atom(module) do
+    supervisor_module?(module)
+  end
+
+  def nested_supervisor?(_), do: false
+
+  @doc """
+  Checks if a module name suggests it's a supervisor.
+
+  This is a heuristic check based on naming conventions - it returns true
+  if the module name ends with "Supervisor".
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.supervisor_module?(MySupervisor)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.supervisor_module?(MyApp.SubSupervisor)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.supervisor_module?(MyWorker)
+      false
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.supervisor_module?(nil)
+      false
+  """
+  @spec supervisor_module?(atom() | nil) :: boolean()
+  def supervisor_module?(nil), do: false
+
+  def supervisor_module?(module) when is_atom(module) do
+    module
+    |> Atom.to_string()
+    |> String.ends_with?("Supervisor")
+  end
+
+  def supervisor_module?(_), do: false
+
+  @doc """
+  Counts the number of nested supervisors in a list of ordered children.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.nested_supervisor_count([])
+      0
+  """
+  @spec nested_supervisor_count([ChildOrder.t()]) :: non_neg_integer()
+  def nested_supervisor_count(ordered_children) when is_list(ordered_children) do
+    Enum.count(ordered_children, &nested_supervisor?/1)
+  end
+
+  @doc """
+  Filters ordered children to return only those that are supervisors.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child1 = %ChildOrder{position: 0, id: :worker, child_spec: %ChildSpec{type: :worker, module: MyWorker}}
+      iex> child2 = %ChildOrder{position: 1, id: :sup, child_spec: %ChildSpec{type: :supervisor, module: MySup}}
+      iex> result = SupervisorExtractor.supervisor_children([child1, child2])
+      iex> length(result)
+      1
+      iex> hd(result).id
+      :sup
+  """
+  @spec supervisor_children([ChildOrder.t()]) :: [ChildOrder.t()]
+  def supervisor_children(ordered_children) when is_list(ordered_children) do
+    Enum.filter(ordered_children, &nested_supervisor?/1)
+  end
+
+  @doc """
+  Filters ordered children to return only those that are workers (not supervisors).
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child1 = %ChildOrder{position: 0, id: :worker, child_spec: %ChildSpec{type: :worker, module: MyWorker}}
+      iex> child2 = %ChildOrder{position: 1, id: :sup, child_spec: %ChildSpec{type: :supervisor, module: MySup}}
+      iex> result = SupervisorExtractor.worker_children([child1, child2])
+      iex> length(result)
+      1
+      iex> hd(result).id
+      :worker
+  """
+  @spec worker_children([ChildOrder.t()]) :: [ChildOrder.t()]
+  def worker_children(ordered_children) when is_list(ordered_children) do
+    Enum.reject(ordered_children, &nested_supervisor?/1)
+  end
+
+  @doc """
+  Checks if there are any nested supervisors in the children.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :supervisor}}
+      iex> SupervisorExtractor.has_nested_supervisors?([child])
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :worker}}
+      iex> SupervisorExtractor.has_nested_supervisors?([child])
+      false
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.has_nested_supervisors?([])
+      false
+  """
+  @spec has_nested_supervisors?([ChildOrder.t()]) :: boolean()
+  def has_nested_supervisors?(ordered_children) when is_list(ordered_children) do
+    Enum.any?(ordered_children, &nested_supervisor?/1)
+  end
+
+  @doc """
+  Estimates the supervision tree depth based on local information.
+
+  Returns 1 if there are no nested supervisors (flat tree), or 2 if there
+  are nested supervisors (indicates at least one level of nesting).
+  True depth requires cross-module analysis.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.supervision_depth([])
+      1
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :worker}}
+      iex> SupervisorExtractor.supervision_depth([child])
+      1
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :supervisor}}
+      iex> SupervisorExtractor.supervision_depth([child])
+      2
+  """
+  @spec supervision_depth([ChildOrder.t()]) :: pos_integer()
+  def supervision_depth(ordered_children) when is_list(ordered_children) do
+    if has_nested_supervisors?(ordered_children), do: 2, else: 1
+  end
+
+  @doc """
+  Returns a human-readable summary of nested supervisors.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.nested_supervisor_summary([])
+      "No nested supervisors"
+  """
+  @spec nested_supervisor_summary([NestedSupervisor.t()]) :: String.t()
+  def nested_supervisor_summary([]), do: "No nested supervisors"
+
+  def nested_supervisor_summary(nested_supervisors) when is_list(nested_supervisors) do
+    count = length(nested_supervisors)
+    confirmed = Enum.count(nested_supervisors, & &1.is_confirmed)
+    heuristic = count - confirmed
+
+    parts = []
+    parts = if confirmed > 0, do: ["#{confirmed} confirmed"] ++ parts, else: parts
+    parts = if heuristic > 0, do: ["#{heuristic} heuristic"] ++ parts, else: parts
+
+    modules =
+      nested_supervisors
+      |> Enum.map(& &1.module)
+      |> Enum.map(&inspect/1)
+      |> Enum.join(", ")
+
+    "#{count} nested supervisor(s) (#{Enum.join(parts, ", ")}): #{modules}"
+  end
+
+  @doc """
+  Describes the local supervision tree structure.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{position: 0, id: :worker, child_spec: %ChildSpec{type: :worker}}
+      iex> SupervisorExtractor.supervision_tree_description([child])
+      "Flat tree with 1 worker(s)"
+  """
+  @spec supervision_tree_description([ChildOrder.t()]) :: String.t()
+  def supervision_tree_description([]), do: "Empty supervision tree"
+
+  def supervision_tree_description(ordered_children) when is_list(ordered_children) do
+    total = length(ordered_children)
+    sup_count = nested_supervisor_count(ordered_children)
+    worker_count = total - sup_count
+
+    if sup_count == 0 do
+      "Flat tree with #{worker_count} worker(s)"
+    else
+      "Nested tree with #{sup_count} supervisor(s) and #{worker_count} worker(s)"
+    end
+  end
+
+  @doc """
+  Returns the detection method used for a nested supervisor.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.NestedSupervisor
+      iex> ns = %NestedSupervisor{detection_method: :explicit_type}
+      iex> SupervisorExtractor.nested_detection_method(ns)
+      :explicit_type
+  """
+  @spec nested_detection_method(NestedSupervisor.t()) :: NestedSupervisor.detection_method()
+  def nested_detection_method(%NestedSupervisor{detection_method: method}), do: method
+
+  @doc """
+  Returns a description of the detection method.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.detection_method_description(:explicit_type)
+      "Explicit type: :supervisor in child spec"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.detection_method_description(:name_heuristic)
+      "Module name ends with 'Supervisor'"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.detection_method_description(:behaviour_hint)
+      "Module implements Supervisor behaviour"
+  """
+  @spec detection_method_description(NestedSupervisor.detection_method()) :: String.t()
+  def detection_method_description(:explicit_type), do: "Explicit type: :supervisor in child spec"
+  def detection_method_description(:name_heuristic), do: "Module name ends with 'Supervisor'"
+  def detection_method_description(:behaviour_hint), do: "Module implements Supervisor behaviour"
+
+  # Build a NestedSupervisor from a ChildOrder
+  defp build_nested_supervisor(%ChildOrder{
+         child_spec: %ChildSpec{type: :supervisor} = spec,
+         position: position
+       }) do
+    %NestedSupervisor{
+      child_spec: spec,
+      module: spec.module,
+      position: position,
+      detection_method: :explicit_type,
+      is_confirmed: true,
+      metadata: %{
+        id: spec.id
+      }
+    }
+  end
+
+  defp build_nested_supervisor(%ChildOrder{
+         child_spec: %ChildSpec{module: module} = spec,
+         position: position
+       })
+       when is_atom(module) do
+    %NestedSupervisor{
+      child_spec: spec,
+      module: module,
+      position: position,
+      detection_method: :name_heuristic,
+      is_confirmed: false,
+      metadata: %{
+        id: spec.id,
+        reason: "Module name ends with 'Supervisor'"
+      }
+    }
   end
 
   @doc """

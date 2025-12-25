@@ -131,16 +131,16 @@ Extract the order of children in supervision tree (important for rest_for_one).
 - [x] 19.3.1.6 Add child ordering tests (38 tests)
 
 ### 19.3.2 Nested Supervisor Detection
-- [ ] **Task 19.3.2 Pending**
+- [x] **Task 19.3.2 Complete** (local detection only; cross-module linking deferred)
 
 Detect and track nested supervisor relationships in the tree.
 
-- [ ] 19.3.2.1 Identify children that are themselves supervisors
-- [ ] 19.3.2.2 Track `type: :supervisor` child specs
-- [ ] 19.3.2.3 Link parent supervisor to child supervisor
-- [ ] 19.3.2.4 Build hierarchical tree structure
-- [ ] 19.3.2.5 Handle supervisor references across modules
-- [ ] 19.3.2.6 Add nested supervisor tests
+- [x] 19.3.2.1 Identify children that are themselves supervisors
+- [x] 19.3.2.2 Track `type: :supervisor` child specs
+- [x] 19.3.2.3 Link parent supervisor to child supervisor (local only)
+- [x] 19.3.2.4 Build hierarchical tree structure (NestedSupervisor struct)
+- [x] 19.3.2.5 Handle supervisor references across modules (LOCAL ONLY - cross-module deferred)
+- [x] 19.3.2.6 Add nested supervisor tests (46 tests)
 
 ### 19.3.3 Application Supervisor Extraction
 - [ ] **Task 19.3.3 Pending**
