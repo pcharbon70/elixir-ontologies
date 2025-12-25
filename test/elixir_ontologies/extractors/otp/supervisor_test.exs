@@ -2580,4 +2580,334 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
       assert SupervisorExtractor.restart_intensity(strategy) == 10.0
     end
   end
+
+  # ===========================================================================
+  # DynamicSupervisorConfig Struct Tests
+  # ===========================================================================
+
+  describe "DynamicSupervisorConfig struct" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+
+    test "has default values" do
+      config = %DynamicSupervisorConfig{}
+      assert config.strategy == :one_for_one
+      assert config.extra_arguments == []
+      assert config.max_children == :infinity
+      assert config.is_dynamic == true
+    end
+
+    test "can be created with custom values" do
+      config = %DynamicSupervisorConfig{
+        max_children: 100,
+        extra_arguments: [:config],
+        max_restarts: 5,
+        max_seconds: 10
+      }
+
+      assert config.max_children == 100
+      assert config.extra_arguments == [:config]
+      assert config.max_restarts == 5
+      assert config.max_seconds == 10
+    end
+  end
+
+  # ===========================================================================
+  # extract_dynamic_supervisor_config/1 Tests
+  # ===========================================================================
+
+  describe "extract_dynamic_supervisor_config/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+
+    test "extracts config from basic DynamicSupervisor" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, config} = SupervisorExtractor.extract_dynamic_supervisor_config(body)
+
+      assert %DynamicSupervisorConfig{} = config
+      assert config.strategy == :one_for_one
+      assert config.is_dynamic == true
+      assert config.max_children == :infinity
+    end
+
+    test "extracts max_children option" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(strategy: :one_for_one, max_children: 100)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, config} = SupervisorExtractor.extract_dynamic_supervisor_config(body)
+
+      assert config.max_children == 100
+      assert config.metadata.has_max_children == true
+    end
+
+    test "extracts extra_arguments option" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(strategy: :one_for_one, extra_arguments: [:config])
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, config} = SupervisorExtractor.extract_dynamic_supervisor_config(body)
+
+      assert config.extra_arguments == [:config]
+      assert config.metadata.has_extra_arguments == true
+    end
+
+    test "extracts max_restarts and max_seconds" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(strategy: :one_for_one, max_restarts: 10, max_seconds: 60)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, config} = SupervisorExtractor.extract_dynamic_supervisor_config(body)
+
+      assert config.max_restarts == 10
+      assert config.max_seconds == 60
+    end
+
+    test "returns error for non-DynamicSupervisor" do
+      code = """
+      defmodule MySup do
+        use Supervisor
+        def init(_) do
+          Supervisor.init([], strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      result = SupervisorExtractor.extract_dynamic_supervisor_config(body)
+
+      assert {:error, "Module is not a DynamicSupervisor"} = result
+    end
+
+    test "extracts config with all options" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(
+            strategy: :one_for_one,
+            max_children: 50,
+            extra_arguments: [:opts],
+            max_restarts: 3,
+            max_seconds: 5
+          )
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      {:ok, config} = SupervisorExtractor.extract_dynamic_supervisor_config(body)
+
+      assert config.strategy == :one_for_one
+      assert config.max_children == 50
+      assert config.extra_arguments == [:opts]
+      assert config.max_restarts == 3
+      assert config.max_seconds == 5
+      assert config.is_dynamic == true
+    end
+  end
+
+  # ===========================================================================
+  # extract_dynamic_supervisor_config!/1 Tests
+  # ===========================================================================
+
+  describe "extract_dynamic_supervisor_config!/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+
+    test "returns config for valid DynamicSupervisor" do
+      code = """
+      defmodule MyDynSup do
+        use DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+      config = SupervisorExtractor.extract_dynamic_supervisor_config!(body)
+
+      assert %DynamicSupervisorConfig{} = config
+    end
+
+    test "raises for non-DynamicSupervisor" do
+      body = parse_module_body("defmodule S do use Supervisor end")
+
+      assert_raise ArgumentError, "Module is not a DynamicSupervisor", fn ->
+        SupervisorExtractor.extract_dynamic_supervisor_config!(body)
+      end
+    end
+  end
+
+  # ===========================================================================
+  # max_children/1 Tests
+  # ===========================================================================
+
+  describe "max_children/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+
+    test "returns infinity by default" do
+      config = %DynamicSupervisorConfig{}
+      assert SupervisorExtractor.max_children(config) == :infinity
+    end
+
+    test "returns explicit value" do
+      config = %DynamicSupervisorConfig{max_children: 100}
+      assert SupervisorExtractor.max_children(config) == 100
+    end
+  end
+
+  # ===========================================================================
+  # has_extra_arguments?/1 Tests
+  # ===========================================================================
+
+  describe "has_extra_arguments?/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+
+    test "returns false for empty extra_arguments" do
+      config = %DynamicSupervisorConfig{}
+      refute SupervisorExtractor.has_extra_arguments?(config)
+    end
+
+    test "returns true for non-empty extra_arguments" do
+      config = %DynamicSupervisorConfig{extra_arguments: [:config]}
+      assert SupervisorExtractor.has_extra_arguments?(config)
+    end
+
+    test "returns true for multiple extra_arguments" do
+      config = %DynamicSupervisorConfig{extra_arguments: [:config, :opts]}
+      assert SupervisorExtractor.has_extra_arguments?(config)
+    end
+  end
+
+  # ===========================================================================
+  # unlimited_children?/1 Tests
+  # ===========================================================================
+
+  describe "unlimited_children?/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+
+    test "returns true for infinity" do
+      config = %DynamicSupervisorConfig{max_children: :infinity}
+      assert SupervisorExtractor.unlimited_children?(config)
+    end
+
+    test "returns false for explicit limit" do
+      config = %DynamicSupervisorConfig{max_children: 100}
+      refute SupervisorExtractor.unlimited_children?(config)
+    end
+
+    test "returns false for zero" do
+      config = %DynamicSupervisorConfig{max_children: 0}
+      refute SupervisorExtractor.unlimited_children?(config)
+    end
+  end
+
+  # ===========================================================================
+  # dynamic_supervisor_description/1 Tests
+  # ===========================================================================
+
+  describe "dynamic_supervisor_description/1" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+
+    test "returns description for unlimited children" do
+      config = %DynamicSupervisorConfig{max_children: :infinity}
+
+      assert SupervisorExtractor.dynamic_supervisor_description(config) ==
+               "DynamicSupervisor with unlimited children"
+    end
+
+    test "returns description for limited children" do
+      config = %DynamicSupervisorConfig{max_children: 100}
+
+      assert SupervisorExtractor.dynamic_supervisor_description(config) ==
+               "DynamicSupervisor with max 100 children"
+    end
+  end
+
+  # ===========================================================================
+  # DynamicSupervisor Integration Tests
+  # ===========================================================================
+
+  describe "DynamicSupervisor integration" do
+    test "extracts config from real-world pattern" do
+      code = """
+      defmodule MyApp.WorkerSupervisor do
+        use DynamicSupervisor
+
+        def start_link(init_arg) do
+          DynamicSupervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
+        end
+
+        @impl true
+        def init(_init_arg) do
+          DynamicSupervisor.init(
+            strategy: :one_for_one,
+            max_children: 500,
+            max_restarts: 100,
+            max_seconds: 60
+          )
+        end
+
+        def start_worker(args) do
+          DynamicSupervisor.start_child(__MODULE__, {MyApp.Worker, args})
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+
+      # Should be detected as DynamicSupervisor
+      assert SupervisorExtractor.dynamic_supervisor?(body)
+
+      # Should extract config
+      {:ok, config} = SupervisorExtractor.extract_dynamic_supervisor_config(body)
+      assert config.max_children == 500
+      assert config.max_restarts == 100
+      assert config.max_seconds == 60
+      assert config.is_dynamic == true
+    end
+
+    test "DynamicSupervisor with @behaviour annotation" do
+      code = """
+      defmodule MyDynSup do
+        @behaviour DynamicSupervisor
+        def init(_) do
+          DynamicSupervisor.init(strategy: :one_for_one)
+        end
+      end
+      """
+
+      body = parse_module_body(code)
+
+      assert SupervisorExtractor.dynamic_supervisor?(body)
+      {:ok, config} = SupervisorExtractor.extract_dynamic_supervisor_config(body)
+      assert config.is_dynamic == true
+    end
+  end
 end

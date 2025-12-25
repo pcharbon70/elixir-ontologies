@@ -151,6 +151,53 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   end
 
   # ===========================================================================
+  # DynamicSupervisorConfig Struct
+  # ===========================================================================
+
+  defmodule DynamicSupervisorConfig do
+    @moduledoc """
+    Represents DynamicSupervisor-specific configuration.
+
+    DynamicSupervisor differs from regular Supervisor in that children
+    are started dynamically rather than being defined in init/1.
+
+    ## Configuration Options
+
+    - `strategy` - Always `:one_for_one` for DynamicSupervisor
+    - `extra_arguments` - Additional arguments prepended to child specs
+    - `max_children` - Maximum number of children (default: `:infinity`)
+
+    ## Fields
+
+    - `:strategy` - The supervision strategy (always :one_for_one)
+    - `:extra_arguments` - List of extra arguments for child specs
+    - `:max_children` - Maximum children allowed (:infinity or integer)
+    - `:max_restarts` - Maximum restarts in time window
+    - `:max_seconds` - Time window for restart counting
+    - `:is_dynamic` - Flag indicating dynamic child management
+    - `:metadata` - Additional information
+    """
+
+    @type t :: %__MODULE__{
+            strategy: :one_for_one,
+            extra_arguments: [term()],
+            max_children: :infinity | non_neg_integer(),
+            max_restarts: non_neg_integer() | nil,
+            max_seconds: non_neg_integer() | nil,
+            is_dynamic: boolean(),
+            metadata: map()
+          }
+
+    defstruct strategy: :one_for_one,
+              extra_arguments: [],
+              max_children: :infinity,
+              max_restarts: nil,
+              max_seconds: nil,
+              is_dynamic: true,
+              metadata: %{}
+  end
+
+  # ===========================================================================
   # StartSpec Struct
   # ===========================================================================
 
@@ -798,6 +845,209 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   @spec dynamic_supervisor?(Macro.t()) :: boolean()
   def dynamic_supervisor?(body) do
     supervisor_type(body) == :dynamic_supervisor
+  end
+
+  @doc """
+  Extracts DynamicSupervisor-specific configuration from a module body.
+
+  Returns `{:ok, config}` if the module is a DynamicSupervisor with init/1,
+  or `{:error, reason}` otherwise.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = ~S'''
+      ...> defmodule MyDynSup do
+      ...>   use DynamicSupervisor
+      ...>   def init(_) do
+      ...>     DynamicSupervisor.init(strategy: :one_for_one, max_children: 100)
+      ...>   end
+      ...> end
+      ...> '''
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> {:ok, config} = SupervisorExtractor.extract_dynamic_supervisor_config(body)
+      iex> config.max_children
+      100
+      iex> config.is_dynamic
+      true
+  """
+  @spec extract_dynamic_supervisor_config(Macro.t(), keyword()) ::
+          {:ok, DynamicSupervisorConfig.t()} | {:error, String.t()}
+  def extract_dynamic_supervisor_config(body, opts \\ []) do
+    if dynamic_supervisor?(body) do
+      config = extract_dynamic_config_from_init(body, opts)
+      {:ok, config}
+    else
+      {:error, "Module is not a DynamicSupervisor"}
+    end
+  end
+
+  @doc """
+  Extracts DynamicSupervisor configuration, raising on error.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = ~S'''
+      ...> defmodule MyDynSup do
+      ...>   use DynamicSupervisor
+      ...>   def init(_) do
+      ...>     DynamicSupervisor.init(strategy: :one_for_one)
+      ...>   end
+      ...> end
+      ...> '''
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> config = SupervisorExtractor.extract_dynamic_supervisor_config!(body)
+      iex> config.strategy
+      :one_for_one
+  """
+  @spec extract_dynamic_supervisor_config!(Macro.t(), keyword()) :: DynamicSupervisorConfig.t()
+  def extract_dynamic_supervisor_config!(body, opts \\ []) do
+    case extract_dynamic_supervisor_config(body, opts) do
+      {:ok, config} -> config
+      {:error, reason} -> raise ArgumentError, reason
+    end
+  end
+
+  @doc """
+  Returns the max_children setting from a DynamicSupervisor config.
+
+  Returns `:infinity` if not explicitly set.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.max_children(%DynamicSupervisorConfig{max_children: 100})
+      100
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.max_children(%DynamicSupervisorConfig{})
+      :infinity
+  """
+  @spec max_children(DynamicSupervisorConfig.t()) :: :infinity | non_neg_integer()
+  def max_children(%DynamicSupervisorConfig{max_children: max_children}), do: max_children
+
+  @doc """
+  Checks if a DynamicSupervisor has extra_arguments defined.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.has_extra_arguments?(%DynamicSupervisorConfig{extra_arguments: [:config]})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.has_extra_arguments?(%DynamicSupervisorConfig{})
+      false
+  """
+  @spec has_extra_arguments?(DynamicSupervisorConfig.t()) :: boolean()
+  def has_extra_arguments?(%DynamicSupervisorConfig{extra_arguments: args}) when is_list(args) do
+    args != []
+  end
+
+  def has_extra_arguments?(_), do: false
+
+  @doc """
+  Checks if a DynamicSupervisor allows unlimited children.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.unlimited_children?(%DynamicSupervisorConfig{max_children: :infinity})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.unlimited_children?(%DynamicSupervisorConfig{max_children: 100})
+      false
+  """
+  @spec unlimited_children?(DynamicSupervisorConfig.t()) :: boolean()
+  def unlimited_children?(%DynamicSupervisorConfig{max_children: :infinity}), do: true
+  def unlimited_children?(_), do: false
+
+  @doc """
+  Returns a human-readable description of the DynamicSupervisor configuration.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.dynamic_supervisor_description(%DynamicSupervisorConfig{max_children: :infinity})
+      "DynamicSupervisor with unlimited children"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.dynamic_supervisor_description(%DynamicSupervisorConfig{max_children: 100})
+      "DynamicSupervisor with max 100 children"
+  """
+  @spec dynamic_supervisor_description(DynamicSupervisorConfig.t()) :: String.t()
+  def dynamic_supervisor_description(%DynamicSupervisorConfig{max_children: :infinity}) do
+    "DynamicSupervisor with unlimited children"
+  end
+
+  def dynamic_supervisor_description(%DynamicSupervisorConfig{max_children: max}) do
+    "DynamicSupervisor with max #{max} children"
+  end
+
+  # Helper to extract DynamicSupervisor config from init/1
+  defp extract_dynamic_config_from_init(body, _opts) do
+    statements = body_to_statements(body)
+    options = find_dynamic_supervisor_init_options(statements)
+
+    %DynamicSupervisorConfig{
+      strategy: :one_for_one,
+      extra_arguments: Keyword.get(options, :extra_arguments, []),
+      max_children: Keyword.get(options, :max_children, :infinity),
+      max_restarts: Keyword.get(options, :max_restarts),
+      max_seconds: Keyword.get(options, :max_seconds),
+      is_dynamic: true,
+      metadata: %{
+        has_extra_arguments: Keyword.has_key?(options, :extra_arguments),
+        has_max_children: Keyword.has_key?(options, :max_children),
+        has_max_restarts: Keyword.has_key?(options, :max_restarts),
+        has_max_seconds: Keyword.has_key?(options, :max_seconds)
+      }
+    }
+  end
+
+  # Convert body to list of statements
+  defp body_to_statements({:__block__, _, statements}), do: statements
+  defp body_to_statements(stmt), do: [stmt]
+
+  # Find DynamicSupervisor.init options from init/1 callback
+  defp find_dynamic_supervisor_init_options(statements) do
+    Enum.find_value(statements, [], fn
+      {:def, _, [{:init, _, _}, [do: init_body]]} ->
+        find_dynamic_init_call_options(init_body)
+
+      {:def, _, [{:init, _, _}, [do: {:__block__, _, init_statements}]]} ->
+        Enum.find_value(init_statements, [], &find_dynamic_init_call_options/1)
+
+      _ ->
+        nil
+    end) || []
+  end
+
+  # Extract options from DynamicSupervisor.init call
+  defp find_dynamic_init_call_options(ast) do
+    case ast do
+      # DynamicSupervisor.init(options)
+      {{:., _, [{:__aliases__, _, [:DynamicSupervisor]}, :init]}, _, [options]}
+      when is_list(options) ->
+        options
+
+      # Block with DynamicSupervisor.init at end
+      {:__block__, _, statements} ->
+        Enum.find_value(statements, nil, &find_dynamic_init_call_options/1)
+
+      _ ->
+        nil
+    end
   end
 
   @doc """
