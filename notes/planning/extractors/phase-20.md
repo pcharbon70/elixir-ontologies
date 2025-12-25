@@ -31,16 +31,16 @@ Extract author and committer information from commits.
 - [x] 20.1.2.6 Add author extraction tests (32 tests)
 
 ### 20.1.3 File History Extraction
-- [ ] **Task 20.1.3 Pending**
+- [x] **Task 20.1.3 Complete**
 
 Extract the history of changes to individual files.
 
-- [ ] 20.1.3.1 Implement `extract_file_history/1` using git log for file
-- [ ] 20.1.3.2 Track commits that modified each file
-- [ ] 20.1.3.3 Track file renames and moves
-- [ ] 20.1.3.4 Build chronological change list
-- [ ] 20.1.3.5 Create `%FileHistory{path: ..., commits: [...], renames: [...]}` struct
-- [ ] 20.1.3.6 Add file history tests
+- [x] 20.1.3.1 Implement `extract_file_history/1` using git log for file
+- [x] 20.1.3.2 Track commits that modified each file
+- [x] 20.1.3.3 Track file renames and moves
+- [x] 20.1.3.4 Build chronological change list
+- [x] 20.1.3.5 Create `%FileHistory{path: ..., commits: [...], renames: [...]}` struct
+- [x] 20.1.3.6 Add file history tests (30 tests)
 
 ### 20.1.4 Blame Information Extraction
 - [ ] **Task 20.1.4 Pending**
