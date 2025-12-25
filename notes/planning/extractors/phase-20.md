@@ -7,16 +7,16 @@ This phase implements the evolution and provenance layer of the ontology, integr
 This section implements extraction of version control information from Git repositories, linking code elements to their version history.
 
 ### 20.1.1 Commit Information Extraction
-- [ ] **Task 20.1.1 Pending**
+- [x] **Task 20.1.1 Complete**
 
 Extract commit metadata from Git for code provenance.
 
-- [ ] 20.1.1.1 Create `lib/elixir_ontologies/extractors/evolution/commit.ex`
-- [ ] 20.1.1.2 Define `%Commit{sha: ..., message: ..., author: ..., timestamp: ..., parents: [...]}` struct
-- [ ] 20.1.1.3 Implement `extract_commit/1` using git log for single commit
-- [ ] 20.1.1.4 Extract commit SHA (full 40-character)
-- [ ] 20.1.1.5 Extract commit message (subject and body)
-- [ ] 20.1.1.6 Add commit extraction tests
+- [x] 20.1.1.1 Create `lib/elixir_ontologies/extractors/evolution/commit.ex`
+- [x] 20.1.1.2 Define `%Commit{sha: ..., message: ..., author: ..., timestamp: ..., parents: [...]}` struct
+- [x] 20.1.1.3 Implement `extract_commit/1` using git log for single commit
+- [x] 20.1.1.4 Extract commit SHA (full 40-character)
+- [x] 20.1.1.5 Extract commit message (subject and body)
+- [x] 20.1.1.6 Add commit extraction tests (46 tests)
 
 ### 20.1.2 Author and Committer Extraction
 - [ ] **Task 20.1.2 Pending**
