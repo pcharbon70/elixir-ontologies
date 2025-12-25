@@ -196,16 +196,20 @@ Generate RDF triples for supervision strategies.
 - [x] 19.4.2.6 Add strategy builder tests (12 tests)
 
 ### 19.4.3 Supervision Tree Builder
-- [ ] **Task 19.4.3 Pending**
+- [x] **Task 19.4.3 Complete**
 
 Generate RDF triples for supervision tree relationships.
 
-- [ ] 19.4.3.1 Implement `build_supervision_tree/3` generating tree relationships
-- [ ] 19.4.3.2 Generate `otp:supervises` linking supervisor to children
-- [ ] 19.4.3.3 Generate `otp:supervisedBy` inverse relationship
-- [ ] 19.4.3.4 Generate `otp:childPosition` with ordering
-- [ ] 19.4.3.5 Generate `otp:isRootSupervisor` for application supervisors
-- [ ] 19.4.3.6 Add supervision tree builder tests
+- [x] 19.4.3.1 Implement `build_supervision_tree/4` generating tree relationships
+- [x] 19.4.3.2 Generate `otp:supervises` linking supervisor to child modules
+- [x] 19.4.3.3 Generate `otp:supervisedBy` inverse relationship
+- [x] 19.4.3.4 Generate `otp:hasChildren` with rdf:List for ordering
+- [x] 19.4.3.5 Generate `otp:rootSupervisor` and `otp:partOfTree` for application supervisors
+- [x] 19.4.3.6 Add `for_supervision_tree/2` to IRI module
+- [x] 19.4.3.7 Add `build_supervision_relationships/3` for supervises/supervisedBy
+- [x] 19.4.3.8 Add `build_ordered_children/3` for rdf:List ordering
+- [x] 19.4.3.9 Add `build_root_supervisor/3` for root supervisor triples
+- [x] 19.4.3.10 Add supervision tree builder tests (17 tests)
 
 **Section 19.4 Unit Tests:**
 - [ ] Test child spec RDF generation

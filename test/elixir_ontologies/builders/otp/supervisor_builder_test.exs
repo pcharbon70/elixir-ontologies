@@ -953,4 +953,365 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       assert {supervisor_iri, OTP.hasChildSpec(), child_iri} in all_triples
     end
   end
+
+  # ===========================================================================
+  # Supervision Tree Builder Tests
+  # ===========================================================================
+
+  describe "build_supervision_relationships/3" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+
+    test "generates supervises triples for each child" do
+      specs = [
+        %ChildSpec{id: :worker1, module: Worker1},
+        %ChildSpec{id: :worker2, module: Worker2}
+      ]
+
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      triples = SupervisorBuilder.build_supervision_relationships(specs, supervisor_iri, context)
+
+      # Should have supervises triple for each child
+      worker1_iri = RDF.iri("https://example.org/code#Worker1")
+      worker2_iri = RDF.iri("https://example.org/code#Worker2")
+
+      assert {supervisor_iri, OTP.supervises(), worker1_iri} in triples
+      assert {supervisor_iri, OTP.supervises(), worker2_iri} in triples
+    end
+
+    test "generates supervisedBy triples (inverse)" do
+      specs = [%ChildSpec{id: :worker1, module: Worker1}]
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      triples = SupervisorBuilder.build_supervision_relationships(specs, supervisor_iri, context)
+
+      worker1_iri = RDF.iri("https://example.org/code#Worker1")
+      assert {worker1_iri, OTP.supervisedBy(), supervisor_iri} in triples
+    end
+
+    test "skips children without module" do
+      specs = [
+        %ChildSpec{id: :worker1, module: nil},
+        %ChildSpec{id: :worker2, module: Worker2}
+      ]
+
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      triples = SupervisorBuilder.build_supervision_relationships(specs, supervisor_iri, context)
+
+      # Should only have triples for Worker2
+      assert length(triples) == 2
+      worker2_iri = RDF.iri("https://example.org/code#Worker2")
+      assert {supervisor_iri, OTP.supervises(), worker2_iri} in triples
+    end
+
+    test "returns empty list for empty specs" do
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      triples = SupervisorBuilder.build_supervision_relationships([], supervisor_iri, context)
+      assert triples == []
+    end
+  end
+
+  describe "build_ordered_children/3" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildOrder, ChildSpec}
+
+    test "returns nil for empty list" do
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {list_iri, triples} = SupervisorBuilder.build_ordered_children([], supervisor_iri, context)
+
+      assert list_iri == nil
+      assert triples == []
+    end
+
+    test "builds rdf:List structure for ordered children" do
+      children = [
+        %ChildOrder{position: 0, child_spec: %ChildSpec{id: :w1, module: W1}, id: :w1},
+        %ChildOrder{position: 1, child_spec: %ChildSpec{id: :w2, module: W2}, id: :w2}
+      ]
+
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {list_iri, triples} = SupervisorBuilder.build_ordered_children(children, supervisor_iri, context)
+
+      # List IRI should be a blank node
+      assert %RDF.BlankNode{} = list_iri
+
+      # Should have hasChildren link
+      assert {supervisor_iri, OTP.hasChildren(), list_iri} in triples
+
+      # Should have rdf:first and rdf:rest triples
+      first_triples = Enum.filter(triples, fn {_, pred, _} -> pred == RDF.first() end)
+      rest_triples = Enum.filter(triples, fn {_, pred, _} -> pred == RDF.rest() end)
+
+      assert length(first_triples) == 2
+      assert length(rest_triples) == 2
+    end
+
+    test "preserves child ordering by position" do
+      # Deliberately out of order in list
+      children = [
+        %ChildOrder{position: 2, child_spec: %ChildSpec{id: :w3}, id: :w3},
+        %ChildOrder{position: 0, child_spec: %ChildSpec{id: :w1}, id: :w1},
+        %ChildOrder{position: 1, child_spec: %ChildSpec{id: :w2}, id: :w2}
+      ]
+
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {list_iri, triples} = SupervisorBuilder.build_ordered_children(children, supervisor_iri, context)
+
+      # Find first element (should be w1 at position 0)
+      rdf_first = RDF.first()
+      first_element =
+        Enum.find_value(triples, fn
+          {subj, ^rdf_first, obj} when subj == list_iri -> obj
+          _ -> nil
+        end)
+
+      # First element should reference child spec at position 0
+      assert to_string(first_element) =~ "/child/w1/0"
+    end
+  end
+
+  describe "build_root_supervisor/3" do
+    test "generates tree type triple" do
+      supervisor_iri = build_test_module_iri()
+      tree_iri = RDF.iri("https://example.org/code#tree/my_app")
+      context = build_test_context()
+
+      triples = SupervisorBuilder.build_root_supervisor(supervisor_iri, tree_iri, context)
+
+      assert {tree_iri, RDF.type(), OTP.SupervisionTree} in triples
+    end
+
+    test "generates rootSupervisor link" do
+      supervisor_iri = build_test_module_iri()
+      tree_iri = RDF.iri("https://example.org/code#tree/my_app")
+      context = build_test_context()
+
+      triples = SupervisorBuilder.build_root_supervisor(supervisor_iri, tree_iri, context)
+
+      assert {tree_iri, OTP.rootSupervisor(), supervisor_iri} in triples
+    end
+
+    test "generates partOfTree link" do
+      supervisor_iri = build_test_module_iri()
+      tree_iri = RDF.iri("https://example.org/code#tree/my_app")
+      context = build_test_context()
+
+      triples = SupervisorBuilder.build_root_supervisor(supervisor_iri, tree_iri, context)
+
+      assert {supervisor_iri, OTP.partOfTree(), tree_iri} in triples
+    end
+
+    test "generates exactly 3 triples" do
+      supervisor_iri = build_test_module_iri()
+      tree_iri = RDF.iri("https://example.org/code#tree/my_app")
+      context = build_test_context()
+
+      triples = SupervisorBuilder.build_root_supervisor(supervisor_iri, tree_iri, context)
+
+      assert length(triples) == 3
+    end
+  end
+
+  describe "build_supervision_tree/4" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildOrder, ChildSpec}
+
+    test "combines supervision relationships and ordered children" do
+      children = [
+        %ChildOrder{position: 0, child_spec: %ChildSpec{id: :w1, module: W1}, id: :w1}
+      ]
+
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {tree_iri, triples} =
+        SupervisorBuilder.build_supervision_tree(children, supervisor_iri, context)
+
+      # Not a root supervisor by default
+      assert tree_iri == nil
+
+      # Should have supervision relationships
+      w1_iri = RDF.iri("https://example.org/code#W1")
+      assert {supervisor_iri, OTP.supervises(), w1_iri} in triples
+      assert {w1_iri, OTP.supervisedBy(), supervisor_iri} in triples
+
+      # Should have ordered children (hasChildren)
+      has_children_triple = Enum.find(triples, fn
+        {^supervisor_iri, pred, _} -> pred == OTP.hasChildren()
+        _ -> false
+      end)
+      assert has_children_triple != nil
+    end
+
+    test "marks root supervisor with tree_iri option" do
+      children = [
+        %ChildOrder{position: 0, child_spec: %ChildSpec{id: :w1, module: W1}, id: :w1}
+      ]
+
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+      tree_iri = RDF.iri("https://example.org/code#tree/my_app")
+
+      {returned_tree_iri, triples} =
+        SupervisorBuilder.build_supervision_tree(
+          children, supervisor_iri, context,
+          is_root: true, tree_iri: tree_iri
+        )
+
+      assert returned_tree_iri == tree_iri
+
+      # Should have root supervisor triples
+      assert {tree_iri, RDF.type(), OTP.SupervisionTree} in triples
+      assert {tree_iri, OTP.rootSupervisor(), supervisor_iri} in triples
+      assert {supervisor_iri, OTP.partOfTree(), tree_iri} in triples
+    end
+
+    test "generates tree IRI from app_name option" do
+      children = [
+        %ChildOrder{position: 0, child_spec: %ChildSpec{id: :w1, module: W1}, id: :w1}
+      ]
+
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {returned_tree_iri, triples} =
+        SupervisorBuilder.build_supervision_tree(
+          children, supervisor_iri, context,
+          is_root: true, app_name: :my_app
+        )
+
+      # Tree IRI should be generated from app_name
+      assert to_string(returned_tree_iri) =~ "tree/my_app"
+
+      # Should have root supervisor triples
+      assert {returned_tree_iri, RDF.type(), OTP.SupervisionTree} in triples
+    end
+
+    test "handles empty children list" do
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {tree_iri, triples} =
+        SupervisorBuilder.build_supervision_tree([], supervisor_iri, context)
+
+      assert tree_iri == nil
+      assert triples == []
+    end
+
+    test "skips nil child_specs" do
+      children = [
+        %ChildOrder{position: 0, child_spec: nil, id: :w1},
+        %ChildOrder{position: 1, child_spec: %ChildSpec{id: :w2, module: W2}, id: :w2}
+      ]
+
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {_tree_iri, triples} =
+        SupervisorBuilder.build_supervision_tree(children, supervisor_iri, context)
+
+      # Should only have supervision triples for W2
+      w2_iri = RDF.iri("https://example.org/code#W2")
+      assert {supervisor_iri, OTP.supervises(), w2_iri} in triples
+
+      # Should not have supervises for nil child_spec
+      supervision_triples = Enum.filter(triples, fn
+        {^supervisor_iri, pred, _} -> pred == OTP.supervises()
+        _ -> false
+      end)
+      assert length(supervision_triples) == 1
+    end
+  end
+
+  describe "build_supervision_tree/4 - integration" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildOrder, ChildSpec}
+    alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+
+    test "complete supervision tree with all components" do
+      # Build supervisor
+      supervisor_info = build_test_supervisor()
+      context = build_test_context()
+      module_iri = build_test_module_iri()
+
+      {supervisor_iri, supervisor_triples} =
+        SupervisorBuilder.build_supervisor(supervisor_info, module_iri, context)
+
+      # Build strategy
+      strategy_info = build_test_strategy(type: :one_for_all)
+      {_strategy_iri, strategy_triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      # Build children with ordering
+      children = [
+        %ChildOrder{
+          position: 0,
+          child_spec: %ChildSpec{
+            id: :worker1,
+            module: Worker1,
+            start: %StartSpec{module: Worker1, function: :start_link, args: [[]]},
+            restart: :permanent,
+            type: :worker
+          },
+          id: :worker1
+        },
+        %ChildOrder{
+          position: 1,
+          child_spec: %ChildSpec{
+            id: :worker2,
+            module: Worker2,
+            start: %StartSpec{module: Worker2, function: :start_link, args: [[]]},
+            restart: :temporary,
+            type: :worker
+          },
+          id: :worker2
+        }
+      ]
+
+      # Build supervision tree as root
+      {tree_iri, tree_triples} =
+        SupervisorBuilder.build_supervision_tree(
+          children, supervisor_iri, context,
+          is_root: true, app_name: :my_app
+        )
+
+      # Combine all triples
+      all_triples = supervisor_triples ++ strategy_triples ++ tree_triples
+
+      # Verify supervisor
+      assert {supervisor_iri, RDF.type(), OTP.Supervisor} in all_triples
+
+      # Verify strategy
+      assert {supervisor_iri, OTP.hasStrategy(), OTP.OneForAll} in all_triples
+
+      # Verify supervision relationships
+      worker1_iri = RDF.iri("https://example.org/code#Worker1")
+      worker2_iri = RDF.iri("https://example.org/code#Worker2")
+      assert {supervisor_iri, OTP.supervises(), worker1_iri} in all_triples
+      assert {supervisor_iri, OTP.supervises(), worker2_iri} in all_triples
+      assert {worker1_iri, OTP.supervisedBy(), supervisor_iri} in all_triples
+      assert {worker2_iri, OTP.supervisedBy(), supervisor_iri} in all_triples
+
+      # Verify tree
+      assert {tree_iri, RDF.type(), OTP.SupervisionTree} in all_triples
+      assert {tree_iri, OTP.rootSupervisor(), supervisor_iri} in all_triples
+      assert {supervisor_iri, OTP.partOfTree(), tree_iri} in all_triples
+
+      # Verify ordered children list exists
+      has_children_triple = Enum.find(all_triples, fn
+        {^supervisor_iri, pred, _} -> pred == OTP.hasChildren()
+        _ -> false
+      end)
+      assert has_children_triple != nil
+    end
+  end
 end

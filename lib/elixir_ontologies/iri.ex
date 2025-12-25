@@ -721,6 +721,39 @@ defmodule ElixirOntologies.IRI do
   defp format_child_id(id), do: inspect(id)
 
   # ===========================================================================
+  # Supervision Tree IRIs
+  # ===========================================================================
+
+  @doc """
+  Generates an IRI for a supervision tree.
+
+  ## Parameters
+
+  - `base_iri` - Base IRI string
+  - `app_name` - Application name (atom or string)
+
+  ## Returns
+
+  An RDF.IRI for the supervision tree.
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.for_supervision_tree("https://example.org/code#", :my_app)
+      ~I<https://example.org/code#tree/my_app>
+
+      iex> ElixirOntologies.IRI.for_supervision_tree("https://example.org/code#", "MyApp")
+      ~I<https://example.org/code#tree/MyApp>
+  """
+  @spec for_supervision_tree(String.t(), atom() | String.t()) :: RDF.IRI.t()
+  def for_supervision_tree(base_iri, app_name) when is_atom(app_name) do
+    for_supervision_tree(base_iri, Atom.to_string(app_name))
+  end
+
+  def for_supervision_tree(base_iri, app_name) when is_binary(base_iri) and is_binary(app_name) do
+    RDF.iri("#{base_iri}tree/#{escape_name(app_name)}")
+  end
+
+  # ===========================================================================
   # IRI Utilities
   # ===========================================================================
 

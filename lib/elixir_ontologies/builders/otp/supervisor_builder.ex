@@ -450,4 +450,282 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilder do
   end
 
   defp format_id_for_literal(id), do: inspect(id)
+
+  # ===========================================================================
+  # Public API - Supervision Tree Building
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for supervision relationships.
+
+  Generates `otp:supervises` and `otp:supervisedBy` triples linking the supervisor
+  to its child modules.
+
+  ## Parameters
+
+  - `child_specs` - List of ChildSpec structs
+  - `supervisor_iri` - The IRI of the supervisor
+  - `context` - Builder context
+
+  ## Returns
+
+  A list of RDF triples.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.OTP.SupervisorBuilder
+      iex> alias ElixirOntologies.Builders.Context
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> specs = [%ChildSpec{id: :worker1, module: MyWorker}]
+      iex> supervisor_iri = RDF.iri("https://example.org/code#MySup")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> triples = SupervisorBuilder.build_supervision_relationships(specs, supervisor_iri, context)
+      iex> length(triples) > 0
+      true
+  """
+  @spec build_supervision_relationships([Supervisor.ChildSpec.t()], RDF.IRI.t(), Context.t()) ::
+          [RDF.Triple.t()]
+  def build_supervision_relationships(child_specs, supervisor_iri, context) when is_list(child_specs) do
+    child_specs
+    |> Enum.flat_map(fn child_spec ->
+      build_child_supervision_triples(child_spec, supervisor_iri, context)
+    end)
+  end
+
+  # Build supervision triples for a single child
+  defp build_child_supervision_triples(child_spec, supervisor_iri, context) do
+    module = child_spec.module
+
+    if module do
+      child_module_iri = IRI.for_module(context.base_iri, format_module_name(module))
+
+      [
+        # Supervisor supervises child module
+        Helpers.object_property(supervisor_iri, OTP.supervises(), child_module_iri),
+        # Child module is supervised by supervisor (inverse)
+        Helpers.object_property(child_module_iri, OTP.supervisedBy(), supervisor_iri)
+      ]
+    else
+      []
+    end
+  end
+
+  # Format module name for IRI generation
+  defp format_module_name(module) when is_atom(module) do
+    module |> Atom.to_string() |> String.replace("Elixir.", "")
+  end
+
+  defp format_module_name(module), do: inspect(module)
+
+  @doc """
+  Builds RDF triples for ordered children using rdf:List.
+
+  Generates an ordered list of child spec IRIs that preserves the
+  child ordering from the supervisor's init/1 callback.
+
+  ## Parameters
+
+  - `ordered_children` - List of ChildOrder structs
+  - `supervisor_iri` - The IRI of the supervisor
+  - `context` - Builder context
+
+  ## Returns
+
+  A tuple `{list_iri, triples}` where:
+  - `list_iri` - The IRI of the list head (or nil if empty)
+  - `triples` - List of RDF triples
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.OTP.SupervisorBuilder
+      iex> alias ElixirOntologies.Builders.Context
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildOrder, ChildSpec}
+      iex> children = [
+      ...>   %ChildOrder{position: 0, child_spec: %ChildSpec{id: :w1, module: W1}, id: :w1},
+      ...>   %ChildOrder{position: 1, child_spec: %ChildSpec{id: :w2, module: W2}, id: :w2}
+      ...> ]
+      iex> supervisor_iri = RDF.iri("https://example.org/code#MySup")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {_list_iri, triples} = SupervisorBuilder.build_ordered_children(children, supervisor_iri, context)
+      iex> length(triples) > 0
+      true
+  """
+  @spec build_ordered_children([Supervisor.ChildOrder.t()], RDF.IRI.t(), Context.t()) ::
+          {RDF.IRI.t() | nil, [RDF.Triple.t()]}
+  def build_ordered_children([], _supervisor_iri, _context), do: {nil, []}
+
+  def build_ordered_children(ordered_children, supervisor_iri, _context) do
+    # Build child spec IRIs for each ordered child
+    child_spec_iris =
+      ordered_children
+      |> Enum.sort_by(& &1.position)
+      |> Enum.map(fn %{position: pos, id: id} ->
+        IRI.for_child_spec(supervisor_iri, id || :unknown, pos)
+      end)
+
+    # Build rdf:List structure
+    {list_iri, list_triples} = build_rdf_list(child_spec_iris)
+
+    # Link supervisor to list
+    link_triple =
+      if list_iri do
+        [Helpers.object_property(supervisor_iri, OTP.hasChildren(), list_iri)]
+      else
+        []
+      end
+
+    {list_iri, link_triple ++ list_triples}
+  end
+
+  # Build rdf:List from a list of IRIs
+  defp build_rdf_list([]), do: {RDF.nil(), []}
+
+  defp build_rdf_list(iris) do
+    # Generate blank nodes for list structure
+    {list_head, triples} = build_list_nodes(iris, 0, [])
+    {list_head, triples}
+  end
+
+  # Recursively build list nodes
+  defp build_list_nodes([], _index, acc), do: {RDF.nil(), Enum.reverse(acc)}
+
+  defp build_list_nodes([iri | rest], index, acc) do
+    # Create a blank node for this list element
+    list_node = RDF.bnode("list_#{index}")
+
+    # Build triples for this node
+    first_triple = {list_node, RDF.first(), iri}
+
+    if rest == [] do
+      # Last element, rest is rdf:nil
+      rest_triple = {list_node, RDF.rest(), RDF.nil()}
+      {list_node, Enum.reverse([rest_triple, first_triple | acc])}
+    else
+      # More elements, recurse
+      {next_node, remaining_triples} = build_list_nodes(rest, index + 1, [])
+      rest_triple = {list_node, RDF.rest(), next_node}
+
+      triples = [rest_triple, first_triple | acc]
+      {list_node, Enum.reverse(triples) ++ remaining_triples}
+    end
+  end
+
+  @doc """
+  Builds RDF triples for a supervision tree.
+
+  This is the main entry point for building supervision tree relationships.
+  It combines supervision relationships, ordered children, and optionally
+  marks the supervisor as a root supervisor.
+
+  ## Parameters
+
+  - `ordered_children` - List of ChildOrder structs
+  - `supervisor_iri` - The IRI of the supervisor
+  - `context` - Builder context
+  - `opts` - Options:
+    - `:is_root` - Mark as root supervisor (default: false)
+    - `:tree_iri` - SupervisionTree IRI (required if is_root: true)
+    - `:app_name` - Application name for generating tree IRI
+
+  ## Returns
+
+  A tuple `{tree_iri, triples}` where:
+  - `tree_iri` - The IRI of the supervision tree (or nil)
+  - `triples` - List of RDF triples
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.OTP.SupervisorBuilder
+      iex> alias ElixirOntologies.Builders.Context
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildOrder, ChildSpec}
+      iex> children = [
+      ...>   %ChildOrder{position: 0, child_spec: %ChildSpec{id: :w1, module: W1}, id: :w1}
+      ...> ]
+      iex> supervisor_iri = RDF.iri("https://example.org/code#MySup")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {_tree_iri, triples} = SupervisorBuilder.build_supervision_tree(children, supervisor_iri, context)
+      iex> length(triples) > 0
+      true
+  """
+  @spec build_supervision_tree(
+          [Supervisor.ChildOrder.t()],
+          RDF.IRI.t(),
+          Context.t(),
+          keyword()
+        ) :: {RDF.IRI.t() | nil, [RDF.Triple.t()]}
+  def build_supervision_tree(ordered_children, supervisor_iri, context, opts \\ []) do
+    is_root = Keyword.get(opts, :is_root, false)
+    tree_iri = Keyword.get(opts, :tree_iri)
+    app_name = Keyword.get(opts, :app_name)
+
+    # Extract child specs for supervision relationships
+    child_specs =
+      ordered_children
+      |> Enum.map(& &1.child_spec)
+      |> Enum.reject(&is_nil/1)
+
+    # Build supervision relationships (supervises/supervisedBy)
+    supervision_triples = build_supervision_relationships(child_specs, supervisor_iri, context)
+
+    # Build ordered children list
+    {_list_iri, children_triples} = build_ordered_children(ordered_children, supervisor_iri, context)
+
+    # Build root supervisor triples if applicable
+    {final_tree_iri, root_triples} =
+      if is_root do
+        effective_tree_iri =
+          tree_iri || (app_name && IRI.for_supervision_tree(context.base_iri, app_name))
+
+        if effective_tree_iri do
+          {effective_tree_iri, build_root_supervisor(supervisor_iri, effective_tree_iri, context)}
+        else
+          {nil, []}
+        end
+      else
+        {nil, []}
+      end
+
+    # Combine all triples
+    all_triples = supervision_triples ++ children_triples ++ root_triples
+
+    {final_tree_iri, all_triples}
+  end
+
+  @doc """
+  Builds RDF triples for a root supervisor.
+
+  Generates triples marking a supervisor as the root of a supervision tree.
+
+  ## Parameters
+
+  - `supervisor_iri` - The IRI of the root supervisor
+  - `tree_iri` - The IRI of the supervision tree
+  - `_context` - Builder context (unused currently)
+
+  ## Returns
+
+  A list of RDF triples.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.OTP.SupervisorBuilder
+      iex> alias ElixirOntologies.Builders.Context
+      iex> supervisor_iri = RDF.iri("https://example.org/code#MySup")
+      iex> tree_iri = RDF.iri("https://example.org/code#tree/my_app")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> triples = SupervisorBuilder.build_root_supervisor(supervisor_iri, tree_iri, context)
+      iex> length(triples) == 3
+      true
+  """
+  @spec build_root_supervisor(RDF.IRI.t(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  def build_root_supervisor(supervisor_iri, tree_iri, _context) do
+    [
+      # Tree type
+      Helpers.type_triple(tree_iri, OTP.SupervisionTree),
+      # Root supervisor link
+      Helpers.object_property(tree_iri, OTP.rootSupervisor(), supervisor_iri),
+      # Supervisor is part of tree
+      Helpers.object_property(supervisor_iri, OTP.partOfTree(), tree_iri)
+    ]
+  end
 end
