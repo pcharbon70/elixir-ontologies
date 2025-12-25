@@ -43,16 +43,16 @@ Extract the history of changes to individual files.
 - [x] 20.1.3.6 Add file history tests (30 tests)
 
 ### 20.1.4 Blame Information Extraction
-- [ ] **Task 20.1.4 Pending**
+- [x] **Task 20.1.4 Complete**
 
 Extract line-level attribution using git blame.
 
-- [ ] 20.1.4.1 Implement `extract_blame/1` using git blame
-- [ ] 20.1.4.2 Define `%BlameInfo{line: ..., commit: ..., author: ..., timestamp: ...}` struct
-- [ ] 20.1.4.3 Extract commit attribution for each line
-- [ ] 20.1.4.4 Track line age (time since last change)
-- [ ] 20.1.4.5 Handle lines not yet committed (working copy)
-- [ ] 20.1.4.6 Add blame extraction tests
+- [x] 20.1.4.1 Implement `extract_blame/1` using git blame
+- [x] 20.1.4.2 Define `%BlameInfo{line: ..., commit: ..., author: ..., timestamp: ...}` struct
+- [x] 20.1.4.3 Extract commit attribution for each line
+- [x] 20.1.4.4 Track line age (time since last change)
+- [x] 20.1.4.5 Handle lines not yet committed (working copy)
+- [x] 20.1.4.6 Add blame extraction tests (34 tests)
 
 **Section 20.1 Unit Tests:**
 - [ ] Test commit SHA extraction
