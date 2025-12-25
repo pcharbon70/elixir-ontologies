@@ -152,6 +152,71 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilder do
     {strategy_iri, triples}
   end
 
+  @doc """
+  Builds RDF triples for a complete supervision strategy including restart intensity.
+
+  This function generates:
+  - `otp:hasStrategy` linking supervisor to the strategy individual (OneForOne, etc.)
+  - `otp:maxRestarts` with the restart limit (on supervisor)
+  - `otp:maxSeconds` with the time window (on supervisor)
+
+  ## Parameters
+
+  - `strategy_info` - Strategy extraction result with type and restart intensity
+  - `supervisor_iri` - The IRI of the supervisor
+  - `_context` - Builder context (unused currently)
+
+  ## Returns
+
+  A tuple `{strategy_iri, triples}` where:
+  - `strategy_iri` - The IRI of the strategy individual
+  - `triples` - List of RDF triples including restart intensity
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.OTP.SupervisorBuilder
+      iex> alias ElixirOntologies.Builders.Context
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> strategy = %Strategy{type: :one_for_one, max_restarts: 5, max_seconds: 10}
+      iex> supervisor_iri = RDF.iri("https://example.org/code#MySup")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {strategy_iri, triples} = SupervisorBuilder.build_supervision_strategy(strategy, supervisor_iri, context)
+      iex> to_string(strategy_iri) =~ "OneForOne"
+      true
+      iex> length(triples) >= 3
+      true
+  """
+  @spec build_supervision_strategy(Supervisor.Strategy.t(), RDF.IRI.t(), Context.t()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
+  def build_supervision_strategy(strategy_info, supervisor_iri, _context) do
+    # Strategy IRI is a predefined individual
+    strategy_iri = determine_strategy_iri(strategy_info.type)
+
+    # Calculate effective values (use OTP defaults if not explicitly set)
+    max_restarts = effective_max_restarts(strategy_info)
+    max_seconds = effective_max_seconds(strategy_info)
+
+    # Build triples
+    triples = [
+      # Link supervisor to strategy individual
+      Helpers.object_property(supervisor_iri, OTP.hasStrategy(), strategy_iri),
+
+      # Restart intensity on supervisor (per ontology: domain is Supervisor)
+      Helpers.datatype_property(supervisor_iri, OTP.maxRestarts(), max_restarts),
+      Helpers.datatype_property(supervisor_iri, OTP.maxSeconds(), max_seconds)
+    ]
+
+    {strategy_iri, triples}
+  end
+
+  # Calculate effective max_restarts (OTP default: 3)
+  defp effective_max_restarts(%{max_restarts: nil}), do: 3
+  defp effective_max_restarts(%{max_restarts: value}), do: value
+
+  # Calculate effective max_seconds (OTP default: 5)
+  defp effective_max_seconds(%{max_seconds: nil}), do: 5
+  defp effective_max_seconds(%{max_seconds: value}), do: value
+
   # ===========================================================================
   # Supervisor Implementation Triple Generation
   # ===========================================================================

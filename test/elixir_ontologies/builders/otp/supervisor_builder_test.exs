@@ -727,4 +727,230 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       end)
     end
   end
+
+  # ===========================================================================
+  # Supervision Strategy Builder Tests
+  # ===========================================================================
+
+  describe "build_supervision_strategy/3 - strategy types" do
+    test "builds one_for_one strategy with restart intensity" do
+      strategy_info = build_test_strategy(type: :one_for_one, max_restarts: 5, max_seconds: 10)
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {strategy_iri, triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      # Verify strategy is predefined individual
+      assert strategy_iri == OTP.OneForOne
+
+      # Verify hasStrategy link
+      assert {supervisor_iri, OTP.hasStrategy(), OTP.OneForOne} in triples
+
+      # Verify maxRestarts on supervisor
+      assert {supervisor_iri, OTP.maxRestarts(), RDF.literal(5)} in triples
+
+      # Verify maxSeconds on supervisor
+      assert {supervisor_iri, OTP.maxSeconds(), RDF.literal(10)} in triples
+    end
+
+    test "builds one_for_all strategy" do
+      strategy_info = build_test_strategy(type: :one_for_all, max_restarts: 3, max_seconds: 5)
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {strategy_iri, triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      # Verify strategy
+      assert strategy_iri == OTP.OneForAll
+      assert {supervisor_iri, OTP.hasStrategy(), OTP.OneForAll} in triples
+    end
+
+    test "builds rest_for_one strategy" do
+      strategy_info = build_test_strategy(type: :rest_for_one, max_restarts: 3, max_seconds: 5)
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {strategy_iri, triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      # Verify strategy
+      assert strategy_iri == OTP.RestForOne
+      assert {supervisor_iri, OTP.hasStrategy(), OTP.RestForOne} in triples
+    end
+  end
+
+  describe "build_supervision_strategy/3 - restart intensity" do
+    test "uses explicit max_restarts value" do
+      strategy_info = build_test_strategy(max_restarts: 10, max_seconds: 5)
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {_strategy_iri, triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      assert {supervisor_iri, OTP.maxRestarts(), RDF.literal(10)} in triples
+    end
+
+    test "uses explicit max_seconds value" do
+      strategy_info = build_test_strategy(max_restarts: 3, max_seconds: 60)
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {_strategy_iri, triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      assert {supervisor_iri, OTP.maxSeconds(), RDF.literal(60)} in triples
+    end
+
+    test "uses OTP default for nil max_restarts" do
+      strategy_info = %Supervisor.Strategy{
+        type: :one_for_one,
+        max_restarts: nil,
+        max_seconds: 10
+      }
+
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {_strategy_iri, triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      # OTP default for max_restarts is 3
+      assert {supervisor_iri, OTP.maxRestarts(), RDF.literal(3)} in triples
+    end
+
+    test "uses OTP default for nil max_seconds" do
+      strategy_info = %Supervisor.Strategy{
+        type: :one_for_one,
+        max_restarts: 10,
+        max_seconds: nil
+      }
+
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {_strategy_iri, triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      # OTP default for max_seconds is 5
+      assert {supervisor_iri, OTP.maxSeconds(), RDF.literal(5)} in triples
+    end
+
+    test "uses both OTP defaults when nil" do
+      strategy_info = %Supervisor.Strategy{
+        type: :one_for_one,
+        max_restarts: nil,
+        max_seconds: nil
+      }
+
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {_strategy_iri, triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      # OTP defaults: max_restarts=3, max_seconds=5
+      assert {supervisor_iri, OTP.maxRestarts(), RDF.literal(3)} in triples
+      assert {supervisor_iri, OTP.maxSeconds(), RDF.literal(5)} in triples
+    end
+  end
+
+  describe "build_supervision_strategy/3 - triple validation" do
+    test "generates exactly 3 triples" do
+      strategy_info = build_test_strategy()
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {_strategy_iri, triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      # hasStrategy + maxRestarts + maxSeconds
+      assert length(triples) == 3
+    end
+
+    test "no duplicate triples" do
+      strategy_info = build_test_strategy()
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {_strategy_iri, triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      unique_triples = Enum.uniq(triples)
+      assert length(triples) == length(unique_triples)
+    end
+
+    test "all triples have supervisor as subject" do
+      strategy_info = build_test_strategy()
+      context = build_test_context()
+      supervisor_iri = build_test_module_iri()
+
+      {_strategy_iri, triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      # All triples should have supervisor_iri as subject
+      Enum.each(triples, fn {subject, _predicate, _object} ->
+        assert subject == supervisor_iri
+      end)
+    end
+  end
+
+  describe "build_supervision_strategy/3 - integration" do
+    alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+    alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+
+    test "complete supervisor with strategy and children" do
+      # Build supervisor
+      supervisor_info = build_test_supervisor()
+      context = build_test_context()
+      module_iri = build_test_module_iri()
+
+      {supervisor_iri, supervisor_triples} =
+        SupervisorBuilder.build_supervisor(supervisor_info, module_iri, context)
+
+      # Build strategy with custom restart intensity
+      strategy_info = build_test_strategy(
+        type: :one_for_all,
+        max_restarts: 10,
+        max_seconds: 60
+      )
+
+      {strategy_iri, strategy_triples} =
+        SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
+
+      # Build child spec
+      specs = [
+        %ChildSpec{
+          id: :worker1,
+          module: Worker1,
+          start: %StartSpec{module: Worker1, function: :start_link, args: [[]]},
+          restart: :permanent,
+          type: :worker
+        }
+      ]
+
+      {child_iris, child_triples} =
+        SupervisorBuilder.build_child_specs(specs, supervisor_iri, context)
+
+      # Combine all triples
+      all_triples = supervisor_triples ++ strategy_triples ++ child_triples
+
+      # Verify supervisor type
+      assert {supervisor_iri, RDF.type(), OTP.Supervisor} in all_triples
+
+      # Verify strategy link
+      assert {supervisor_iri, OTP.hasStrategy(), strategy_iri} in all_triples
+      assert strategy_iri == OTP.OneForAll
+
+      # Verify restart intensity on supervisor
+      assert {supervisor_iri, OTP.maxRestarts(), RDF.literal(10)} in all_triples
+      assert {supervisor_iri, OTP.maxSeconds(), RDF.literal(60)} in all_triples
+
+      # Verify child specs
+      [child_iri] = child_iris
+      assert {supervisor_iri, OTP.hasChildSpec(), child_iri} in all_triples
+    end
+  end
 end

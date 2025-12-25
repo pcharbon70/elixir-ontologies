@@ -184,16 +184,16 @@ Generate RDF triples for child specifications.
 - [x] 19.4.1.9 Add child spec builder tests (16 tests)
 
 ### 19.4.2 Strategy Builder
-- [ ] **Task 19.4.2 Pending**
+- [x] **Task 19.4.2 Complete**
 
 Generate RDF triples for supervision strategies.
 
-- [ ] 19.4.2.1 Implement `build_supervision_strategy/3` generating strategy IRI
-- [ ] 19.4.2.2 Generate `rdf:type otp:SupervisionStrategy` triple
-- [ ] 19.4.2.3 Generate `otp:strategyType` with strategy enum value
-- [ ] 19.4.2.4 Generate `otp:maxRestarts` with restart limit
-- [ ] 19.4.2.5 Generate `otp:maxSeconds` with time window
-- [ ] 19.4.2.6 Add strategy builder tests
+- [x] 19.4.2.1 Implement `build_supervision_strategy/3` generating strategy IRI
+- [x] 19.4.2.2 Generate `otp:hasStrategy` linking to predefined individual (OneForOne, OneForAll, RestForOne)
+- [x] 19.4.2.3 Generate `otp:maxRestarts` with restart limit (on supervisor per ontology)
+- [x] 19.4.2.4 Generate `otp:maxSeconds` with time window (on supervisor per ontology)
+- [x] 19.4.2.5 Handle OTP default values (max_restarts=3, max_seconds=5)
+- [x] 19.4.2.6 Add strategy builder tests (12 tests)
 
 ### 19.4.3 Supervision Tree Builder
 - [ ] **Task 19.4.3 Pending**
