@@ -37,6 +37,7 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
   """
 
   alias ElixirOntologies.Analyzer.Git
+  alias ElixirOntologies.Extractors.Evolution.GitUtils
 
   # ===========================================================================
   # Rename Struct
@@ -116,7 +117,7 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
   ## Options
 
   - `:follow` - Follow file renames (default: true)
-  - `:limit` - Maximum number of commits to retrieve (default: nil = all)
+  - `:limit` - Maximum number of commits to retrieve (default: nil, max: #{GitUtils.max_commits()})
 
   ## Examples
 
@@ -136,7 +137,7 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
     limit = Keyword.get(opts, :limit)
 
     with {:ok, repo_root} <- Git.detect_repo(repo_path),
-         {:ok, relative_path} <- normalize_file_path(file_path, repo_root),
+         {:ok, relative_path} <- GitUtils.normalize_file_path(file_path, repo_root),
          {:ok, commits} <- extract_commits_for_file(repo_root, relative_path, follow, limit),
          {:ok, renames} <- extract_renames(repo_root, relative_path) do
       if commits == [] do
@@ -172,7 +173,7 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
   def extract_file_history!(repo_path, file_path, opts \\ []) do
     case extract_file_history(repo_path, file_path, opts) do
       {:ok, history} -> history
-      {:error, reason} -> raise ArgumentError, "Failed to extract file history: #{inspect(reason)}"
+      {:error, reason} -> raise ArgumentError, "Failed to extract file history: #{GitUtils.format_error(reason)}"
     end
   end
 
@@ -191,21 +192,23 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
   @spec extract_commits_for_file(String.t(), String.t(), boolean(), non_neg_integer() | nil) ::
           {:ok, [String.t()]} | {:error, atom()}
   def extract_commits_for_file(repo_path, file_path, follow \\ true, limit \\ nil) do
-    args = build_log_args(follow, limit) ++ ["--", file_path]
+    # Enforce maximum limit
+    effective_limit = if limit, do: min(limit, GitUtils.max_commits()), else: GitUtils.max_commits()
+    args = build_log_args(follow, effective_limit) ++ ["--", file_path]
 
-    case run_git_command(repo_path, args) do
+    case GitUtils.run_git_command(repo_path, args) do
       {:ok, output} ->
         commits =
           output
           |> String.trim()
           |> String.split("\n", trim: true)
           |> Enum.map(&String.trim/1)
-          |> Enum.filter(&valid_sha?/1)
+          |> Enum.filter(&GitUtils.valid_sha?/1)
 
         {:ok, commits}
 
-      {:error, _} ->
-        {:ok, []}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -227,13 +230,13 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
     # Format: commit_sha, then status lines
     args = ["log", "--format=%H", "--name-status", "--follow", "--diff-filter=R", "--", file_path]
 
-    case run_git_command(repo_path, args) do
+    case GitUtils.run_git_command(repo_path, args) do
       {:ok, output} ->
         renames = parse_rename_output(output)
         {:ok, renames}
 
-      {:error, _} ->
-        {:ok, []}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -347,18 +350,6 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
   # Private Functions
   # ===========================================================================
 
-  defp normalize_file_path(file_path, repo_root) do
-    # Convert to relative path if absolute
-    if Path.type(file_path) == :absolute do
-      case Path.relative_to(file_path, repo_root) do
-        ^file_path -> {:error, :outside_repo}
-        relative -> {:ok, relative}
-      end
-    else
-      {:ok, file_path}
-    end
-  end
-
   defp build_log_args(follow, limit) do
     base = ["log", "--format=%H"]
 
@@ -375,19 +366,6 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
       base
     end
   end
-
-  defp run_git_command(repo_path, args) do
-    case System.cmd("git", args, cd: repo_path, stderr_to_stdout: true) do
-      {output, 0} -> {:ok, output}
-      {_output, _code} -> {:error, :command_failed}
-    end
-  end
-
-  defp valid_sha?(sha) when is_binary(sha) do
-    String.length(sha) == 40 and Regex.match?(~r/^[0-9a-f]+$/i, sha)
-  end
-
-  defp valid_sha?(_), do: false
 
   defp parse_rename_output(output) do
     # Output format:
@@ -406,7 +384,7 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
   defp parse_rename_lines([line | rest], current_sha, acc) do
     cond do
       # This is a SHA line
-      valid_sha?(String.trim(line)) ->
+      GitUtils.valid_sha?(String.trim(line)) ->
         parse_rename_lines(rest, String.trim(line), acc)
 
       # This is a rename line (R followed by similarity, then paths)
@@ -470,15 +448,27 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
     # For each rename, determine if the target commit is before or after the rename
     # Renames are in chronological order (oldest first)
     # Commits are in reverse chronological order (newest first)
+    # Higher index = older commit (further back in history)
     Enum.reduce(Enum.reverse(renames), current_path, fn rename, path ->
       rename_index = Enum.find_index(commits, &(&1 == rename.commit_sha))
 
-      if rename_index && target_index >= rename_index do
-        # Target is at or before the rename (in newer commits), use to_path
-        if path == rename.to_path, do: path, else: path
-      else
-        # Target is after the rename (in older commits), use from_path
-        if path == rename.to_path, do: rename.from_path, else: path
+      cond do
+        # Rename not found in commits
+        is_nil(rename_index) ->
+          path
+
+        # Target is at or after the rename commit (newer or same)
+        # In reverse chronological order, smaller index = newer
+        target_index <= rename_index ->
+          # We're looking at the file after this rename occurred
+          # So the path should be the to_path (what it was renamed to)
+          if path == rename.from_path, do: rename.to_path, else: path
+
+        # Target is before the rename commit (older)
+        true ->
+          # We're looking at the file before this rename occurred
+          # So if current path matches to_path, we need from_path
+          if path == rename.to_path, do: rename.from_path, else: path
       end
     end)
   end

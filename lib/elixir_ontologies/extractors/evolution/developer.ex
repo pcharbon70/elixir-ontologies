@@ -170,8 +170,11 @@ defmodule ElixirOntologies.Extractors.Evolution.Developer do
   """
   @spec author_from_commit(Commit.t()) :: t()
   def author_from_commit(%Commit{} = commit) do
+    # Use unique fallback per commit to avoid aggregating unrelated commits
+    email = commit.author_email || unknown_email_fallback(commit.sha)
+
     %__MODULE__{
-      email: commit.author_email || "unknown",
+      email: email,
       name: commit.author_name,
       names: names_set(commit.author_name),
       authored_commits: [commit.sha],
@@ -198,8 +201,11 @@ defmodule ElixirOntologies.Extractors.Evolution.Developer do
   """
   @spec committer_from_commit(Commit.t()) :: t()
   def committer_from_commit(%Commit{} = commit) do
+    # Use unique fallback per commit to avoid aggregating unrelated commits
+    email = commit.committer_email || unknown_email_fallback(commit.sha)
+
     %__MODULE__{
-      email: commit.committer_email || "unknown",
+      email: email,
       name: commit.committer_name,
       names: names_set(commit.committer_name),
       authored_commits: [],
@@ -423,5 +429,12 @@ defmodule ElixirOntologies.Extractors.Evolution.Developer do
       :gt -> date1
       _ -> date2
     end
+  end
+
+  # Generate unique fallback email per commit to prevent aggregating
+  # unrelated commits with missing author/committer emails
+  defp unknown_email_fallback(sha) do
+    short_sha = String.slice(sha || "unknown", 0, 7)
+    "unknown-#{short_sha}@unknown"
   end
 end

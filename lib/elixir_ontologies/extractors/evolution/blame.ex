@@ -11,6 +11,12 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
   Lines that have been modified but not yet committed will have a special
   SHA of all zeros (0000000...). These lines are marked with `is_uncommitted: true`.
 
+  ## Privacy Options
+
+  For GDPR compliance, you can anonymize email addresses:
+
+      Blame.extract_blame(".", "file.ex", anonymize_emails: true)
+
   ## Usage
 
       alias ElixirOntologies.Extractors.Evolution.Blame
@@ -36,6 +42,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
   """
 
   alias ElixirOntologies.Analyzer.Git
+  alias ElixirOntologies.Extractors.Evolution.GitUtils
 
   # ===========================================================================
   # BlameInfo Struct
@@ -143,6 +150,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
 
   - `:revision` - Blame at a specific revision (default: working tree)
   - `:line_range` - Tuple `{start, end}` to blame specific lines
+  - `:anonymize_emails` - If true, hash email addresses for privacy (default: false)
 
   ## Examples
 
@@ -160,13 +168,16 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
   def extract_blame(repo_path, file_path, opts \\ []) do
     revision = Keyword.get(opts, :revision)
     line_range = Keyword.get(opts, :line_range)
+    anonymize = Keyword.get(opts, :anonymize_emails, false)
 
-    with {:ok, repo_root} <- Git.detect_repo(repo_path),
-         {:ok, relative_path} <- normalize_file_path(file_path, repo_root),
+    with {:ok, _} <- validate_revision(revision),
+         {:ok, _} <- validate_line_range(line_range),
+         {:ok, repo_root} <- Git.detect_repo(repo_path),
+         {:ok, relative_path} <- GitUtils.normalize_file_path(file_path, repo_root),
          :ok <- check_file_exists(repo_root, relative_path),
          {:ok, output} <- run_blame(repo_root, relative_path, revision, line_range) do
       now = System.os_time(:second)
-      lines = parse_porcelain_output(output, now)
+      lines = parse_porcelain_output(output, now, anonymize)
 
       {:ok, build_file_blame(relative_path, lines)}
     end
@@ -185,7 +196,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
   def extract_blame!(repo_path, file_path, opts \\ []) do
     case extract_blame(repo_path, file_path, opts) do
       {:ok, blame} -> blame
-      {:error, reason} -> raise ArgumentError, "Failed to extract blame: #{inspect(reason)}"
+      {:error, reason} -> raise ArgumentError, "Failed to extract blame: #{GitUtils.format_error(reason)}"
     end
   end
 
@@ -366,19 +377,28 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
   end
 
   # ===========================================================================
-  # Private Functions
+  # Private Functions - Validation
   # ===========================================================================
 
-  defp normalize_file_path(file_path, repo_root) do
-    if Path.type(file_path) == :absolute do
-      case Path.relative_to(file_path, repo_root) do
-        ^file_path -> {:error, :outside_repo}
-        relative -> {:ok, relative}
-      end
+  defp validate_revision(nil), do: {:ok, nil}
+
+  defp validate_revision(revision) do
+    if GitUtils.valid_ref?(revision) do
+      {:ok, revision}
     else
-      {:ok, file_path}
+      {:error, :invalid_ref}
     end
   end
+
+  defp validate_line_range(nil), do: {:ok, nil}
+
+  defp validate_line_range({start_line, end_line})
+       when is_integer(start_line) and is_integer(end_line) and start_line > 0 and
+              end_line >= start_line do
+    {:ok, {start_line, end_line}}
+  end
+
+  defp validate_line_range(_), do: {:error, :invalid_path}
 
   defp check_file_exists(repo_root, relative_path) do
     full_path = Path.join(repo_root, relative_path)
@@ -389,6 +409,10 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
       {:error, :file_not_found}
     end
   end
+
+  # ===========================================================================
+  # Private Functions - Git Commands
+  # ===========================================================================
 
   defp run_blame(repo_path, file_path, revision, line_range) do
     args = ["blame", "--porcelain"]
@@ -408,33 +432,65 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
         args ++ ["--", file_path]
       end
 
-    case System.cmd("git", args, cd: repo_path, stderr_to_stdout: true) do
-      {output, 0} -> {:ok, output}
-      {_output, _code} -> {:error, :blame_failed}
+    GitUtils.run_git_command(repo_path, args)
+    |> case do
+      {:ok, output} -> {:ok, output}
+      {:error, :command_failed} -> {:error, :command_failed}
+      {:error, :timeout} -> {:error, :timeout}
+      {:error, _} -> {:error, :command_failed}
     end
   end
 
-  defp parse_porcelain_output(output, now) do
+  # ===========================================================================
+  # Private Functions - Parsing (Iterative)
+  # ===========================================================================
+
+  defp parse_porcelain_output(output, now, anonymize) do
     lines = String.split(output, "\n")
-    parse_lines(lines, %{}, [], now)
+
+    # Use iterative approach with Enum.reduce instead of recursion
+    # State is {accumulated_results, sha_cache, current_sha, current_info}
+    {result, _cache, _sha, _info} =
+      Enum.reduce(lines, {[], %{}, nil, nil}, fn line, {acc, cache, current_sha, current_info} ->
+        parse_line(line, acc, cache, current_sha, current_info, now, anonymize)
+      end)
+
+    Enum.reverse(result)
   end
 
-  # Parse porcelain format line by line
-  defp parse_lines([], _commit_cache, acc, _now), do: Enum.reverse(acc)
-
-  defp parse_lines([line | rest], commit_cache, acc, now) do
+  defp parse_line(line, acc, cache, current_sha, current_info, now, anonymize) do
     case parse_header_line(line) do
       {:header, sha, _original_line, final_line, _num_lines} ->
-        # Start of a new line blame entry
-        {commit_info, new_cache, remaining} = collect_commit_info(rest, sha, commit_cache)
-        {content, remaining2} = extract_content_line(remaining)
-
-        blame_info = build_blame_info(sha, final_line, content, commit_info, now)
-        parse_lines(remaining2, new_cache, [blame_info | acc], now)
+        # New blame entry - if we have a pending entry, save it
+        # Start collecting info for this SHA
+        if Map.has_key?(cache, sha) do
+          {acc, cache, sha, %{final_line: final_line, info: Map.get(cache, sha)}}
+        else
+          {acc, cache, sha, %{final_line: final_line, info: %{}}}
+        end
 
       :not_header ->
-        # Skip non-header lines
-        parse_lines(rest, commit_cache, acc, now)
+        cond do
+          # Content line - build blame info
+          String.starts_with?(line, "\t") and not is_nil(current_sha) ->
+            content = String.trim_leading(line, "\t")
+            info = current_info[:info] || %{}
+            final_line = current_info[:final_line]
+
+            blame_info = build_blame_info(current_sha, final_line, content, info, now, anonymize)
+            new_cache = Map.put(cache, current_sha, info)
+
+            {[blame_info | acc], new_cache, nil, nil}
+
+          # Info line - collect commit metadata
+          not is_nil(current_sha) ->
+            info = current_info[:info] || %{}
+            updated_info = parse_info_line(line, info)
+            {acc, cache, current_sha, %{current_info | info: updated_info}}
+
+          true ->
+            {acc, cache, current_sha, current_info}
+        end
     end
   end
 
@@ -443,7 +499,6 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
     case String.split(line, " ") do
       [sha, orig, final | rest] when byte_size(sha) == 40 ->
         num = if rest == [], do: 1, else: String.to_integer(List.first(rest))
-
         {:header, sha, String.to_integer(orig), String.to_integer(final), num}
 
       _ ->
@@ -451,85 +506,50 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
     end
   end
 
-  defp collect_commit_info(lines, sha, commit_cache) do
-    if Map.has_key?(commit_cache, sha) do
-      # We already have this commit's info, skip to content
-      {Map.get(commit_cache, sha), commit_cache, lines}
-    else
-      # Collect commit info until we hit a content line or another header
-      {info, remaining} = collect_info_lines(lines, %{})
-      new_cache = Map.put(commit_cache, sha, info)
-      {info, new_cache, remaining}
-    end
-  end
-
-  defp collect_info_lines([], info), do: {info, []}
-
-  defp collect_info_lines([line | rest] = lines, info) do
+  defp parse_info_line(line, info) do
     cond do
-      String.starts_with?(line, "\t") ->
-        # Content line - stop collecting
-        {info, lines}
-
       String.starts_with?(line, "author ") ->
-        value = String.trim_leading(line, "author ")
-        collect_info_lines(rest, Map.put(info, :author_name, value))
+        Map.put(info, :author_name, String.trim_leading(line, "author "))
 
       String.starts_with?(line, "author-mail ") ->
         value = String.trim_leading(line, "author-mail ")
-        # Remove angle brackets
         email = value |> String.trim_leading("<") |> String.trim_trailing(">")
-        collect_info_lines(rest, Map.put(info, :author_email, email))
+        Map.put(info, :author_email, email)
 
       String.starts_with?(line, "author-time ") ->
         value = String.trim_leading(line, "author-time ")
-        collect_info_lines(rest, Map.put(info, :author_time, String.to_integer(value)))
+        Map.put(info, :author_time, String.to_integer(value))
 
       String.starts_with?(line, "committer ") ->
-        value = String.trim_leading(line, "committer ")
-        collect_info_lines(rest, Map.put(info, :committer_name, value))
+        Map.put(info, :committer_name, String.trim_leading(line, "committer "))
 
       String.starts_with?(line, "committer-mail ") ->
         value = String.trim_leading(line, "committer-mail ")
         email = value |> String.trim_leading("<") |> String.trim_trailing(">")
-        collect_info_lines(rest, Map.put(info, :committer_email, email))
+        Map.put(info, :committer_email, email)
 
       String.starts_with?(line, "committer-time ") ->
         value = String.trim_leading(line, "committer-time ")
-        collect_info_lines(rest, Map.put(info, :committer_time, String.to_integer(value)))
+        Map.put(info, :committer_time, String.to_integer(value))
 
       String.starts_with?(line, "summary ") ->
-        value = String.trim_leading(line, "summary ")
-        collect_info_lines(rest, Map.put(info, :summary, value))
+        Map.put(info, :summary, String.trim_leading(line, "summary "))
 
       String.starts_with?(line, "filename ") ->
-        value = String.trim_leading(line, "filename ")
-        collect_info_lines(rest, Map.put(info, :filename, value))
+        Map.put(info, :filename, String.trim_leading(line, "filename "))
 
       String.starts_with?(line, "previous ") ->
         value = String.trim_leading(line, "previous ")
-        # Format: <sha> <filename>
         [prev_sha | _] = String.split(value, " ", parts: 2)
-        collect_info_lines(rest, Map.put(info, :previous, prev_sha))
+        Map.put(info, :previous, prev_sha)
 
       true ->
-        # Skip other lines (author-tz, committer-tz, boundary, etc.)
-        collect_info_lines(rest, info)
+        info
     end
   end
 
-  defp extract_content_line([]), do: {"", []}
-
-  defp extract_content_line([line | rest]) do
-    if String.starts_with?(line, "\t") do
-      {String.trim_leading(line, "\t"), rest}
-    else
-      {"", [line | rest]}
-    end
-  end
-
-  defp build_blame_info(sha, line_number, content, info, now) do
-    is_uncommitted = uncommitted_sha?(sha)
+  defp build_blame_info(sha, line_number, content, info, now, anonymize) do
+    is_uncommitted = GitUtils.uncommitted_sha?(sha)
     author_time = Map.get(info, :author_time)
     committer_time = Map.get(info, :committer_time)
 
@@ -540,37 +560,27 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
         now - author_time
       end
 
+    author_email = Map.get(info, :author_email)
+    committer_email = Map.get(info, :committer_email)
+
     %BlameInfo{
       line_number: line_number,
       content: content,
       commit_sha: sha,
       author_name: Map.get(info, :author_name),
-      author_email: Map.get(info, :author_email),
+      author_email: GitUtils.maybe_anonymize_email(author_email, anonymize_emails: anonymize),
       author_time: author_time,
-      author_date: timestamp_to_datetime(author_time),
+      author_date: GitUtils.parse_unix_timestamp!(author_time),
       committer_name: Map.get(info, :committer_name),
-      committer_email: Map.get(info, :committer_email),
+      committer_email: GitUtils.maybe_anonymize_email(committer_email, anonymize_emails: anonymize),
       committer_time: committer_time,
-      commit_date: timestamp_to_datetime(committer_time),
+      commit_date: GitUtils.parse_unix_timestamp!(committer_time),
       summary: Map.get(info, :summary),
       filename: Map.get(info, :filename),
       previous: Map.get(info, :previous),
       line_age_seconds: line_age,
       is_uncommitted: is_uncommitted
     }
-  end
-
-  defp uncommitted_sha?(sha) do
-    sha == "0000000000000000000000000000000000000000"
-  end
-
-  defp timestamp_to_datetime(nil), do: nil
-
-  defp timestamp_to_datetime(timestamp) do
-    case DateTime.from_unix(timestamp) do
-      {:ok, dt} -> dt
-      _ -> nil
-    end
   end
 
   defp build_file_blame(path, lines) do

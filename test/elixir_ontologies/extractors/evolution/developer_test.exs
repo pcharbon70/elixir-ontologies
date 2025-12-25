@@ -81,12 +81,13 @@ defmodule ElixirOntologies.Extractors.Evolution.DeveloperTest do
       assert MapSet.size(author.names) == 0
     end
 
-    test "uses 'unknown' for nil email" do
-      commit = create_commit(author_email: nil)
+    test "uses unique fallback for nil email" do
+      commit = create_commit(author_email: nil, sha: "abc123def456abc123def456abc123def456abc1")
 
       author = Developer.author_from_commit(commit)
 
-      assert author.email == "unknown"
+      # Uses unique fallback per commit to avoid aggregating unrelated commits
+      assert String.starts_with?(author.email, "unknown-abc123d@unknown")
     end
   end
 

@@ -44,6 +44,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
   """
 
   alias ElixirOntologies.Analyzer.Git
+  alias ElixirOntologies.Extractors.Evolution.GitUtils
 
   # ===========================================================================
   # Commit Struct
@@ -133,10 +134,6 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
   ]
   |> Enum.join(@field_delimiter)
 
-  # SHA format validation
-  @sha_regex ~r/^[0-9a-f]{40}$/i
-  @short_sha_regex ~r/^[0-9a-f]{7,40}$/i
-
   # ===========================================================================
   # Extraction Functions
   # ===========================================================================
@@ -176,7 +173,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
   """
   @spec extract_commit(String.t(), String.t()) :: {:ok, t()} | {:error, atom()}
   def extract_commit(path, ref \\ "HEAD") do
-    with {:ok, repo_path} <- Git.detect_repo(path),
+    with {:ok, _} <- validate_ref(ref),
+         {:ok, repo_path} <- Git.detect_repo(path),
          {:ok, output} <- run_git_log(repo_path, ref) do
       parse_commit_output(output)
     end
@@ -195,7 +193,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
   def extract_commit!(path, ref \\ "HEAD") do
     case extract_commit(path, ref) do
       {:ok, commit} -> commit
-      {:error, reason} -> raise ArgumentError, "Failed to extract commit: #{inspect(reason)}"
+      {:error, reason} -> raise ArgumentError, "Failed to extract commit: #{GitUtils.format_error(reason)}"
     end
   end
 
@@ -204,7 +202,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
 
   ## Options
 
-  - `:limit` - Maximum number of commits to return (default: 10)
+  - `:limit` - Maximum number of commits to return (default: 10, max: #{GitUtils.max_commits()})
   - `:offset` - Number of commits to skip (default: 0)
   - `:from` - Starting commit reference (default: "HEAD")
 
@@ -221,9 +219,31 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
     offset = Keyword.get(opts, :offset, 0)
     from = Keyword.get(opts, :from, "HEAD")
 
-    with {:ok, repo_path} <- Git.detect_repo(path),
-         {:ok, output} <- run_git_log_multi(repo_path, from, limit, offset) do
+    # Enforce maximum limit
+    effective_limit = min(limit, GitUtils.max_commits())
+
+    with {:ok, _} <- validate_ref(from),
+         {:ok, repo_path} <- Git.detect_repo(path),
+         {:ok, output} <- run_git_log_multi(repo_path, from, effective_limit, offset) do
       parse_commits_output(output)
+    end
+  end
+
+  @doc """
+  Extracts multiple commits, raising on error.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.Evolution.Commit
+      iex> commits = Commit.extract_commits!(".", limit: 5)
+      iex> is_list(commits)
+      true
+  """
+  @spec extract_commits!(String.t(), keyword()) :: [t()]
+  def extract_commits!(path, opts \\ []) do
+    case extract_commits(path, opts) do
+      {:ok, commits} -> commits
+      {:error, reason} -> raise ArgumentError, "Failed to extract commits: #{GitUtils.format_error(reason)}"
     end
   end
 
@@ -248,12 +268,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
       iex> Commit.valid_sha?("not-a-sha")
       false
   """
-  @spec valid_sha?(String.t()) :: boolean()
-  def valid_sha?(sha) when is_binary(sha) do
-    Regex.match?(@sha_regex, sha)
-  end
-
-  def valid_sha?(_), do: false
+  @spec valid_sha?(any()) :: boolean()
+  def valid_sha?(sha), do: GitUtils.valid_sha?(sha)
 
   @doc """
   Validates if a string is a valid short SHA (7-40 hex characters).
@@ -268,12 +284,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
       iex> Commit.valid_short_sha?("abc12")
       false
   """
-  @spec valid_short_sha?(String.t()) :: boolean()
-  def valid_short_sha?(sha) when is_binary(sha) do
-    Regex.match?(@short_sha_regex, sha)
-  end
-
-  def valid_short_sha?(_), do: false
+  @spec valid_short_sha?(any()) :: boolean()
+  def valid_short_sha?(sha), do: GitUtils.valid_short_sha?(sha)
 
   @doc """
   Checks if a commit is a merge commit (has multiple parents).
@@ -372,12 +384,21 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
   # Private Functions
   # ===========================================================================
 
+  defp validate_ref(ref) do
+    if GitUtils.valid_ref?(ref) do
+      {:ok, ref}
+    else
+      {:error, :invalid_ref}
+    end
+  end
+
   defp run_git_log(repo_path, ref) do
     args = ["log", "-1", "--format=#{@git_format}", ref]
 
-    case run_git_command(repo_path, args) do
+    case GitUtils.run_git_command(repo_path, args) do
       {:ok, output} -> {:ok, output}
       {:error, :command_failed} -> {:error, :invalid_ref}
+      {:error, :timeout} -> {:error, :timeout}
     end
   end
 
@@ -386,16 +407,10 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
     format_with_separator = @git_format <> "\x1e"
     args = ["log", "--format=#{format_with_separator}", "-n", "#{limit + offset}", from]
 
-    case run_git_command(repo_path, args) do
+    case GitUtils.run_git_command(repo_path, args) do
       {:ok, output} -> {:ok, output}
       {:error, :command_failed} -> {:error, :invalid_ref}
-    end
-  end
-
-  defp run_git_command(repo_path, args) do
-    case System.cmd("git", args, cd: repo_path, stderr_to_stdout: true) do
-      {output, 0} -> {:ok, output}
-      {_output, _code} -> {:error, :command_failed}
+      {:error, :timeout} -> {:error, :timeout}
     end
   end
 
@@ -462,15 +477,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
   end
 
   defp parse_datetime(""), do: nil
+  defp parse_datetime(date_str), do: GitUtils.parse_iso8601_datetime!(date_str)
 
-  defp parse_datetime(date_str) do
-    case DateTime.from_iso8601(String.trim(date_str)) do
-      {:ok, datetime, _offset} -> datetime
-      _ -> nil
-    end
-  end
-
-  defp empty_to_nil(""), do: nil
-  defp empty_to_nil(str), do: str
-
+  defp empty_to_nil(str), do: GitUtils.empty_to_nil(str)
 end
