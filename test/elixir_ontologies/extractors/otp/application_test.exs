@@ -12,6 +12,11 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
     body
   end
 
+  defp parse_module_body_with_columns(code) do
+    {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code, columns: true)
+    body
+  end
+
   # ===========================================================================
   # Type Detection Tests
   # ===========================================================================
@@ -101,9 +106,9 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
       assert {:ok, %AppExtractor{}} = AppExtractor.extract(body)
     end
 
-    test "returns {:error, :not_application} for non-Application module" do
+    test "returns {:error, message} for non-Application module" do
       body = parse_module_body("defmodule MyApp do use GenServer end")
-      assert {:error, :not_application} = AppExtractor.extract(body)
+      assert {:error, "Module does not implement Application"} = AppExtractor.extract(body)
     end
 
     test "sets detection_method to :use for use Application" do
@@ -398,7 +403,7 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
     end
 
     test "extracts location from start callback" do
-      body = parse_module_body("""
+      body = parse_module_body_with_columns("""
       defmodule MyApp do
         use Application
 
@@ -407,8 +412,9 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
       """)
 
       {:ok, result} = AppExtractor.extract(body)
+      # Location is now a SourceLocation struct from Helpers.extract_location_if
       assert result.location != nil
-      assert is_integer(result.location.line)
+      assert is_integer(result.location.start_line)
     end
   end
 

@@ -60,6 +60,11 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilder do
   alias ElixirOntologies.Extractors.OTP.Supervisor
   alias NS.{OTP, Core}
 
+  # OTP default values for supervision strategies
+  # See: https://hexdocs.pm/elixir/Supervisor.html#module-options
+  @otp_default_max_restarts 3
+  @otp_default_max_seconds 5
+
   # ===========================================================================
   # Public API - Supervisor Implementation Building
   # ===========================================================================
@@ -209,12 +214,12 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilder do
     {strategy_iri, triples}
   end
 
-  # Calculate effective max_restarts (OTP default: 3)
-  defp effective_max_restarts(%{max_restarts: nil}), do: 3
+  # Calculate effective max_restarts using OTP default
+  defp effective_max_restarts(%{max_restarts: nil}), do: @otp_default_max_restarts
   defp effective_max_restarts(%{max_restarts: value}), do: value
 
-  # Calculate effective max_seconds (OTP default: 5)
-  defp effective_max_seconds(%{max_seconds: nil}), do: 5
+  # Calculate effective max_seconds using OTP default
+  defp effective_max_seconds(%{max_seconds: nil}), do: @otp_default_max_seconds
   defp effective_max_seconds(%{max_seconds: value}), do: value
 
   # ===========================================================================

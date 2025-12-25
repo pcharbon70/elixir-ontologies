@@ -525,15 +525,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       false
   """
   @spec use_module?(Macro.t(), atom()) :: boolean()
-  def use_module?({:use, _meta, [{:__aliases__, _, [module_name]} | _opts]}, target)
-      when module_name == target,
-      do: true
-
-  def use_module?({:use, _meta, [module_atom | _opts]}, target)
-      when is_atom(module_atom) and module_atom == target,
-      do: true
-
-  def use_module?(_, _), do: false
+  def use_module?(ast, target), do: Helpers.use_module?(ast, target)
 
   @doc """
   Checks if a single AST node is a `@behaviour Module` declaration for the given module.
@@ -555,18 +547,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       false
   """
   @spec behaviour_module?(Macro.t(), atom()) :: boolean()
-  def behaviour_module?(
-        {:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [module_name]}]}]},
-        target
-      )
-      when module_name == target,
-      do: true
-
-  def behaviour_module?({:@, _meta, [{:behaviour, _attr_meta, [module_atom]}]}, target)
-      when is_atom(module_atom) and module_atom == target,
-      do: true
-
-  def behaviour_module?(_, _), do: false
+  def behaviour_module?(ast, target), do: Helpers.behaviour_module?(ast, target)
 
   # ===========================================================================
   # Type Detection

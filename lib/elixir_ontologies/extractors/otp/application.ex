@@ -154,7 +154,7 @@ defmodule ElixirOntologies.Extractors.OTP.Application do
   """
   @spec uses_application?(Macro.t()) :: boolean()
   def uses_application?(body) do
-    statements = normalize_body(body)
+    statements = Helpers.normalize_body(body)
     Enum.any?(statements, &use_application?/1)
   end
 
@@ -197,7 +197,7 @@ defmodule ElixirOntologies.Extractors.OTP.Application do
   """
   @spec has_application_behaviour?(Macro.t()) :: boolean()
   def has_application_behaviour?(body) do
-    statements = normalize_body(body)
+    statements = Helpers.normalize_body(body)
     Enum.any?(statements, &behaviour_application?/1)
   end
 
@@ -243,10 +243,11 @@ defmodule ElixirOntologies.Extractors.OTP.Application do
       iex> alias ElixirOntologies.Extractors.OTP.Application, as: AppExtractor
       iex> code = "defmodule NotApp do use GenServer end"
       iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
-      iex> AppExtractor.extract(body)
-      {:error, :not_application}
+      iex> {:error, msg} = AppExtractor.extract(body)
+      iex> msg
+      "Module does not implement Application"
   """
-  @spec extract(Macro.t(), keyword()) :: {:ok, t()} | {:error, atom() | String.t()}
+  @spec extract(Macro.t(), keyword()) :: {:ok, t()} | {:error, String.t()}
   def extract(body, opts \\ []) do
     cond do
       uses_application?(body) ->
@@ -256,7 +257,7 @@ defmodule ElixirOntologies.Extractors.OTP.Application do
         do_extract(body, :behaviour, opts)
 
       true ->
-        {:error, :not_application}
+        {:error, "Module does not implement Application"}
     end
   end
 
@@ -311,10 +312,11 @@ defmodule ElixirOntologies.Extractors.OTP.Application do
   """
   @spec extract_start_callback(Macro.t()) :: Macro.t() | nil
   def extract_start_callback(body) do
-    statements = normalize_body(body)
+    statements = Helpers.normalize_body(body)
 
     Enum.find(statements, fn
-      {:def, _, [{:start, _, args} | _]} when is_list(args) and length(args) == 2 -> true
+      # Pattern match for exactly 2 args (more efficient than length/1)
+      {:def, _, [{:start, _, [_, _]} | _]} -> true
       _ -> false
     end)
   end
@@ -341,10 +343,11 @@ defmodule ElixirOntologies.Extractors.OTP.Application do
   """
   @spec extract_start_clauses(Macro.t()) :: [Macro.t()]
   def extract_start_clauses(body) do
-    statements = normalize_body(body)
+    statements = Helpers.normalize_body(body)
 
     Enum.filter(statements, fn
-      {:def, _, [{:start, _, args} | _]} when is_list(args) and length(args) == 2 -> true
+      # Pattern match for exactly 2 args (more efficient than length/1)
+      {:def, _, [{:start, _, [_, _]} | _]} -> true
       _ -> false
     end)
   end
@@ -353,9 +356,10 @@ defmodule ElixirOntologies.Extractors.OTP.Application do
   # Private Functions
   # ===========================================================================
 
-  defp do_extract(body, detection_method, _opts) do
+  defp do_extract(body, detection_method, opts) do
     start_callback = extract_start_callback(body)
-    location = extract_location(start_callback)
+    # Use Helpers.extract_location_if for consistent location extraction
+    location = Helpers.extract_location_if(start_callback, opts)
 
     supervisor_info = extract_supervisor_info(start_callback)
 
@@ -372,15 +376,6 @@ defmodule ElixirOntologies.Extractors.OTP.Application do
     }
 
     {:ok, result}
-  end
-
-  defp extract_location(nil), do: nil
-
-  defp extract_location({:def, meta, _}) do
-    case Keyword.get(meta, :line) do
-      nil -> nil
-      line -> %{line: line, column: Keyword.get(meta, :column)}
-    end
   end
 
   defp extract_supervisor_info(nil), do: %{}
@@ -467,9 +462,13 @@ defmodule ElixirOntologies.Extractors.OTP.Application do
   # Simple function call or other patterns
   defp analyze_supervisor_call(_), do: %{}
 
+  # Extract keyword options from function arguments
   defp extract_opts_from_args([]), do: []
   defp extract_opts_from_args([opts]) when is_list(opts), do: opts
-  defp extract_opts_from_args([_ | rest]), do: extract_opts_from_args(rest)
+  # Single non-list element - no options
+  defp extract_opts_from_args([_single]), do: []
+  # Multiple elements - recurse to find options in later args
+  defp extract_opts_from_args([_ | rest]) when rest != [], do: extract_opts_from_args(rest)
 
   defp extract_supervisor_opts(opts) when is_list(opts) do
     name = Keyword.get(opts, :name)
@@ -478,7 +477,4 @@ defmodule ElixirOntologies.Extractors.OTP.Application do
   end
 
   defp extract_supervisor_opts(_), do: {nil, nil}
-
-  defp normalize_body({:__block__, _, statements}), do: statements
-  defp normalize_body(single), do: [single]
 end
