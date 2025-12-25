@@ -712,7 +712,7 @@ defmodule ElixirOntologies.IRI do
   """
   @spec for_child_spec(String.t() | RDF.IRI.t(), atom() | term(), non_neg_integer()) :: RDF.IRI.t()
   def for_child_spec(supervisor_iri, child_id, index) when is_integer(index) and index >= 0 do
-    id_string = format_child_id(child_id)
+    id_string = format_child_id(child_id) |> escape_name()
     append_to_iri(supervisor_iri, "child/#{id_string}/#{index}")
   end
 
