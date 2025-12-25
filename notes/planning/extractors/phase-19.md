@@ -169,16 +169,19 @@ Extract application root supervisor configuration.
 This section enhances the SupervisorBuilder to generate complete RDF for all supervisor details.
 
 ### 19.4.1 Child Spec Builder
-- [ ] **Task 19.4.1 Pending**
+- [x] **Task 19.4.1 Complete**
 
 Generate RDF triples for child specifications.
 
-- [ ] 19.4.1.1 Update `lib/elixir_ontologies/builders/otp/supervisor_builder.ex`
-- [ ] 19.4.1.2 Implement `build_child_spec/3` generating child spec IRI
-- [ ] 19.4.1.3 Generate `rdf:type otp:ChildSpec` triple
-- [ ] 19.4.1.4 Generate `otp:hasChildId` with id value
-- [ ] 19.4.1.5 Generate `otp:hasStartFunction` linking to start spec
-- [ ] 19.4.1.6 Add child spec builder tests
+- [x] 19.4.1.1 Update `lib/elixir_ontologies/builders/otp/supervisor_builder.ex`
+- [x] 19.4.1.2 Implement `build_child_spec/4` generating child spec IRI (with index parameter)
+- [x] 19.4.1.3 Generate `rdf:type otp:ChildSpec` triple
+- [x] 19.4.1.4 Generate `otp:childId` with id value
+- [x] 19.4.1.5 Generate `otp:startModule`, `otp:startFunction` for start spec
+- [x] 19.4.1.6 Generate `otp:hasRestartStrategy` and `otp:hasChildType` triples
+- [x] 19.4.1.7 Implement `build_child_specs/3` for multiple children
+- [x] 19.4.1.8 Add `for_child_spec/3` to IRI module
+- [x] 19.4.1.9 Add child spec builder tests (16 tests)
 
 ### 19.4.2 Strategy Builder
 - [ ] **Task 19.4.2 Pending**

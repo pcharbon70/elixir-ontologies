@@ -689,6 +689,37 @@ defmodule ElixirOntologies.IRI do
     append_to_iri(context_iri, "&/#{index}")
   end
 
+  @doc """
+  Generates an IRI for a child specification within a supervisor.
+
+  The IRI follows the pattern: `{supervisor_iri}/child/{child_id}/{index}`
+
+  ## Parameters
+
+  - `supervisor_iri` - The IRI of the supervisor module
+  - `child_id` - The child specification ID
+  - `index` - Position in the children list (for disambiguation)
+
+  ## Examples
+
+      iex> supervisor_iri = RDF.iri("https://example.org/code#MySupervisor")
+      iex> ElixirOntologies.IRI.for_child_spec(supervisor_iri, :worker1, 0)
+      ~I<https://example.org/code#MySupervisor/child/worker1/0>
+
+      iex> supervisor_iri = RDF.iri("https://example.org/code#MyApp.Supervisor")
+      iex> ElixirOntologies.IRI.for_child_spec(supervisor_iri, MyWorker, 2)
+      ~I<https://example.org/code#MyApp.Supervisor/child/MyWorker/2>
+  """
+  @spec for_child_spec(String.t() | RDF.IRI.t(), atom() | term(), non_neg_integer()) :: RDF.IRI.t()
+  def for_child_spec(supervisor_iri, child_id, index) when is_integer(index) and index >= 0 do
+    id_string = format_child_id(child_id)
+    append_to_iri(supervisor_iri, "child/#{id_string}/#{index}")
+  end
+
+  # Format child ID for IRI (atom, module, or other term)
+  defp format_child_id(id) when is_atom(id), do: Atom.to_string(id) |> String.replace("Elixir.", "")
+  defp format_child_id(id), do: inspect(id)
+
   # ===========================================================================
   # IRI Utilities
   # ===========================================================================

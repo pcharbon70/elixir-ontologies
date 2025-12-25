@@ -194,4 +194,195 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilder do
   defp determine_strategy_iri(:one_for_one), do: OTP.OneForOne
   defp determine_strategy_iri(:one_for_all), do: OTP.OneForAll
   defp determine_strategy_iri(:rest_for_one), do: OTP.RestForOne
+
+  # ===========================================================================
+  # Public API - Child Spec Building
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for a child specification.
+
+  ## Parameters
+
+  - `child_spec` - ChildSpec extraction result
+  - `supervisor_iri` - The IRI of the supervisor
+  - `context` - Builder context
+  - `index` - Position in children list (default: 0)
+
+  ## Returns
+
+  A tuple `{child_spec_iri, triples}` where:
+  - `child_spec_iri` - The IRI of the child spec
+  - `triples` - List of RDF triples
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.OTP.SupervisorBuilder
+      iex> alias ElixirOntologies.Builders.Context
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> child_spec = %ChildSpec{
+      ...>   id: :worker1,
+      ...>   module: MyWorker,
+      ...>   restart: :permanent,
+      ...>   type: :worker
+      ...> }
+      iex> supervisor_iri = RDF.iri("https://example.org/code#MySup")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {child_spec_iri, triples} = SupervisorBuilder.build_child_spec(child_spec, supervisor_iri, context, 0)
+      iex> to_string(child_spec_iri) =~ "MySup/child/worker1/0"
+      true
+      iex> Enum.any?(triples, fn {_, pred, _} -> pred == RDF.type() end)
+      true
+  """
+  @spec build_child_spec(Supervisor.ChildSpec.t(), RDF.IRI.t(), Context.t(), non_neg_integer()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
+  def build_child_spec(child_spec, supervisor_iri, _context, index \\ 0) do
+    # Generate child spec IRI
+    child_id = child_spec.id || child_spec.module || :unknown
+    child_spec_iri = IRI.for_child_spec(supervisor_iri, child_id, index)
+
+    # Build all triples
+    triples =
+      [
+        # Type triple
+        Helpers.type_triple(child_spec_iri, OTP.ChildSpec),
+
+        # Link supervisor to child spec
+        Helpers.object_property(supervisor_iri, OTP.hasChildSpec(), child_spec_iri),
+
+        # Child ID
+        build_child_id_triple(child_spec_iri, child_id),
+
+        # Start function
+        build_start_module_triple(child_spec_iri, child_spec),
+        build_start_function_triple(child_spec_iri, child_spec),
+
+        # Restart strategy
+        build_restart_strategy_triple(child_spec_iri, child_spec.restart),
+
+        # Child type
+        build_child_type_triple(child_spec_iri, child_spec.type)
+      ]
+      |> List.flatten()
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    {child_spec_iri, triples}
+  end
+
+  @doc """
+  Builds RDF triples for multiple child specifications.
+
+  Iterates through a list of ChildSpec structs and builds triples for each,
+  using the list position as the index.
+
+  ## Parameters
+
+  - `child_specs` - List of ChildSpec extraction results
+  - `supervisor_iri` - The IRI of the supervisor
+  - `context` - Builder context
+
+  ## Returns
+
+  A tuple `{child_spec_iris, all_triples}` where:
+  - `child_spec_iris` - List of IRIs for all child specs
+  - `all_triples` - Combined list of RDF triples
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.OTP.SupervisorBuilder
+      iex> alias ElixirOntologies.Builders.Context
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> specs = [
+      ...>   %ChildSpec{id: :worker1, module: Worker1, restart: :permanent, type: :worker},
+      ...>   %ChildSpec{id: :worker2, module: Worker2, restart: :temporary, type: :worker}
+      ...> ]
+      iex> supervisor_iri = RDF.iri("https://example.org/code#MySup")
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {iris, triples} = SupervisorBuilder.build_child_specs(specs, supervisor_iri, context)
+      iex> length(iris)
+      2
+      iex> length(triples) > 0
+      true
+  """
+  @spec build_child_specs([Supervisor.ChildSpec.t()], RDF.IRI.t(), Context.t()) ::
+          {[RDF.IRI.t()], [RDF.Triple.t()]}
+  def build_child_specs(child_specs, supervisor_iri, context) when is_list(child_specs) do
+    {iris, triples_list} =
+      child_specs
+      |> Enum.with_index()
+      |> Enum.map(fn {spec, index} ->
+        build_child_spec(spec, supervisor_iri, context, index)
+      end)
+      |> Enum.unzip()
+
+    {iris, List.flatten(triples_list)}
+  end
+
+  # ===========================================================================
+  # Child Spec Triple Generation
+  # ===========================================================================
+
+  # Build child ID triple
+  defp build_child_id_triple(child_spec_iri, child_id) do
+    id_string = format_id_for_literal(child_id)
+    Helpers.datatype_property(child_spec_iri, OTP.childId(), id_string)
+  end
+
+  # Build start module triple
+  defp build_start_module_triple(_child_spec_iri, %{start: nil}), do: nil
+  defp build_start_module_triple(_child_spec_iri, %{module: nil, start: %{module: nil}}), do: nil
+
+  defp build_start_module_triple(child_spec_iri, %{start: %{module: module}}) when not is_nil(module) do
+    module_string = format_id_for_literal(module)
+    Helpers.datatype_property(child_spec_iri, OTP.startModule(), module_string)
+  end
+
+  defp build_start_module_triple(child_spec_iri, %{module: module}) when not is_nil(module) do
+    module_string = format_id_for_literal(module)
+    Helpers.datatype_property(child_spec_iri, OTP.startModule(), module_string)
+  end
+
+  defp build_start_module_triple(_, _), do: nil
+
+  # Build start function triple
+  defp build_start_function_triple(_child_spec_iri, %{start: nil}), do: nil
+  defp build_start_function_triple(_child_spec_iri, %{start: %{function: nil}}), do: nil
+
+  defp build_start_function_triple(child_spec_iri, %{start: %{function: function}}) when not is_nil(function) do
+    function_string = Atom.to_string(function)
+    Helpers.datatype_property(child_spec_iri, OTP.startFunction(), function_string)
+  end
+
+  defp build_start_function_triple(_, _), do: nil
+
+  # Build restart strategy triple
+  defp build_restart_strategy_triple(child_spec_iri, restart_type) do
+    restart_iri = determine_restart_strategy_iri(restart_type)
+    Helpers.object_property(child_spec_iri, OTP.hasRestartStrategy(), restart_iri)
+  end
+
+  # Build child type triple
+  defp build_child_type_triple(child_spec_iri, child_type) do
+    type_iri = determine_child_type_iri(child_type)
+    Helpers.object_property(child_spec_iri, OTP.hasChildType(), type_iri)
+  end
+
+  # Determine restart strategy IRI (predefined individuals from ontology)
+  defp determine_restart_strategy_iri(:permanent), do: OTP.Permanent
+  defp determine_restart_strategy_iri(:temporary), do: OTP.Temporary
+  defp determine_restart_strategy_iri(:transient), do: OTP.Transient
+  defp determine_restart_strategy_iri(_), do: OTP.Permanent
+
+  # Determine child type IRI (predefined individuals from ontology)
+  defp determine_child_type_iri(:worker), do: OTP.WorkerType
+  defp determine_child_type_iri(:supervisor), do: OTP.SupervisorType
+  defp determine_child_type_iri(_), do: OTP.WorkerType
+
+  # Format ID for RDF literal (atom, module, or other term)
+  defp format_id_for_literal(id) when is_atom(id) do
+    id |> Atom.to_string() |> String.replace("Elixir.", "")
+  end
+
+  defp format_id_for_literal(id), do: inspect(id)
 end
