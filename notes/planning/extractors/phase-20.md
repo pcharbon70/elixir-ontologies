@@ -19,16 +19,16 @@ Extract commit metadata from Git for code provenance.
 - [x] 20.1.1.6 Add commit extraction tests (46 tests)
 
 ### 20.1.2 Author and Committer Extraction
-- [ ] **Task 20.1.2 Pending**
+- [x] **Task 20.1.2 Complete**
 
 Extract author and committer information from commits.
 
-- [ ] 20.1.2.1 Define `%Developer{name: ..., email: ..., commits: [...]}` struct
-- [ ] 20.1.2.2 Extract commit author (name and email)
-- [ ] 20.1.2.3 Extract commit committer (may differ from author)
-- [ ] 20.1.2.4 Track author timestamps
-- [ ] 20.1.2.5 Build developer identity across commits
-- [ ] 20.1.2.6 Add author extraction tests
+- [x] 20.1.2.1 Define `%Developer{name: ..., email: ..., commits: [...]}` struct
+- [x] 20.1.2.2 Extract commit author (name and email)
+- [x] 20.1.2.3 Extract commit committer (may differ from author)
+- [x] 20.1.2.4 Track author timestamps
+- [x] 20.1.2.5 Build developer identity across commits
+- [x] 20.1.2.6 Add author extraction tests (32 tests)
 
 ### 20.1.3 File History Extraction
 - [ ] **Task 20.1.3 Pending**
