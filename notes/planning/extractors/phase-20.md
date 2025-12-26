@@ -69,16 +69,16 @@ Extract line-level attribution using git blame.
 This section implements tracking of development activities as PROV-O activities, connecting code changes to their context.
 
 ### 20.2.1 Activity Classification
-- [ ] **Task 20.2.1 Pending**
+- [x] **Task 20.2.1 Complete**
 
 Classify commits into development activity types based on commit messages and changes.
 
-- [ ] 20.2.1.1 Create `lib/elixir_ontologies/extractors/evolution/activity.ex`
-- [ ] 20.2.1.2 Define `%DevelopmentActivity{type: ..., commit: ..., entities: [...], agents: [...]}` struct
-- [ ] 20.2.1.3 Implement heuristic classification (bug fix, feature, refactor, etc.)
-- [ ] 20.2.1.4 Parse conventional commit format (feat:, fix:, refactor:, etc.)
-- [ ] 20.2.1.5 Track activity scope (files and modules affected)
-- [ ] 20.2.1.6 Add activity classification tests
+- [x] 20.2.1.1 Create `lib/elixir_ontologies/extractors/evolution/activity.ex`
+- [x] 20.2.1.2 Define `%DevelopmentActivity{type: ..., commit: ..., entities: [...], agents: [...]}` struct
+- [x] 20.2.1.3 Implement heuristic classification (bug fix, feature, refactor, etc.)
+- [x] 20.2.1.4 Parse conventional commit format (feat:, fix:, refactor:, etc.)
+- [x] 20.2.1.5 Track activity scope (files and modules affected)
+- [x] 20.2.1.6 Add activity classification tests (45 tests)
 
 ### 20.2.2 Refactoring Detection
 - [ ] **Task 20.2.2 Pending**
