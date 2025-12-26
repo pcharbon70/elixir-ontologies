@@ -133,21 +133,16 @@ defmodule ElixirOntologies.Builders.Evolution.CommitBuilder do
     # Generate commit IRI
     commit_iri = generate_commit_iri(commit, context)
 
-    # Build all triples
+    # Build all triples using list of lists pattern
     triples =
       [
-        build_type_triple(commit_iri, commit)
-      ] ++
-        build_hash_triples(commit_iri, commit) ++
-        build_message_triples(commit_iri, commit) ++
-        build_timestamp_triples(commit_iri, commit) ++
+        [build_type_triple(commit_iri, commit)],
+        build_hash_triples(commit_iri, commit),
+        build_message_triples(commit_iri, commit),
+        build_timestamp_triples(commit_iri, commit),
         build_parent_triples(commit_iri, commit, context)
-
-    # Flatten and filter nils
-    triples =
-      triples
-      |> List.flatten()
-      |> Enum.reject(&is_nil/1)
+      ]
+      |> Helpers.finalize_triples()
 
     {commit_iri, triples}
   end
@@ -254,57 +249,12 @@ defmodule ElixirOntologies.Builders.Evolution.CommitBuilder do
   # ===========================================================================
 
   defp build_message_triples(commit_iri, commit) do
-    triples = []
-
-    # Full message
-    triples =
-      if commit.message do
-        [
-          Helpers.datatype_property(
-            commit_iri,
-            Evolution.commitMessage(),
-            commit.message,
-            RDF.XSD.String
-          )
-          | triples
-        ]
-      else
-        triples
-      end
-
-    # Subject (first line)
-    triples =
-      if commit.subject do
-        [
-          Helpers.datatype_property(
-            commit_iri,
-            Evolution.commitSubject(),
-            commit.subject,
-            RDF.XSD.String
-          )
-          | triples
-        ]
-      else
-        triples
-      end
-
-    # Body (lines after subject)
-    triples =
-      if commit.body do
-        [
-          Helpers.datatype_property(
-            commit_iri,
-            Evolution.commitBody(),
-            commit.body,
-            RDF.XSD.String
-          )
-          | triples
-        ]
-      else
-        triples
-      end
-
-    triples
+    # Data-driven approach: define property mappings and filter nils
+    [
+      Helpers.optional_string_property(commit_iri, Evolution.commitMessage(), commit.message),
+      Helpers.optional_string_property(commit_iri, Evolution.commitSubject(), commit.subject),
+      Helpers.optional_string_property(commit_iri, Evolution.commitBody(), commit.body)
+    ]
   end
 
   # ===========================================================================
@@ -312,72 +262,14 @@ defmodule ElixirOntologies.Builders.Evolution.CommitBuilder do
   # ===========================================================================
 
   defp build_timestamp_triples(commit_iri, commit) do
-    triples = []
-
-    # Author date
-    triples =
-      if commit.author_date do
-        [
-          Helpers.datatype_property(
-            commit_iri,
-            Evolution.authoredAt(),
-            DateTime.to_iso8601(commit.author_date),
-            RDF.XSD.DateTime
-          )
-          | triples
-        ]
-      else
-        triples
-      end
-
-    # Commit date
-    triples =
-      if commit.commit_date do
-        [
-          Helpers.datatype_property(
-            commit_iri,
-            Evolution.committedAt(),
-            DateTime.to_iso8601(commit.commit_date),
-            RDF.XSD.DateTime
-          )
-          | triples
-        ]
-      else
-        triples
-      end
-
-    # Add PROV-O timestamps as well
-    triples =
-      if commit.author_date do
-        [
-          Helpers.datatype_property(
-            commit_iri,
-            PROV.startedAtTime(),
-            DateTime.to_iso8601(commit.author_date),
-            RDF.XSD.DateTime
-          )
-          | triples
-        ]
-      else
-        triples
-      end
-
-    triples =
-      if commit.commit_date do
-        [
-          Helpers.datatype_property(
-            commit_iri,
-            PROV.endedAtTime(),
-            DateTime.to_iso8601(commit.commit_date),
-            RDF.XSD.DateTime
-          )
-          | triples
-        ]
-      else
-        triples
-      end
-
-    triples
+    # Data-driven approach: define timestamp property mappings
+    # Evolution-specific timestamps + PROV-O timestamps
+    [
+      Helpers.optional_datetime_property(commit_iri, Evolution.authoredAt(), commit.author_date),
+      Helpers.optional_datetime_property(commit_iri, Evolution.committedAt(), commit.commit_date),
+      Helpers.optional_datetime_property(commit_iri, PROV.startedAtTime(), commit.author_date),
+      Helpers.optional_datetime_property(commit_iri, PROV.endedAtTime(), commit.commit_date)
+    ]
   end
 
   # ===========================================================================

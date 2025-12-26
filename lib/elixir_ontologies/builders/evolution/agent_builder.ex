@@ -110,17 +110,14 @@ defmodule ElixirOntologies.Builders.Evolution.AgentBuilder do
     # Generate agent IRI
     agent_iri = generate_agent_iri(agent, context)
 
-    # Build all triples
+    # Build all triples using list of lists pattern
     triples =
-      build_type_triples(agent_iri, agent) ++
-        build_name_triple(agent_iri, agent) ++
+      [
+        build_type_triples(agent_iri, agent),
+        build_name_triple(agent_iri, agent),
         build_email_triple(agent_iri, agent)
-
-    # Flatten and filter nils
-    triples =
-      triples
-      |> List.flatten()
-      |> Enum.reject(&is_nil/1)
+      ]
+      |> Helpers.finalize_triples()
 
     {agent_iri, triples}
   end
@@ -196,14 +193,9 @@ defmodule ElixirOntologies.Builders.Evolution.AgentBuilder do
   # ===========================================================================
 
   defp build_type_triples(agent_iri, agent) do
-    # Always include prov:Agent as base type
-    prov_type_triple = Helpers.type_triple(agent_iri, PROV.Agent)
-
-    # Map agent type to specific evolution class
+    # Dual-typing: prov:Agent + specific evolution class
     evolution_class = agent_type_to_class(agent.agent_type)
-    evolution_type_triple = Helpers.type_triple(agent_iri, evolution_class)
-
-    [prov_type_triple, evolution_type_triple]
+    Helpers.dual_type_triples(agent_iri, PROV.Agent, evolution_class)
   end
 
   @doc """
@@ -236,8 +228,8 @@ defmodule ElixirOntologies.Builders.Evolution.AgentBuilder do
   def agent_type_to_class(:bot), do: Evolution.Bot
   def agent_type_to_class(:ci), do: Evolution.CISystem
   def agent_type_to_class(:llm), do: Evolution.LLMAgent
-  # Fallback for unknown types
-  def agent_type_to_class(_), do: Evolution.DevelopmentAgent
+  # Catch-all with guard for unknown atom types
+  def agent_type_to_class(type) when is_atom(type), do: Evolution.DevelopmentAgent
 
   # ===========================================================================
   # Name Triple Generation

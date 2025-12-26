@@ -180,18 +180,15 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilder do
     # Generate version IRI
     version_iri = generate_version_iri(version, context)
 
-    # Build all triples
+    # Build all triples using list of lists pattern
     triples =
-      build_type_triples(version_iri, type) ++
-        build_version_string_triple(version_iri, version) ++
-        build_previous_version_triple(version_iri, version, context) ++
+      [
+        build_type_triples(version_iri, type),
+        build_version_string_triple(version_iri, version),
+        build_previous_version_triple(version_iri, version, context),
         build_timestamp_triple(version_iri, version)
-
-    # Flatten and filter nils
-    triples =
-      triples
-      |> List.flatten()
-      |> Enum.reject(&is_nil/1)
+      ]
+      |> Helpers.finalize_triples()
 
     {version_iri, triples}
   end
@@ -221,14 +218,9 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilder do
   # ===========================================================================
 
   defp build_type_triples(version_iri, type) do
-    # Always include prov:Entity as base type
-    prov_type_triple = Helpers.type_triple(version_iri, PROV.Entity)
-
-    # Map version type to specific evolution class
+    # Dual-typing: prov:Entity + specific evolution class
     evolution_class = version_type_to_class(type)
-    evolution_type_triple = Helpers.type_triple(version_iri, evolution_class)
-
-    [prov_type_triple, evolution_type_triple]
+    Helpers.dual_type_triples(version_iri, PROV.Entity, evolution_class)
   end
 
   @doc """
@@ -250,8 +242,8 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilder do
   def version_type_to_class(:module), do: Evolution.ModuleVersion
   def version_type_to_class(:function), do: Evolution.FunctionVersion
   def version_type_to_class(:type), do: Evolution.TypeVersion
-  # Fallback for unknown types
-  def version_type_to_class(_), do: Evolution.CodeVersion
+  # Catch-all with guard for unknown atom types
+  def version_type_to_class(type) when is_atom(type), do: Evolution.CodeVersion
 
   # ===========================================================================
   # Version String Triple Generation
@@ -286,17 +278,9 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilder do
   # Timestamp Triple Generation
   # ===========================================================================
 
-  defp build_timestamp_triple(_version_iri, %{timestamp: nil}), do: []
-
   defp build_timestamp_triple(version_iri, %{timestamp: timestamp}) do
-    [
-      Helpers.datatype_property(
-        version_iri,
-        PROV.generatedAtTime(),
-        DateTime.to_iso8601(timestamp),
-        RDF.XSD.DateTime
-      )
-    ]
+    # Use optional_datetime_property which handles nil values
+    [Helpers.optional_datetime_property(version_iri, PROV.generatedAtTime(), timestamp)]
   end
 
   # Handle structs that don't have timestamp field

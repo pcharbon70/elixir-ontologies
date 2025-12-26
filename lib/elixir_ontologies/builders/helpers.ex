@@ -331,6 +331,138 @@ defmodule ElixirOntologies.Builders.Helpers do
   end
 
   @doc """
+  Finalizes a list of triples by flattening nested lists, filtering nils, and deduplicating.
+
+  This is the standard post-processing step for builder triple lists.
+
+  ## Examples
+
+      iex> triples = [
+      ...>   {~I<http://example.org/s>, ~I<http://example.org/p>, ~I<http://example.org/o>},
+      ...>   nil,
+      ...>   [{~I<http://example.org/s2>, ~I<http://example.org/p2>, ~I<http://example.org/o2>}]
+      ...> ]
+      iex> result = ElixirOntologies.Builders.Helpers.finalize_triples(triples)
+      iex> length(result)
+      2
+      iex> Enum.any?(result, &is_nil/1)
+      false
+  """
+  @spec finalize_triples([RDF.Triple.t() | nil | [RDF.Triple.t()]]) :: [RDF.Triple.t()]
+  def finalize_triples(triples) when is_list(triples) do
+    triples
+    |> List.flatten()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  @doc """
+  Creates two type triples for dual-typing (e.g., PROV-O base class + domain-specific subclass).
+
+  Useful for evolution builders that need to express both `prov:Activity` and `evolution:FeatureAddition`.
+
+  ## Parameters
+
+  - `subject` - The subject IRI
+  - `base_class` - The base class IRI (e.g., `PROV.Activity`)
+  - `specialized_class` - The specialized class IRI (e.g., `Evolution.FeatureAddition`)
+
+  ## Examples
+
+      iex> alias ElixirOntologies.NS.{PROV, Evolution}
+      iex> subject = ~I<https://example.org/activity/abc123>
+      iex> triples = ElixirOntologies.Builders.Helpers.dual_type_triples(subject, PROV.Activity, Evolution.FeatureAddition)
+      iex> length(triples)
+      2
+      iex> Enum.all?(triples, fn {_s, p, _o} -> p == RDF.type() end)
+      true
+  """
+  @spec dual_type_triples(RDF.IRI.t() | RDF.BlankNode.t(), RDF.IRI.t(), RDF.IRI.t()) ::
+          [RDF.Triple.t()]
+  def dual_type_triples(subject, base_class, specialized_class) do
+    [
+      type_triple(subject, base_class),
+      type_triple(subject, specialized_class)
+    ]
+  end
+
+  @doc """
+  Creates an optional datetime property triple.
+
+  Returns `nil` if the datetime value is `nil`, otherwise creates a properly
+  typed xsd:dateTime triple. The datetime is converted to ISO8601 format.
+
+  ## Parameters
+
+  - `subject` - The subject IRI
+  - `predicate` - The property IRI
+  - `datetime` - The DateTime value (or nil)
+
+  ## Examples
+
+      iex> alias ElixirOntologies.NS.PROV
+      iex> subject = ~I<https://example.org/activity/abc123>
+      iex> dt = ~U[2025-01-15 10:30:00Z]
+      iex> triple = ElixirOntologies.Builders.Helpers.optional_datetime_property(subject, PROV.startedAtTime(), dt)
+      iex> {_s, _p, o} = triple
+      iex> RDF.Literal.value(o) |> DateTime.to_iso8601()
+      "2025-01-15T10:30:00Z"
+
+      iex> alias ElixirOntologies.NS.PROV
+      iex> subject = ~I<https://example.org/activity/abc123>
+      iex> triple = ElixirOntologies.Builders.Helpers.optional_datetime_property(subject, PROV.startedAtTime(), nil)
+      iex> triple
+      nil
+  """
+  @spec optional_datetime_property(
+          RDF.IRI.t() | RDF.BlankNode.t(),
+          RDF.IRI.t(),
+          DateTime.t() | nil
+        ) :: RDF.Triple.t() | nil
+  def optional_datetime_property(_subject, _predicate, nil), do: nil
+
+  def optional_datetime_property(subject, predicate, %DateTime{} = datetime) do
+    datatype_property(subject, predicate, DateTime.to_iso8601(datetime), RDF.XSD.DateTime)
+  end
+
+  @doc """
+  Creates an optional string property triple.
+
+  Returns `nil` if the value is `nil`, otherwise creates a string literal triple.
+
+  ## Parameters
+
+  - `subject` - The subject IRI
+  - `predicate` - The property IRI
+  - `value` - The string value (or nil)
+
+  ## Examples
+
+      iex> alias ElixirOntologies.NS.Evolution
+      iex> subject = ~I<https://example.org/commit/abc123>
+      iex> triple = ElixirOntologies.Builders.Helpers.optional_string_property(subject, Evolution.commitMessage(), "Fix bug")
+      iex> {_s, _p, o} = triple
+      iex> RDF.Literal.value(o)
+      "Fix bug"
+
+      iex> alias ElixirOntologies.NS.Evolution
+      iex> subject = ~I<https://example.org/commit/abc123>
+      iex> triple = ElixirOntologies.Builders.Helpers.optional_string_property(subject, Evolution.commitMessage(), nil)
+      iex> triple
+      nil
+  """
+  @spec optional_string_property(
+          RDF.IRI.t() | RDF.BlankNode.t(),
+          RDF.IRI.t(),
+          String.t() | nil
+        ) :: RDF.Triple.t() | nil
+  def optional_string_property(_subject, _predicate, nil), do: nil
+
+  def optional_string_property(subject, predicate, value) when is_binary(value) do
+    datatype_property(subject, predicate, value, RDF.XSD.String)
+  end
+
+  @doc """
   Filters triples by subject.
 
   Returns only triples where the subject matches the given IRI or blank node.

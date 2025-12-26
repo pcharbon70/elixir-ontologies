@@ -121,20 +121,17 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilder do
     # Generate activity IRI
     activity_iri = generate_activity_iri(activity, context)
 
-    # Build all triples
+    # Build all triples using list of lists pattern
     triples =
-      build_type_triples(activity_iri, activity) ++
-        build_timestamp_triples(activity_iri, activity) ++
-        build_usage_triples(activity_iri, activity, context) ++
-        build_generation_triples(activity_iri, activity, context) ++
-        build_communication_triples(activity_iri, activity, context) ++
+      [
+        build_type_triples(activity_iri, activity),
+        build_timestamp_triples(activity_iri, activity),
+        build_usage_triples(activity_iri, activity, context),
+        build_generation_triples(activity_iri, activity, context),
+        build_communication_triples(activity_iri, activity, context),
         build_agent_triples(activity_iri, activity, context)
-
-    # Flatten and filter nils
-    triples =
-      triples
-      |> List.flatten()
-      |> Enum.reject(&is_nil/1)
+      ]
+      |> Helpers.finalize_triples()
 
     {activity_iri, triples}
   end
@@ -210,14 +207,9 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilder do
   # ===========================================================================
 
   defp build_type_triples(activity_iri, activity) do
-    # Always include prov:Activity as base type
-    prov_type_triple = Helpers.type_triple(activity_iri, PROV.Activity)
-
-    # Map activity type to specific evolution class
+    # Dual-typing: prov:Activity + specific evolution class
     evolution_class = activity_type_to_class(activity.activity_type)
-    evolution_type_triple = Helpers.type_triple(activity_iri, evolution_class)
-
-    [prov_type_triple, evolution_type_triple]
+    Helpers.dual_type_triples(activity_iri, PROV.Activity, evolution_class)
   end
 
   @doc """
@@ -250,48 +242,19 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilder do
   def activity_type_to_class(:ci), do: Evolution.DevelopmentActivity
   def activity_type_to_class(:revert), do: Evolution.DevelopmentActivity
   def activity_type_to_class(:unknown), do: Evolution.DevelopmentActivity
-  def activity_type_to_class(_), do: Evolution.DevelopmentActivity
+  # Catch-all with guard for unknown atom types
+  def activity_type_to_class(type) when is_atom(type), do: Evolution.DevelopmentActivity
 
   # ===========================================================================
   # Timestamp Triple Generation
   # ===========================================================================
 
   defp build_timestamp_triples(activity_iri, activity) do
-    triples = []
-
-    # prov:startedAtTime
-    triples =
-      if activity.started_at do
-        [
-          Helpers.datatype_property(
-            activity_iri,
-            PROV.startedAtTime(),
-            DateTime.to_iso8601(activity.started_at),
-            RDF.XSD.DateTime
-          )
-          | triples
-        ]
-      else
-        triples
-      end
-
-    # prov:endedAtTime
-    triples =
-      if activity.ended_at do
-        [
-          Helpers.datatype_property(
-            activity_iri,
-            PROV.endedAtTime(),
-            DateTime.to_iso8601(activity.ended_at),
-            RDF.XSD.DateTime
-          )
-          | triples
-        ]
-      else
-        triples
-      end
-
-    triples
+    # Data-driven approach: PROV-O timestamp properties
+    [
+      Helpers.optional_datetime_property(activity_iri, PROV.startedAtTime(), activity.started_at),
+      Helpers.optional_datetime_property(activity_iri, PROV.endedAtTime(), activity.ended_at)
+    ]
   end
 
   # ===========================================================================
