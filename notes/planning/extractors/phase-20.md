@@ -167,16 +167,16 @@ Model developers, bots, and CI systems as PROV-O agents.
 - [x] 20.3.3.6 Add agent attribution tests (70 tests)
 
 ### 20.3.4 Delegation and Responsibility
-- [ ] **Task 20.3.4 Pending**
+- [x] **Task 20.3.4 Complete**
 
 Model delegation relationships between agents (team leads, code owners).
 
-- [ ] 20.3.4.1 Define `%Delegation{delegator: ..., delegate: ..., activity: ...}` struct
-- [ ] 20.3.4.2 Implement `prov:actedOnBehalfOf` relationships
-- [ ] 20.3.4.3 Track code ownership from CODEOWNERS file
-- [ ] 20.3.4.4 Model team membership if available
-- [ ] 20.3.4.5 Track review approval chains
-- [ ] 20.3.4.6 Add delegation tests
+- [x] 20.3.4.1 Define `%Delegation{delegator: ..., delegate: ..., activity: ...}` struct
+- [x] 20.3.4.2 Implement `prov:actedOnBehalfOf` relationships
+- [x] 20.3.4.3 Track code ownership from CODEOWNERS file
+- [x] 20.3.4.4 Model team membership if available
+- [x] 20.3.4.5 Track review approval chains
+- [x] 20.3.4.6 Add delegation tests (60 tests)
 
 **Section 20.3 Unit Tests:**
 - [ ] Test entity version tracking
