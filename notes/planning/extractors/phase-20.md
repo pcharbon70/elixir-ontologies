@@ -279,16 +279,16 @@ Extract release information from tags and mix.exs versions.
 - [x] 20.5.2.6 Add release extraction tests (41 tests)
 
 ### 20.5.3 Snapshot and Release Builder
-- [ ] **Task 20.5.3 Pending**
+- [x] **Task 20.5.3 Complete**
 
 Generate RDF triples for snapshots and releases.
 
-- [ ] 20.5.3.1 Implement `build_snapshot/3` generating snapshot IRI
-- [ ] 20.5.3.2 Generate `rdf:type evolution:CodebaseSnapshot` triple
-- [ ] 20.5.3.3 Implement `build_release/3` generating release IRI
-- [ ] 20.5.3.4 Generate `rdf:type evolution:Release` triple
-- [ ] 20.5.3.5 Generate `evolution:hasSemanticVersion` with version info
-- [ ] 20.5.3.6 Add snapshot/release builder tests
+- [x] 20.5.3.1 Implement `build_snapshot/3` generating snapshot IRI
+- [x] 20.5.3.2 Generate `rdf:type evolution:CodebaseSnapshot` triple
+- [x] 20.5.3.3 Implement `build_release/3` generating release IRI
+- [x] 20.5.3.4 Generate `rdf:type evolution:Release` triple
+- [x] 20.5.3.5 Generate `evolution:hasSemanticVersion` with version info
+- [x] 20.5.3.6 Add snapshot/release builder tests (39 tests)
 
 **Section 20.5 Unit Tests:**
 - [ ] Test snapshot extraction
