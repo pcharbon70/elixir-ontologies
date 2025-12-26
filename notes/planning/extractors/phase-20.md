@@ -205,16 +205,16 @@ Generate RDF triples for commits and their metadata.
 - [x] 20.4.1.6 Add commit builder tests (31 tests)
 
 ### 20.4.2 Activity Builder
-- [ ] **Task 20.4.2 Pending**
+- [x] **Task 20.4.2 Complete**
 
 Generate RDF triples for development activities.
 
-- [ ] 20.4.2.1 Create `lib/elixir_ontologies/builders/evolution/activity_builder.ex`
-- [ ] 20.4.2.2 Implement `build_activity/3` generating activity IRI
-- [ ] 20.4.2.3 Generate `rdf:type prov:Activity` and subclass triple
-- [ ] 20.4.2.4 Generate `prov:startedAtTime` and `prov:endedAtTime`
-- [ ] 20.4.2.5 Generate `prov:used` and `prov:generated` relationships
-- [ ] 20.4.2.6 Add activity builder tests
+- [x] 20.4.2.1 Create `lib/elixir_ontologies/builders/evolution/activity_builder.ex`
+- [x] 20.4.2.2 Implement `build_activity/3` generating activity IRI
+- [x] 20.4.2.3 Generate `rdf:type prov:Activity` and subclass triple
+- [x] 20.4.2.4 Generate `prov:startedAtTime` and `prov:endedAtTime`
+- [x] 20.4.2.5 Generate `prov:used` and `prov:generated` relationships
+- [x] 20.4.2.6 Add activity builder tests (44 tests)
 
 ### 20.4.3 Agent Builder
 - [ ] **Task 20.4.3 Pending**
