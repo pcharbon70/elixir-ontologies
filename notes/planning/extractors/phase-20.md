@@ -267,16 +267,16 @@ Extract codebase snapshot information at specific points in time.
 - [x] 20.5.1.6 Add snapshot extraction tests (31 tests)
 
 ### 20.5.2 Release Extraction
-- [ ] **Task 20.5.2 Pending**
+- [x] **Task 20.5.2 Complete**
 
 Extract release information from tags and mix.exs versions.
 
-- [ ] 20.5.2.1 Define `%Release{version: ..., tag: ..., commit: ..., timestamp: ...}` struct
-- [ ] 20.5.2.2 Extract version from mix.exs
-- [ ] 20.5.2.3 Extract git tags as release markers
-- [ ] 20.5.2.4 Parse semantic versioning
-- [ ] 20.5.2.5 Track release progression
-- [ ] 20.5.2.6 Add release extraction tests
+- [x] 20.5.2.1 Define `%Release{version: ..., tag: ..., commit: ..., timestamp: ...}` struct
+- [x] 20.5.2.2 Extract version from mix.exs
+- [x] 20.5.2.3 Extract git tags as release markers
+- [x] 20.5.2.4 Parse semantic versioning
+- [x] 20.5.2.5 Track release progression
+- [x] 20.5.2.6 Add release extraction tests (41 tests)
 
 ### 20.5.3 Snapshot and Release Builder
 - [ ] **Task 20.5.3 Pending**
