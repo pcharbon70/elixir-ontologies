@@ -193,16 +193,16 @@ Model delegation relationships between agents (team leads, code owners).
 This section implements RDF builders for all evolution and provenance constructs.
 
 ### 20.4.1 Commit Builder
-- [ ] **Task 20.4.1 Pending**
+- [x] **Task 20.4.1 Complete**
 
 Generate RDF triples for commits and their metadata.
 
-- [ ] 20.4.1.1 Create `lib/elixir_ontologies/builders/evolution/commit_builder.ex`
-- [ ] 20.4.1.2 Implement `build_commit/3` generating commit IRI
-- [ ] 20.4.1.3 Generate `rdf:type evolution:Commit` triple
-- [ ] 20.4.1.4 Generate `evolution:commitHash` with SHA
-- [ ] 20.4.1.5 Generate `evolution:commitMessage` with message
-- [ ] 20.4.1.6 Add commit builder tests
+- [x] 20.4.1.1 Create `lib/elixir_ontologies/builders/evolution/commit_builder.ex`
+- [x] 20.4.1.2 Implement `build_commit/3` generating commit IRI
+- [x] 20.4.1.3 Generate `rdf:type evolution:Commit` triple
+- [x] 20.4.1.4 Generate `evolution:commitHash` with SHA
+- [x] 20.4.1.5 Generate `evolution:commitMessage` with message
+- [x] 20.4.1.6 Add commit builder tests (31 tests)
 
 ### 20.4.2 Activity Builder
 - [ ] **Task 20.4.2 Pending**
