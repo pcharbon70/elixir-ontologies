@@ -40,6 +40,8 @@ defmodule ElixirOntologies.IRI do
       #=> ~I<https://example.org/code#MyApp.Users/valid%3F/1>
   """
 
+  alias ElixirOntologies.Utils.IdGenerator
+
   # ===========================================================================
   # Module Constants
   # ===========================================================================
@@ -439,11 +441,7 @@ defmodule ElixirOntologies.IRI do
   """
   @spec for_repository(String.t() | RDF.IRI.t(), String.t()) :: RDF.IRI.t()
   def for_repository(base_iri, repo_url) do
-    hash =
-      :crypto.hash(:sha256, repo_url)
-      |> Base.encode16(case: :lower)
-      |> String.slice(0, @repo_hash_length)
-
+    hash = IdGenerator.short_id(repo_url)
     build_iri(base_iri, "repo/#{hash}")
   end
 

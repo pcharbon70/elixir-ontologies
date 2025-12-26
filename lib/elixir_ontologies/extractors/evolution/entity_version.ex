@@ -56,6 +56,7 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
 
   alias ElixirOntologies.Analyzer.Git
   alias ElixirOntologies.Extractors.Evolution.GitUtils
+  alias ElixirOntologies.Utils.IdGenerator
 
   # ===========================================================================
   # Entity Type
@@ -800,15 +801,13 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
   # ===========================================================================
 
   defp compute_content_hash(content) do
-    # Normalize whitespace and compute SHA256
+    # Normalize whitespace and compute content hash
     normalized =
       content
       |> String.replace(~r/\s+/, " ")
       |> String.trim()
 
-    :crypto.hash(:sha256, normalized)
-    |> Base.encode16(case: :lower)
-    |> String.slice(0, 16)
+    IdGenerator.content_id(normalized)
   end
 
   # ===========================================================================

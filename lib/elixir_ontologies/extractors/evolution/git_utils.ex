@@ -29,6 +29,8 @@ defmodule ElixirOntologies.Extractors.Evolution.GitUtils do
       {:ok, relative} = GitUtils.normalize_file_path("lib/foo.ex", "/repo")
   """
 
+  alias ElixirOntologies.Utils.IdGenerator
+
   # ===========================================================================
   # Constants
   # ===========================================================================
@@ -421,8 +423,7 @@ defmodule ElixirOntologies.Extractors.Evolution.GitUtils do
   def anonymize_email(nil), do: nil
 
   def anonymize_email(email) when is_binary(email) do
-    :crypto.hash(:sha256, email)
-    |> Base.encode16(case: :lower)
+    IdGenerator.full_hash(email)
   end
 
   @doc """

@@ -40,6 +40,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Agent do
 
   alias ElixirOntologies.Extractors.Evolution.{Commit, Developer}
   alias ElixirOntologies.Extractors.Evolution.ActivityModel, as: AM
+  alias ElixirOntologies.Utils.IdGenerator
 
   # ===========================================================================
   # Agent Struct
@@ -166,12 +167,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Agent do
   """
   @spec build_agent_id(String.t()) :: String.t()
   def build_agent_id(email) when is_binary(email) do
-    hash =
-      :crypto.hash(:sha256, String.downcase(email))
-      |> Base.encode16(case: :lower)
-      |> String.slice(0, 12)
-
-    "agent:#{hash}"
+    "agent:#{IdGenerator.agent_id(email)}"
   end
 
   @doc """

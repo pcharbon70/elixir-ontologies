@@ -37,6 +37,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Delegation do
   alias ElixirOntologies.Analyzer.Git
 
   alias ElixirOntologies.Extractors.Evolution.GitUtils
+  alias ElixirOntologies.Utils.IdGenerator
 
   # ===========================================================================
   # Delegation Struct
@@ -173,12 +174,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Delegation do
   """
   @spec build_delegation_id(String.t(), String.t()) :: String.t()
   def build_delegation_id(delegate, delegator) do
-    hash =
-      :crypto.hash(:sha256, "#{delegate}:#{delegator}")
-      |> Base.encode16(case: :lower)
-      |> String.slice(0, 12)
-
-    "delegation:#{hash}"
+    "delegation:#{IdGenerator.delegation_id(delegate, delegator)}"
   end
 
   @doc """
@@ -186,12 +182,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Delegation do
   """
   @spec build_delegation_id(String.t(), String.t(), String.t()) :: String.t()
   def build_delegation_id(delegate, delegator, activity) do
-    hash =
-      :crypto.hash(:sha256, "#{delegate}:#{delegator}:#{activity}")
-      |> Base.encode16(case: :lower)
-      |> String.slice(0, 12)
-
-    "delegation:#{hash}"
+    "delegation:#{IdGenerator.delegation_id(delegate, delegator, activity)}"
   end
 
   # ===========================================================================
@@ -765,10 +756,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Delegation do
     reviewer_email = email || "#{String.downcase(String.replace(name, " ", "."))}@reviewer"
     reviewer_id = Agent.build_agent_id(reviewer_email)
 
-    approval_id =
-      :crypto.hash(:sha256, "#{reviewer_id}:#{activity_id}")
-      |> Base.encode16(case: :lower)
-      |> String.slice(0, 12)
+    approval_id = IdGenerator.generate_id([reviewer_id, activity_id], length: 12)
 
     %ReviewApproval{
       approval_id: "approval:#{approval_id}",
