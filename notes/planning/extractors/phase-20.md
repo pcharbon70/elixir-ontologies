@@ -302,20 +302,20 @@ Generate RDF triples for snapshots and releases.
 
 ## Phase 20 Integration Tests
 
-- [ ] **Phase 20 Integration Tests** (15+ tests)
+- [x] **Phase 20 Integration Tests** (37 tests)
 
-- [ ] Test complete evolution extraction for repository
-- [ ] Test commit history RDF generation
-- [ ] Test activity classification accuracy
-- [ ] Test PROV-O compliance of generated triples
-- [ ] Test evolution RDF validates against shapes
-- [ ] Test Pipeline integration with evolution extractors
-- [ ] Test Orchestrator coordinates evolution builders
-- [ ] Test blame integration with code elements
-- [ ] Test version tracking across multiple commits
-- [ ] Test agent deduplication across commits
-- [ ] Test refactoring detection accuracy
-- [ ] Test release tracking from tags
-- [ ] Test snapshot statistics accuracy
-- [ ] Test backward compatibility with existing extractors
-- [ ] Test error handling for repositories without history
+- [x] Test complete evolution extraction for repository
+- [x] Test commit history RDF generation
+- [x] Test activity classification accuracy
+- [x] Test PROV-O compliance of generated triples
+- [x] Test evolution RDF validates against shapes
+- [x] Test Pipeline integration with evolution extractors
+- [x] Test Orchestrator coordinates evolution builders
+- [x] Test blame integration with code elements
+- [x] Test version tracking across multiple commits
+- [x] Test agent deduplication across commits
+- [x] Test refactoring detection accuracy
+- [x] Test release tracking from tags
+- [x] Test snapshot statistics accuracy
+- [x] Test backward compatibility with existing extractors
+- [x] Test error handling for repositories without history
