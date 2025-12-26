@@ -155,7 +155,7 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersionTest do
 
     @tag :integration
     test "raises on error" do
-      assert_raise RuntimeError, fn ->
+      assert_raise ArgumentError, fn ->
         EntityVersion.extract_module_version!(".", "NonExistent.Module", "HEAD")
       end
     end
@@ -217,7 +217,7 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersionTest do
 
     @tag :integration
     test "raises on error" do
-      assert_raise RuntimeError, fn ->
+      assert_raise ArgumentError, fn ->
         EntityVersion.track_module_versions!(".", "NonExistent.Module", limit: 3)
       end
     end

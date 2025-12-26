@@ -154,8 +154,8 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModelTest do
     end
 
     test "returns error for invalid format" do
-      assert :error = AM.parse_activity_id("invalid")
-      assert :error = AM.parse_activity_id("commit:abc123d")
+      assert {:error, :invalid_format} = AM.parse_activity_id("invalid")
+      assert {:error, :invalid_format} = AM.parse_activity_id("commit:abc123d")
     end
   end
 

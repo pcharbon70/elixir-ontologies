@@ -253,7 +253,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModel do
   def extract_activity!(repo_path, commit, opts \\ []) do
     case extract_activity(repo_path, commit, opts) do
       {:ok, activity} -> activity
-      {:error, reason} -> raise "Failed to extract activity: #{reason}"
+      {:error, reason} -> raise ArgumentError, "Failed to extract activity: #{reason}"
     end
   end
 
@@ -310,7 +310,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModel do
   def extract_activities!(repo_path, commits, opts \\ []) do
     case extract_activities(repo_path, commits, opts) do
       {:ok, activities} -> activities
-      {:error, reason} -> raise "Failed to extract activities: #{reason}"
+      {:error, reason} -> raise ArgumentError, "Failed to extract activities: #{reason}"
     end
   end
 
@@ -348,7 +348,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModel do
   def extract_usages!(repo_path, commit) do
     case extract_usages(repo_path, commit) do
       {:ok, usages} -> usages
-      {:error, reason} -> raise "Failed to extract usages: #{reason}"
+      {:error, reason} -> raise ArgumentError, "Failed to extract usages: #{reason}"
     end
   end
 
@@ -386,7 +386,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModel do
   def extract_generations!(repo_path, commit) do
     case extract_generations(repo_path, commit) do
       {:ok, generations} -> generations
-      {:error, reason} -> raise "Failed to extract generations: #{reason}"
+      {:error, reason} -> raise ArgumentError, "Failed to extract generations: #{reason}"
     end
   end
 
@@ -423,7 +423,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModel do
   def extract_communications!(repo_path, commit) do
     case extract_communications(repo_path, commit) do
       {:ok, communications} -> communications
-      {:error, reason} -> raise "Failed to extract communications: #{reason}"
+      {:error, reason} -> raise ArgumentError, "Failed to extract communications: #{reason}"
     end
   end
 
@@ -442,12 +442,12 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModel do
   @doc """
   Parses an activity ID to extract the short SHA.
   """
-  @spec parse_activity_id(String.t()) :: {:ok, String.t()} | :error
+  @spec parse_activity_id(String.t()) :: {:ok, String.t()} | {:error, :invalid_format}
   def parse_activity_id("activity:" <> short_sha) do
     {:ok, short_sha}
   end
 
-  def parse_activity_id(_), do: :error
+  def parse_activity_id(_), do: {:error, :invalid_format}
 
   @doc """
   Checks if an activity generated a specific entity.

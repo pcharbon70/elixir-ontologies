@@ -185,11 +185,11 @@ defmodule ElixirOntologies.Extractors.Evolution.Agent do
 
       iex> alias ElixirOntologies.Extractors.Evolution.Agent
       iex> Agent.parse_agent_id("invalid")
-      :error
+      {:error, :invalid_format}
   """
-  @spec parse_agent_id(String.t()) :: {:ok, String.t()} | :error
+  @spec parse_agent_id(String.t()) :: {:ok, String.t()} | {:error, :invalid_format}
   def parse_agent_id("agent:" <> hash), do: {:ok, hash}
-  def parse_agent_id(_), do: :error
+  def parse_agent_id(_), do: {:error, :invalid_format}
 
   # ===========================================================================
   # Agent Type Detection
@@ -742,7 +742,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Agent do
     agents
     |> Enum.group_by(& &1.agent_id)
     |> Enum.map(fn {_id, group} ->
-      Enum.reduce(group, &merge_agents/2)
+      Enum.reduce(group, fn agent, acc -> merge_agents(acc, agent) end)
     end)
     |> Enum.sort_by(&length(&1.associated_activities), :desc)
   end

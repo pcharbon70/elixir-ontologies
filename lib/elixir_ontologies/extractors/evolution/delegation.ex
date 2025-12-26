@@ -36,6 +36,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Delegation do
   alias ElixirOntologies.Extractors.Evolution.ActivityModel, as: AM
   alias ElixirOntologies.Analyzer.Git
 
+  alias ElixirOntologies.Extractors.Evolution.GitUtils
+
   # ===========================================================================
   # Delegation Struct
   # ===========================================================================
@@ -533,14 +535,20 @@ defmodule ElixirOntologies.Extractors.Evolution.Delegation do
   defp find_and_parse_codeowners(_repo_path, []), do: {:error, :not_found}
 
   defp find_and_parse_codeowners(repo_path, [path | rest]) do
-    full_path = Path.join(repo_path, path)
+    # Validate path to prevent path traversal attacks
+    if GitUtils.safe_path?(path) do
+      full_path = Path.join(repo_path, path)
 
-    if File.exists?(full_path) do
-      case File.read(full_path) do
-        {:ok, content} -> parse_codeowners_content(content, path)
-        {:error, _} -> find_and_parse_codeowners(repo_path, rest)
+      if File.exists?(full_path) do
+        case File.read(full_path) do
+          {:ok, content} -> parse_codeowners_content(content, path)
+          {:error, _} -> find_and_parse_codeowners(repo_path, rest)
+        end
+      else
+        find_and_parse_codeowners(repo_path, rest)
       end
     else
+      # Skip unsafe paths
       find_and_parse_codeowners(repo_path, rest)
     end
   end
@@ -693,12 +701,12 @@ defmodule ElixirOntologies.Extractors.Evolution.Delegation do
     # Use git diff-tree to get changed files
     args = ["diff-tree", "--no-commit-id", "--name-only", "-r", commit.sha]
 
-    case System.cmd("git", args, cd: repo_path, stderr_to_stdout: true) do
-      {output, 0} ->
+    case GitUtils.run_git_command(repo_path, args) do
+      {:ok, output} ->
         output
         |> String.split("\n", trim: true)
 
-      _ ->
+      {:error, _} ->
         []
     end
   end

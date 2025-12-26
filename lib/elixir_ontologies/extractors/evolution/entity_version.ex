@@ -258,7 +258,7 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
   def extract_module_version!(repo_path, module_name, commit_ref, opts \\ []) do
     case extract_module_version(repo_path, module_name, commit_ref, opts) do
       {:ok, version} -> version
-      {:error, reason} -> raise "Failed to extract module version: #{reason}"
+      {:error, reason} -> raise ArgumentError, "Failed to extract module version: #{reason}"
     end
   end
 
@@ -312,7 +312,7 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
   def track_module_versions!(repo_path, module_name, opts \\ []) do
     case track_module_versions(repo_path, module_name, opts) do
       {:ok, versions} -> versions
-      {:error, reason} -> raise "Failed to track module versions: #{reason}"
+      {:error, reason} -> raise ArgumentError, "Failed to track module versions: #{reason}"
     end
   end
 
@@ -378,7 +378,7 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
   def extract_function_version!(repo_path, module_name, function_name, arity, commit_ref) do
     case extract_function_version(repo_path, module_name, function_name, arity, commit_ref) do
       {:ok, version} -> version
-      {:error, reason} -> raise "Failed to extract function version: #{reason}"
+      {:error, reason} -> raise ArgumentError, "Failed to extract function version: #{reason}"
     end
   end
 
@@ -429,7 +429,7 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
   def track_function_versions!(repo_path, module_name, function_name, arity, opts \\ []) do
     case track_function_versions(repo_path, module_name, function_name, arity, opts) do
       {:ok, versions} -> versions
-      {:error, reason} -> raise "Failed to track function versions: #{reason}"
+      {:error, reason} -> raise ArgumentError, "Failed to track function versions: #{reason}"
     end
   end
 
@@ -793,34 +793,6 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
       0 -> start_line
       n -> start_line + n - 1
     end
-  end
-
-  defp find_matching_end(content, start_idx) do
-    # Simple bracket matching for "do...end"
-    rest = String.slice(content, start_idx, String.length(content) - start_idx)
-
-    case find_end_offset(rest, 0, 0) do
-      {:ok, offset} -> {:ok, start_idx + offset}
-      :error -> :error
-    end
-  end
-
-  defp find_end_offset(<<>>, _depth, _pos), do: :error
-
-  defp find_end_offset(<<"do", rest::binary>>, depth, pos) do
-    find_end_offset(rest, depth + 1, pos + 2)
-  end
-
-  defp find_end_offset(<<"end", _rest::binary>>, 1, pos) do
-    {:ok, pos + 2}
-  end
-
-  defp find_end_offset(<<"end", rest::binary>>, depth, pos) when depth > 1 do
-    find_end_offset(rest, depth - 1, pos + 3)
-  end
-
-  defp find_end_offset(<<_char, rest::binary>>, depth, pos) do
-    find_end_offset(rest, depth, pos + 1)
   end
 
   # ===========================================================================

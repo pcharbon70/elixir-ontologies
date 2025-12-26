@@ -146,8 +146,8 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
     end
 
     test "returns error for invalid format" do
-      assert :error = Agent.parse_agent_id("invalid")
-      assert :error = Agent.parse_agent_id("developer:abc")
+      assert {:error, :invalid_format} = Agent.parse_agent_id("invalid")
+      assert {:error, :invalid_format} = Agent.parse_agent_id("developer:abc")
     end
   end
 
