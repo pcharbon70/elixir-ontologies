@@ -143,16 +143,16 @@ Model code elements as PROV-O entities with version relationships.
 - [x] 20.3.1.6 Add entity versioning tests (40 tests)
 
 ### 20.3.2 Activity Modeling
-- [ ] **Task 20.3.2 Pending**
+- [x] **Task 20.3.2 Complete**
 
 Model development activities using PROV-O Activity class.
 
-- [ ] 20.3.2.1 Implement `prov:Activity` for commits and development activities
-- [ ] 20.3.2.2 Track `prov:startedAtTime` and `prov:endedAtTime`
-- [ ] 20.3.2.3 Implement `prov:used` for entities read by activity
-- [ ] 20.3.2.4 Implement `prov:generated` for entities created by activity
-- [ ] 20.3.2.5 Implement `prov:wasInformedBy` for activity chains
-- [ ] 20.3.2.6 Add activity modeling tests
+- [x] 20.3.2.1 Implement `prov:Activity` for commits and development activities
+- [x] 20.3.2.2 Track `prov:startedAtTime` and `prov:endedAtTime`
+- [x] 20.3.2.3 Implement `prov:used` for entities read by activity
+- [x] 20.3.2.4 Implement `prov:generated` for entities created by activity
+- [x] 20.3.2.5 Implement `prov:wasInformedBy` for activity chains
+- [x] 20.3.2.6 Add activity modeling tests (43 tests)
 
 ### 20.3.3 Agent Attribution
 - [ ] **Task 20.3.3 Pending**
