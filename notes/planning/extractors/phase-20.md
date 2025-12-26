@@ -93,16 +93,16 @@ Detect and classify refactoring activities from code changes.
 - [x] 20.2.2.6 Add refactoring detection tests (25 tests)
 
 ### 20.2.3 Deprecation Tracking
-- [ ] **Task 20.2.3 Pending**
+- [x] **Task 20.2.3 Complete**
 
 Track deprecation activities and their timeline.
 
-- [ ] 20.2.3.1 Define `%Deprecation{element: ..., deprecated_in: ..., removed_in: ..., replacement: ...}` struct
-- [ ] 20.2.3.2 Detect @deprecated attribute additions
-- [ ] 20.2.3.3 Track deprecation announcement commits
-- [ ] 20.2.3.4 Track removal commits
-- [ ] 20.2.3.5 Extract suggested replacement from deprecation message
-- [ ] 20.2.3.6 Add deprecation tracking tests
+- [x] 20.2.3.1 Define `%Deprecation{element: ..., deprecated_in: ..., removed_in: ..., replacement: ...}` struct
+- [x] 20.2.3.2 Detect @deprecated attribute additions
+- [x] 20.2.3.3 Track deprecation announcement commits
+- [x] 20.2.3.4 Track removal commits
+- [x] 20.2.3.5 Extract suggested replacement from deprecation message
+- [x] 20.2.3.6 Add deprecation tracking tests (29 tests)
 
 ### 20.2.4 Feature and Bug Fix Tracking
 - [ ] **Task 20.2.4 Pending**
