@@ -255,16 +255,16 @@ Generate RDF triples for code version relationships.
 This section implements tracking of codebase snapshots and release artifacts.
 
 ### 20.5.1 Snapshot Extraction
-- [ ] **Task 20.5.1 Pending**
+- [x] **Task 20.5.1 Complete**
 
 Extract codebase snapshot information at specific points in time.
 
-- [ ] 20.5.1.1 Create `lib/elixir_ontologies/extractors/evolution/snapshot.ex`
-- [ ] 20.5.1.2 Define `%CodebaseSnapshot{commit: ..., timestamp: ..., modules: [...], stats: ...}` struct
-- [ ] 20.5.1.3 Implement `extract_snapshot/1` for current HEAD
-- [ ] 20.5.1.4 Calculate codebase statistics (module count, function count, LOC)
-- [ ] 20.5.1.5 Track snapshot as point-in-time state
-- [ ] 20.5.1.6 Add snapshot extraction tests
+- [x] 20.5.1.1 Create `lib/elixir_ontologies/extractors/evolution/snapshot.ex`
+- [x] 20.5.1.2 Define `%CodebaseSnapshot{commit: ..., timestamp: ..., modules: [...], stats: ...}` struct
+- [x] 20.5.1.3 Implement `extract_snapshot/1` for current HEAD
+- [x] 20.5.1.4 Calculate codebase statistics (module count, function count, LOC)
+- [x] 20.5.1.5 Track snapshot as point-in-time state
+- [x] 20.5.1.6 Add snapshot extraction tests (31 tests)
 
 ### 20.5.2 Release Extraction
 - [ ] **Task 20.5.2 Pending**
