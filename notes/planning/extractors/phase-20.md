@@ -131,16 +131,16 @@ Track feature additions and bug fixes as distinct activities.
 This section implements full PROV-O integration, modeling code evolution using standard provenance ontology patterns.
 
 ### 20.3.1 Entity Versioning
-- [ ] **Task 20.3.1 Pending**
+- [x] **Task 20.3.1 Complete**
 
 Model code elements as PROV-O entities with version relationships.
 
-- [ ] 20.3.1.1 Create `lib/elixir_ontologies/extractors/evolution/entity_version.ex`
-- [ ] 20.3.1.2 Define `%EntityVersion{entity: ..., version: ..., commit: ..., previous: ...}` struct
-- [ ] 20.3.1.3 Track module versions across commits
-- [ ] 20.3.1.4 Track function versions across commits
-- [ ] 20.3.1.5 Implement `prov:wasDerivedFrom` relationships
-- [ ] 20.3.1.6 Add entity versioning tests
+- [x] 20.3.1.1 Create `lib/elixir_ontologies/extractors/evolution/entity_version.ex`
+- [x] 20.3.1.2 Define `%EntityVersion{entity: ..., version: ..., commit: ..., previous: ...}` struct
+- [x] 20.3.1.3 Track module versions across commits
+- [x] 20.3.1.4 Track function versions across commits
+- [x] 20.3.1.5 Implement `prov:wasDerivedFrom` relationships
+- [x] 20.3.1.6 Add entity versioning tests (40 tests)
 
 ### 20.3.2 Activity Modeling
 - [ ] **Task 20.3.2 Pending**
