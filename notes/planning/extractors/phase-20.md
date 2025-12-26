@@ -217,16 +217,16 @@ Generate RDF triples for development activities.
 - [x] 20.4.2.6 Add activity builder tests (44 tests)
 
 ### 20.4.3 Agent Builder
-- [ ] **Task 20.4.3 Pending**
+- [x] **Task 20.4.3 Complete**
 
 Generate RDF triples for development agents.
 
-- [ ] 20.4.3.1 Create `lib/elixir_ontologies/builders/evolution/agent_builder.ex`
-- [ ] 20.4.3.2 Implement `build_agent/3` generating agent IRI
-- [ ] 20.4.3.3 Generate `rdf:type prov:Agent` and subclass triple
-- [ ] 20.4.3.4 Generate `evolution:agentName` and `evolution:agentEmail`
-- [ ] 20.4.3.5 Generate `prov:wasAssociatedWith` and `prov:wasAttributedTo`
-- [ ] 20.4.3.6 Add agent builder tests
+- [x] 20.4.3.1 Create `lib/elixir_ontologies/builders/evolution/agent_builder.ex`
+- [x] 20.4.3.2 Implement `build_agent/3` generating agent IRI
+- [x] 20.4.3.3 Generate `rdf:type prov:Agent` and subclass triple
+- [x] 20.4.3.4 Generate `evolution:developerName/botName` and `evolution:developerEmail`
+- [x] 20.4.3.5 Generate agent type mapping (Developer, Bot, CISystem, LLMAgent)
+- [x] 20.4.3.6 Add agent builder tests (32 tests)
 
 ### 20.4.4 Version Builder
 - [ ] **Task 20.4.4 Pending**
