@@ -105,16 +105,16 @@ Track deprecation activities and their timeline.
 - [x] 20.2.3.6 Add deprecation tracking tests (29 tests)
 
 ### 20.2.4 Feature and Bug Fix Tracking
-- [ ] **Task 20.2.4 Pending**
+- [x] **Task 20.2.4 Complete**
 
 Track feature additions and bug fixes as distinct activities.
 
-- [ ] 20.2.4.1 Define `%FeatureAddition{name: ..., commit: ..., modules: [...]}` struct
-- [ ] 20.2.4.2 Define `%BugFix{description: ..., commit: ..., affected_functions: [...]}` struct
-- [ ] 20.2.4.3 Parse issue references from commit messages (#123, GH-456)
-- [ ] 20.2.4.4 Link activities to external issue trackers
-- [ ] 20.2.4.5 Track scope of changes per activity
-- [ ] 20.2.4.6 Add feature/bug fix tracking tests
+- [x] 20.2.4.1 Define `%FeatureAddition{name: ..., commit: ..., modules: [...]}` struct
+- [x] 20.2.4.2 Define `%BugFix{description: ..., commit: ..., affected_functions: [...]}` struct
+- [x] 20.2.4.3 Parse issue references from commit messages (#123, GH-456)
+- [x] 20.2.4.4 Link activities to external issue trackers
+- [x] 20.2.4.5 Track scope of changes per activity
+- [x] 20.2.4.6 Add feature/bug fix tracking tests (40 tests)
 
 **Section 20.2 Unit Tests:**
 - [ ] Test activity type classification
