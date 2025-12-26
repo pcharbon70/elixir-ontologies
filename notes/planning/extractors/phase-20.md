@@ -81,16 +81,16 @@ Classify commits into development activity types based on commit messages and ch
 - [x] 20.2.1.6 Add activity classification tests (45 tests)
 
 ### 20.2.2 Refactoring Detection
-- [ ] **Task 20.2.2 Pending**
+- [x] **Task 20.2.2 Complete**
 
 Detect and classify refactoring activities from code changes.
 
-- [ ] 20.2.2.1 Define `%Refactoring{type: ..., source: ..., target: ..., commit: ...}` struct
-- [ ] 20.2.2.2 Detect function extraction refactoring
-- [ ] 20.2.2.3 Detect module extraction refactoring
-- [ ] 20.2.2.4 Detect rename refactoring (function, module, variable)
-- [ ] 20.2.2.5 Detect inline refactoring
-- [ ] 20.2.2.6 Add refactoring detection tests
+- [x] 20.2.2.1 Define `%Refactoring{type: ..., source: ..., target: ..., commit: ...}` struct
+- [x] 20.2.2.2 Detect function extraction refactoring
+- [x] 20.2.2.3 Detect module extraction refactoring
+- [x] 20.2.2.4 Detect rename refactoring (function, module, variable)
+- [x] 20.2.2.5 Detect inline refactoring
+- [x] 20.2.2.6 Add refactoring detection tests (25 tests)
 
 ### 20.2.3 Deprecation Tracking
 - [ ] **Task 20.2.3 Pending**
