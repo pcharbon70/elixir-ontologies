@@ -155,16 +155,16 @@ Model development activities using PROV-O Activity class.
 - [x] 20.3.2.6 Add activity modeling tests (43 tests)
 
 ### 20.3.3 Agent Attribution
-- [ ] **Task 20.3.3 Pending**
+- [x] **Task 20.3.3 Complete**
 
 Model developers, bots, and CI systems as PROV-O agents.
 
-- [ ] 20.3.3.1 Create `lib/elixir_ontologies/extractors/evolution/agent.ex`
-- [ ] 20.3.3.2 Define `%Agent{type: :developer|:bot|:ci|:llm, identity: ...}` struct
-- [ ] 20.3.3.3 Implement `prov:wasAssociatedWith` for activity-agent links
-- [ ] 20.3.3.4 Implement `prov:wasAttributedTo` for entity-agent links
-- [ ] 20.3.3.5 Detect bot commits (dependabot, renovate, etc.)
-- [ ] 20.3.3.6 Add agent attribution tests
+- [x] 20.3.3.1 Create `lib/elixir_ontologies/extractors/evolution/agent.ex`
+- [x] 20.3.3.2 Define `%Agent{type: :developer|:bot|:ci|:llm, identity: ...}` struct
+- [x] 20.3.3.3 Implement `prov:wasAssociatedWith` for activity-agent links
+- [x] 20.3.3.4 Implement `prov:wasAttributedTo` for entity-agent links
+- [x] 20.3.3.5 Detect bot commits (dependabot, renovate, etc.)
+- [x] 20.3.3.6 Add agent attribution tests (70 tests)
 
 ### 20.3.4 Delegation and Responsibility
 - [ ] **Task 20.3.4 Pending**
