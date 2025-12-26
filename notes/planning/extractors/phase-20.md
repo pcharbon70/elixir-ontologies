@@ -229,16 +229,16 @@ Generate RDF triples for development agents.
 - [x] 20.4.3.6 Add agent builder tests (32 tests)
 
 ### 20.4.4 Version Builder
-- [ ] **Task 20.4.4 Pending**
+- [x] **Task 20.4.4 Complete**
 
 Generate RDF triples for code version relationships.
 
-- [ ] 20.4.4.1 Create `lib/elixir_ontologies/builders/evolution/version_builder.ex`
-- [ ] 20.4.4.2 Implement `build_version/3` generating version IRI
-- [ ] 20.4.4.3 Generate `rdf:type evolution:CodeVersion` and subclass triple
-- [ ] 20.4.4.4 Generate `prov:wasDerivedFrom` linking versions
-- [ ] 20.4.4.5 Generate `evolution:versionedEntity` linking to code element
-- [ ] 20.4.4.6 Add version builder tests
+- [x] 20.4.4.1 Create `lib/elixir_ontologies/builders/evolution/version_builder.ex`
+- [x] 20.4.4.2 Implement `build_version/3` generating version IRI
+- [x] 20.4.4.3 Generate `rdf:type prov:Entity` and subclass triple (ModuleVersion, FunctionVersion)
+- [x] 20.4.4.4 Generate `evolution:hasPreviousVersion` linking versions
+- [x] 20.4.4.5 Generate `evolution:versionString` with version identifier
+- [x] 20.4.4.6 Add version builder tests (30 tests)
 
 **Section 20.4 Unit Tests:**
 - [ ] Test commit RDF generation
