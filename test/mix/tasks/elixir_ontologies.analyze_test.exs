@@ -83,7 +83,7 @@ defmodule Mix.Tasks.ElixirOntologies.AnalyzeTest do
     test "analyzes file with custom base IRI", %{test_file: test_file} do
       output =
         capture_io(fn ->
-          Analyze.run([test_file, "--base-iri", "https://example.com/", "--quiet"])
+          Analyze.run([test_file, "--base-iri", "https://example.com/code#", "--quiet"])
         end)
 
       assert output =~ "@prefix"
@@ -255,7 +255,7 @@ defmodule Mix.Tasks.ElixirOntologies.AnalyzeTest do
     test "parses --base-iri with short alias -b", %{test_file: test_file} do
       output =
         capture_io(fn ->
-          Analyze.run([test_file, "-b", "https://test.org/", "--quiet"])
+          Analyze.run([test_file, "-b", "https://test.org/code#", "--quiet"])
         end)
 
       assert output =~ "@prefix"

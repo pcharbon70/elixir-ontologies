@@ -78,10 +78,10 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
         assert is_list(triples)
         assert length(triples) > 0
 
-        # Verify commit has expected type
+        # Verify commit has expected type (Commit or MergeCommit for merge commits)
         assert Enum.any?(triples, fn
                  {^iri, pred, type} ->
-                   pred == RDF.type() and type == Evolution.Commit
+                   pred == RDF.type() and type in [Evolution.Commit, Evolution.MergeCommit]
 
                  _ ->
                    false

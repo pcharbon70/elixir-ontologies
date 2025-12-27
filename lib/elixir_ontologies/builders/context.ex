@@ -392,7 +392,7 @@ defmodule ElixirOntologies.Builders.Context do
       ...>   metadata: %{module: ["MyApp", "Users"]}
       ...> )
       iex> ElixirOntologies.Builders.Context.get_context_iri(context, "anonymous")
-      # Returns IRI for MyApp.Users module
+      ~I<https://example.org/code#MyApp.Users>
 
       iex> context = ElixirOntologies.Builders.Context.new(
       ...>   base_iri: "https://example.org/code#"
