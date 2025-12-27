@@ -16,7 +16,7 @@ This ontology fills that gap by modeling Elixir's unique semantics while alignin
 
 ## Ontology Modules
 
-### elixir-core.ttl
+### ontology/elixir-core.ttl
 
 Language-agnostic foundation for representing source code. Provides:
 
@@ -29,7 +29,7 @@ Language-agnostic foundation for representing source code. Provides:
 
 Aligned with BFO (Basic Formal Ontology) - code elements are modeled as Generically Dependent Continuants.
 
-### elixir-structure.ttl
+### ontology/elixir-structure.ttl
 
 Elixir-specific code constructs. Imports `elixir-core`. Provides:
 
@@ -42,7 +42,7 @@ Elixir-specific code constructs. Imports `elixir-core`. Provides:
 - **Type system**: `@type`, `@spec`, `@callback` with full type expression modeling
 - **Module attributes**: documentation, deprecation, compile hooks
 
-### elixir-otp.ttl
+### ontology/elixir-otp.ttl
 
 OTP runtime patterns and BEAM VM abstractions. Imports `elixir-structure`. Provides:
 
@@ -55,7 +55,7 @@ OTP runtime patterns and BEAM VM abstractions. Imports `elixir-structure`. Provi
 - **Distribution**: `Node`, `Cluster`, remote calls
 - **Telemetry**: events, handlers, spans
 
-### elixir-evolution.ttl
+### ontology/elixir-evolution.ttl
 
 Temporal provenance layer for tracking code changes. Imports `elixir-structure` and PROV-O. Provides:
 
@@ -69,7 +69,7 @@ Temporal provenance layer for tracking code changes. Imports `elixir-structure` 
 
 Supports RDF-star for fine-grained statement-level provenance annotations.
 
-### elixir-shapes.ttl
+### ontology/elixir-shapes.ttl
 
 SHACL constraints for data validation. Provides closed-world validation complementing OWL's open-world semantics:
 

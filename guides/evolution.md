@@ -1,6 +1,6 @@
 # Elixir Evolution Ontology Guide
 
-**File**: `elixir-evolution.ttl`
+**File**: `ontology/elixir-evolution.ttl`
 **Namespace**: `https://w3id.org/elixir-code/evolution#`
 **Prefix**: `evo:`
 

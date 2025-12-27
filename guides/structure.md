@@ -1,6 +1,6 @@
 # Elixir Structure Ontology Guide
 
-**File**: `elixir-structure.ttl`
+**File**: `ontology/elixir-structure.ttl`
 **Namespace**: `https://w3id.org/elixir-code/structure#`
 **Prefix**: `struct:`
 
@@ -14,7 +14,7 @@ The structure ontology models Elixir-specific code constructs: modules, function
 owl:imports <https://w3id.org/elixir-code/core>
 ```
 
-Extends classes from `elixir-core.ttl` with Elixir-specific semantics.
+Extends classes from `ontology/elixir-core.ttl` with Elixir-specific semantics.
 
 ## Module System
 

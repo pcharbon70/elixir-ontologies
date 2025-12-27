@@ -1,12 +1,12 @@
 # Elixir OTP Ontology Guide
 
-**File**: `elixir-otp.ttl`
+**File**: `ontology/elixir-otp.ttl`
 **Namespace**: `https://w3id.org/elixir-code/otp#`
 **Prefix**: `otp:`
 
 ## Overview
 
-The OTP ontology models runtime patterns and BEAM VM abstractions. While `elixir-structure.ttl` captures static code structure, this module captures the dynamic architecture: processes, supervision trees, message passing, and OTP behaviours.
+The OTP ontology models runtime patterns and BEAM VM abstractions. While `ontology/elixir-structure.ttl` captures static code structure, this module captures the dynamic architecture: processes, supervision trees, message passing, and OTP behaviours.
 
 OTP (Open Telecom Platform) is the framework that makes Elixir applications fault-tolerant and scalable.
 

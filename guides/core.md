@@ -1,6 +1,6 @@
 # Elixir Core Ontology Guide
 
-**File**: `elixir-core.ttl`
+**File**: `ontology/elixir-core.ttl`
 **Namespace**: `https://w3id.org/elixir-code/core#`
 **Prefix**: `core:`
 

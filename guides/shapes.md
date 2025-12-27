@@ -1,6 +1,6 @@
 # Elixir Shapes Guide
 
-**File**: `elixir-shapes.ttl`
+**File**: `ontology/elixir-shapes.ttl`
 **Namespace**: `https://w3id.org/elixir-code/shapes#`
 **Prefix**: `shapes:` (in the file, uses `:` as default)
 
