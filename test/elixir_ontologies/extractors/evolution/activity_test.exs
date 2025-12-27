@@ -340,7 +340,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityTest do
     test "detects breaking change in body text" do
       commit = create_commit(subject: "Update API", body: "BREAKING CHANGE: removed old endpoint")
 
-      {:ok, activity} = Activity.classify_commit(".", commit, include_scope: false)
+      {:ok, _activity} = Activity.classify_commit(".", commit, include_scope: false)
 
       # The classification looks at subject, so breaking detection is via subject check
       # For full body analysis, we'd need to extend the logic

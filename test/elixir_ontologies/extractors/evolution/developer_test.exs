@@ -8,7 +8,7 @@ defmodule ElixirOntologies.Extractors.Evolution.DeveloperTest do
   # Test Helpers
   # ===========================================================================
 
-  defp create_commit(opts \\ []) do
+  defp create_commit(opts) do
     %Commit{
       sha: Keyword.get(opts, :sha, "abc123def456abc123def456abc123def456abc1"),
       short_sha: Keyword.get(opts, :short_sha, "abc123d"),

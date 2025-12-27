@@ -12,30 +12,6 @@ defmodule ElixirOntologies.Extractors.Evolution.DeprecationTest do
   alias ElixirOntologies.Extractors.Evolution.Commit
 
   # ===========================================================================
-  # Test Helpers
-  # ===========================================================================
-
-  defp create_commit(opts \\ []) do
-    %Commit{
-      sha: Keyword.get(opts, :sha, "abc123def456abc123def456abc123def456abc1"),
-      short_sha: Keyword.get(opts, :short_sha, "abc123d"),
-      message: Keyword.get(opts, :message),
-      subject: Keyword.get(opts, :subject),
-      body: Keyword.get(opts, :body),
-      author_name: Keyword.get(opts, :author_name),
-      author_email: Keyword.get(opts, :author_email),
-      author_date: Keyword.get(opts, :author_date),
-      committer_name: Keyword.get(opts, :committer_name),
-      committer_email: Keyword.get(opts, :committer_email),
-      commit_date: Keyword.get(opts, :commit_date),
-      parents: Keyword.get(opts, :parents, []),
-      is_merge: Keyword.get(opts, :is_merge, false),
-      tree_sha: Keyword.get(opts, :tree_sha),
-      metadata: Keyword.get(opts, :metadata, %{})
-    }
-  end
-
-  # ===========================================================================
   # Element Types Tests
   # ===========================================================================
 

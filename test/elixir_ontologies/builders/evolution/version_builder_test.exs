@@ -444,7 +444,7 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilderTest do
 
       context = create_context()
 
-      {version_iri, triples} = VersionBuilder.build(version, context)
+      {_version_iri, triples} = VersionBuilder.build(version, context)
 
       version_string_value = get_object(triples, Evolution.versionString())
       assert RDF.Literal.value(version_string_value) == "MyApp.ユーザー@abc123d"
