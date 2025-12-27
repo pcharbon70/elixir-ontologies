@@ -263,6 +263,7 @@ defmodule ElixirOntologies.Builders.FunctionBuilder do
       {target_module, target_function, target_arity} ->
         # Generate IRI for the target function
         target_module_name = module_name_from_term(target_module)
+
         target_iri =
           IRI.for_function(
             context.base_iri,

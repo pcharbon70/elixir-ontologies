@@ -314,7 +314,8 @@ defmodule ElixirOntologies.SHACL.Validators.TypeTest do
       # Graph with literal value (literals can't be instances)
       graph =
         RDF.Graph.new([
-          {@module_iri, @has_function_prop, RDF.Literal.new("not a resource", datatype: @xsd_string)}
+          {@module_iri, @has_function_prop,
+           RDF.Literal.new("not a resource", datatype: @xsd_string)}
         ])
 
       # Should fail (literals can't have rdf:type)
@@ -450,7 +451,10 @@ defmodule ElixirOntologies.SHACL.Validators.TypeTest do
         datatype: @xsd_non_negative_integer
       }
 
-      graph = RDF.Graph.new([{blank_node, @arity_prop, RDF.Literal.new(0, datatype: @xsd_non_negative_integer)}])
+      graph =
+        RDF.Graph.new([
+          {blank_node, @arity_prop, RDF.Literal.new(0, datatype: @xsd_non_negative_integer)}
+        ])
 
       assert [] == Type.validate(graph, blank_node, shape)
     end
@@ -477,7 +481,10 @@ defmodule ElixirOntologies.SHACL.Validators.TypeTest do
         datatype: @xsd_non_negative_integer
       }
 
-      graph = RDF.Graph.new([{@function_iri, @arity_prop, RDF.Literal.new("bad", datatype: @xsd_string)}])
+      graph =
+        RDF.Graph.new([
+          {@function_iri, @arity_prop, RDF.Literal.new("bad", datatype: @xsd_string)}
+        ])
 
       [violation] = Type.validate(graph, @function_iri, shape)
 

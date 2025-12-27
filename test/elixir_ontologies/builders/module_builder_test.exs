@@ -5,7 +5,7 @@ defmodule ElixirOntologies.Builders.ModuleBuilderTest do
 
   alias ElixirOntologies.Builders.{ModuleBuilder, Context}
   alias ElixirOntologies.Extractors.Module
-  alias ElixirOntologies.NS.Structure
+  alias ElixirOntologies.NS.{Structure, Core}
   alias ElixirOntologies.Analyzer.Location.SourceLocation
 
   doctest ModuleBuilder
@@ -469,7 +469,7 @@ defmodule ElixirOntologies.Builders.ModuleBuilderTest do
       # Verify location triple exists
       assert Enum.any?(triples, fn
                {^module_iri, pred, _obj} ->
-                 pred == ElixirOntologies.NS.Core.hasSourceLocation()
+                 pred == Core.hasSourceLocation()
 
                _ ->
                  false
@@ -484,7 +484,7 @@ defmodule ElixirOntologies.Builders.ModuleBuilderTest do
 
       # Should not have location triple
       refute Enum.any?(triples, fn
-               {_, pred, _} -> pred == ElixirOntologies.NS.Core.hasSourceLocation()
+               {_, pred, _} -> pred == Core.hasSourceLocation()
              end)
     end
 
@@ -504,7 +504,7 @@ defmodule ElixirOntologies.Builders.ModuleBuilderTest do
 
       # Should not have location triple (no file path in context)
       refute Enum.any?(triples, fn
-               {_, pred, _} -> pred == ElixirOntologies.NS.Core.hasSourceLocation()
+               {_, pred, _} -> pred == Core.hasSourceLocation()
              end)
     end
   end
@@ -553,7 +553,9 @@ defmodule ElixirOntologies.Builders.ModuleBuilderTest do
     end
 
     test "generates correct IRI format for deeply nested modules" do
-      module_info = create_minimal_module(:nested_module, [:MyApp, :Web, :Controllers, :UserController])
+      module_info =
+        create_minimal_module(:nested_module, [:MyApp, :Web, :Controllers, :UserController])
+
       context = Context.new(base_iri: "https://example.org/code#")
 
       {module_iri, _triples} = ModuleBuilder.build(module_info, context)

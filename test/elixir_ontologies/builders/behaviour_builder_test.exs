@@ -74,7 +74,9 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       # Verify IRI
       assert to_string(behaviour_iri) == "https://example.org/code#TestBehaviour"
@@ -92,7 +94,9 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri(module_name: "MyBehaviour")
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       # Verify callback IRI
       callback_iri = RDF.iri("#{behaviour_iri}/init/1")
@@ -114,11 +118,14 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
         build_test_callback(name: :handle_call, arity: 3),
         build_test_callback(name: :terminate, arity: 2)
       ]
+
       behaviour_info = build_test_behaviour(callbacks: callbacks)
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       # Verify all callbacks present
       init_iri = RDF.iri("#{behaviour_iri}/init/1")
@@ -135,10 +142,13 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       # Verify docstring triple
-      assert {behaviour_iri, Structure.docstring(), RDF.XSD.String.new("Test behaviour documentation")} in triples
+      assert {behaviour_iri, Structure.docstring(),
+              RDF.XSD.String.new("Test behaviour documentation")} in triples
     end
 
     test "builds behaviour without documentation" do
@@ -146,14 +156,17 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       # Verify no docstring triple
       docstring_pred = Structure.docstring()
+
       refute Enum.any?(triples, fn
-        {^behaviour_iri, ^docstring_pred, _} -> true
-        _ -> false
-      end)
+               {^behaviour_iri, ^docstring_pred, _} -> true
+               _ -> false
+             end)
     end
   end
 
@@ -168,7 +181,9 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri = RDF.iri("#{behaviour_iri}/required_fn/0")
       assert {callback_iri, RDF.type(), Structure.Callback} in triples
@@ -180,7 +195,9 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri = RDF.iri("#{behaviour_iri}/optional_fn/1")
       assert {callback_iri, RDF.type(), Structure.OptionalCallback} in triples
@@ -192,7 +209,9 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri = RDF.iri("#{behaviour_iri}/macro_fn/2")
       assert {callback_iri, RDF.type(), Structure.MacroCallback} in triples
@@ -203,14 +222,18 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
         build_test_callback(name: :required, arity: 0, is_optional: false),
         build_test_callback(name: :optional, arity: 1, is_optional: true)
       ]
+
       macrocallbacks = [
         build_test_callback(name: :macro, arity: 2, type: :macrocallback)
       ]
+
       behaviour_info = build_test_behaviour(callbacks: callbacks, macrocallbacks: macrocallbacks)
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       required_iri = RDF.iri("#{behaviour_iri}/required/0")
       optional_iri = RDF.iri("#{behaviour_iri}/optional/1")
@@ -228,18 +251,23 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
 
   describe "build_behaviour/2 - callback metadata" do
     test "builds callback with documentation" do
-      callback = build_test_callback(
-        name: :init,
-        arity: 1,
-        doc: "Initializes the process"
-      )
+      callback =
+        build_test_callback(
+          name: :init,
+          arity: 1,
+          doc: "Initializes the process"
+        )
+
       behaviour_info = build_test_behaviour(callbacks: [callback])
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri = RDF.iri("#{behaviour_iri}/init/1")
+
       assert {callback_iri, Structure.docstring(), RDF.XSD.String.new("Initializes the process")} in triples
     end
 
@@ -249,14 +277,17 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri = RDF.iri("#{behaviour_iri}/init/1")
       docstring_pred = Structure.docstring()
+
       refute Enum.any?(triples, fn
-        {^callback_iri, ^docstring_pred, _} -> true
-        _ -> false
-      end)
+               {^callback_iri, ^docstring_pred, _} -> true
+               _ -> false
+             end)
     end
 
     test "builds callback with source location" do
@@ -266,16 +297,19 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context(file_path: "lib/my_behaviour.ex")
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri = RDF.iri("#{behaviour_iri}/init/1")
 
       # Verify hasSourceLocation triple exists
       location_pred = Core.hasSourceLocation()
+
       assert Enum.any?(triples, fn
-        {^callback_iri, ^location_pred, _} -> true
-        _ -> false
-      end)
+               {^callback_iri, ^location_pred, _} -> true
+               _ -> false
+             end)
     end
 
     test "builds callback without source location" do
@@ -284,14 +318,17 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri = RDF.iri("#{behaviour_iri}/init/1")
       location_pred = Core.hasSourceLocation()
+
       refute Enum.any?(triples, fn
-        {^callback_iri, ^location_pred, _} -> true
-        _ -> false
-      end)
+               {^callback_iri, ^location_pred, _} -> true
+               _ -> false
+             end)
     end
   end
 
@@ -305,7 +342,8 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       module_iri = RDF.iri("https://example.org/code#MyModule")
       context = build_test_context()
 
-      {returned_iri, triples} = BehaviourBuilder.build_implementation(impl_info, module_iri, context)
+      {returned_iri, triples} =
+        BehaviourBuilder.build_implementation(impl_info, module_iri, context)
 
       # Verify returned IRI is unchanged
       assert returned_iri == module_iri
@@ -331,6 +369,7 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
         build_test_behaviour_impl(behaviour: :GenServer),
         build_test_behaviour_impl(behaviour: :Supervisor)
       ]
+
       impl_info = build_test_implementation(behaviours: behaviour_impls)
       module_iri = RDF.iri("https://example.org/code#MyModule")
       context = build_test_context()
@@ -366,10 +405,13 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
   describe "build_implementation/2 - callback linkage" do
     test "links GenServer init/1 implementation to callback" do
       behaviour_impl = build_test_behaviour_impl(behaviour: :GenServer)
-      impl_info = build_test_implementation(
-        behaviours: [behaviour_impl],
-        functions: [{:init, 1}]
-      )
+
+      impl_info =
+        build_test_implementation(
+          behaviours: [behaviour_impl],
+          functions: [{:init, 1}]
+        )
+
       module_iri = RDF.iri("https://example.org/code#MyServer")
       context = build_test_context()
 
@@ -383,10 +425,13 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
 
     test "links multiple GenServer callback implementations" do
       behaviour_impl = build_test_behaviour_impl(behaviour: :GenServer)
-      impl_info = build_test_implementation(
-        behaviours: [behaviour_impl],
-        functions: [{:init, 1}, {:handle_call, 3}, {:terminate, 2}]
-      )
+
+      impl_info =
+        build_test_implementation(
+          behaviours: [behaviour_impl],
+          functions: [{:init, 1}, {:handle_call, 3}, {:terminate, 2}]
+        )
+
       module_iri = RDF.iri("https://example.org/code#MyServer")
       context = build_test_context()
 
@@ -408,10 +453,13 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
 
     test "does not link functions that are not callbacks" do
       behaviour_impl = build_test_behaviour_impl(behaviour: :GenServer)
-      impl_info = build_test_implementation(
-        behaviours: [behaviour_impl],
-        functions: [{:init, 1}, {:custom_function, 2}]
-      )
+
+      impl_info =
+        build_test_implementation(
+          behaviours: [behaviour_impl],
+          functions: [{:init, 1}, {:custom_function, 2}]
+        )
+
       module_iri = RDF.iri("https://example.org/code#MyServer")
       context = build_test_context()
 
@@ -425,18 +473,22 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       # custom_function/2 should NOT be linked
       custom_fn = RDF.iri("https://example.org/code#MyServer/custom_function/2")
       callback_pred = Structure.implementsCallback()
+
       refute Enum.any?(triples, fn
-        {^custom_fn, ^callback_pred, _} -> true
-        _ -> false
-      end)
+               {^custom_fn, ^callback_pred, _} -> true
+               _ -> false
+             end)
     end
 
     test "links Supervisor init/1 implementation" do
       behaviour_impl = build_test_behaviour_impl(behaviour: :Supervisor)
-      impl_info = build_test_implementation(
-        behaviours: [behaviour_impl],
-        functions: [{:init, 1}]
-      )
+
+      impl_info =
+        build_test_implementation(
+          behaviours: [behaviour_impl],
+          functions: [{:init, 1}]
+        )
+
       module_iri = RDF.iri("https://example.org/code#MySupervisor")
       context = build_test_context()
 
@@ -450,10 +502,13 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
 
     test "does not link unknown behaviour callbacks" do
       behaviour_impl = build_test_behaviour_impl(behaviour: :CustomBehaviour)
-      impl_info = build_test_implementation(
-        behaviours: [behaviour_impl],
-        functions: [{:custom_callback, 1}]
-      )
+
+      impl_info =
+        build_test_implementation(
+          behaviours: [behaviour_impl],
+          functions: [{:custom_callback, 1}]
+        )
+
       module_iri = RDF.iri("https://example.org/code#MyModule")
       context = build_test_context()
 
@@ -465,10 +520,11 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
 
       # But should NOT have implementsCallback triple (unknown behaviour)
       callback_pred = Structure.implementsCallback()
+
       refute Enum.any?(triples, fn
-        {_, ^callback_pred, _} -> true
-        _ -> false
-      end)
+               {_, ^callback_pred, _} -> true
+               _ -> false
+             end)
     end
   end
 
@@ -482,7 +538,9 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri(module_name: "MyApp.CustomBehaviour")
-      {behaviour_iri, _triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, _triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       assert to_string(behaviour_iri) == "https://example.org/code#MyApp.CustomBehaviour"
     end
@@ -493,7 +551,9 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri(module_name: "EventHandler")
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri = RDF.iri("#{behaviour_iri}/handle_event/3")
       assert {callback_iri, RDF.type(), Structure.Callback} in triples
@@ -504,11 +564,14 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
         build_test_callback(name: :format_status, arity: 1),
         build_test_callback(name: :format_status, arity: 2)
       ]
+
       behaviour_info = build_test_behaviour(callbacks: callbacks)
       context = build_test_context()
 
       module_iri = build_test_module_iri(module_name: "GenServer")
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri_1 = RDF.iri("#{behaviour_iri}/format_status/1")
       callback_iri_2 = RDF.iri("#{behaviour_iri}/format_status/2")
@@ -525,14 +588,19 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
   describe "triple validation" do
     test "generates all expected triples for behaviour with callbacks" do
       callback = build_test_callback(name: :init, arity: 1, doc: "Initialize")
-      behaviour_info = build_test_behaviour(
-        callbacks: [callback],
-        doc: "Behaviour documentation"
-      )
+
+      behaviour_info =
+        build_test_behaviour(
+          callbacks: [callback],
+          doc: "Behaviour documentation"
+        )
+
       context = build_test_context()
 
       module_iri = build_test_module_iri(module_name: "MyBehaviour")
-      {_behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {_behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       # Count expected triples:
       # 1. Behaviour type
@@ -551,8 +619,10 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
     test "does not generate duplicate triples" do
       callbacks = [
         build_test_callback(name: :init, arity: 1),
-        build_test_callback(name: :init, arity: 1)  # Duplicate (shouldn't happen but test deduplication)
+        # Duplicate (shouldn't happen but test deduplication)
+        build_test_callback(name: :init, arity: 1)
       ]
+
       behaviour_info = build_test_behaviour(callbacks: callbacks)
       context = build_test_context()
 
@@ -566,10 +636,13 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
 
     test "generates all expected triples for implementation" do
       behaviour_impl = build_test_behaviour_impl(behaviour: :GenServer)
-      impl_info = build_test_implementation(
-        behaviours: [behaviour_impl],
-        functions: [{:init, 1}, {:handle_call, 3}]
-      )
+
+      impl_info =
+        build_test_implementation(
+          behaviours: [behaviour_impl],
+          functions: [{:init, 1}, {:handle_call, 3}]
+        )
+
       module_iri = RDF.iri("https://example.org/code#MyServer")
       context = build_test_context()
 
@@ -592,14 +665,19 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
   describe "edge cases" do
     test "handles behaviour with only macrocallbacks (no regular callbacks)" do
       macrocallback = build_test_callback(name: :macro_fn, arity: 1, type: :macrocallback)
-      behaviour_info = build_test_behaviour(
-        callbacks: [],
-        macrocallbacks: [macrocallback]
-      )
+
+      behaviour_info =
+        build_test_behaviour(
+          callbacks: [],
+          macrocallbacks: [macrocallback]
+        )
+
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri = RDF.iri("#{behaviour_iri}/macro_fn/1")
       assert {callback_iri, RDF.type(), Structure.MacroCallback} in triples
@@ -610,22 +688,28 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       context = build_test_context()
 
       module_iri = build_test_module_iri()
-      {behaviour_iri, triples} = BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      {behaviour_iri, triples} =
+        BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       # Should not have docstring triple
       docstring_pred = Structure.docstring()
+
       refute Enum.any?(triples, fn
-        {^behaviour_iri, ^docstring_pred, _} -> true
-        _ -> false
-      end)
+               {^behaviour_iri, ^docstring_pred, _} -> true
+               _ -> false
+             end)
     end
 
     test "handles implementation with no matching callbacks" do
       behaviour_impl = build_test_behaviour_impl(behaviour: :GenServer)
-      impl_info = build_test_implementation(
-        behaviours: [behaviour_impl],
-        functions: [{:custom_function, 1}, {:another_function, 2}]
-      )
+
+      impl_info =
+        build_test_implementation(
+          behaviours: [behaviour_impl],
+          functions: [{:custom_function, 1}, {:another_function, 2}]
+        )
+
       module_iri = RDF.iri("https://example.org/code#MyModule")
       context = build_test_context()
 
@@ -636,10 +720,11 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       assert {module_iri, Structure.implementsBehaviour(), genserver_iri} in triples
 
       callback_pred = Structure.implementsCallback()
+
       refute Enum.any?(triples, fn
-        {_, ^callback_pred, _} -> true
-        _ -> false
-      end)
+               {_, ^callback_pred, _} -> true
+               _ -> false
+             end)
     end
   end
 end

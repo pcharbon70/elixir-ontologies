@@ -108,8 +108,10 @@ defmodule ElixirOntologies.SHACL.Validators.LogicalOperators do
             validate_against_shape(data_graph, focus_node, shape_ref, shape_map, depth + 1)
           end)
 
-        # If ANY shape failed (has violations), create AND violation
-        if length(all_violations) > 0 do
+        # If all shapes passed (no violations), succeed; otherwise create AND violation
+        if Enum.empty?(all_violations) do
+          []
+        else
           [
             Helpers.build_node_violation(
               focus_node,
@@ -117,12 +119,11 @@ defmodule ElixirOntologies.SHACL.Validators.LogicalOperators do
               "AND constraint failed: not all shapes conform",
               %{
                 constraint_component: SHACL.and_constraint_component(),
-                failing_shapes: count_failing_shapes(shape_refs, data_graph, focus_node, shape_map, depth)
+                failing_shapes:
+                  count_failing_shapes(shape_refs, data_graph, focus_node, shape_map, depth)
               }
             )
           ]
-        else
-          []
         end
     end
   end
@@ -140,12 +141,16 @@ defmodule ElixirOntologies.SHACL.Validators.LogicalOperators do
         # Check if ANY shape passes (no violations)
         any_passes? =
           Enum.any?(shape_refs, fn shape_ref ->
-            results = validate_against_shape(data_graph, focus_node, shape_ref, shape_map, depth + 1)
-            length(results) == 0
+            results =
+              validate_against_shape(data_graph, focus_node, shape_ref, shape_map, depth + 1)
+
+            Enum.empty?(results)
           end)
 
-        # If NO shape passed, create OR violation
-        if not any_passes? do
+        # If at least one shape passed, succeed; otherwise create OR violation
+        if any_passes? do
+          []
+        else
           [
             Helpers.build_node_violation(
               focus_node,
@@ -157,8 +162,6 @@ defmodule ElixirOntologies.SHACL.Validators.LogicalOperators do
               }
             )
           ]
-        else
-          []
         end
     end
   end
@@ -176,8 +179,10 @@ defmodule ElixirOntologies.SHACL.Validators.LogicalOperators do
         # Count how many shapes pass
         pass_count =
           Enum.count(shape_refs, fn shape_ref ->
-            results = validate_against_shape(data_graph, focus_node, shape_ref, shape_map, depth + 1)
-            length(results) == 0
+            results =
+              validate_against_shape(data_graph, focus_node, shape_ref, shape_map, depth + 1)
+
+            Enum.empty?(results)
           end)
 
         # Must be exactly 1
@@ -210,7 +215,7 @@ defmodule ElixirOntologies.SHACL.Validators.LogicalOperators do
         results = validate_against_shape(data_graph, focus_node, shape_ref, shape_map, depth + 1)
 
         # If shape passed (no violations), NOT fails
-        if length(results) == 0 do
+        if Enum.empty?(results) do
           [
             Helpers.build_node_violation(
               focus_node,
@@ -279,7 +284,7 @@ defmodule ElixirOntologies.SHACL.Validators.LogicalOperators do
   defp count_failing_shapes(shape_refs, data_graph, focus_node, shape_map, depth) do
     Enum.count(shape_refs, fn shape_ref ->
       results = validate_against_shape(data_graph, focus_node, shape_ref, shape_map, depth + 1)
-      length(results) > 0
+      not Enum.empty?(results)
     end)
   end
 

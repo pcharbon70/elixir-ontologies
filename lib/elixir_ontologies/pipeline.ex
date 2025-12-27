@@ -233,7 +233,11 @@ defmodule ElixirOntologies.Pipeline do
       genservers: extract_otp_pattern(ma.otp_patterns, :genserver),
       supervisors: extract_otp_pattern(ma.otp_patterns, :supervisor),
       agents: extract_otp_pattern(ma.otp_patterns, :agent),
-      tasks: extract_otp_pattern(ma.otp_patterns, :task)
+      tasks: extract_otp_pattern(ma.otp_patterns, :task),
+      # Phase 17: Call graph and control flow
+      calls: ma.calls || [],
+      control_flow: ma.control_flow || %{},
+      exceptions: ma.exceptions || %{}
     }
   end
 
@@ -258,6 +262,7 @@ defmodule ElixirOntologies.Pipeline do
   end
 
   defp extract_otp_pattern(nil, _key), do: []
+
   defp extract_otp_pattern(otp_patterns, key) when is_map(otp_patterns) do
     case Map.get(otp_patterns, key) do
       nil -> []

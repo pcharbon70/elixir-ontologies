@@ -49,9 +49,15 @@ defmodule ElixirOntologies.W3CTest do
 
   # Get all test files (exclude -data.ttl and -shapes.ttl files which are referenced by test manifests)
   @core_test_files Path.wildcard(Path.join(@core_dir, "*.ttl"))
-                   |> Enum.reject(fn file -> String.ends_with?(file, "-data.ttl") or String.ends_with?(file, "-shapes.ttl") end)
+                   |> Enum.reject(fn file ->
+                     String.ends_with?(file, "-data.ttl") or
+                       String.ends_with?(file, "-shapes.ttl")
+                   end)
   @sparql_test_files Path.wildcard(Path.join(@sparql_dir, "*.ttl"))
-                     |> Enum.reject(fn file -> String.ends_with?(file, "-data.ttl") or String.ends_with?(file, "-shapes.ttl") end)
+                     |> Enum.reject(fn file ->
+                       String.ends_with?(file, "-data.ttl") or
+                         String.ends_with?(file, "-shapes.ttl")
+                     end)
 
   # Statistics tracking
   @total_core_tests length(@core_test_files)
@@ -191,7 +197,11 @@ defmodule ElixirOntologies.W3CTest do
     IO.puts("W3C SHACL Test Suite Summary")
     IO.puts("=" |> String.duplicate(80))
     IO.puts("Core tests:   #{@total_core_tests} tests")
-    IO.puts("SPARQL tests: #{@total_sparql_tests} tests (#{length(@known_sparql_limitations)} known limitations)")
+
+    IO.puts(
+      "SPARQL tests: #{@total_sparql_tests} tests (#{length(@known_sparql_limitations)} known limitations)"
+    )
+
     IO.puts("Total:        #{@total_core_tests + @total_sparql_tests} tests")
     IO.puts("")
     IO.puts("Run with: mix test --only w3c_core      # Core tests only")

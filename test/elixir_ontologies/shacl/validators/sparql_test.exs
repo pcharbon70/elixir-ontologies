@@ -14,7 +14,8 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
 
   describe "validate/3 basic functionality" do
     test "returns empty list for empty constraint list" do
-      data_graph = RDF.Graph.new([{~I<http://example.org/n1>, RDF.type(), ~I<http://example.org/Thing>}])
+      data_graph =
+        RDF.Graph.new([{~I<http://example.org/n1>, RDF.type(), ~I<http://example.org/Thing>}])
 
       assert SPARQL.validate(data_graph, ~I<http://example.org/n1>, []) == []
     end
@@ -216,7 +217,8 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
         """
       }
 
-      violations = SPARQL.validate(data_graph, ~I<http://example.org/n1>, [constraint1, constraint2])
+      violations =
+        SPARQL.validate(data_graph, ~I<http://example.org/n1>, [constraint1, constraint2])
 
       # Should have 2 violations (one from each constraint)
       assert length(violations) == 2
@@ -333,7 +335,7 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
     # `SELECT (COUNT(?param) AS ?paramCount) WHERE { ?head struct:hasParameter ?param }`
     # This pattern is valid SPARQL 1.1 but not fully supported by the SPARQL.ex library.
     # Error: "unknown prefix in 'struct:arity' on line 7"
-    # TODO: Either upgrade SPARQL.ex to support subqueries or rewrite constraint to avoid subqueries
+    # Planned: Either upgrade SPARQL.ex to support subqueries or rewrite constraint to avoid subqueries
     # See: Phase 11.4.4 Review Fixes - SPARQL Limitations Documentation
     @tag :pending
     test "FunctionArityMatchShape: invalid function (arity != parameter count)" do
@@ -428,7 +430,7 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
     # This pattern is valid SPARQL 1.1 but not fully supported by the SPARQL.ex library.
     # The library doesn't correctly handle complex FILTER NOT EXISTS patterns with multiple
     # triple patterns inside the NOT EXISTS block.
-    # TODO: Either upgrade SPARQL.ex to support FILTER NOT EXISTS or rewrite constraint
+    # Planned: Either upgrade SPARQL.ex to support FILTER NOT EXISTS or rewrite constraint
     # See: Phase 11.4.4 Review Fixes - SPARQL Limitations Documentation
     @tag :pending
     test "ProtocolComplianceShape: invalid implementation (missing protocol function)" do
@@ -469,7 +471,10 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
 
       assert violation.severity == :violation
       assert violation.focus_node == impl
-      assert violation.message == "Protocol implementation should implement all protocol functions"
+
+      assert violation.message ==
+               "Protocol implementation should implement all protocol functions"
+
       # Details should contain protocol and missingFunc variables
       assert is_map(violation.details)
       assert Map.has_key?(violation.details, :protocol)

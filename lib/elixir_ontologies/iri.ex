@@ -40,12 +40,11 @@ defmodule ElixirOntologies.IRI do
       #=> ~I<https://example.org/code#MyApp.Users/valid%3F/1>
   """
 
+  alias ElixirOntologies.Utils.IdGenerator
+
   # ===========================================================================
   # Module Constants
   # ===========================================================================
-
-  # Repository hash length (first N characters of SHA256)
-  @repo_hash_length 8
 
   # Compile-time regex patterns for IRI parsing
   @regex_parameter ~r/^(.+)\/clause\/(\d+)\/param\/(\d+)$/
@@ -233,6 +232,147 @@ defmodule ElixirOntologies.IRI do
   end
 
   @doc """
+  Generates an IRI for a macro invocation.
+
+  Macro invocations are identified by module, macro identifier, and index.
+
+  ## Parameters
+
+  - `base_iri` - The base IRI
+  - `module` - The module where the invocation occurs
+  - `macro_id` - Identifier for the macro (e.g., "Kernel.def")
+  - `index` - Index or line number to uniquely identify the invocation
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.for_macro_invocation("https://example.org/code#", "MyApp.Users", "Kernel.def", 15)
+      ~I<https://example.org/code#MyApp.Users/invocation/Kernel.def/15>
+
+      iex> ElixirOntologies.IRI.for_macro_invocation("https://example.org/code#", "MyApp", "Logger.debug", 0)
+      ~I<https://example.org/code#MyApp/invocation/Logger.debug/0>
+  """
+  @spec for_macro_invocation(
+          String.t() | RDF.IRI.t(),
+          String.t() | atom(),
+          String.t(),
+          non_neg_integer()
+        ) :: RDF.IRI.t()
+  def for_macro_invocation(base_iri, module, macro_id, index)
+      when is_integer(index) and index >= 0 do
+    mod = module |> module_to_string() |> escape_name()
+    macro = escape_name(macro_id)
+    build_iri(base_iri, "#{mod}/invocation/#{macro}/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for a module attribute.
+
+  Attributes are identified by module and attribute name. For accumulated
+  attributes or multiple instances, an optional index can be provided.
+
+  ## Parameters
+
+  - `base_iri` - The base IRI
+  - `module` - The module name
+  - `attr_name` - The attribute name
+  - `index` - Optional index for accumulated/multiple attributes (default: nil)
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.for_attribute("https://example.org/code#", "MyApp.Users", "moduledoc")
+      ~I<https://example.org/code#MyApp.Users/attribute/moduledoc>
+
+      iex> ElixirOntologies.IRI.for_attribute("https://example.org/code#", "MyApp", "my_attr", 0)
+      ~I<https://example.org/code#MyApp/attribute/my_attr/0>
+
+      iex> ElixirOntologies.IRI.for_attribute("https://example.org/code#", "MyApp", :doc)
+      ~I<https://example.org/code#MyApp/attribute/doc>
+  """
+  @spec for_attribute(
+          String.t() | RDF.IRI.t(),
+          String.t() | atom(),
+          String.t() | atom(),
+          non_neg_integer() | nil
+        ) :: RDF.IRI.t()
+  def for_attribute(base_iri, module, attr_name, index \\ nil) do
+    mod = module |> module_to_string() |> escape_name()
+    attr = escape_name(attr_name)
+
+    if index do
+      build_iri(base_iri, "#{mod}/attribute/#{attr}/#{index}")
+    else
+      build_iri(base_iri, "#{mod}/attribute/#{attr}")
+    end
+  end
+
+  @doc """
+  Generates an IRI for a quote block.
+
+  Quote blocks are identified by module and index.
+
+  ## Parameters
+
+  - `base_iri` - The base IRI
+  - `module` - The module containing the quote
+  - `index` - Index to uniquely identify the quote within the module
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.for_quote("https://example.org/code#", "MyApp.Macros", 0)
+      ~I<https://example.org/code#MyApp.Macros/quote/0>
+
+      iex> ElixirOntologies.IRI.for_quote("https://example.org/code#", "MyApp", 5)
+      ~I<https://example.org/code#MyApp/quote/5>
+  """
+  @spec for_quote(
+          String.t() | RDF.IRI.t(),
+          String.t() | atom(),
+          non_neg_integer()
+        ) :: RDF.IRI.t()
+  def for_quote(base_iri, module, index) when is_integer(index) and index >= 0 do
+    mod = module |> module_to_string() |> escape_name()
+    build_iri(base_iri, "#{mod}/quote/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for an unquote expression within a quote block.
+
+  ## Parameters
+
+  - `quote_iri` - The IRI of the containing quote block
+  - `index` - Index of the unquote within the quote
+
+  ## Examples
+
+      iex> quote_iri = RDF.iri("https://example.org/code#MyApp.Macros/quote/0")
+      iex> ElixirOntologies.IRI.for_unquote(quote_iri, 0)
+      ~I<https://example.org/code#MyApp.Macros/quote/0/unquote/0>
+  """
+  @spec for_unquote(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_unquote(quote_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(quote_iri, "unquote/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for a hygiene violation within a quote block.
+
+  ## Parameters
+
+  - `quote_iri` - The IRI of the containing quote block
+  - `index` - Index of the hygiene violation within the quote
+
+  ## Examples
+
+      iex> quote_iri = RDF.iri("https://example.org/code#MyApp.Macros/quote/0")
+      iex> ElixirOntologies.IRI.for_hygiene_violation(quote_iri, 0)
+      ~I<https://example.org/code#MyApp.Macros/quote/0/hygiene/0>
+  """
+  @spec for_hygiene_violation(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_hygiene_violation(quote_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(quote_iri, "hygiene/#{index}")
+  end
+
+  @doc """
   Generates an IRI for a source file.
 
   ## Parameters
@@ -298,11 +438,7 @@ defmodule ElixirOntologies.IRI do
   """
   @spec for_repository(String.t() | RDF.IRI.t(), String.t()) :: RDF.IRI.t()
   def for_repository(base_iri, repo_url) do
-    hash =
-      :crypto.hash(:sha256, repo_url)
-      |> Base.encode16(case: :lower)
-      |> String.slice(0, @repo_hash_length)
-
+    hash = IdGenerator.short_id(repo_url)
     build_iri(base_iri, "repo/#{hash}")
   end
 
@@ -323,6 +459,296 @@ defmodule ElixirOntologies.IRI do
   @spec for_commit(String.t() | RDF.IRI.t(), String.t()) :: RDF.IRI.t()
   def for_commit(repo_iri, sha) do
     append_to_iri(repo_iri, "commit/#{sha}")
+  end
+
+  # ===========================================================================
+  # Module Directive IRIs
+  # ===========================================================================
+
+  @doc """
+  Generates an IRI for a module alias directive.
+
+  Pattern: `{base}#Module/alias/{index}`
+
+  ## Parameters
+
+  - `module_iri` - The IRI of the containing module
+  - `index` - Zero-based index of the alias within the module
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> ElixirOntologies.IRI.for_alias(module_iri, 0)
+      ~I<https://example.org/code#MyApp/alias/0>
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp.Users")
+      iex> ElixirOntologies.IRI.for_alias(module_iri, 2)
+      ~I<https://example.org/code#MyApp.Users/alias/2>
+  """
+  @spec for_alias(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_alias(module_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(module_iri, "alias/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for a module import directive.
+
+  Pattern: `{base}#Module/import/{index}`
+
+  ## Parameters
+
+  - `module_iri` - The IRI of the containing module
+  - `index` - Zero-based index of the import within the module
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> ElixirOntologies.IRI.for_import(module_iri, 0)
+      ~I<https://example.org/code#MyApp/import/0>
+  """
+  @spec for_import(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_import(module_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(module_iri, "import/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for a module require directive.
+
+  Pattern: `{base}#Module/require/{index}`
+
+  ## Parameters
+
+  - `module_iri` - The IRI of the containing module
+  - `index` - Zero-based index of the require within the module
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> ElixirOntologies.IRI.for_require(module_iri, 0)
+      ~I<https://example.org/code#MyApp/require/0>
+  """
+  @spec for_require(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_require(module_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(module_iri, "require/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for a module use directive.
+
+  Pattern: `{base}#Module/use/{index}`
+
+  ## Parameters
+
+  - `module_iri` - The IRI of the containing module
+  - `index` - Zero-based index of the use within the module
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp.Server")
+      iex> ElixirOntologies.IRI.for_use(module_iri, 0)
+      ~I<https://example.org/code#MyApp.Server/use/0>
+  """
+  @spec for_use(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_use(module_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(module_iri, "use/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for a use directive option.
+
+  Pattern: `{use_iri}/option/{index}`
+
+  ## Parameters
+
+  - `use_iri` - The IRI of the containing use directive
+  - `index` - Zero-based index of the option within the use directive
+
+  ## Examples
+
+      iex> use_iri = RDF.iri("https://example.org/code#MyApp/use/0")
+      iex> ElixirOntologies.IRI.for_use_option(use_iri, 0)
+      ~I<https://example.org/code#MyApp/use/0/option/0>
+
+      iex> use_iri = RDF.iri("https://example.org/code#MyApp.Server/use/1")
+      iex> ElixirOntologies.IRI.for_use_option(use_iri, 2)
+      ~I<https://example.org/code#MyApp.Server/use/1/option/2>
+  """
+  @spec for_use_option(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_use_option(use_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(use_iri, "option/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for an anonymous function.
+
+  Anonymous functions don't have names, so identification is based on either:
+  - The containing function/module and an index
+  - A file path and line number
+
+  Pattern: `{base}#Module/anon/{index}` or `{base}#file/{path}/anon/L{line}`
+
+  ## Parameters
+
+  - `context_iri` - The IRI of the containing context (module, function, or file)
+  - `index_or_line` - Index within the context or line number
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> ElixirOntologies.IRI.for_anonymous_function(module_iri, 0)
+      ~I<https://example.org/code#MyApp/anon/0>
+
+      iex> func_iri = RDF.iri("https://example.org/code#MyApp/get_user/1")
+      iex> ElixirOntologies.IRI.for_anonymous_function(func_iri, 2)
+      ~I<https://example.org/code#MyApp/get_user/1/anon/2>
+  """
+  @spec for_anonymous_function(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_anonymous_function(context_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(context_iri, "anon/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for an anonymous function clause.
+
+  Pattern: `{anon_iri}/clause/{N}`
+
+  ## Parameters
+
+  - `anon_iri` - The IRI of the anonymous function
+  - `clause_order` - The clause position (0-indexed)
+
+  ## Examples
+
+      iex> anon_iri = RDF.iri("https://example.org/code#MyApp/anon/0")
+      iex> ElixirOntologies.IRI.for_anonymous_clause(anon_iri, 0)
+      ~I<https://example.org/code#MyApp/anon/0/clause/0>
+
+      iex> anon_iri = RDF.iri("https://example.org/code#MyApp/get_user/1/anon/2")
+      iex> ElixirOntologies.IRI.for_anonymous_clause(anon_iri, 1)
+      ~I<https://example.org/code#MyApp/get_user/1/anon/2/clause/1>
+  """
+  @spec for_anonymous_clause(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_anonymous_clause(anon_iri, clause_order)
+      when is_integer(clause_order) and clause_order >= 0 do
+    append_to_iri(anon_iri, "clause/#{clause_order}")
+  end
+
+  @doc """
+  Generates an IRI for a captured variable in a closure.
+
+  Pattern: `{anon_iri}/capture/{variable_name}`
+
+  ## Parameters
+
+  - `anon_iri` - The IRI of the anonymous function/closure
+  - `variable_name` - The name of the captured variable (atom or string)
+
+  ## Examples
+
+      iex> anon_iri = RDF.iri("https://example.org/code#MyApp/anon/0")
+      iex> ElixirOntologies.IRI.for_captured_variable(anon_iri, :x)
+      ~I<https://example.org/code#MyApp/anon/0/capture/x>
+
+      iex> anon_iri = RDF.iri("https://example.org/code#MyApp/get_user/1/anon/2")
+      iex> ElixirOntologies.IRI.for_captured_variable(anon_iri, "counter")
+      ~I<https://example.org/code#MyApp/get_user/1/anon/2/capture/counter>
+  """
+  @spec for_captured_variable(String.t() | RDF.IRI.t(), atom() | String.t()) :: RDF.IRI.t()
+  def for_captured_variable(anon_iri, variable_name) do
+    var_name = escape_name(variable_name)
+    append_to_iri(anon_iri, "capture/#{var_name}")
+  end
+
+  @doc """
+  Generates an IRI for a capture operator expression.
+
+  Pattern: `{context_iri}/&/{index}`
+
+  ## Parameters
+
+  - `context_iri` - The IRI of the containing context (module or file)
+  - `index` - Index of the capture within its context
+
+  ## Examples
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp")
+      iex> ElixirOntologies.IRI.for_capture(module_iri, 0)
+      ~I<https://example.org/code#MyApp/&/0>
+
+      iex> module_iri = RDF.iri("https://example.org/code#MyApp.Server")
+      iex> ElixirOntologies.IRI.for_capture(module_iri, 2)
+      ~I<https://example.org/code#MyApp.Server/&/2>
+  """
+  @spec for_capture(String.t() | RDF.IRI.t(), non_neg_integer()) :: RDF.IRI.t()
+  def for_capture(context_iri, index) when is_integer(index) and index >= 0 do
+    append_to_iri(context_iri, "&/#{index}")
+  end
+
+  @doc """
+  Generates an IRI for a child specification within a supervisor.
+
+  The IRI follows the pattern: `{supervisor_iri}/child/{child_id}/{index}`
+
+  ## Parameters
+
+  - `supervisor_iri` - The IRI of the supervisor module
+  - `child_id` - The child specification ID
+  - `index` - Position in the children list (for disambiguation)
+
+  ## Examples
+
+      iex> supervisor_iri = RDF.iri("https://example.org/code#MySupervisor")
+      iex> ElixirOntologies.IRI.for_child_spec(supervisor_iri, :worker1, 0)
+      ~I<https://example.org/code#MySupervisor/child/worker1/0>
+
+      iex> supervisor_iri = RDF.iri("https://example.org/code#MyApp.Supervisor")
+      iex> ElixirOntologies.IRI.for_child_spec(supervisor_iri, MyWorker, 2)
+      ~I<https://example.org/code#MyApp.Supervisor/child/MyWorker/2>
+  """
+  @spec for_child_spec(String.t() | RDF.IRI.t(), atom() | term(), non_neg_integer()) ::
+          RDF.IRI.t()
+  def for_child_spec(supervisor_iri, child_id, index) when is_integer(index) and index >= 0 do
+    id_string = format_child_id(child_id) |> escape_name()
+    append_to_iri(supervisor_iri, "child/#{id_string}/#{index}")
+  end
+
+  # Format child ID for IRI (atom, module, or other term)
+  defp format_child_id(id) when is_atom(id),
+    do: Atom.to_string(id) |> String.replace("Elixir.", "")
+
+  defp format_child_id(id), do: inspect(id)
+
+  # ===========================================================================
+  # Supervision Tree IRIs
+  # ===========================================================================
+
+  @doc """
+  Generates an IRI for a supervision tree.
+
+  ## Parameters
+
+  - `base_iri` - Base IRI string
+  - `app_name` - Application name (atom or string)
+
+  ## Returns
+
+  An RDF.IRI for the supervision tree.
+
+  ## Examples
+
+      iex> ElixirOntologies.IRI.for_supervision_tree("https://example.org/code#", :my_app)
+      ~I<https://example.org/code#tree/my_app>
+
+      iex> ElixirOntologies.IRI.for_supervision_tree("https://example.org/code#", "MyApp")
+      ~I<https://example.org/code#tree/MyApp>
+  """
+  @spec for_supervision_tree(String.t(), atom() | String.t()) :: RDF.IRI.t()
+  def for_supervision_tree(base_iri, app_name) when is_atom(app_name) do
+    for_supervision_tree(base_iri, Atom.to_string(app_name))
+  end
+
+  def for_supervision_tree(base_iri, app_name) when is_binary(base_iri) and is_binary(app_name) do
+    RDF.iri("#{base_iri}tree/#{escape_name(app_name)}")
   end
 
   # ===========================================================================

@@ -56,17 +56,27 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     @moduledoc """
     Represents a supervision strategy extracted from a Supervisor's init/1 callback.
 
+    Also known as SupervisionStrategy in the ontology context.
+
     ## Strategy Types
 
     - `:one_for_one` - Only restart the failed child
     - `:one_for_all` - Restart all children on any failure
     - `:rest_for_one` - Restart failed child and all started after it
 
+    ## Default Values
+
+    OTP defaults for restart intensity:
+    - `max_restarts`: 3 (maximum restart attempts)
+    - `max_seconds`: 5 (time window in seconds)
+
     ## Fields
 
     - `:type` - The strategy type atom
     - `:max_restarts` - Maximum restarts allowed in time window (default: 3)
     - `:max_seconds` - Time window in seconds (default: 5)
+    - `:is_default_max_restarts` - Whether max_restarts uses default value
+    - `:is_default_max_seconds` - Whether max_seconds uses default value
     - `:location` - Source location of the strategy
     - `:metadata` - Additional information
     """
@@ -77,6 +87,8 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
             type: strategy_type(),
             max_restarts: non_neg_integer() | nil,
             max_seconds: non_neg_integer() | nil,
+            is_default_max_restarts: boolean(),
+            is_default_max_seconds: boolean(),
             location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
             metadata: map()
           }
@@ -84,7 +96,305 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     defstruct type: :one_for_one,
               max_restarts: nil,
               max_seconds: nil,
+              is_default_max_restarts: true,
+              is_default_max_seconds: true,
               location: nil,
+              metadata: %{}
+  end
+
+  # Alias for semantic clarity matching ontology terminology
+  @typedoc "Alias for Strategy struct (matches ontology SupervisionStrategy)"
+  @type supervision_strategy :: Strategy.t()
+
+  # ===========================================================================
+  # RestartIntensity Struct
+  # ===========================================================================
+
+  defmodule RestartIntensity do
+    @moduledoc """
+    Represents the restart intensity configuration for a supervisor.
+
+    Restart intensity defines how many restarts are allowed within a time window
+    before the supervisor gives up and terminates.
+
+    ## OTP Defaults
+
+    - `max_restarts`: 3 (maximum restart attempts)
+    - `max_seconds`: 5 (time window in seconds)
+    - Default intensity: 0.6 restarts/second
+
+    ## Fields
+
+    - `:max_restarts` - Maximum restart attempts in time window
+    - `:max_seconds` - Time window in seconds
+    - `:intensity` - Calculated restarts per second ratio
+    - `:is_default_max_restarts` - Whether max_restarts uses default
+    - `:is_default_max_seconds` - Whether max_seconds uses default
+    - `:metadata` - Additional information
+    """
+
+    @type t :: %__MODULE__{
+            max_restarts: non_neg_integer(),
+            max_seconds: non_neg_integer(),
+            intensity: float(),
+            is_default_max_restarts: boolean(),
+            is_default_max_seconds: boolean(),
+            metadata: map()
+          }
+
+    defstruct max_restarts: 3,
+              max_seconds: 5,
+              intensity: 0.6,
+              is_default_max_restarts: true,
+              is_default_max_seconds: true,
+              metadata: %{}
+  end
+
+  # ===========================================================================
+  # DynamicSupervisorConfig Struct
+  # ===========================================================================
+
+  defmodule DynamicSupervisorConfig do
+    @moduledoc """
+    Represents DynamicSupervisor-specific configuration.
+
+    DynamicSupervisor differs from regular Supervisor in that children
+    are started dynamically rather than being defined in init/1.
+
+    ## Configuration Options
+
+    - `strategy` - Always `:one_for_one` for DynamicSupervisor
+    - `extra_arguments` - Additional arguments prepended to child specs
+    - `max_children` - Maximum number of children (default: `:infinity`)
+
+    ## Fields
+
+    - `:strategy` - The supervision strategy (always :one_for_one)
+    - `:extra_arguments` - List of extra arguments for child specs
+    - `:max_children` - Maximum children allowed (:infinity or integer)
+    - `:max_restarts` - Maximum restarts in time window
+    - `:max_seconds` - Time window for restart counting
+    - `:is_dynamic` - Flag indicating dynamic child management
+    - `:metadata` - Additional information
+    """
+
+    @type t :: %__MODULE__{
+            strategy: :one_for_one,
+            extra_arguments: [term()],
+            max_children: :infinity | non_neg_integer(),
+            max_restarts: non_neg_integer() | nil,
+            max_seconds: non_neg_integer() | nil,
+            is_dynamic: boolean(),
+            metadata: map()
+          }
+
+    defstruct strategy: :one_for_one,
+              extra_arguments: [],
+              max_children: :infinity,
+              max_restarts: nil,
+              max_seconds: nil,
+              is_dynamic: true,
+              metadata: %{}
+  end
+
+  # ===========================================================================
+  # ChildOrder Struct
+  # ===========================================================================
+
+  defmodule ChildOrder do
+    @moduledoc """
+    Represents the ordered position of a child in a supervision tree.
+
+    Child ordering is critical for the `:rest_for_one` strategy, where
+    all children started after a failed child are also restarted.
+
+    ## Fields
+
+    - `:position` - Zero-based position in the children list
+    - `:child_spec` - The extracted ChildSpec struct
+    - `:id` - Child ID from the spec (for quick access)
+    - `:is_dynamic` - Whether this child is in a DynamicSupervisor
+    - `:metadata` - Additional ordering information
+    """
+
+    @type t :: %__MODULE__{
+            position: non_neg_integer(),
+            child_spec: ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec.t(),
+            id: term(),
+            is_dynamic: boolean(),
+            metadata: map()
+          }
+
+    defstruct position: 0,
+              child_spec: nil,
+              id: nil,
+              is_dynamic: false,
+              metadata: %{}
+  end
+
+  # ===========================================================================
+  # NestedSupervisor Struct
+  # ===========================================================================
+
+  defmodule NestedSupervisor do
+    @moduledoc """
+    Represents a detected nested supervisor within a supervision tree.
+
+    When a child of a supervisor is itself a supervisor, it creates a nested
+    supervision tree. This struct captures information about such nested
+    supervisors detected during local (in-module) analysis.
+
+    ## Detection Methods
+
+    - `:explicit_type` - Child spec has `type: :supervisor` (definitive)
+    - `:name_heuristic` - Module name ends with "Supervisor" (suggestive)
+    - `:behaviour_hint` - Module appears to implement Supervisor behaviour
+
+    ## Fields
+
+    - `:child_spec` - The ChildSpec that is a supervisor
+    - `:module` - The module name of the nested supervisor
+    - `:position` - Position in children list (0-based)
+    - `:detection_method` - How the nested supervisor was detected
+    - `:is_confirmed` - Whether detection is definitive (true) or heuristic (false)
+    - `:metadata` - Additional information
+    """
+
+    @type detection_method :: :explicit_type | :name_heuristic | :behaviour_hint
+
+    @type t :: %__MODULE__{
+            child_spec: ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec.t() | nil,
+            module: atom() | nil,
+            position: non_neg_integer(),
+            detection_method: detection_method(),
+            is_confirmed: boolean(),
+            metadata: map()
+          }
+
+    defstruct child_spec: nil,
+              module: nil,
+              position: 0,
+              detection_method: :explicit_type,
+              is_confirmed: true,
+              metadata: %{}
+  end
+
+  # ===========================================================================
+  # StartSpec Struct
+  # ===========================================================================
+
+  defmodule StartSpec do
+    @moduledoc """
+    Represents the start function specification from a child spec.
+
+    The start function is typically `{Module, :start_link, [args]}` which tells
+    the supervisor how to start the child process.
+
+    ## Fields
+
+    - `:module` - The module containing the start function
+    - `:function` - The function name (typically :start_link)
+    - `:args` - List of arguments to pass to the function
+    - `:arity` - The arity of the start function (length of args)
+    - `:metadata` - Additional information
+
+    ## Arity Tracking
+
+    The arity is automatically calculated from the args list length.
+    For example:
+    - `{MyModule, :start_link, []}` has arity 0
+    - `{MyModule, :start_link, [arg]}` has arity 1
+    - `{MyModule, :start_link, [arg1, arg2]}` has arity 2
+    """
+
+    @type t :: %__MODULE__{
+            module: atom() | nil,
+            function: atom(),
+            args: [term()],
+            arity: non_neg_integer(),
+            metadata: map()
+          }
+
+    defstruct module: nil,
+              function: :start_link,
+              args: [],
+              arity: 0,
+              metadata: %{}
+  end
+
+  # ===========================================================================
+  # RestartStrategy Struct
+  # ===========================================================================
+
+  defmodule RestartStrategy do
+    @moduledoc """
+    Represents the restart strategy for a child specification.
+
+    The restart strategy determines when the supervisor should restart a child:
+
+    - `:permanent` - Always restart the child (default)
+    - `:temporary` - Never restart the child
+    - `:transient` - Restart only if child exits abnormally (non-:normal exit)
+
+    ## Fields
+
+    - `:type` - The restart type atom
+    - `:is_default` - Whether this is the default value (not explicitly set)
+    - `:metadata` - Additional information
+    """
+
+    @type restart_type :: :permanent | :temporary | :transient
+
+    @type t :: %__MODULE__{
+            type: restart_type(),
+            is_default: boolean(),
+            metadata: map()
+          }
+
+    defstruct type: :permanent,
+              is_default: true,
+              metadata: %{}
+  end
+
+  # ===========================================================================
+  # ShutdownSpec Struct
+  # ===========================================================================
+
+  defmodule ShutdownSpec do
+    @moduledoc """
+    Represents the shutdown specification for a child.
+
+    The shutdown strategy determines how the supervisor terminates the child:
+
+    - `:brutal_kill` - Kill immediately with `Process.exit(child, :kill)`
+    - `:infinity` - Wait indefinitely for child to terminate
+    - `timeout` (integer) - Wait up to timeout milliseconds
+
+    ## Default Values
+
+    - Workers default to 5000ms timeout
+    - Supervisors default to `:infinity`
+
+    ## Fields
+
+    - `:type` - The shutdown type (`:brutal_kill`, `:timeout`, `:infinity`)
+    - `:value` - The timeout value in ms (nil for brutal_kill/infinity)
+    - `:is_default` - Whether this is the default value
+    - `:metadata` - Additional information
+    """
+
+    @type shutdown_type :: :brutal_kill | :timeout | :infinity
+
+    @type t :: %__MODULE__{
+            type: shutdown_type(),
+            value: non_neg_integer() | nil,
+            is_default: boolean(),
+            metadata: map()
+          }
+
+    defstruct type: :timeout,
+              value: 5000,
+              is_default: true,
               metadata: %{}
   end
 
@@ -95,6 +405,15 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   defmodule ChildSpec do
     @moduledoc """
     Represents a child specification extracted from a Supervisor's init/1 callback.
+
+    ## Child Spec Formats
+
+    Elixir supports multiple child spec formats:
+
+    1. Map syntax: `%{id: MyWorker, start: {MyWorker, :start_link, [arg]}}`
+    2. Module tuple: `{MyWorker, arg}` - implies `start: {MyWorker, :start_link, [arg]}`
+    3. Module only: `MyWorker` - implies `start: {MyWorker, :start_link, []}`
+    4. Legacy tuple: `{id, start, restart, shutdown, type, modules}`
 
     ## Restart Types
 
@@ -111,13 +430,17 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     ## Fields
 
     - `:id` - Child identifier (usually module name)
-    - `:module` - Module implementing the child
+    - `:start` - StartSpec with module, function, and args
+    - `:module` - Module implementing the child (convenience, same as start.module)
     - `:restart` - Restart policy
     - `:shutdown` - Shutdown strategy
     - `:type` - Child type (:worker or :supervisor)
+    - `:modules` - List of modules for code upgrades (defaults to [module])
     - `:location` - Source location
     - `:metadata` - Additional information
     """
+
+    alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
 
     @type restart_type :: :permanent | :temporary | :transient
     @type shutdown_type :: non_neg_integer() | :infinity | :brutal_kill
@@ -125,19 +448,23 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
 
     @type t :: %__MODULE__{
             id: atom() | term(),
+            start: StartSpec.t() | nil,
             module: atom() | nil,
             restart: restart_type(),
             shutdown: shutdown_type() | nil,
             type: child_type(),
+            modules: [atom()] | :dynamic,
             location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
             metadata: map()
           }
 
     defstruct id: nil,
+              start: nil,
               module: nil,
               restart: :permanent,
               shutdown: nil,
               type: :worker,
+              modules: [],
               location: nil,
               metadata: %{}
   end
@@ -198,15 +525,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       false
   """
   @spec use_module?(Macro.t(), atom()) :: boolean()
-  def use_module?({:use, _meta, [{:__aliases__, _, [module_name]} | _opts]}, target)
-      when module_name == target,
-      do: true
-
-  def use_module?({:use, _meta, [module_atom | _opts]}, target)
-      when is_atom(module_atom) and module_atom == target,
-      do: true
-
-  def use_module?(_, _), do: false
+  def use_module?(ast, target), do: Helpers.use_module?(ast, target)
 
   @doc """
   Checks if a single AST node is a `@behaviour Module` declaration for the given module.
@@ -228,18 +547,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       false
   """
   @spec behaviour_module?(Macro.t(), atom()) :: boolean()
-  def behaviour_module?(
-        {:@, _meta, [{:behaviour, _attr_meta, [{:__aliases__, _, [module_name]}]}]},
-        target
-      )
-      when module_name == target,
-      do: true
-
-  def behaviour_module?({:@, _meta, [{:behaviour, _attr_meta, [module_atom]}]}, target)
-      when is_atom(module_atom) and module_atom == target,
-      do: true
-
-  def behaviour_module?(_, _), do: false
+  def behaviour_module?(ast, target), do: Helpers.behaviour_module?(ast, target)
 
   # ===========================================================================
   # Type Detection
@@ -603,6 +911,810 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   end
 
   @doc """
+  Extracts DynamicSupervisor-specific configuration from a module body.
+
+  Returns `{:ok, config}` if the module is a DynamicSupervisor with init/1,
+  or `{:error, reason}` otherwise.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = ~S'''
+      ...> defmodule MyDynSup do
+      ...>   use DynamicSupervisor
+      ...>   def init(_) do
+      ...>     DynamicSupervisor.init(strategy: :one_for_one, max_children: 100)
+      ...>   end
+      ...> end
+      ...> '''
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> {:ok, config} = SupervisorExtractor.extract_dynamic_supervisor_config(body)
+      iex> config.max_children
+      100
+      iex> config.is_dynamic
+      true
+  """
+  @spec extract_dynamic_supervisor_config(Macro.t(), keyword()) ::
+          {:ok, DynamicSupervisorConfig.t()} | {:error, String.t()}
+  def extract_dynamic_supervisor_config(body, opts \\ []) do
+    if dynamic_supervisor?(body) do
+      config = extract_dynamic_config_from_init(body, opts)
+      {:ok, config}
+    else
+      {:error, "Module is not a DynamicSupervisor"}
+    end
+  end
+
+  @doc """
+  Extracts DynamicSupervisor configuration, raising on error.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = ~S'''
+      ...> defmodule MyDynSup do
+      ...>   use DynamicSupervisor
+      ...>   def init(_) do
+      ...>     DynamicSupervisor.init(strategy: :one_for_one)
+      ...>   end
+      ...> end
+      ...> '''
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> config = SupervisorExtractor.extract_dynamic_supervisor_config!(body)
+      iex> config.strategy
+      :one_for_one
+  """
+  @spec extract_dynamic_supervisor_config!(Macro.t(), keyword()) :: DynamicSupervisorConfig.t()
+  def extract_dynamic_supervisor_config!(body, opts \\ []) do
+    case extract_dynamic_supervisor_config(body, opts) do
+      {:ok, config} -> config
+      {:error, reason} -> raise ArgumentError, reason
+    end
+  end
+
+  @doc """
+  Returns the max_children setting from a DynamicSupervisor config.
+
+  Returns `:infinity` if not explicitly set.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.max_children(%DynamicSupervisorConfig{max_children: 100})
+      100
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.max_children(%DynamicSupervisorConfig{})
+      :infinity
+  """
+  @spec max_children(DynamicSupervisorConfig.t()) :: :infinity | non_neg_integer()
+  def max_children(%DynamicSupervisorConfig{max_children: max_children}), do: max_children
+
+  @doc """
+  Checks if a DynamicSupervisor has extra_arguments defined.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.has_extra_arguments?(%DynamicSupervisorConfig{extra_arguments: [:config]})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.has_extra_arguments?(%DynamicSupervisorConfig{})
+      false
+  """
+  @spec has_extra_arguments?(DynamicSupervisorConfig.t()) :: boolean()
+  def has_extra_arguments?(%DynamicSupervisorConfig{extra_arguments: args}) when is_list(args) do
+    args != []
+  end
+
+  def has_extra_arguments?(_), do: false
+
+  @doc """
+  Checks if a DynamicSupervisor allows unlimited children.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.unlimited_children?(%DynamicSupervisorConfig{max_children: :infinity})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.unlimited_children?(%DynamicSupervisorConfig{max_children: 100})
+      false
+  """
+  @spec unlimited_children?(DynamicSupervisorConfig.t()) :: boolean()
+  def unlimited_children?(%DynamicSupervisorConfig{max_children: :infinity}), do: true
+  def unlimited_children?(_), do: false
+
+  @doc """
+  Returns a human-readable description of the DynamicSupervisor configuration.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.dynamic_supervisor_description(%DynamicSupervisorConfig{max_children: :infinity})
+      "DynamicSupervisor with unlimited children"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.DynamicSupervisorConfig
+      iex> SupervisorExtractor.dynamic_supervisor_description(%DynamicSupervisorConfig{max_children: 100})
+      "DynamicSupervisor with max 100 children"
+  """
+  @spec dynamic_supervisor_description(DynamicSupervisorConfig.t()) :: String.t()
+  def dynamic_supervisor_description(%DynamicSupervisorConfig{max_children: :infinity}) do
+    "DynamicSupervisor with unlimited children"
+  end
+
+  def dynamic_supervisor_description(%DynamicSupervisorConfig{max_children: max}) do
+    "DynamicSupervisor with max #{max} children"
+  end
+
+  # Helper to extract DynamicSupervisor config from init/1
+  defp extract_dynamic_config_from_init(body, _opts) do
+    statements = body_to_statements(body)
+    options = find_dynamic_supervisor_init_options(statements)
+
+    %DynamicSupervisorConfig{
+      strategy: :one_for_one,
+      extra_arguments: Keyword.get(options, :extra_arguments, []),
+      max_children: Keyword.get(options, :max_children, :infinity),
+      max_restarts: Keyword.get(options, :max_restarts),
+      max_seconds: Keyword.get(options, :max_seconds),
+      is_dynamic: true,
+      metadata: %{
+        has_extra_arguments: Keyword.has_key?(options, :extra_arguments),
+        has_max_children: Keyword.has_key?(options, :max_children),
+        has_max_restarts: Keyword.has_key?(options, :max_restarts),
+        has_max_seconds: Keyword.has_key?(options, :max_seconds)
+      }
+    }
+  end
+
+  # Convert body to list of statements
+  defp body_to_statements({:__block__, _, statements}), do: statements
+  defp body_to_statements(stmt), do: [stmt]
+
+  # Find DynamicSupervisor.init options from init/1 callback
+  defp find_dynamic_supervisor_init_options(statements) do
+    Enum.find_value(statements, [], fn
+      {:def, _, [{:init, _, _}, [do: init_body]]} ->
+        find_dynamic_init_call_options(init_body)
+
+      {:def, _, [{:init, _, _}, [do: {:__block__, _, init_statements}]]} ->
+        Enum.find_value(init_statements, [], &find_dynamic_init_call_options/1)
+
+      _ ->
+        nil
+    end) || []
+  end
+
+  # Extract options from DynamicSupervisor.init call
+  defp find_dynamic_init_call_options(ast) do
+    case ast do
+      # DynamicSupervisor.init(options)
+      {{:., _, [{:__aliases__, _, [:DynamicSupervisor]}, :init]}, _, [options]}
+      when is_list(options) ->
+        options
+
+      # Block with DynamicSupervisor.init at end
+      {:__block__, _, statements} ->
+        Enum.find_value(statements, nil, &find_dynamic_init_call_options/1)
+
+      _ ->
+        nil
+    end
+  end
+
+  # ===========================================================================
+  # Child Ordering Functions
+  # ===========================================================================
+
+  @doc """
+  Extracts ordered children from a supervisor module body.
+
+  Returns a list of `%ChildOrder{}` structs preserving the original
+  definition order. Each struct includes the position (0-indexed) and
+  the child spec.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = ~S'''
+      ...> defmodule MySup do
+      ...>   use Supervisor
+      ...>   def init(_) do
+      ...>     children = [
+      ...>       {Worker1, []},
+      ...>       {Worker2, []}
+      ...>     ]
+      ...>     Supervisor.init(children, strategy: :rest_for_one)
+      ...>   end
+      ...> end
+      ...> '''
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> {:ok, ordered} = SupervisorExtractor.extract_ordered_children(body)
+      iex> length(ordered)
+      2
+      iex> hd(ordered).position
+      0
+  """
+  @spec extract_ordered_children(Macro.t(), keyword()) :: {:ok, [ChildOrder.t()]}
+  def extract_ordered_children(body, opts \\ []) do
+    is_dynamic = dynamic_supervisor?(body)
+    {:ok, children} = extract_children(body, opts)
+
+    ordered =
+      children
+      |> Enum.with_index()
+      |> Enum.map(fn {child_spec, index} ->
+        %ChildOrder{
+          position: index,
+          child_spec: child_spec,
+          id: child_spec.id,
+          is_dynamic: is_dynamic,
+          metadata: %{
+            total_children: length(children),
+            is_first: index == 0,
+            is_last: index == length(children) - 1
+          }
+        }
+      end)
+
+    {:ok, ordered}
+  end
+
+  @doc """
+  Extracts ordered children, raising on error.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = ~S'''
+      ...> defmodule MySup do
+      ...>   use Supervisor
+      ...>   def init(_) do
+      ...>     Supervisor.init([{Worker, []}], strategy: :one_for_one)
+      ...>   end
+      ...> end
+      ...> '''
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> [first] = SupervisorExtractor.extract_ordered_children!(body)
+      iex> first.position
+      0
+  """
+  @spec extract_ordered_children!(Macro.t(), keyword()) :: [ChildOrder.t()]
+  def extract_ordered_children!(body, opts \\ []) do
+    {:ok, ordered} = extract_ordered_children(body, opts)
+    ordered
+  end
+
+  @doc """
+  Gets the child at a specific position in the ordered list.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0, id: :first}, %ChildOrder{position: 1, id: :second}]
+      iex> SupervisorExtractor.child_at_position(ordered, 1).id
+      :second
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.child_at_position([], 0)
+      nil
+  """
+  @spec child_at_position([ChildOrder.t()], non_neg_integer()) :: ChildOrder.t() | nil
+  def child_at_position(ordered_children, position) do
+    Enum.find(ordered_children, fn child -> child.position == position end)
+  end
+
+  @doc """
+  Returns the number of ordered children.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0}, %ChildOrder{position: 1}]
+      iex> SupervisorExtractor.ordered_child_count(ordered)
+      2
+  """
+  @spec ordered_child_count([ChildOrder.t()]) :: non_neg_integer()
+  def ordered_child_count(ordered_children), do: length(ordered_children)
+
+  @doc """
+  Returns the first child in the ordered list.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0, id: :first}, %ChildOrder{position: 1, id: :second}]
+      iex> SupervisorExtractor.first_child(ordered).id
+      :first
+  """
+  @spec first_child([ChildOrder.t()]) :: ChildOrder.t() | nil
+  def first_child([first | _]), do: first
+  def first_child([]), do: nil
+
+  @doc """
+  Returns the last child in the ordered list.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0, id: :first}, %ChildOrder{position: 1, id: :last}]
+      iex> SupervisorExtractor.last_child(ordered).id
+      :last
+  """
+  @spec last_child([ChildOrder.t()]) :: ChildOrder.t() | nil
+  def last_child([]), do: nil
+  def last_child(ordered_children), do: List.last(ordered_children)
+
+  @doc """
+  Returns all children after the given position.
+
+  This is useful for analyzing `:rest_for_one` behavior, where all
+  children started after a failed child are also restarted.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [
+      ...>   %ChildOrder{position: 0, id: :a},
+      ...>   %ChildOrder{position: 1, id: :b},
+      ...>   %ChildOrder{position: 2, id: :c}
+      ...> ]
+      iex> after_b = SupervisorExtractor.children_after(ordered, 1)
+      iex> Enum.map(after_b, & &1.id)
+      [:c]
+  """
+  @spec children_after([ChildOrder.t()], non_neg_integer()) :: [ChildOrder.t()]
+  def children_after(ordered_children, position) do
+    Enum.filter(ordered_children, fn child -> child.position > position end)
+  end
+
+  @doc """
+  Returns all children before the given position.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [
+      ...>   %ChildOrder{position: 0, id: :a},
+      ...>   %ChildOrder{position: 1, id: :b},
+      ...>   %ChildOrder{position: 2, id: :c}
+      ...> ]
+      iex> before_c = SupervisorExtractor.children_before(ordered, 2)
+      iex> Enum.map(before_c, & &1.id)
+      [:a, :b]
+  """
+  @spec children_before([ChildOrder.t()], non_neg_integer()) :: [ChildOrder.t()]
+  def children_before(ordered_children, position) do
+    Enum.filter(ordered_children, fn child -> child.position < position end)
+  end
+
+  @doc """
+  Checks if the ordered children list has correct sequential positions.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0}, %ChildOrder{position: 1}]
+      iex> SupervisorExtractor.is_ordered?(ordered)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> broken = [%ChildOrder{position: 0}, %ChildOrder{position: 5}]
+      iex> SupervisorExtractor.is_ordered?(broken)
+      false
+  """
+  @spec is_ordered?([ChildOrder.t()]) :: boolean()
+  def is_ordered?([]), do: true
+
+  def is_ordered?(ordered_children) do
+    positions = Enum.map(ordered_children, & &1.position)
+    expected = Enum.to_list(0..(length(ordered_children) - 1))
+    positions == expected
+  end
+
+  @doc """
+  Returns a human-readable description of the child ordering.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildOrder
+      iex> ordered = [%ChildOrder{position: 0, id: :a}, %ChildOrder{position: 1, id: :b}]
+      iex> SupervisorExtractor.ordering_description(ordered)
+      "2 children in order: a -> b"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.ordering_description([])
+      "No children"
+  """
+  @spec ordering_description([ChildOrder.t()]) :: String.t()
+  def ordering_description([]), do: "No children"
+
+  def ordering_description(ordered_children) do
+    count = length(ordered_children)
+    ids = Enum.map(ordered_children, & &1.id) |> Enum.join(" -> ")
+    "#{count} children in order: #{ids}"
+  end
+
+  # ===========================================================================
+  # Nested Supervisor Detection
+  # ===========================================================================
+
+  @doc """
+  Extracts nested supervisors from a list of ordered children.
+
+  Returns a list of `%NestedSupervisor{}` structs for each child that is
+  detected as a supervisor. Detection can be definitive (explicit `type: :supervisor`)
+  or heuristic (module name ends with "Supervisor").
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child1 = %ChildOrder{position: 0, id: :worker, child_spec: %ChildSpec{id: :worker, type: :worker, module: MyWorker}}
+      iex> child2 = %ChildOrder{position: 1, id: :sub_sup, child_spec: %ChildSpec{id: :sub_sup, type: :supervisor, module: MySupervisor}}
+      iex> {:ok, nested} = SupervisorExtractor.extract_nested_supervisors([child1, child2])
+      iex> length(nested)
+      1
+      iex> hd(nested).module
+      MySupervisor
+      iex> hd(nested).detection_method
+      :explicit_type
+  """
+  @spec extract_nested_supervisors([ChildOrder.t()]) :: {:ok, [NestedSupervisor.t()]}
+  def extract_nested_supervisors(ordered_children) when is_list(ordered_children) do
+    nested =
+      ordered_children
+      |> Enum.filter(&nested_supervisor?/1)
+      |> Enum.map(&build_nested_supervisor/1)
+
+    {:ok, nested}
+  end
+
+  @doc """
+  Bang version of extract_nested_supervisors/1.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.extract_nested_supervisors!([])
+      []
+  """
+  @spec extract_nested_supervisors!([ChildOrder.t()]) :: [NestedSupervisor.t()]
+  def extract_nested_supervisors!(ordered_children) do
+    {:ok, result} = extract_nested_supervisors(ordered_children)
+    result
+  end
+
+  @doc """
+  Checks if a ChildOrder represents a nested supervisor.
+
+  Uses multiple detection methods:
+  1. Explicit `type: :supervisor` in the child spec (definitive)
+  2. Module name ends with "Supervisor" (heuristic)
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :supervisor}}
+      iex> SupervisorExtractor.nested_supervisor?(child)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :worker, module: MySupervisor}}
+      iex> SupervisorExtractor.nested_supervisor?(child)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :worker, module: MyWorker}}
+      iex> SupervisorExtractor.nested_supervisor?(child)
+      false
+  """
+  @spec nested_supervisor?(ChildOrder.t()) :: boolean()
+  def nested_supervisor?(%ChildOrder{child_spec: %ChildSpec{type: :supervisor}}), do: true
+
+  def nested_supervisor?(%ChildOrder{child_spec: %ChildSpec{module: module}})
+      when is_atom(module) do
+    supervisor_module?(module)
+  end
+
+  def nested_supervisor?(_), do: false
+
+  @doc """
+  Checks if a module name suggests it's a supervisor.
+
+  This is a heuristic check based on naming conventions - it returns true
+  if the module name ends with "Supervisor".
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.supervisor_module?(MySupervisor)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.supervisor_module?(MyApp.SubSupervisor)
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.supervisor_module?(MyWorker)
+      false
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.supervisor_module?(nil)
+      false
+  """
+  @spec supervisor_module?(atom() | nil) :: boolean()
+  def supervisor_module?(nil), do: false
+
+  def supervisor_module?(module) when is_atom(module) do
+    module
+    |> Atom.to_string()
+    |> String.ends_with?("Supervisor")
+  end
+
+  def supervisor_module?(_), do: false
+
+  @doc """
+  Counts the number of nested supervisors in a list of ordered children.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.nested_supervisor_count([])
+      0
+  """
+  @spec nested_supervisor_count([ChildOrder.t()]) :: non_neg_integer()
+  def nested_supervisor_count(ordered_children) when is_list(ordered_children) do
+    Enum.count(ordered_children, &nested_supervisor?/1)
+  end
+
+  @doc """
+  Filters ordered children to return only those that are supervisors.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child1 = %ChildOrder{position: 0, id: :worker, child_spec: %ChildSpec{type: :worker, module: MyWorker}}
+      iex> child2 = %ChildOrder{position: 1, id: :sup, child_spec: %ChildSpec{type: :supervisor, module: MySup}}
+      iex> result = SupervisorExtractor.supervisor_children([child1, child2])
+      iex> length(result)
+      1
+      iex> hd(result).id
+      :sup
+  """
+  @spec supervisor_children([ChildOrder.t()]) :: [ChildOrder.t()]
+  def supervisor_children(ordered_children) when is_list(ordered_children) do
+    Enum.filter(ordered_children, &nested_supervisor?/1)
+  end
+
+  @doc """
+  Filters ordered children to return only those that are workers (not supervisors).
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child1 = %ChildOrder{position: 0, id: :worker, child_spec: %ChildSpec{type: :worker, module: MyWorker}}
+      iex> child2 = %ChildOrder{position: 1, id: :sup, child_spec: %ChildSpec{type: :supervisor, module: MySup}}
+      iex> result = SupervisorExtractor.worker_children([child1, child2])
+      iex> length(result)
+      1
+      iex> hd(result).id
+      :worker
+  """
+  @spec worker_children([ChildOrder.t()]) :: [ChildOrder.t()]
+  def worker_children(ordered_children) when is_list(ordered_children) do
+    Enum.reject(ordered_children, &nested_supervisor?/1)
+  end
+
+  @doc """
+  Checks if there are any nested supervisors in the children.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :supervisor}}
+      iex> SupervisorExtractor.has_nested_supervisors?([child])
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :worker}}
+      iex> SupervisorExtractor.has_nested_supervisors?([child])
+      false
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.has_nested_supervisors?([])
+      false
+  """
+  @spec has_nested_supervisors?([ChildOrder.t()]) :: boolean()
+  def has_nested_supervisors?(ordered_children) when is_list(ordered_children) do
+    Enum.any?(ordered_children, &nested_supervisor?/1)
+  end
+
+  @doc """
+  Estimates the supervision tree depth based on local information.
+
+  Returns 1 if there are no nested supervisors (flat tree), or 2 if there
+  are nested supervisors (indicates at least one level of nesting).
+  True depth requires cross-module analysis.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.supervision_depth([])
+      1
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :worker}}
+      iex> SupervisorExtractor.supervision_depth([child])
+      1
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{child_spec: %ChildSpec{type: :supervisor}}
+      iex> SupervisorExtractor.supervision_depth([child])
+      2
+  """
+  @spec supervision_depth([ChildOrder.t()]) :: pos_integer()
+  def supervision_depth(ordered_children) when is_list(ordered_children) do
+    if has_nested_supervisors?(ordered_children), do: 2, else: 1
+  end
+
+  @doc """
+  Returns a human-readable summary of nested supervisors.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.nested_supervisor_summary([])
+      "No nested supervisors"
+  """
+  @spec nested_supervisor_summary([NestedSupervisor.t()]) :: String.t()
+  def nested_supervisor_summary([]), do: "No nested supervisors"
+
+  def nested_supervisor_summary(nested_supervisors) when is_list(nested_supervisors) do
+    count = length(nested_supervisors)
+    confirmed = Enum.count(nested_supervisors, & &1.is_confirmed)
+    heuristic = count - confirmed
+
+    parts = []
+    parts = if confirmed > 0, do: ["#{confirmed} confirmed"] ++ parts, else: parts
+    parts = if heuristic > 0, do: ["#{heuristic} heuristic"] ++ parts, else: parts
+
+    modules =
+      nested_supervisors
+      |> Enum.map(& &1.module)
+      |> Enum.map(&inspect/1)
+      |> Enum.join(", ")
+
+    "#{count} nested supervisor(s) (#{Enum.join(parts, ", ")}): #{modules}"
+  end
+
+  @doc """
+  Describes the local supervision tree structure.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ChildOrder}
+      iex> child = %ChildOrder{position: 0, id: :worker, child_spec: %ChildSpec{type: :worker}}
+      iex> SupervisorExtractor.supervision_tree_description([child])
+      "Flat tree with 1 worker(s)"
+  """
+  @spec supervision_tree_description([ChildOrder.t()]) :: String.t()
+  def supervision_tree_description([]), do: "Empty supervision tree"
+
+  def supervision_tree_description(ordered_children) when is_list(ordered_children) do
+    total = length(ordered_children)
+    sup_count = nested_supervisor_count(ordered_children)
+    worker_count = total - sup_count
+
+    if sup_count == 0 do
+      "Flat tree with #{worker_count} worker(s)"
+    else
+      "Nested tree with #{sup_count} supervisor(s) and #{worker_count} worker(s)"
+    end
+  end
+
+  @doc """
+  Returns the detection method used for a nested supervisor.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.NestedSupervisor
+      iex> ns = %NestedSupervisor{detection_method: :explicit_type}
+      iex> SupervisorExtractor.nested_detection_method(ns)
+      :explicit_type
+  """
+  @spec nested_detection_method(NestedSupervisor.t()) :: NestedSupervisor.detection_method()
+  def nested_detection_method(%NestedSupervisor{detection_method: method}), do: method
+
+  @doc """
+  Returns a description of the detection method.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.detection_method_description(:explicit_type)
+      "Explicit type: :supervisor in child spec"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.detection_method_description(:name_heuristic)
+      "Module name ends with 'Supervisor'"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.detection_method_description(:behaviour_hint)
+      "Module implements Supervisor behaviour"
+  """
+  @spec detection_method_description(NestedSupervisor.detection_method()) :: String.t()
+  def detection_method_description(:explicit_type), do: "Explicit type: :supervisor in child spec"
+  def detection_method_description(:name_heuristic), do: "Module name ends with 'Supervisor'"
+  def detection_method_description(:behaviour_hint), do: "Module implements Supervisor behaviour"
+
+  # Build a NestedSupervisor from a ChildOrder
+  defp build_nested_supervisor(%ChildOrder{
+         child_spec: %ChildSpec{type: :supervisor} = spec,
+         position: position
+       }) do
+    %NestedSupervisor{
+      child_spec: spec,
+      module: spec.module,
+      position: position,
+      detection_method: :explicit_type,
+      is_confirmed: true,
+      metadata: %{
+        id: spec.id
+      }
+    }
+  end
+
+  defp build_nested_supervisor(%ChildOrder{
+         child_spec: %ChildSpec{module: module} = spec,
+         position: position
+       })
+       when is_atom(module) do
+    %NestedSupervisor{
+      child_spec: spec,
+      module: module,
+      position: position,
+      detection_method: :name_heuristic,
+      is_confirmed: false,
+      metadata: %{
+        id: spec.id,
+        reason: "Module name ends with 'Supervisor'"
+      }
+    }
+  end
+
+  @doc """
   Returns the OTP behaviour type for this extractor.
 
   This is used when linking via `implementsOTPBehaviour`.
@@ -847,6 +1959,281 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   def rest_for_one?(%Strategy{type: :rest_for_one}), do: true
   def rest_for_one?(_), do: false
 
+  @doc """
+  Extracts the supervision strategy from a module body.
+
+  This is an alias for `extract_strategy/1` matching ontology terminology.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> code = ~S'''
+      ...> defmodule MySup do
+      ...>   use Supervisor
+      ...>   def init(_) do
+      ...>     Supervisor.init([], strategy: :one_for_one)
+      ...>   end
+      ...> end
+      ...> '''
+      iex> {:ok, {:defmodule, _, [_, [do: body]]}} = Code.string_to_quoted(code)
+      iex> {:ok, strategy} = SupervisorExtractor.extract_supervision_strategy(body)
+      iex> strategy.type
+      :one_for_one
+  """
+  @spec extract_supervision_strategy(Macro.t(), keyword()) ::
+          {:ok, Strategy.t()} | {:error, String.t()}
+  defdelegate extract_supervision_strategy(body, opts \\ []),
+    to: __MODULE__,
+    as: :extract_strategy
+
+  @doc """
+  Returns a human-readable description for a strategy type.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.strategy_description(:one_for_one)
+      "Only restart the failed child"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.strategy_description(:one_for_all)
+      "Restart all children on any failure"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.strategy_description(:rest_for_one)
+      "Restart failed child and all started after it"
+  """
+  @spec strategy_description(Strategy.strategy_type()) :: String.t()
+  def strategy_description(:one_for_one), do: "Only restart the failed child"
+  def strategy_description(:one_for_all), do: "Restart all children on any failure"
+  def strategy_description(:rest_for_one), do: "Restart failed child and all started after it"
+
+  @doc """
+  Checks if a strategy is using the default max_restarts value.
+
+  The OTP default for max_restarts is 3.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.default_max_restarts?(%Strategy{is_default_max_restarts: true})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.default_max_restarts?(%Strategy{max_restarts: 10, is_default_max_restarts: false})
+      false
+  """
+  @spec default_max_restarts?(Strategy.t()) :: boolean()
+  def default_max_restarts?(%Strategy{is_default_max_restarts: is_default}), do: is_default
+
+  @doc """
+  Checks if a strategy is using the default max_seconds value.
+
+  The OTP default for max_seconds is 5.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.default_max_seconds?(%Strategy{is_default_max_seconds: true})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.default_max_seconds?(%Strategy{max_seconds: 60, is_default_max_seconds: false})
+      false
+  """
+  @spec default_max_seconds?(Strategy.t()) :: boolean()
+  def default_max_seconds?(%Strategy{is_default_max_seconds: is_default}), do: is_default
+
+  @doc """
+  Returns the effective max_restarts value.
+
+  Returns the explicitly set value, or the OTP default (3) if not set.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.effective_max_restarts(%Strategy{max_restarts: 10})
+      10
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.effective_max_restarts(%Strategy{max_restarts: nil})
+      3
+  """
+  @spec effective_max_restarts(Strategy.t()) :: non_neg_integer()
+  def effective_max_restarts(%Strategy{max_restarts: nil}), do: 3
+  def effective_max_restarts(%Strategy{max_restarts: max_restarts}), do: max_restarts
+
+  @doc """
+  Returns the effective max_seconds value.
+
+  Returns the explicitly set value, or the OTP default (5) if not set.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.effective_max_seconds(%Strategy{max_seconds: 60})
+      60
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.effective_max_seconds(%Strategy{max_seconds: nil})
+      5
+  """
+  @spec effective_max_seconds(Strategy.t()) :: non_neg_integer()
+  def effective_max_seconds(%Strategy{max_seconds: nil}), do: 5
+  def effective_max_seconds(%Strategy{max_seconds: max_seconds}), do: max_seconds
+
+  @doc """
+  Calculates the restart intensity as restarts per second.
+
+  This is the ratio of max_restarts to max_seconds.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.restart_intensity(%Strategy{max_restarts: 3, max_seconds: 5})
+      0.6
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.restart_intensity(%Strategy{max_restarts: nil, max_seconds: nil})
+      0.6
+  """
+  @spec restart_intensity(Strategy.t()) :: float()
+  def restart_intensity(%Strategy{} = strategy) do
+    max_restarts = effective_max_restarts(strategy)
+    max_seconds = effective_max_seconds(strategy)
+    max_restarts / max_seconds
+  end
+
+  @doc """
+  Extracts restart intensity configuration from a Strategy struct.
+
+  Returns a `%RestartIntensity{}` struct with the calculated intensity
+  and default tracking.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> strategy = %Strategy{max_restarts: 10, max_seconds: 60, is_default_max_restarts: false, is_default_max_seconds: false}
+      iex> intensity = SupervisorExtractor.extract_restart_intensity(strategy)
+      iex> intensity.max_restarts
+      10
+      iex> intensity.max_seconds
+      60
+      iex> intensity.intensity
+      0.16666666666666666
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> strategy = %Strategy{}
+      iex> intensity = SupervisorExtractor.extract_restart_intensity(strategy)
+      iex> intensity.is_default_max_restarts
+      true
+      iex> intensity.is_default_max_seconds
+      true
+  """
+  @spec extract_restart_intensity(Strategy.t()) :: RestartIntensity.t()
+  def extract_restart_intensity(%Strategy{} = strategy) do
+    max_restarts = effective_max_restarts(strategy)
+    max_seconds = effective_max_seconds(strategy)
+    intensity = max_restarts / max_seconds
+
+    %RestartIntensity{
+      max_restarts: max_restarts,
+      max_seconds: max_seconds,
+      intensity: intensity,
+      is_default_max_restarts: strategy.is_default_max_restarts,
+      is_default_max_seconds: strategy.is_default_max_seconds,
+      metadata: %{
+        source_strategy: strategy.type
+      }
+    }
+  end
+
+  @doc """
+  Returns a human-readable description of the restart intensity.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.restart_intensity_description(%Strategy{max_restarts: 3, max_seconds: 5, is_default_max_restarts: false, is_default_max_seconds: false})
+      "3 restarts in 5 seconds (0.6/sec)"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.restart_intensity_description(%Strategy{max_restarts: nil, max_seconds: nil})
+      "3 restarts in 5 seconds (0.6/sec) [defaults]"
+  """
+  @spec restart_intensity_description(Strategy.t()) :: String.t()
+  def restart_intensity_description(%Strategy{} = strategy) do
+    max_restarts = effective_max_restarts(strategy)
+    max_seconds = effective_max_seconds(strategy)
+    intensity = Float.round(max_restarts / max_seconds, 2)
+
+    base = "#{max_restarts} restarts in #{max_seconds} seconds (#{intensity}/sec)"
+
+    if strategy.is_default_max_restarts and strategy.is_default_max_seconds do
+      base <> " [defaults]"
+    else
+      base
+    end
+  end
+
+  @doc """
+  Checks if the restart intensity is high (aggressive restart policy).
+
+  An intensity is considered high if it exceeds 1 restart per second.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.high_restart_intensity?(%Strategy{max_restarts: 10, max_seconds: 5})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.high_restart_intensity?(%Strategy{max_restarts: 3, max_seconds: 5})
+      false
+  """
+  @spec high_restart_intensity?(Strategy.t()) :: boolean()
+  def high_restart_intensity?(%Strategy{} = strategy) do
+    restart_intensity(strategy) > 1.0
+  end
+
+  @doc """
+  Checks if the strategy is using default restart intensity settings.
+
+  Returns true if both max_restarts and max_seconds are using defaults.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.within_default_intensity?(%Strategy{is_default_max_restarts: true, is_default_max_seconds: true})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.Strategy
+      iex> SupervisorExtractor.within_default_intensity?(%Strategy{max_restarts: 10, is_default_max_restarts: false})
+      false
+  """
+  @spec within_default_intensity?(Strategy.t()) :: boolean()
+  def within_default_intensity?(%Strategy{} = strategy) do
+    strategy.is_default_max_restarts and strategy.is_default_max_seconds
+  end
+
   # ===========================================================================
   # Child Spec Extraction
   # ===========================================================================
@@ -982,6 +2369,396 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   def transient?(_), do: false
 
   # ===========================================================================
+  # Start Function Helpers
+  # ===========================================================================
+
+  @doc """
+  Returns the arity of the start function from a StartSpec.
+
+  Uses the arity field if set (non-zero), otherwise calculates from args length.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+      iex> SupervisorExtractor.start_function_arity(%StartSpec{args: [:arg1, :arg2], arity: 2})
+      2
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+      iex> SupervisorExtractor.start_function_arity(%StartSpec{args: [], arity: 0})
+      0
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.start_function_arity(nil)
+      nil
+  """
+  @spec start_function_arity(StartSpec.t() | nil) :: non_neg_integer() | nil
+  def start_function_arity(nil), do: nil
+
+  def start_function_arity(%StartSpec{arity: arity}) when is_integer(arity) and arity > 0,
+    do: arity
+
+  def start_function_arity(%StartSpec{args: args}) when is_list(args), do: length(args)
+  def start_function_arity(%StartSpec{}), do: 0
+
+  @doc """
+  Returns the MFA tuple {module, function, arity} from a StartSpec.
+
+  This is useful for identifying the start function in a consistent format.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.StartSpec
+      iex> spec = %StartSpec{module: MyWorker, function: :start_link, args: [:arg], arity: 1}
+      iex> SupervisorExtractor.start_function_mfa(spec)
+      {MyWorker, :start_link, 1}
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.start_function_mfa(nil)
+      nil
+  """
+  @spec start_function_mfa(StartSpec.t() | nil) :: {atom(), atom(), non_neg_integer()} | nil
+  def start_function_mfa(nil), do: nil
+
+  def start_function_mfa(%StartSpec{module: module, function: function} = spec)
+      when not is_nil(module) and not is_nil(function) do
+    {module, function, start_function_arity(spec)}
+  end
+
+  def start_function_mfa(%StartSpec{}), do: nil
+
+  @doc """
+  Returns the start function MFA from a ChildSpec.
+
+  This extracts the MFA from the child spec's start field.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, StartSpec}
+      iex> spec = %ChildSpec{
+      ...>   start: %StartSpec{module: MyWorker, function: :start_link, args: [], arity: 0}
+      ...> }
+      iex> SupervisorExtractor.child_start_mfa(spec)
+      {MyWorker, :start_link, 0}
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.child_start_mfa(%ChildSpec{start: nil})
+      nil
+  """
+  @spec child_start_mfa(ChildSpec.t()) :: {atom(), atom(), non_neg_integer()} | nil
+  def child_start_mfa(%ChildSpec{start: start}), do: start_function_mfa(start)
+
+  # ===========================================================================
+  # Restart Strategy Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts the restart strategy from a ChildSpec.
+
+  Returns a `%RestartStrategy{}` struct with the restart type and whether
+  it was explicitly set or defaulted.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, RestartStrategy}
+      iex> spec = %ChildSpec{id: :worker, restart: :temporary, metadata: %{format: :map}}
+      iex> strategy = SupervisorExtractor.extract_restart_strategy(spec)
+      iex> strategy.type
+      :temporary
+      iex> strategy.is_default
+      false
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, RestartStrategy}
+      iex> spec = %ChildSpec{id: :worker, restart: :permanent, metadata: %{format: :module_only}}
+      iex> strategy = SupervisorExtractor.extract_restart_strategy(spec)
+      iex> strategy.type
+      :permanent
+      iex> strategy.is_default
+      true
+  """
+  @spec extract_restart_strategy(ChildSpec.t()) :: RestartStrategy.t()
+  def extract_restart_strategy(%ChildSpec{restart: restart, metadata: metadata}) do
+    # Determine if this was explicitly set or defaulted
+    # Module-only and tuple formats without explicit restart use defaults
+    is_default = restart == :permanent and not explicitly_set_restart?(metadata)
+
+    %RestartStrategy{
+      type: restart,
+      is_default: is_default,
+      metadata: %{
+        source_format: Map.get(metadata, :format)
+      }
+    }
+  end
+
+  # Check if restart was explicitly set based on child spec format
+  defp explicitly_set_restart?(%{format: :map}), do: true
+  defp explicitly_set_restart?(%{format: :legacy_tuple}), do: true
+
+  defp explicitly_set_restart?(%{format: :tuple, has_args: true} = meta) do
+    # Tuple format with keyword list args might have restart option
+    Map.get(meta, :has_restart_option, false)
+  end
+
+  defp explicitly_set_restart?(_), do: false
+
+  @doc """
+  Returns the restart strategy type from a ChildSpec.
+
+  This is a convenience function that extracts the restart type directly.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :transient})
+      :transient
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :permanent})
+      :permanent
+  """
+  @spec restart_strategy_type(ChildSpec.t()) :: RestartStrategy.restart_type()
+  def restart_strategy_type(%ChildSpec{restart: restart}), do: restart
+
+  @doc """
+  Checks if a child spec is using the default restart strategy.
+
+  The default restart strategy is `:permanent`.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.default_restart?(%ChildSpec{restart: :permanent, metadata: %{format: :module_only}})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.default_restart?(%ChildSpec{restart: :temporary, metadata: %{format: :map}})
+      false
+  """
+  @spec default_restart?(ChildSpec.t()) :: boolean()
+  def default_restart?(%ChildSpec{} = spec) do
+    extract_restart_strategy(spec).is_default
+  end
+
+  @doc """
+  Returns the restart description for a restart type.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.restart_description(:permanent)
+      "Always restart the child process"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.restart_description(:temporary)
+      "Never restart the child process"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.restart_description(:transient)
+      "Restart only if child exits abnormally"
+  """
+  @spec restart_description(RestartStrategy.restart_type()) :: String.t()
+  def restart_description(:permanent), do: "Always restart the child process"
+  def restart_description(:temporary), do: "Never restart the child process"
+  def restart_description(:transient), do: "Restart only if child exits abnormally"
+
+  # ===========================================================================
+  # Shutdown Extraction
+  # ===========================================================================
+
+  @doc """
+  Extracts the shutdown specification from a ChildSpec.
+
+  Returns a `%ShutdownSpec{}` struct with the shutdown type, value, and
+  whether it was explicitly set or defaulted.
+
+  ## Shutdown Types
+
+  - `:brutal_kill` - Kill immediately
+  - `:infinity` - Wait forever
+  - `:timeout` - Wait up to specified milliseconds
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ShutdownSpec}
+      iex> spec = %ChildSpec{id: :worker, shutdown: 5000, metadata: %{format: :map}}
+      iex> shutdown = SupervisorExtractor.extract_shutdown(spec)
+      iex> shutdown.type
+      :timeout
+      iex> shutdown.value
+      5000
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.{ChildSpec, ShutdownSpec}
+      iex> spec = %ChildSpec{id: :worker, shutdown: :brutal_kill, metadata: %{format: :map}}
+      iex> shutdown = SupervisorExtractor.extract_shutdown(spec)
+      iex> shutdown.type
+      :brutal_kill
+      iex> shutdown.value
+      nil
+  """
+  @spec extract_shutdown(ChildSpec.t()) :: ShutdownSpec.t()
+  def extract_shutdown(%ChildSpec{shutdown: shutdown, type: child_type, metadata: metadata}) do
+    {type, value} = categorize_shutdown(shutdown, child_type)
+    is_default = shutdown == nil
+
+    %ShutdownSpec{
+      type: type,
+      value: value,
+      is_default: is_default,
+      metadata: %{
+        source_format: Map.get(metadata, :format),
+        child_type: child_type
+      }
+    }
+  end
+
+  # Categorize shutdown value into type and value
+  defp categorize_shutdown(:brutal_kill, _child_type), do: {:brutal_kill, nil}
+  defp categorize_shutdown(:infinity, _child_type), do: {:infinity, nil}
+  defp categorize_shutdown(timeout, _child_type) when is_integer(timeout), do: {:timeout, timeout}
+  # Default based on child type
+  defp categorize_shutdown(nil, :supervisor), do: {:infinity, nil}
+  defp categorize_shutdown(nil, :worker), do: {:timeout, 5000}
+
+  @doc """
+  Returns the shutdown timeout value in milliseconds.
+
+  Returns nil for `:brutal_kill` and `:infinity` shutdown types.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.shutdown_timeout(%ChildSpec{shutdown: 10000})
+      10000
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.shutdown_timeout(%ChildSpec{shutdown: :infinity})
+      nil
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.shutdown_timeout(%ChildSpec{shutdown: nil, type: :worker})
+      5000
+  """
+  @spec shutdown_timeout(ChildSpec.t()) :: non_neg_integer() | nil
+  def shutdown_timeout(%ChildSpec{} = spec) do
+    extract_shutdown(spec).value
+  end
+
+  @doc """
+  Returns the shutdown description for a shutdown specification.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.shutdown_description(:brutal_kill)
+      "Kill immediately"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.shutdown_description(:infinity)
+      "Wait indefinitely"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.shutdown_description(5000)
+      "Wait up to 5000ms"
+  """
+  @spec shutdown_description(:brutal_kill | :infinity | non_neg_integer()) :: String.t()
+  def shutdown_description(:brutal_kill), do: "Kill immediately"
+  def shutdown_description(:infinity), do: "Wait indefinitely"
+  def shutdown_description(timeout) when is_integer(timeout), do: "Wait up to #{timeout}ms"
+
+  # ===========================================================================
+  # Child Type Extraction
+  # ===========================================================================
+
+  @doc """
+  Checks if a child spec is for a worker process.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.worker?(%ChildSpec{type: :worker})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.worker?(%ChildSpec{type: :supervisor})
+      false
+  """
+  @spec worker?(ChildSpec.t()) :: boolean()
+  def worker?(%ChildSpec{type: :worker}), do: true
+  def worker?(_), do: false
+
+  @doc """
+  Checks if a child spec is for a supervisor process.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.supervisor_child?(%ChildSpec{type: :supervisor})
+      true
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.supervisor_child?(%ChildSpec{type: :worker})
+      false
+  """
+  @spec supervisor_child?(ChildSpec.t()) :: boolean()
+  def supervisor_child?(%ChildSpec{type: :supervisor}), do: true
+  def supervisor_child?(_), do: false
+
+  @doc """
+  Returns the child type from a ChildSpec.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.child_type(%ChildSpec{type: :worker})
+      :worker
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
+      iex> SupervisorExtractor.child_type(%ChildSpec{type: :supervisor})
+      :supervisor
+  """
+  @spec child_type(ChildSpec.t()) :: ChildSpec.child_type()
+  def child_type(%ChildSpec{type: type}), do: type
+
+  @doc """
+  Returns the child type description.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.child_type_description(:worker)
+      "Worker process"
+
+      iex> alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
+      iex> SupervisorExtractor.child_type_description(:supervisor)
+      "Supervisor process"
+  """
+  @spec child_type_description(ChildSpec.child_type()) :: String.t()
+  def child_type_description(:worker), do: "Worker process"
+  def child_type_description(:supervisor), do: "Supervisor process"
+
+  # ===========================================================================
   # Strategy Extraction Helpers
   # ===========================================================================
 
@@ -1048,6 +2825,8 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       type: strategy,
       max_restarts: max_restarts,
       max_seconds: max_seconds,
+      is_default_max_restarts: false,
+      is_default_max_seconds: false,
       location: location,
       metadata: %{
         source: :tuple_return,
@@ -1070,6 +2849,8 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
       type: strategy,
       max_restarts: max_restarts,
       max_seconds: max_seconds,
+      is_default_max_restarts: max_restarts == nil,
+      is_default_max_seconds: max_seconds == nil,
       location: location,
       metadata: %{
         source: source,
@@ -1150,7 +2931,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     end)
   end
 
-  # Parse {Module, args} tuple
+  # Parse {Module, args} tuple - implies start: {Module, :start_link, [args]}
   defp parse_child_spec({{:__aliases__, meta, module_parts}, args}, opts) do
     module = Module.concat(module_parts)
     location = Helpers.extract_location_if({:tuple, meta, []}, opts)
@@ -1158,12 +2939,23 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     # Extract options if args is a keyword list with restart/shutdown
     {restart, shutdown, type} = extract_child_options(args)
 
+    # Build the start spec - wraps args in list for start_link/1
+    start_spec = %StartSpec{
+      module: module,
+      function: :start_link,
+      args: [args],
+      arity: 1,
+      metadata: %{inferred: true}
+    }
+
     %ChildSpec{
       id: module,
+      start: start_spec,
       module: module,
       restart: restart,
       shutdown: shutdown,
       type: type,
+      modules: [module],
       location: location,
       metadata: %{
         format: :tuple,
@@ -1176,49 +2968,80 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   defp parse_child_spec({:%{}, meta, pairs}, opts) when is_list(pairs) do
     location = Helpers.extract_location_if({:map, meta, []}, opts)
     id = Keyword.get(pairs, :id)
-    start = Keyword.get(pairs, :start)
+    start_ast = Keyword.get(pairs, :start)
     restart = Keyword.get(pairs, :restart, :permanent)
     shutdown = Keyword.get(pairs, :shutdown)
     type = Keyword.get(pairs, :type, :worker)
+    modules_ast = Keyword.get(pairs, :modules)
 
-    # Extract module from start tuple - AST tuple format must be checked first
-    # because {:{}, meta, args} would match {module, _fun, _args} where :{} is an atom
-    module =
-      case start do
-        # Handle AST tuple format {:{}, meta, [module, fun, args]}
-        {:{}, _, [{:__aliases__, _, parts}, _fun, _args]} -> Module.concat(parts)
-        {:{}, _, [module, _fun, _args]} when is_atom(module) -> module
-        # Regular evaluated tuples
-        {module, _fun, _args} when is_atom(module) -> module
-        {{:__aliases__, _, parts}, _fun, _args} -> Module.concat(parts)
-        _ -> nil
-      end
+    # Extract StartSpec and module from start tuple
+    {start_spec, module} = extract_start_spec(start_ast)
+
+    # Extract modules list
+    modules = extract_modules_list(modules_ast, module)
 
     %ChildSpec{
       id: id,
+      start: start_spec,
       module: module,
       restart: restart,
       shutdown: shutdown,
       type: type,
+      modules: modules,
       location: location,
       metadata: %{
         format: :map,
-        has_start: start != nil
+        has_start: start_ast != nil
       }
     }
   end
 
-  # Parse Module atom (shorthand)
+  # Parse legacy 6-tuple: {id, start, restart, shutdown, type, modules}
+  defp parse_child_spec({:{}, meta, [id, start_ast, restart, shutdown, type, modules_ast]}, opts) do
+    location = Helpers.extract_location_if({:tuple, meta, []}, opts)
+
+    # Extract StartSpec and module from start tuple
+    {start_spec, module} = extract_start_spec(start_ast)
+
+    # Extract modules list
+    modules = extract_modules_list(modules_ast, module)
+
+    %ChildSpec{
+      id: extract_id(id),
+      start: start_spec,
+      module: module,
+      restart: restart,
+      shutdown: shutdown,
+      type: type,
+      modules: modules,
+      location: location,
+      metadata: %{
+        format: :legacy_tuple
+      }
+    }
+  end
+
+  # Parse Module atom (shorthand) - implies start: {Module, :start_link, []}
   defp parse_child_spec({:__aliases__, meta, module_parts}, opts) do
     module = Module.concat(module_parts)
     location = Helpers.extract_location_if({:alias, meta, []}, opts)
 
+    start_spec = %StartSpec{
+      module: module,
+      function: :start_link,
+      args: [],
+      arity: 0,
+      metadata: %{inferred: true}
+    }
+
     %ChildSpec{
       id: module,
+      start: start_spec,
       module: module,
       restart: :permanent,
       shutdown: nil,
       type: :worker,
+      modules: [module],
       location: location,
       metadata: %{
         format: :module_only
@@ -1230,16 +3053,114 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   defp parse_child_spec(_ast, _opts) do
     %ChildSpec{
       id: :unknown,
+      start: nil,
       module: nil,
       restart: :permanent,
       shutdown: nil,
       type: :worker,
+      modules: [],
       location: nil,
       metadata: %{
         format: :unknown
       }
     }
   end
+
+  # Extract StartSpec from start tuple AST
+  defp extract_start_spec(nil), do: {nil, nil}
+
+  # Handle AST tuple format {:{}, meta, [module, fun, args]}
+  defp extract_start_spec({:{}, _, [{:__aliases__, _, parts}, fun, args]}) when is_atom(fun) do
+    module = Module.concat(parts)
+    args_list = normalize_args(args)
+
+    start_spec = %StartSpec{
+      module: module,
+      function: fun,
+      args: args_list,
+      arity: length(args_list),
+      metadata: %{}
+    }
+
+    {start_spec, module}
+  end
+
+  defp extract_start_spec({:{}, _, [module, fun, args]}) when is_atom(module) and is_atom(fun) do
+    args_list = normalize_args(args)
+
+    start_spec = %StartSpec{
+      module: module,
+      function: fun,
+      args: args_list,
+      arity: length(args_list),
+      metadata: %{}
+    }
+
+    {start_spec, module}
+  end
+
+  # Handle regular evaluated tuple {Module, :fun, args}
+  defp extract_start_spec({{:__aliases__, _, parts}, fun, args}) when is_atom(fun) do
+    module = Module.concat(parts)
+    args_list = normalize_args(args)
+
+    start_spec = %StartSpec{
+      module: module,
+      function: fun,
+      args: args_list,
+      arity: length(args_list),
+      metadata: %{}
+    }
+
+    {start_spec, module}
+  end
+
+  defp extract_start_spec({module, fun, args}) when is_atom(module) and is_atom(fun) do
+    args_list = normalize_args(args)
+
+    start_spec = %StartSpec{
+      module: module,
+      function: fun,
+      args: args_list,
+      arity: length(args_list),
+      metadata: %{}
+    }
+
+    {start_spec, module}
+  end
+
+  defp extract_start_spec(_), do: {nil, nil}
+
+  # Normalize args to a list
+  defp normalize_args(args) when is_list(args), do: args
+  defp normalize_args(arg), do: [arg]
+
+  # Extract id from AST (could be alias or atom)
+  defp extract_id({:__aliases__, _, parts}), do: Module.concat(parts)
+  defp extract_id(id) when is_atom(id), do: id
+  defp extract_id(id), do: id
+
+  # Extract modules list from AST
+  defp extract_modules_list(:dynamic, _module), do: :dynamic
+  defp extract_modules_list(nil, nil), do: []
+  defp extract_modules_list(nil, module), do: [module]
+
+  # Handle list of modules (may be atoms or aliases in AST)
+  defp extract_modules_list(modules, _module) when is_list(modules) do
+    Enum.map(modules, fn
+      {:__aliases__, _, parts} -> Module.concat(parts)
+      module when is_atom(module) -> module
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp extract_modules_list({:__aliases__, _, parts}, _module) do
+    [Module.concat(parts)]
+  end
+
+  defp extract_modules_list(_, module) when not is_nil(module), do: [module]
+  defp extract_modules_list(_, _), do: []
 
   defp extract_child_options(args) when is_list(args) do
     # Check if args is a keyword list with options

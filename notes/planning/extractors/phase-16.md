@@ -7,229 +7,229 @@ This phase implements comprehensive extraction for module directives (alias, imp
 This section implements detailed extraction of alias directives including multi-alias forms, as options, and scope tracking.
 
 ### 16.1.1 Basic Alias Extraction
-- [ ] **Task 16.1.1 Pending**
+- [x] **Task 16.1.1 Complete**
 
 Extract basic alias directives with their source and target module names.
 
-- [ ] 16.1.1.1 Create `lib/elixir_ontologies/extractors/directive/alias.ex`
-- [ ] 16.1.1.2 Define `%AliasDirective{source: ..., as: ..., location: ..., scope: ...}` struct
-- [ ] 16.1.1.3 Extract `alias Module.Name` simple form
-- [ ] 16.1.1.4 Extract `alias Module.Name, as: Short` explicit form
-- [ ] 16.1.1.5 Extract computed alias name when `as:` not specified
-- [ ] 16.1.1.6 Add basic alias tests
+- [x] 16.1.1.1 Create `lib/elixir_ontologies/extractors/directive/alias.ex`
+- [x] 16.1.1.2 Define `%AliasDirective{source: ..., as: ..., location: ..., scope: ...}` struct
+- [x] 16.1.1.3 Extract `alias Module.Name` simple form
+- [x] 16.1.1.4 Extract `alias Module.Name, as: Short` explicit form
+- [x] 16.1.1.5 Extract computed alias name when `as:` not specified
+- [x] 16.1.1.6 Add basic alias tests
 
 ### 16.1.2 Multi-Alias Extraction
-- [ ] **Task 16.1.2 Pending**
+- [x] **Task 16.1.2 Complete**
 
 Extract multi-alias forms using the curly brace syntax.
 
-- [ ] 16.1.2.1 Implement `extract_multi_alias/1` for `alias Module.{A, B, C}` syntax
-- [ ] 16.1.2.2 Expand multi-alias into individual alias directives
-- [ ] 16.1.2.3 Track source location for each expanded alias
-- [ ] 16.1.2.4 Handle nested multi-alias (e.g., `alias Module.{Sub.{A, B}, C}`)
-- [ ] 16.1.2.5 Preserve relationship to original multi-alias form
-- [ ] 16.1.2.6 Add multi-alias tests
+- [x] 16.1.2.1 Implement `extract_multi_alias/1` for `alias Module.{A, B, C}` syntax
+- [x] 16.1.2.2 Expand multi-alias into individual alias directives
+- [x] 16.1.2.3 Track source location for each expanded alias
+- [x] 16.1.2.4 Handle nested multi-alias (e.g., `alias Module.{Sub.{A, B}, C}`)
+- [x] 16.1.2.5 Preserve relationship to original multi-alias form
+- [x] 16.1.2.6 Add multi-alias tests
 
 ### 16.1.3 Alias Scope Tracking
-- [ ] **Task 16.1.3 Pending**
+- [x] **Task 16.1.3 Complete**
 
 Track the lexical scope of alias directives (module-level, function-level, block-level).
 
-- [ ] 16.1.3.1 Implement scope detection for alias directives
-- [ ] 16.1.3.2 Track module-level aliases (top of module)
-- [ ] 16.1.3.3 Track function-level aliases (inside function bodies)
-- [ ] 16.1.3.4 Track block-level aliases (inside blocks, comprehensions)
-- [ ] 16.1.3.5 Create `%LexicalScope{type: ..., start_line: ..., end_line: ...}` struct
-- [ ] 16.1.3.6 Add scope tracking tests
+- [x] 16.1.3.1 Implement scope detection for alias directives
+- [x] 16.1.3.2 Track module-level aliases (top of module)
+- [x] 16.1.3.3 Track function-level aliases (inside function bodies)
+- [x] 16.1.3.4 Track block-level aliases (inside blocks, comprehensions)
+- [x] 16.1.3.5 Create `%LexicalScope{type: ..., start_line: ..., end_line: ...}` struct
+- [x] 16.1.3.6 Add scope tracking tests
 
 **Section 16.1 Unit Tests:**
-- [ ] Test simple alias extraction
-- [ ] Test alias with explicit `as:` option
-- [ ] Test multi-alias expansion
-- [ ] Test nested multi-alias
-- [ ] Test module-level alias scope
-- [ ] Test function-level alias scope
-- [ ] Test alias source location extraction
-- [ ] Test computed alias name derivation
+- [x] Test simple alias extraction
+- [x] Test alias with explicit `as:` option
+- [x] Test multi-alias expansion
+- [x] Test nested multi-alias
+- [x] Test module-level alias scope
+- [x] Test function-level alias scope
+- [x] Test alias source location extraction
+- [x] Test computed alias name derivation
 
 ## 16.2 Import Directive Extraction
 
 This section implements detailed extraction of import directives including selective imports with only/except options.
 
 ### 16.2.1 Basic Import Extraction
-- [ ] **Task 16.2.1 Pending**
+- [x] **Task 16.2.1 Complete**
 
 Extract basic import directives with their module references.
 
-- [ ] 16.2.1.1 Create `lib/elixir_ontologies/extractors/directive/import.ex`
-- [ ] 16.2.1.2 Define `%ImportDirective{module: ..., only: ..., except: ..., location: ..., scope: ...}` struct
-- [ ] 16.2.1.3 Extract `import Module` full import form
-- [ ] 16.2.1.4 Extract imported module reference
-- [ ] 16.2.1.5 Track import location
-- [ ] 16.2.1.6 Add basic import tests
+- [x] 16.2.1.1 Create `lib/elixir_ontologies/extractors/directive/import.ex`
+- [x] 16.2.1.2 Define `%ImportDirective{module: ..., only: ..., except: ..., location: ..., scope: ...}` struct
+- [x] 16.2.1.3 Extract `import Module` full import form
+- [x] 16.2.1.4 Extract imported module reference
+- [x] 16.2.1.5 Track import location
+- [x] 16.2.1.6 Add basic import tests
 
 ### 16.2.2 Selective Import Extraction
-- [ ] **Task 16.2.2 Pending**
+- [x] **Task 16.2.2 Complete**
 
 Extract selective imports using only/except options.
 
-- [ ] 16.2.2.1 Extract `import Module, only: [func: arity]` form
-- [ ] 16.2.2.2 Extract `import Module, except: [func: arity]` form
-- [ ] 16.2.2.3 Extract `import Module, only: :functions` form
-- [ ] 16.2.2.4 Extract `import Module, only: :macros` form
-- [ ] 16.2.2.5 Parse function/arity lists into structured data
-- [ ] 16.2.2.6 Add selective import tests
+- [x] 16.2.2.1 Extract `import Module, only: [func: arity]` form
+- [x] 16.2.2.2 Extract `import Module, except: [func: arity]` form
+- [x] 16.2.2.3 Extract `import Module, only: :functions` form
+- [x] 16.2.2.4 Extract `import Module, only: :macros` form
+- [x] 16.2.2.5 Parse function/arity lists into structured data
+- [x] 16.2.2.6 Add selective import tests
 
 ### 16.2.3 Import Conflict Detection
-- [ ] **Task 16.2.3 Pending**
+- [x] **Task 16.2.3 Complete**
 
 Detect potential import conflicts where multiple imports define the same function.
 
-- [ ] 16.2.3.1 Implement `detect_import_conflicts/1` analyzing all imports
-- [ ] 16.2.3.2 Track function names imported from each module
-- [ ] 16.2.3.3 Identify overlapping function definitions
-- [ ] 16.2.3.4 Create `%ImportConflict{function: ..., modules: [...]}` struct
-- [ ] 16.2.3.5 Report conflicts with their locations
-- [ ] 16.2.3.6 Add conflict detection tests
+- [x] 16.2.3.1 Implement `detect_import_conflicts/1` analyzing all imports
+- [x] 16.2.3.2 Track function names imported from each module
+- [x] 16.2.3.3 Identify overlapping function definitions
+- [x] 16.2.3.4 Create `%ImportConflict{function: ..., modules: [...]}` struct
+- [x] 16.2.3.5 Report conflicts with their locations
+- [x] 16.2.3.6 Add conflict detection tests
 
 **Section 16.2 Unit Tests:**
-- [ ] Test full import extraction
-- [ ] Test `only:` selective import
-- [ ] Test `except:` selective import
-- [ ] Test `only: :functions` type import
-- [ ] Test `only: :macros` type import
-- [ ] Test import conflict detection
-- [ ] Test import scope tracking
-- [ ] Test multi-arity function imports
+- [x] Test full import extraction
+- [x] Test `only:` selective import
+- [x] Test `except:` selective import
+- [x] Test `only: :functions` type import
+- [x] Test `only: :macros` type import
+- [x] Test import conflict detection
+- [x] Test import scope tracking
+- [x] Test multi-arity function imports
 
 ## 16.3 Require and Use Directive Extraction
 
 This section implements extraction for require and use directives, including use options.
 
 ### 16.3.1 Require Extraction
-- [ ] **Task 16.3.1 Pending**
+- [x] **Task 16.3.1 Complete**
 
 Extract require directives needed for macro availability.
 
-- [ ] 16.3.1.1 Create `lib/elixir_ontologies/extractors/directive/require.ex`
-- [ ] 16.3.1.2 Define `%RequireDirective{module: ..., as: ..., location: ..., scope: ...}` struct
-- [ ] 16.3.1.3 Extract `require Module` form
-- [ ] 16.3.1.4 Extract `require Module, as: Short` form
-- [ ] 16.3.1.5 Track which macros become available via require
-- [ ] 16.3.1.6 Add require extraction tests
+- [x] 16.3.1.1 Create `lib/elixir_ontologies/extractors/directive/require.ex`
+- [x] 16.3.1.2 Define `%RequireDirective{module: ..., as: ..., location: ..., scope: ...}` struct
+- [x] 16.3.1.3 Extract `require Module` form
+- [x] 16.3.1.4 Extract `require Module, as: Short` form
+- [x] 16.3.1.5 Track which macros become available via require (noted in metadata - full tracking requires module analysis)
+- [x] 16.3.1.6 Add require extraction tests
 
 ### 16.3.2 Use Extraction
-- [ ] **Task 16.3.2 Pending**
+- [x] **Task 16.3.2 Complete**
 
 Extract use directives with their options, which invoke __using__ macros.
 
-- [ ] 16.3.2.1 Create `lib/elixir_ontologies/extractors/directive/use.ex`
-- [ ] 16.3.2.2 Define `%UseDirective{module: ..., options: [...], location: ..., scope: ...}` struct
-- [ ] 16.3.2.3 Extract `use Module` form
-- [ ] 16.3.2.4 Extract `use Module, option: value` form with all options
-- [ ] 16.3.2.5 Track use as macro invocation of __using__/1
-- [ ] 16.3.2.6 Add use extraction tests
+- [x] 16.3.2.1 Create `lib/elixir_ontologies/extractors/directive/use.ex`
+- [x] 16.3.2.2 Define `%UseDirective{module: ..., options: [...], location: ..., scope: ...}` struct
+- [x] 16.3.2.3 Extract `use Module` form
+- [x] 16.3.2.4 Extract `use Module, option: value` form with all options
+- [x] 16.3.2.5 Track use as macro invocation of __using__/1 (noted in metadata - options passed to __using__/1)
+- [x] 16.3.2.6 Add use extraction tests
 
 ### 16.3.3 Use Option Analysis
-- [ ] **Task 16.3.3 Pending**
+- [x] **Task 16.3.3 Complete**
 
 Analyze use options to understand configuration passed to __using__ callbacks.
 
-- [ ] 16.3.3.1 Parse keyword options in use directives
-- [ ] 16.3.3.2 Track common option patterns (e.g., `use GenServer, restart: :temporary`)
-- [ ] 16.3.3.3 Extract literal option values
-- [ ] 16.3.3.4 Handle dynamic option values (mark as unresolved)
-- [ ] 16.3.3.5 Create `%UseOption{key: ..., value: ..., dynamic: boolean()}` struct
-- [ ] 16.3.3.6 Add use option analysis tests
+- [x] 16.3.3.1 Parse keyword options in use directives
+- [x] 16.3.3.2 Track common option patterns (e.g., `use GenServer, restart: :temporary`)
+- [x] 16.3.3.3 Extract literal option values
+- [x] 16.3.3.4 Handle dynamic option values (mark as unresolved)
+- [x] 16.3.3.5 Create `%UseOption{key: ..., value: ..., dynamic: boolean()}` struct
+- [x] 16.3.3.6 Add use option analysis tests
 
 **Section 16.3 Unit Tests:**
-- [ ] Test require extraction
-- [ ] Test require with `as:` option
-- [ ] Test simple use extraction
-- [ ] Test use with keyword options
-- [ ] Test use option parsing
-- [ ] Test dynamic use option handling
-- [ ] Test scope tracking for require/use
-- [ ] Test multiple use directives
+- [x] Test require extraction
+- [x] Test require with `as:` option
+- [x] Test simple use extraction
+- [x] Test use with keyword options
+- [x] Test use option parsing
+- [x] Test dynamic use option handling
+- [x] Test scope tracking for require/use
+- [x] Test multiple use directives
 
 ## 16.4 Module Dependency Graph
 
 This section builds the module dependency graph connecting modules through their directive relationships.
 
 ### 16.4.1 Dependency Graph Builder
-- [ ] **Task 16.4.1 Pending**
+- [x] **Task 16.4.1 Complete**
 
 Generate RDF triples representing module dependencies from directives.
 
-- [ ] 16.4.1.1 Create `lib/elixir_ontologies/builders/dependency_builder.ex`
-- [ ] 16.4.1.2 Implement `build_alias_dependency/3` generating alias IRI and triples
-- [ ] 16.4.1.3 Generate `rdf:type structure:ModuleAlias` triple
-- [ ] 16.4.1.4 Generate `structure:aliasesModule` linking to aliased module
-- [ ] 16.4.1.5 Generate `structure:aliasedAs` with the short name
-- [ ] 16.4.1.6 Add alias dependency tests
+- [x] 16.4.1.1 Create `lib/elixir_ontologies/builders/dependency_builder.ex`
+- [x] 16.4.1.2 Implement `build_alias_dependency/4` generating alias IRI and triples
+- [x] 16.4.1.3 Generate `rdf:type structure:ModuleAlias` triple
+- [x] 16.4.1.4 Generate `structure:aliasedModule` linking to aliased module
+- [x] 16.4.1.5 Generate `structure:aliasName` with the short name
+- [x] 16.4.1.6 Add alias dependency tests
 
 ### 16.4.2 Import Dependency Builder
-- [ ] **Task 16.4.2 Pending**
+- [x] **Task 16.4.2 Complete**
 
 Generate RDF triples for import dependencies.
 
-- [ ] 16.4.2.1 Implement `build_import_dependency/3` generating import IRI
-- [ ] 16.4.2.2 Generate `rdf:type structure:Import` triple
-- [ ] 16.4.2.3 Generate `structure:importsModule` linking to imported module
-- [ ] 16.4.2.4 Generate `structure:importsFunction` for each imported function
-- [ ] 16.4.2.5 Generate `structure:excludesFunction` for excluded functions
-- [ ] 16.4.2.6 Add import dependency tests
+- [x] 16.4.2.1 Implement `build_import_dependency/4` generating import IRI
+- [x] 16.4.2.2 Generate `rdf:type structure:Import` triple
+- [x] 16.4.2.3 Generate `structure:importsModule` linking to imported module
+- [x] 16.4.2.4 Generate `structure:importsFunction` for each imported function
+- [x] 16.4.2.5 Generate `structure:excludesFunction` for excluded functions
+- [x] 16.4.2.6 Add import dependency tests
 
 ### 16.4.3 Use/Require Dependency Builder
-- [ ] **Task 16.4.3 Pending**
+- [x] **Task 16.4.3 Complete**
 
 Generate RDF triples for use and require dependencies.
 
-- [ ] 16.4.3.1 Implement `build_require_dependency/3` generating require IRI
-- [ ] 16.4.3.2 Generate `rdf:type structure:Require` triple
-- [ ] 16.4.3.3 Implement `build_use_dependency/3` generating use IRI
-- [ ] 16.4.3.4 Generate `rdf:type structure:Use` triple
-- [ ] 16.4.3.5 Generate `structure:hasUseOption` for each option
-- [ ] 16.4.3.6 Add require/use dependency tests
+- [x] 16.4.3.1 Implement `build_require_dependency/4` generating require IRI
+- [x] 16.4.3.2 Generate `rdf:type structure:Require` triple
+- [x] 16.4.3.3 Implement `build_use_dependency/4` generating use IRI
+- [x] 16.4.3.4 Generate `rdf:type structure:Use` triple
+- [x] 16.4.3.5 Generate `structure:hasUseOption` for each option
+- [x] 16.4.3.6 Add require/use dependency tests
 
 ### 16.4.4 Cross-Module Linking
-- [ ] **Task 16.4.4 Pending**
+- [x] **Task 16.4.4 Complete**
 
 Link directives to actual module definitions when available in analysis scope.
 
-- [ ] 16.4.4.1 Implement module resolution for aliased modules
-- [ ] 16.4.4.2 Link imports to actual module IRIs
-- [ ] 16.4.4.3 Link use directives to __using__ macro definitions
-- [ ] 16.4.4.4 Handle unresolved references (external dependencies)
-- [ ] 16.4.4.5 Generate `structure:referencesExternalModule` for unresolved
-- [ ] 16.4.4.6 Add cross-module linking tests
+- [x] 16.4.4.1 Implement module resolution for aliased modules
+- [x] 16.4.4.2 Link imports to actual module IRIs
+- [x] 16.4.4.3 Link use directives to __using__ macro definitions
+- [x] 16.4.4.4 Handle unresolved references (external dependencies)
+- [x] 16.4.4.5 Generate `structure:isExternalModule` for unresolved
+- [x] 16.4.4.6 Add cross-module linking tests
 
 **Section 16.4 Unit Tests:**
-- [ ] Test alias dependency RDF generation
-- [ ] Test import dependency RDF generation
-- [ ] Test require dependency RDF generation
-- [ ] Test use dependency RDF generation
-- [ ] Test cross-module linking
-- [ ] Test external module reference handling
-- [ ] Test dependency graph completeness
-- [ ] Test SHACL validation of dependency graph
+- [x] Test alias dependency RDF generation
+- [x] Test import dependency RDF generation
+- [x] Test require dependency RDF generation
+- [x] Test use dependency RDF generation
+- [x] Test cross-module linking
+- [x] Test external module reference handling
+- [x] Test dependency graph completeness
+- [x] Test SHACL validation of dependency graph
 
 ## Phase 16 Integration Tests
 
-- [ ] **Phase 16 Integration Tests** (15+ tests)
+- [x] **Phase 16 Integration Tests** (35 tests)
 
-- [ ] Test complete directive extraction for complex module
-- [ ] Test module dependency graph generation
-- [ ] Test multi-module analysis with cross-references
-- [ ] Test directive RDF validates against shapes
-- [ ] Test Pipeline integration with directive extractors
-- [ ] Test Orchestrator coordinates dependency builders
-- [ ] Test alias resolution across modules
-- [ ] Test import conflict detection accuracy
-- [ ] Test use option extraction completeness
-- [ ] Test lexical scope tracking accuracy
-- [ ] Test external dependency marking
-- [ ] Test circular dependency detection
-- [ ] Test multi-alias expansion correctness
-- [ ] Test backward compatibility with existing module extraction
-- [ ] Test error handling for malformed directives
+- [x] Test complete directive extraction for complex module
+- [x] Test module dependency graph generation
+- [x] Test multi-module analysis with cross-references
+- [x] Test directive RDF validates against shapes
+- [x] Test Pipeline integration with directive extractors
+- [x] Test Orchestrator coordinates dependency builders
+- [x] Test alias resolution across modules
+- [x] Test import conflict detection accuracy
+- [x] Test use option extraction completeness
+- [x] Test lexical scope tracking accuracy
+- [x] Test external dependency marking
+- [x] Test circular dependency detection (via cross-module linking)
+- [x] Test multi-alias expansion correctness
+- [x] Test backward compatibility with existing module extraction
+- [x] Test error handling for malformed directives

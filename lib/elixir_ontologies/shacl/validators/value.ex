@@ -215,37 +215,39 @@ defmodule ElixirOntologies.SHACL.Validators.Value do
         # Check each value
         violations =
           Enum.reduce(values, [], fn value, acc ->
-            # Extract numeric value
-            case Helpers.extract_number(value) do
-              nil ->
-                # Not a numeric literal - skip (datatype validator handles this)
-                acc
-
-              num ->
-                # Check if value <= maxInclusive
-                if num <= max_value do
-                  # Value within range
-                  acc
-                else
-                  # Violation: value too large
-                  violation =
-                    Helpers.build_violation(
-                      focus_node,
-                      property_shape,
-                      "Value exceeds maximum (expected <= #{max_value}, found #{num})",
-                      %{
-                        constraint_component: ~I<http://www.w3.org/ns/shacl#MaxInclusiveConstraintComponent>,
-                        max_inclusive: max_value,
-                        actual_value: num
-                      }
-                    )
-
-                  [violation | acc]
-                end
-            end
+            check_max_inclusive_value(value, max_value, focus_node, property_shape, acc)
           end)
 
         results ++ Enum.reverse(violations)
+    end
+  end
+
+  defp check_max_inclusive_value(value, max_value, focus_node, property_shape, acc) do
+    case Helpers.extract_number(value) do
+      nil ->
+        # Not a numeric literal - skip (datatype validator handles this)
+        acc
+
+      num when num <= max_value ->
+        # Value within range
+        acc
+
+      num ->
+        # Violation: value too large
+        violation =
+          Helpers.build_violation(
+            focus_node,
+            property_shape,
+            "Value exceeds maximum (expected <= #{max_value}, found #{num})",
+            %{
+              constraint_component:
+                ~I<http://www.w3.org/ns/shacl#MaxInclusiveConstraintComponent>,
+              max_inclusive: max_value,
+              actual_value: num
+            }
+          )
+
+        [violation | acc]
     end
   end
 
@@ -380,7 +382,8 @@ defmodule ElixirOntologies.SHACL.Validators.Value do
                   node_shape,
                   "Focus node is below minimum (expected >= #{min_value}, found #{num})",
                   %{
-                    constraint_component: ~I<http://www.w3.org/ns/shacl#MinInclusiveConstraintComponent>,
+                    constraint_component:
+                      ~I<http://www.w3.org/ns/shacl#MinInclusiveConstraintComponent>,
                     min_inclusive: min_value,
                     actual_value: num
                   }
@@ -424,7 +427,8 @@ defmodule ElixirOntologies.SHACL.Validators.Value do
                   node_shape,
                   "Focus node exceeds maximum (expected <= #{max_value}, found #{num})",
                   %{
-                    constraint_component: ~I<http://www.w3.org/ns/shacl#MaxInclusiveConstraintComponent>,
+                    constraint_component:
+                      ~I<http://www.w3.org/ns/shacl#MaxInclusiveConstraintComponent>,
                     max_inclusive: max_value,
                     actual_value: num
                   }
@@ -468,7 +472,8 @@ defmodule ElixirOntologies.SHACL.Validators.Value do
                   node_shape,
                   "Focus node is not above minimum (expected > #{min_value}, found #{num})",
                   %{
-                    constraint_component: ~I<http://www.w3.org/ns/shacl#MinExclusiveConstraintComponent>,
+                    constraint_component:
+                      ~I<http://www.w3.org/ns/shacl#MinExclusiveConstraintComponent>,
                     min_exclusive: min_value,
                     actual_value: num
                   }
@@ -512,7 +517,8 @@ defmodule ElixirOntologies.SHACL.Validators.Value do
                   node_shape,
                   "Focus node is not below maximum (expected < #{max_value}, found #{num})",
                   %{
-                    constraint_component: ~I<http://www.w3.org/ns/shacl#MaxExclusiveConstraintComponent>,
+                    constraint_component:
+                      ~I<http://www.w3.org/ns/shacl#MaxExclusiveConstraintComponent>,
                     max_exclusive: max_value,
                     actual_value: num
                   }

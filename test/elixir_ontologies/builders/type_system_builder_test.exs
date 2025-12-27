@@ -50,6 +50,7 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
       parameter_types: Keyword.get(opts, :parameter_types, []),
       return_type: Keyword.get(opts, :return_type, :any),
       type_constraints: Keyword.get(opts, :type_constraints, %{}),
+      spec_type: Keyword.get(opts, :spec_type, :spec),
       location: Keyword.get(opts, :location, nil),
       metadata: Keyword.get(opts, :metadata, %{})
     }
@@ -176,7 +177,8 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri(module_name: "MyApp.Users")
 
-      {type_iri, _triples} = TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
+      {type_iri, _triples} =
+        TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
 
       assert to_string(type_iri) == "https://example.org/code#MyApp.Users/type/user_t/0"
     end
@@ -186,7 +188,8 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {type_iri, _triples} = TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
+      {type_iri, _triples} =
+        TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
 
       # ? should be URL-encoded as %3F
       assert to_string(type_iri) == "https://example.org/code#TestModule/type/t%3F/0"
@@ -252,7 +255,8 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {_type_iri, triples} = TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
+      {_type_iri, triples} =
+        TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
 
       # Check for duplicates
       unique_triples = Enum.uniq(triples)
@@ -382,6 +386,100 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
     end
   end
 
+  describe "build_function_spec/3 - spec_type handling" do
+    test "@spec generates FunctionSpec class" do
+      func_spec = build_test_function_spec(name: :add, arity: 2, spec_type: :spec)
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "add", arity: 2)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Verify FunctionSpec class
+      assert {spec_iri, RDF.type(), Structure.FunctionSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.CallbackSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.MacroCallbackSpec} in triples
+    end
+
+    test "@callback generates CallbackSpec class" do
+      func_spec = build_test_function_spec(name: :init, arity: 1, spec_type: :callback)
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "init", arity: 1)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Verify CallbackSpec class
+      assert {spec_iri, RDF.type(), Structure.CallbackSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.FunctionSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.MacroCallbackSpec} in triples
+    end
+
+    test "@macrocallback generates MacroCallbackSpec class" do
+      func_spec = build_test_function_spec(name: :__using__, arity: 1, spec_type: :macrocallback)
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "__using__", arity: 1)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Verify MacroCallbackSpec class
+      assert {spec_iri, RDF.type(), Structure.MacroCallbackSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.FunctionSpec} in triples
+      refute {spec_iri, RDF.type(), Structure.CallbackSpec} in triples
+    end
+
+    test "spec without spec_type defaults to FunctionSpec" do
+      # Legacy struct without spec_type field set
+      func_spec = %FunctionSpec{
+        name: :legacy_func,
+        arity: 0,
+        parameter_types: [],
+        return_type: :any,
+        type_constraints: %{},
+        location: nil,
+        metadata: %{}
+      }
+
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "legacy_func", arity: 0)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Fallback should generate FunctionSpec
+      assert {spec_iri, RDF.type(), Structure.FunctionSpec} in triples
+    end
+  end
+
+  describe "build_optional_callback_triple/1" do
+    test "generates OptionalCallbackSpec type triple" do
+      callback_iri = RDF.iri("https://example.org/code#MyBehaviour/init/1")
+
+      triple = TypeSystemBuilder.build_optional_callback_triple(callback_iri)
+
+      assert triple == {callback_iri, RDF.type(), Structure.OptionalCallbackSpec}
+    end
+
+    test "can mark callback as both CallbackSpec and OptionalCallbackSpec" do
+      func_spec = build_test_function_spec(name: :optional_init, arity: 1, spec_type: :callback)
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "optional_init", arity: 1)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Add optional callback triple
+      optional_triple = TypeSystemBuilder.build_optional_callback_triple(spec_iri)
+
+      all_triples = [optional_triple | triples]
+
+      # Should have both CallbackSpec and OptionalCallbackSpec types
+      assert {spec_iri, RDF.type(), Structure.CallbackSpec} in all_triples
+      assert {spec_iri, RDF.type(), Structure.OptionalCallbackSpec} in all_triples
+    end
+  end
+
   # ===========================================================================
   # Edge Cases and Error Handling
   # ===========================================================================
@@ -448,6 +546,592 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
         end)
 
       assert type_var_count == 10
+    end
+  end
+
+  # ===========================================================================
+  # Type Expression Building Tests
+  # ===========================================================================
+
+  describe "build_type_expression/2 - union types" do
+    test "builds simple union type with two members" do
+      context = build_test_context()
+      # AST for `integer() | atom()`
+      union_ast = {:|, [], [{:integer, [], []}, {:atom, [], []}]}
+
+      {union_node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {union_node, RDF.type(), Structure.UnionType} in triples
+
+      # Count unionOf triples (should be 2)
+      union_of_count =
+        Enum.count(triples, fn
+          {^union_node, pred, _} -> pred == Structure.unionOf()
+          _ -> false
+        end)
+
+      assert union_of_count == 2
+
+      # Verify member types are BasicType
+      basic_type_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.BasicType
+          _ -> false
+        end)
+
+      assert basic_type_count == 2
+    end
+
+    test "builds union type with three members" do
+      context = build_test_context()
+      # AST for `integer() | atom() | binary()`
+      # Unions are right-associative in AST
+      union_ast = {:|, [], [{:integer, [], []}, {:|, [], [{:atom, [], []}, {:binary, [], []}]}]}
+
+      {union_node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {union_node, RDF.type(), Structure.UnionType} in triples
+
+      # Count unionOf triples - nested unions should be flattened
+      union_of_count =
+        Enum.count(triples, fn
+          {^union_node, pred, _} -> pred == Structure.unionOf()
+          _ -> false
+        end)
+
+      # Should have 3 members (flattened)
+      assert union_of_count == 3
+    end
+
+    test "builds union type with literal atom members" do
+      context = build_test_context()
+      # AST for `:ok | :error`
+      union_ast = {:|, [], [:ok, :error]}
+
+      {union_node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {union_node, RDF.type(), Structure.UnionType} in triples
+
+      # Verify we have unionOf links
+      union_of_count =
+        Enum.count(triples, fn
+          {^union_node, pred, _} -> pred == Structure.unionOf()
+          _ -> false
+        end)
+
+      assert union_of_count == 2
+    end
+
+    test "builds nested union with complex types" do
+      context = build_test_context()
+      # AST for `{:ok, integer()} | {:error, binary()}`
+      # This is a union of tuple types
+      union_ast =
+        {:|, [],
+         [
+           {:{}, [], [:ok, {:integer, [], []}]},
+           {:{}, [], [:error, {:binary, [], []}]}
+         ]}
+
+      {union_node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {union_node, RDF.type(), Structure.UnionType} in triples
+
+      # Verify tuple types are created
+      tuple_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.TupleType
+          _ -> false
+        end)
+
+      assert tuple_count == 2
+    end
+  end
+
+  describe "build_type_expression/2 - basic types" do
+    test "builds simple basic type" do
+      context = build_test_context()
+      # AST for `integer()`
+      basic_ast = {:integer, [], []}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(basic_ast, context)
+
+      # Verify basic type class
+      assert {node, RDF.type(), Structure.BasicType} in triples
+
+      # Verify type name
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "integer"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds parameterized type" do
+      context = build_test_context()
+      # AST for `list(integer())`
+      param_ast = {:list, [], [[{:integer, [], []}]]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(param_ast, context)
+
+      # Verify parameterized type class
+      assert {node, RDF.type(), Structure.ParameterizedType} in triples
+
+      # Verify has element type link
+      has_element =
+        Enum.any?(triples, fn
+          {^node, pred, _} -> pred == Structure.elementType()
+          _ -> false
+        end)
+
+      assert has_element
+    end
+
+    test "builds parameterized type with type name" do
+      context = build_test_context()
+      # AST for `list(integer())`
+      param_ast = {:list, [], [[{:integer, [], []}]]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(param_ast, context)
+
+      # Verify type name is set (the base type name)
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "list"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds keyword parameterized type" do
+      context = build_test_context()
+      # AST for `keyword(integer())`
+      # This is a single-parameter parameterized type
+      param_ast = {:keyword, [], [{:integer, [], []}]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(param_ast, context)
+
+      # Verify parameterized type class
+      assert {node, RDF.type(), Structure.ParameterizedType} in triples
+
+      # Verify type name is keyword
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "keyword"
+
+               _ ->
+                 false
+             end)
+
+      # Verify element type link exists
+      has_element =
+        Enum.any?(triples, fn
+          {^node, pred, _} -> pred == Structure.elementType()
+          _ -> false
+        end)
+
+      assert has_element
+    end
+
+    test "builds nested parameterized type" do
+      context = build_test_context()
+      # AST for `list(list(integer()))`
+      nested_ast = {:list, [], [[{:list, [], [[{:integer, [], []}]]}]]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(nested_ast, context)
+
+      # Verify outer parameterized type
+      assert {node, RDF.type(), Structure.ParameterizedType} in triples
+
+      # Verify we have two ParameterizedType instances (outer and inner list)
+      param_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.ParameterizedType
+          _ -> false
+        end)
+
+      assert param_count == 2
+
+      # Verify inner basic type exists (integer)
+      basic_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.BasicType
+          _ -> false
+        end)
+
+      assert basic_count == 1
+    end
+
+    test "builds deeply nested parameterized type" do
+      context = build_test_context()
+      # AST for `list(list(list(atom())))`
+      deep_ast = {:list, [], [[{:list, [], [[{:list, [], [[{:atom, [], []}]]}]]}]]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(deep_ast, context)
+
+      # Verify outer parameterized type
+      assert {node, RDF.type(), Structure.ParameterizedType} in triples
+
+      # Verify we have 3 ParameterizedType instances (3 levels of list)
+      param_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.ParameterizedType
+          _ -> false
+        end)
+
+      assert param_count == 3
+    end
+  end
+
+  describe "build_type_expression/2 - tuple types" do
+    test "builds tuple type with element types" do
+      context = build_test_context()
+      # AST for `{atom(), integer()}`
+      tuple_ast = {:{}, [], [{:atom, [], []}, {:integer, [], []}]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(tuple_ast, context)
+
+      # Verify tuple type class
+      assert {node, RDF.type(), Structure.TupleType} in triples
+
+      # Verify element type links
+      element_count =
+        Enum.count(triples, fn
+          {^node, pred, _} -> pred == Structure.elementType()
+          _ -> false
+        end)
+
+      assert element_count == 2
+    end
+  end
+
+  describe "build_type_expression/2 - function types" do
+    test "builds function type with params and return" do
+      context = build_test_context()
+      # AST for `(integer() -> atom())`
+      # Function types in AST are: [{:->, [], [[param_types], return_type]}]
+      func_ast = [{:->, [], [[{:integer, [], []}], {:atom, [], []}]}]
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(func_ast, context)
+
+      # Verify function type class
+      assert {node, RDF.type(), Structure.FunctionType} in triples
+
+      # Verify has parameter type
+      has_param =
+        Enum.any?(triples, fn
+          {^node, pred, _} -> pred == Structure.hasParameterType()
+          _ -> false
+        end)
+
+      assert has_param
+
+      # Verify has return type
+      has_return =
+        Enum.any?(triples, fn
+          {^node, pred, _} -> pred == Structure.hasReturnType()
+          _ -> false
+        end)
+
+      assert has_return
+    end
+  end
+
+  describe "build_type_expression/2 - variable types" do
+    test "builds type variable" do
+      context = build_test_context()
+      # AST for type variable `t`
+      var_ast = {:t, [], nil}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(var_ast, context)
+
+      # Verify type variable class
+      assert {node, RDF.type(), Structure.TypeVariable} in triples
+
+      # Verify variable name
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "t"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds type variable with different name" do
+      context = build_test_context()
+      # AST for type variable `element`
+      var_ast = {:element, [], nil}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(var_ast, context)
+
+      # Verify type variable class
+      assert {node, RDF.type(), Structure.TypeVariable} in triples
+
+      # Verify variable name is "element"
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "element"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds type variable in union type" do
+      context = build_test_context()
+      # AST for `t | nil` (common pattern for optional type variable)
+      union_ast = {:|, [], [{:t, [], nil}, nil]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {node, RDF.type(), Structure.UnionType} in triples
+
+      # Verify TypeVariable exists in triples
+      assert Enum.any?(triples, fn
+               {_, pred, obj} -> pred == RDF.type() and obj == Structure.TypeVariable
+               _ -> false
+             end)
+
+      # Verify variable name "t" exists
+      assert Enum.any?(triples, fn
+               {_, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "t"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds type variable in function type" do
+      context = build_test_context()
+      # AST for `(t -> t)` - identity function type
+      func_ast = [{:->, [], [[{:t, [], nil}], {:t, [], nil}]}]
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(func_ast, context)
+
+      # Verify function type class
+      assert {node, RDF.type(), Structure.FunctionType} in triples
+
+      # Verify we have 2 TypeVariable instances (param and return both use `t`)
+      type_var_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.TypeVariable
+          _ -> false
+        end)
+
+      assert type_var_count == 2
+
+      # Verify hasParameterType and hasReturnType exist
+      assert Enum.any?(triples, fn
+               {^node, pred, _} -> pred == Structure.hasParameterType()
+               _ -> false
+             end)
+
+      assert Enum.any?(triples, fn
+               {^node, pred, _} -> pred == Structure.hasReturnType()
+               _ -> false
+             end)
+    end
+
+    test "builds multiple different type variables" do
+      context = build_test_context()
+      # AST for `{a, b}` - tuple with two type variables
+      tuple_ast = {:{}, [], [{:a, [], nil}, {:b, [], nil}]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(tuple_ast, context)
+
+      # Verify tuple type class
+      assert {node, RDF.type(), Structure.TupleType} in triples
+
+      # Verify we have 2 TypeVariable instances
+      type_var_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.TypeVariable
+          _ -> false
+        end)
+
+      assert type_var_count == 2
+
+      # Verify both variable names exist
+      assert Enum.any?(triples, fn
+               {_, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "a"
+
+               _ ->
+                 false
+             end)
+
+      assert Enum.any?(triples, fn
+               {_, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "b"
+
+               _ ->
+                 false
+             end)
+    end
+  end
+
+  describe "build_type_expression/2 - remote types" do
+    test "builds simple remote type String.t()" do
+      context = build_test_context()
+      # AST for `String.t()`
+      remote_ast = {{:., [], [{:__aliases__, [alias: false], [:String]}, :t]}, [], []}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(remote_ast, context)
+
+      # Verify basic type class (remote types use BasicType since RemoteType doesn't exist)
+      assert {node, RDF.type(), Structure.BasicType} in triples
+
+      # Verify qualified type name
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "String.t"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds remote type with nested module MyApp.Users.t()" do
+      context = build_test_context()
+      # AST for `MyApp.Users.t()`
+      remote_ast = {{:., [], [{:__aliases__, [alias: false], [:MyApp, :Users]}, :t]}, [], []}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(remote_ast, context)
+
+      # Verify basic type class
+      assert {node, RDF.type(), Structure.BasicType} in triples
+
+      # Verify qualified type name with nested modules
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "MyApp.Users.t"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds remote type with different type name" do
+      context = build_test_context()
+      # AST for `Enum.result()`
+      remote_ast = {{:., [], [{:__aliases__, [alias: false], [:Enum]}, :result]}, [], []}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(remote_ast, context)
+
+      # Verify type name includes type name (not just "t")
+      assert Enum.any?(triples, fn
+               {^node, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "Enum.result"
+
+               _ ->
+                 false
+             end)
+    end
+
+    test "builds remote type in union" do
+      context = build_test_context()
+      # AST for `String.t() | atom()`
+      union_ast =
+        {:|, [],
+         [
+           {{:., [], [{:__aliases__, [alias: false], [:String]}, :t]}, [], []},
+           {:atom, [], []}
+         ]}
+
+      {node, triples} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Verify union type class
+      assert {node, RDF.type(), Structure.UnionType} in triples
+
+      # Verify both BasicType instances exist (one for String.t, one for atom)
+      basic_count =
+        Enum.count(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.BasicType
+          _ -> false
+        end)
+
+      assert basic_count == 2
+
+      # Verify String.t name exists in triples
+      assert Enum.any?(triples, fn
+               {_, pred, obj} ->
+                 pred == Structure.typeName() and
+                   is_struct(obj, RDF.Literal) and
+                   RDF.Literal.value(obj) == "String.t"
+
+               _ ->
+                 false
+             end)
+    end
+  end
+
+  describe "build_type_definition/3 - with type expression" do
+    test "type definition includes expression triples" do
+      # Type with union expression: @type result :: :ok | :error
+      type_def =
+        build_test_type_definition(
+          name: :result,
+          arity: 0,
+          expression: {:|, [], [:ok, :error]}
+        )
+
+      context = build_test_context()
+      module_iri = build_test_module_iri()
+
+      {type_iri, triples} = TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
+
+      # Verify type definition
+      assert {type_iri, RDF.type(), Structure.PublicType} in triples
+
+      # Verify union type is created (triples contain UnionType)
+      has_union =
+        Enum.any?(triples, fn
+          {_, pred, obj} -> pred == RDF.type() and obj == Structure.UnionType
+          _ -> false
+        end)
+
+      assert has_union
+
+      # Verify referencesType link exists
+      has_ref =
+        Enum.any?(triples, fn
+          {^type_iri, pred, _} -> pred == Structure.referencesType()
+          _ -> false
+        end)
+
+      assert has_ref
     end
   end
 

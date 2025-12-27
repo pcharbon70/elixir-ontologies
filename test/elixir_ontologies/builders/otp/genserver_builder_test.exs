@@ -130,7 +130,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Verify callback IRI uses function pattern
       assert to_string(callback_iri) == "https://example.org/code#TestServer/init/1"
@@ -152,7 +153,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Verify callback IRI
       assert to_string(callback_iri) == "https://example.org/code#TestServer/handle_call/3"
@@ -171,7 +173,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Verify specific callback type
       assert {callback_iri, RDF.type(), OTP.HandleCastCallback} in triples
@@ -184,7 +187,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Verify specific callback type
       assert {callback_iri, RDF.type(), OTP.HandleInfoCallback} in triples
@@ -193,11 +197,14 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
 
   describe "build_callback/3 - handle_continue callback" do
     test "builds handle_continue/2 callback" do
-      callback_info = build_test_callback(type: :handle_continue, name: :handle_continue, arity: 2)
+      callback_info =
+        build_test_callback(type: :handle_continue, name: :handle_continue, arity: 2)
+
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Verify specific callback type
       assert {callback_iri, RDF.type(), OTP.HandleContinueCallback} in triples
@@ -210,7 +217,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Verify specific callback type
       assert {callback_iri, RDF.type(), OTP.TerminateCallback} in triples
@@ -223,7 +231,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Verify specific callback type
       assert {callback_iri, RDF.type(), OTP.CodeChangeCallback} in triples
@@ -236,7 +245,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Verify specific callback type
       assert {callback_iri, RDF.type(), OTP.FormatStatusCallback} in triples
@@ -266,7 +276,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {_callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {_callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Check for duplicates
       unique_triples = Enum.uniq(triples)
@@ -278,7 +289,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Count type triples
       type_count =
@@ -310,7 +322,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       init_callback = build_test_callback(type: :init, name: :init, arity: 1)
       handle_call_callback = build_test_callback(type: :handle_call, name: :handle_call, arity: 3)
 
-      {init_iri, init_triples} = GenServerBuilder.build_callback(init_callback, module_iri, context)
+      {init_iri, init_triples} =
+        GenServerBuilder.build_callback(init_callback, module_iri, context)
 
       {call_iri, call_triples} =
         GenServerBuilder.build_callback(handle_call_callback, module_iri, context)
@@ -350,7 +363,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Verify callback exists
       assert {callback_iri, RDF.type(), OTP.InitCallback} in triples
@@ -361,7 +375,8 @@ defmodule ElixirOntologies.Builders.OTP.GenServerBuilderTest do
       context = build_test_context()
       module_iri = build_test_module_iri()
 
-      {callback_iri, triples} = GenServerBuilder.build_callback(callback_info, module_iri, context)
+      {callback_iri, triples} =
+        GenServerBuilder.build_callback(callback_info, module_iri, context)
 
       # Verify callback exists
       assert {callback_iri, RDF.type(), OTP.InitCallback} in triples

@@ -234,14 +234,41 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
       assert hd(results).kind == :unquote_splicing
     end
 
-    test "does not descend into nested quotes" do
+    test "does not descend into nested quotes when descend_into_quotes: false" do
       # The inner quote contains an unquote that should not be found
       inner_quote = {:quote, [], [[do: {:unquote, [], [{:hidden, [], nil}]}]]}
       ast = {:+, [], [{:unquote, [], [{:x, [], nil}]}, inner_quote]}
 
-      results = Quote.find_unquotes(ast)
+      results = Quote.find_unquotes(ast, descend_into_quotes: false)
       assert length(results) == 1
       assert hd(results).value == {:x, [], nil}
+    end
+
+    test "descends into nested quotes by default and tracks depth" do
+      # The inner quote contains an unquote that should be found at depth 2
+      inner_quote = {:quote, [], [[do: {:unquote, [], [{:hidden, [], nil}]}]]}
+      ast = {:+, [], [{:unquote, [], [{:x, [], nil}]}, inner_quote]}
+
+      results = Quote.find_unquotes(ast)
+      assert length(results) == 2
+
+      # First unquote at depth 1
+      depth_1_results = Enum.filter(results, &(&1.depth == 1))
+      assert length(depth_1_results) == 1
+      assert hd(depth_1_results).value == {:x, [], nil}
+
+      # Second unquote at depth 2 (inside nested quote)
+      depth_2_results = Enum.filter(results, &(&1.depth == 2))
+      assert length(depth_2_results) == 1
+      assert hd(depth_2_results).value == {:hidden, [], nil}
+    end
+
+    test "sets depth to 1 for unquotes at top level" do
+      ast = {:unquote, [], [{:x, [], nil}]}
+
+      results = Quote.find_unquotes(ast)
+      assert length(results) == 1
+      assert hd(results).depth == 1
     end
 
     test "returns empty list for no unquotes" do
@@ -378,6 +405,251 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
   end
 
   # ===========================================================================
+  # QuoteOptions Struct Tests (15.3.1)
+  # ===========================================================================
+
+  describe "QuoteOptions struct" do
+    alias Quote.QuoteOptions
+
+    test "new/1 creates struct with all fields" do
+      opts =
+        QuoteOptions.new(
+          bind_quoted: [x: 1],
+          context: :match,
+          location: :keep,
+          unquote: false,
+          line: 42,
+          file: "test.ex",
+          generated: true
+        )
+
+      assert opts.bind_quoted == [x: 1]
+      assert opts.context == :match
+      assert opts.location == :keep
+      assert opts.unquote == false
+      assert opts.line == 42
+      assert opts.file == "test.ex"
+      assert opts.generated == true
+    end
+
+    test "new/0 creates struct with defaults" do
+      opts = QuoteOptions.new()
+
+      assert opts.bind_quoted == nil
+      assert opts.context == nil
+      assert opts.location == nil
+      assert opts.unquote == true
+      assert opts.line == nil
+      assert opts.file == nil
+      assert opts.generated == nil
+    end
+
+    test "location_keep?/1 returns true for location: :keep" do
+      assert QuoteOptions.location_keep?(QuoteOptions.new(location: :keep))
+      refute QuoteOptions.location_keep?(QuoteOptions.new())
+    end
+
+    test "unquoting_disabled?/1 returns true for unquote: false" do
+      assert QuoteOptions.unquoting_disabled?(QuoteOptions.new(unquote: false))
+      refute QuoteOptions.unquoting_disabled?(QuoteOptions.new())
+    end
+
+    test "has_bind_quoted?/1 checks for bind_quoted" do
+      assert QuoteOptions.has_bind_quoted?(QuoteOptions.new(bind_quoted: [x: 1]))
+      refute QuoteOptions.has_bind_quoted?(QuoteOptions.new(bind_quoted: []))
+      refute QuoteOptions.has_bind_quoted?(QuoteOptions.new())
+    end
+
+    test "bind_quoted_vars/1 gets variable names" do
+      assert QuoteOptions.bind_quoted_vars(QuoteOptions.new(bind_quoted: [x: 1, y: 2])) == [
+               :x,
+               :y
+             ]
+
+      assert QuoteOptions.bind_quoted_vars(QuoteOptions.new()) == []
+    end
+
+    test "has_context?/1 checks for context" do
+      assert QuoteOptions.has_context?(QuoteOptions.new(context: :match))
+      refute QuoteOptions.has_context?(QuoteOptions.new())
+    end
+
+    test "generated?/1 checks for generated" do
+      assert QuoteOptions.generated?(QuoteOptions.new(generated: true))
+      refute QuoteOptions.generated?(QuoteOptions.new(generated: false))
+      refute QuoteOptions.generated?(QuoteOptions.new())
+    end
+
+    test "has_line?/1 checks for line" do
+      assert QuoteOptions.has_line?(QuoteOptions.new(line: 42))
+      refute QuoteOptions.has_line?(QuoteOptions.new())
+    end
+
+    test "has_file?/1 checks for file" do
+      assert QuoteOptions.has_file?(QuoteOptions.new(file: "test.ex"))
+      refute QuoteOptions.has_file?(QuoteOptions.new())
+    end
+  end
+
+  # ===========================================================================
+  # Quote Option Extraction Tests (15.3.1)
+  # ===========================================================================
+
+  describe "extract/2 additional options" do
+    test "extracts line option" do
+      ast = {:quote, [], [[line: 42], [do: :ok]]}
+
+      assert {:ok, result} = Quote.extract(ast)
+      assert result.options.line == 42
+    end
+
+    test "extracts file option" do
+      ast = {:quote, [], [[file: "my_macro.ex"], [do: :ok]]}
+
+      assert {:ok, result} = Quote.extract(ast)
+      assert result.options.file == "my_macro.ex"
+    end
+
+    test "extracts generated option" do
+      ast = {:quote, [], [[generated: true], [do: :ok]]}
+
+      assert {:ok, result} = Quote.extract(ast)
+      assert result.options.generated == true
+    end
+
+    test "extracts combined options" do
+      ast =
+        {:quote, [],
+         [
+           [
+             bind_quoted: [x: 1],
+             context: :match,
+             location: :keep,
+             line: 100,
+             generated: true
+           ],
+           [do: :ok]
+         ]}
+
+      assert {:ok, result} = Quote.extract(ast)
+      assert result.options.bind_quoted == [x: 1]
+      assert result.options.context == :match
+      assert result.options.location == :keep
+      assert result.options.line == 100
+      assert result.options.generated == true
+    end
+
+    test "returns QuoteOptions struct" do
+      ast = {:quote, [], [[do: :ok]]}
+
+      assert {:ok, result} = Quote.extract(ast)
+      assert %Quote.QuoteOptions{} = result.options
+    end
+  end
+
+  # ===========================================================================
+  # New Helper Function Tests (15.3.1)
+  # ===========================================================================
+
+  describe "location_keep?/1" do
+    test "returns true when location: :keep is set" do
+      ast = {:quote, [], [[location: :keep], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.location_keep?(result)
+    end
+
+    test "returns false when location is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      refute Quote.location_keep?(result)
+    end
+  end
+
+  describe "unquoting_disabled?/1" do
+    test "returns true when unquote: false" do
+      ast = {:quote, [], [[unquote: false], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.unquoting_disabled?(result)
+    end
+
+    test "returns false by default" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      refute Quote.unquoting_disabled?(result)
+    end
+  end
+
+  describe "bind_quoted_vars/1" do
+    test "returns variable names when bind_quoted is set" do
+      ast = {:quote, [], [[bind_quoted: [x: 1, y: 2, z: 3]], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.bind_quoted_vars(result) == [:x, :y, :z]
+    end
+
+    test "returns empty list when bind_quoted is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.bind_quoted_vars(result) == []
+    end
+  end
+
+  describe "get_context/1" do
+    test "returns context when set" do
+      ast = {:quote, [], [[context: :match], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_context(result) == :match
+    end
+
+    test "returns nil when context is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_context(result) == nil
+    end
+  end
+
+  describe "generated?/1" do
+    test "returns true when generated: true" do
+      ast = {:quote, [], [[generated: true], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.generated?(result)
+    end
+
+    test "returns false when generated is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      refute Quote.generated?(result)
+    end
+  end
+
+  describe "get_line/1" do
+    test "returns line when set" do
+      ast = {:quote, [], [[line: 42], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_line(result) == 42
+    end
+
+    test "returns nil when line is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_line(result) == nil
+    end
+  end
+
+  describe "get_file/1" do
+    test "returns file when set" do
+      ast = {:quote, [], [[file: "test.ex"], [do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_file(result) == "test.ex"
+    end
+
+    test "returns nil when file is not set" do
+      ast = {:quote, [], [[do: :ok]]}
+      {:ok, result} = Quote.extract(ast)
+      assert Quote.get_file(result) == nil
+    end
+  end
+
+  # ===========================================================================
   # Integration Tests with quote
   # ===========================================================================
 
@@ -433,6 +705,540 @@ defmodule ElixirOntologies.Extractors.QuoteTest do
 
       assert {:ok, result} = Quote.extract(ast)
       assert result.options.context == :match
+    end
+  end
+
+  # ===========================================================================
+  # UnquoteExpression Helper Function Tests
+  # ===========================================================================
+
+  describe "UnquoteExpression.splicing?/1" do
+    alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+
+    test "returns true for unquote_splicing" do
+      expr = %UnquoteExpression{kind: :unquote_splicing, value: {:x, [], nil}}
+      assert UnquoteExpression.splicing?(expr)
+    end
+
+    test "returns false for unquote" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}}
+      refute UnquoteExpression.splicing?(expr)
+    end
+  end
+
+  describe "UnquoteExpression.nested?/1" do
+    alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+
+    test "returns true for depth > 1" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 2}
+      assert UnquoteExpression.nested?(expr)
+    end
+
+    test "returns true for deeply nested" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 5}
+      assert UnquoteExpression.nested?(expr)
+    end
+
+    test "returns false for depth == 1" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 1}
+      refute UnquoteExpression.nested?(expr)
+    end
+  end
+
+  describe "UnquoteExpression.at_depth?/2" do
+    alias ElixirOntologies.Extractors.Quote.UnquoteExpression
+
+    test "returns true when depth matches" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 3}
+      assert UnquoteExpression.at_depth?(expr, 3)
+    end
+
+    test "returns false when depth doesn't match" do
+      expr = %UnquoteExpression{kind: :unquote, value: {:x, [], nil}, depth: 2}
+      refute UnquoteExpression.at_depth?(expr, 3)
+    end
+  end
+
+  # ===========================================================================
+  # Unquote Depth Tracking Tests
+  # ===========================================================================
+
+  describe "find_unquotes/2 depth tracking" do
+    test "tracks depth through multiple nested quotes" do
+      # quote do quote do quote do unquote(x) end end end
+      triple_nested =
+        {:quote, [],
+         [
+           [
+             do: {:quote, [], [[do: {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}]]}
+           ]
+         ]}
+
+      results = Quote.find_unquotes(triple_nested)
+      assert length(results) == 1
+      assert hd(results).depth == 3
+    end
+
+    test "tracks different depths for multiple unquotes" do
+      # Structure: quote { unquote(a), quote { unquote(b), quote { unquote(c) } } }
+      deeply_nested =
+        {:quote, [],
+         [
+           [
+             do:
+               {:__block__, [],
+                [
+                  {:unquote, [], [{:a, [], nil}]},
+                  {:quote, [],
+                   [
+                     [
+                       do:
+                         {:__block__, [],
+                          [
+                            {:unquote, [], [{:b, [], nil}]},
+                            {:quote, [], [[do: {:unquote, [], [{:c, [], nil}]}]]}
+                          ]}
+                     ]
+                   ]}
+                ]}
+           ]
+         ]}
+
+      results = Quote.find_unquotes(deeply_nested)
+      assert length(results) == 3
+
+      depths = Enum.map(results, & &1.depth) |> Enum.sort()
+      assert depths == [1, 2, 3]
+    end
+
+    test "respects custom starting depth" do
+      ast = {:unquote, [], [{:x, [], nil}]}
+
+      results = Quote.find_unquotes(ast, depth: 5)
+      assert length(results) == 1
+      assert hd(results).depth == 5
+    end
+  end
+
+  describe "extract_unquotes/1" do
+    test "is an alias for find_unquotes" do
+      ast = {:unquote, [], [{:x, [], nil}]}
+
+      find_results = Quote.find_unquotes(ast)
+      extract_results = Quote.extract_unquotes(ast)
+
+      assert find_results == extract_results
+    end
+  end
+
+  describe "find_unquotes_at_depth/2" do
+    test "filters unquotes by specific depth" do
+      # Two unquotes at depth 1, one at depth 2
+      ast =
+        {:__block__, [],
+         [
+           {:unquote, [], [{:a, [], nil}]},
+           {:unquote, [], [{:b, [], nil}]},
+           {:quote, [], [[do: {:unquote, [], [{:c, [], nil}]}]]}
+         ]}
+
+      depth_1 = Quote.find_unquotes_at_depth(ast, 1)
+      assert length(depth_1) == 2
+
+      depth_2 = Quote.find_unquotes_at_depth(ast, 2)
+      assert length(depth_2) == 1
+      assert hd(depth_2).value == {:c, [], nil}
+    end
+
+    test "returns empty list when no unquotes at depth" do
+      ast = {:unquote, [], [{:x, [], nil}]}
+
+      assert Quote.find_unquotes_at_depth(ast, 5) == []
+    end
+  end
+
+  describe "max_unquote_depth/1" do
+    test "returns maximum depth" do
+      ast =
+        {:quote, [],
+         [
+           [
+             do: {:quote, [], [[do: {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}]]}
+           ]
+         ]}
+
+      assert Quote.max_unquote_depth(ast) == 3
+    end
+
+    test "returns 0 when no unquotes" do
+      ast = {:+, [], [1, 2]}
+      assert Quote.max_unquote_depth(ast) == 0
+    end
+
+    test "finds max among multiple depths" do
+      ast =
+        {:__block__, [],
+         [
+           {:unquote, [], [{:a, [], nil}]},
+           {:quote, [], [[do: {:unquote, [], [{:b, [], nil}]}]]}
+         ]}
+
+      assert Quote.max_unquote_depth(ast) == 2
+    end
+  end
+
+  describe "has_nested_unquotes?/1" do
+    test "returns true when has depth > 1" do
+      # Nested quote: quote do quote do unquote(x) end end - unquote at depth 2
+      ast = {:quote, [], [[do: {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}]]}
+      assert Quote.has_nested_unquotes?(ast)
+    end
+
+    test "returns false when all depth == 1" do
+      # Single quote: quote do unquote(x) end - unquote at depth 1
+      ast = {:quote, [], [[do: {:unquote, [], [{:x, [], nil}]}]]}
+      refute Quote.has_nested_unquotes?(ast)
+    end
+
+    test "returns false when called on unquote directly" do
+      # Unquote directly (not in a quote) has depth 1
+      ast = {:unquote, [], [{:x, [], nil}]}
+      refute Quote.has_nested_unquotes?(ast)
+    end
+
+    test "returns false for no unquotes" do
+      ast = {:+, [], [1, 2]}
+      refute Quote.has_nested_unquotes?(ast)
+    end
+  end
+
+  describe "count_unquotes_by_kind/1" do
+    test "counts both types" do
+      ast =
+        {:__block__, [],
+         [
+           {:unquote, [], [{:a, [], nil}]},
+           {:unquote, [], [{:b, [], nil}]},
+           {:unquote_splicing, [], [{:c, [], nil}]}
+         ]}
+
+      counts = Quote.count_unquotes_by_kind(ast)
+      assert counts == %{unquote: 2, unquote_splicing: 1}
+    end
+
+    test "returns zeros when no unquotes" do
+      ast = {:+, [], [1, 2]}
+      assert Quote.count_unquotes_by_kind(ast) == %{unquote: 0, unquote_splicing: 0}
+    end
+
+    test "handles only splicing" do
+      ast =
+        {:__block__, [],
+         [
+           {:unquote_splicing, [], [{:a, [], nil}]},
+           {:unquote_splicing, [], [{:b, [], nil}]}
+         ]}
+
+      counts = Quote.count_unquotes_by_kind(ast)
+      assert counts == %{unquote: 0, unquote_splicing: 2}
+    end
+  end
+
+  # ===========================================================================
+  # HygieneViolation Struct Tests
+  # ===========================================================================
+
+  describe "HygieneViolation struct" do
+    alias ElixirOntologies.Extractors.Quote.HygieneViolation
+
+    test "var_bang? returns true for var_bang type" do
+      violation = %HygieneViolation{type: :var_bang, variable: :x}
+      assert HygieneViolation.var_bang?(violation)
+    end
+
+    test "var_bang? returns false for macro_escape type" do
+      violation = %HygieneViolation{type: :macro_escape}
+      refute HygieneViolation.var_bang?(violation)
+    end
+
+    test "macro_escape? returns true for macro_escape type" do
+      violation = %HygieneViolation{type: :macro_escape}
+      assert HygieneViolation.macro_escape?(violation)
+    end
+
+    test "macro_escape? returns false for var_bang type" do
+      violation = %HygieneViolation{type: :var_bang, variable: :x}
+      refute HygieneViolation.macro_escape?(violation)
+    end
+
+    test "has_context? returns true when context is set" do
+      violation = %HygieneViolation{type: :var_bang, variable: :x, context: :match}
+      assert HygieneViolation.has_context?(violation)
+    end
+
+    test "has_context? returns false when context is nil" do
+      violation = %HygieneViolation{type: :var_bang, variable: :x, context: nil}
+      refute HygieneViolation.has_context?(violation)
+    end
+  end
+
+  # ===========================================================================
+  # Hygiene Detection Tests
+  # ===========================================================================
+
+  describe "var_bang?/1" do
+    test "returns true for var!/1" do
+      ast = {:var!, [], [{:x, [], nil}]}
+      assert Quote.var_bang?(ast)
+    end
+
+    test "returns true for var!/2" do
+      ast = {:var!, [], [{:x, [], nil}, :match]}
+      assert Quote.var_bang?(ast)
+    end
+
+    test "returns false for regular variable" do
+      ast = {:x, [], nil}
+      refute Quote.var_bang?(ast)
+    end
+
+    test "returns false for other function calls" do
+      ast = {:foo, [], [{:x, [], nil}]}
+      refute Quote.var_bang?(ast)
+    end
+  end
+
+  describe "macro_escape?/1" do
+    test "returns true for Macro.escape/1 with alias" do
+      ast = {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:x, [], nil}]}
+      assert Quote.macro_escape?(ast)
+    end
+
+    test "returns true for Macro.escape/1 with module atom" do
+      ast = {{:., [], [Macro, :escape]}, [], [{:x, [], nil}]}
+      assert Quote.macro_escape?(ast)
+    end
+
+    test "returns false for regular variable" do
+      ast = {:x, [], nil}
+      refute Quote.macro_escape?(ast)
+    end
+
+    test "returns false for other Macro functions" do
+      ast = {{:., [], [{:__aliases__, [], [:Macro]}, :to_string]}, [], [{:x, [], nil}]}
+      refute Quote.macro_escape?(ast)
+    end
+  end
+
+  describe "find_var_bang/1" do
+    test "finds var!/1 calls" do
+      ast = {:var!, [], [{:x, [], nil}]}
+      results = Quote.find_var_bang(ast)
+
+      assert length(results) == 1
+      assert hd(results).type == :var_bang
+      assert hd(results).variable == :x
+      assert hd(results).metadata.arity == 1
+    end
+
+    test "finds var!/2 calls with context" do
+      ast = {:var!, [], [{:y, [], nil}, :match]}
+      results = Quote.find_var_bang(ast)
+
+      assert length(results) == 1
+      assert hd(results).variable == :y
+      assert hd(results).context == :match
+      assert hd(results).metadata.arity == 2
+    end
+
+    test "finds multiple var! calls" do
+      ast =
+        {:__block__, [],
+         [
+           {:var!, [], [{:x, [], nil}]},
+           {:var!, [], [{:y, [], nil}]},
+           {:var!, [], [{:z, [], nil}, SomeModule]}
+         ]}
+
+      results = Quote.find_var_bang(ast)
+      assert length(results) == 3
+
+      variables = Enum.map(results, & &1.variable)
+      assert :x in variables
+      assert :y in variables
+      assert :z in variables
+    end
+
+    test "finds nested var! calls" do
+      ast = {:if, [], [{:var!, [], [{:cond, [], nil}]}, [do: {:var!, [], [{:x, [], nil}]}]]}
+
+      results = Quote.find_var_bang(ast)
+      assert length(results) == 2
+    end
+
+    test "returns empty list when no var! calls" do
+      ast = {:+, [], [{:x, [], nil}, {:y, [], nil}]}
+      assert Quote.find_var_bang(ast) == []
+    end
+  end
+
+  describe "find_macro_escapes/1" do
+    test "finds Macro.escape/1 with alias" do
+      ast = {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:x, [], nil}]}
+      results = Quote.find_macro_escapes(ast)
+
+      assert length(results) == 1
+      assert hd(results).type == :macro_escape
+      assert hd(results).metadata.escaped_value == {:x, [], nil}
+    end
+
+    test "finds Macro.escape/1 with module atom" do
+      ast = {{:., [], [Macro, :escape]}, [], [[1, 2, 3]]}
+      results = Quote.find_macro_escapes(ast)
+
+      assert length(results) == 1
+      assert hd(results).type == :macro_escape
+    end
+
+    test "finds multiple Macro.escape calls" do
+      ast =
+        {:__block__, [],
+         [
+           {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:x, [], nil}]},
+           {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:y, [], nil}]}
+         ]}
+
+      results = Quote.find_macro_escapes(ast)
+      assert length(results) == 2
+    end
+
+    test "returns empty list when no Macro.escape calls" do
+      ast = {:+, [], [1, 2]}
+      assert Quote.find_macro_escapes(ast) == []
+    end
+  end
+
+  describe "find_hygiene_violations/1" do
+    test "finds both var! and Macro.escape" do
+      ast =
+        {:__block__, [],
+         [
+           {:var!, [], [{:x, [], nil}]},
+           {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:y, [], nil}]}
+         ]}
+
+      results = Quote.find_hygiene_violations(ast)
+      assert length(results) == 2
+
+      types = Enum.map(results, & &1.type)
+      assert :var_bang in types
+      assert :macro_escape in types
+    end
+
+    test "returns empty list when no violations" do
+      ast = {:+, [], [1, 2]}
+      assert Quote.find_hygiene_violations(ast) == []
+    end
+  end
+
+  describe "has_hygiene_violations?/1" do
+    test "returns true when has var!" do
+      ast = {:var!, [], [{:x, [], nil}]}
+      assert Quote.has_hygiene_violations?(ast)
+    end
+
+    test "returns true when has Macro.escape" do
+      ast = {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:x, [], nil}]}
+      assert Quote.has_hygiene_violations?(ast)
+    end
+
+    test "returns false when no violations" do
+      ast = {:x, [], nil}
+      refute Quote.has_hygiene_violations?(ast)
+    end
+  end
+
+  describe "count_hygiene_violations/1" do
+    test "counts both types correctly" do
+      ast =
+        {:__block__, [],
+         [
+           {:var!, [], [{:x, [], nil}]},
+           {:var!, [], [{:y, [], nil}]},
+           {{:., [], [{:__aliases__, [], [:Macro]}, :escape]}, [], [{:z, [], nil}]}
+         ]}
+
+      counts = Quote.count_hygiene_violations(ast)
+      assert counts == %{var_bang: 2, macro_escape: 1}
+    end
+
+    test "returns zeros when no violations" do
+      ast = {:x, [], nil}
+      assert Quote.count_hygiene_violations(ast) == %{var_bang: 0, macro_escape: 0}
+    end
+  end
+
+  describe "get_unhygienic_variables/1" do
+    test "returns variable names from var! calls" do
+      ast =
+        {:__block__, [],
+         [
+           {:var!, [], [{:x, [], nil}]},
+           {:var!, [], [{:y, [], nil}]},
+           {:var!, [], [{:x, [], nil}]}
+         ]}
+
+      variables = Quote.get_unhygienic_variables(ast)
+      assert length(variables) == 2
+      assert :x in variables
+      assert :y in variables
+    end
+
+    test "returns empty list when no var! calls" do
+      ast = {:x, [], nil}
+      assert Quote.get_unhygienic_variables(ast) == []
+    end
+  end
+
+  describe "hygiene analysis with quoted code" do
+    test "detects var! in quoted defmacro" do
+      {:defmacro, _, _} =
+        ast =
+        quote do
+          defmacro my_macro do
+            quote do
+              var!(result) = 42
+              var!(result)
+            end
+          end
+        end
+
+      results = Quote.find_var_bang(ast)
+      assert length(results) == 2
+      assert Enum.all?(results, &(&1.variable == :result))
+    end
+
+    test "detects Macro.escape in quoted code" do
+      {:def, _, _} =
+        ast =
+        quote do
+          def my_function(list) do
+            quote do
+              unquote(Macro.escape(list))
+            end
+          end
+        end
+
+      results = Quote.find_macro_escapes(ast)
+      assert length(results) == 1
+    end
+
+    test "detects var!/2 with module context" do
+      ast = {:var!, [], [{:x, [], nil}, MyModule]}
+      results = Quote.find_var_bang(ast)
+
+      assert length(results) == 1
+      assert hd(results).context == MyModule
     end
   end
 end

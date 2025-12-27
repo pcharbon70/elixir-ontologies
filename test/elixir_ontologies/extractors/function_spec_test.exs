@@ -465,4 +465,260 @@ defmodule ElixirOntologies.Extractors.FunctionSpecTest do
       assert result.arity == 0
     end
   end
+
+  # ===========================================================================
+  # Callback Detection Tests
+  # ===========================================================================
+
+  describe "callback?/1" do
+    test "returns true for @callback" do
+      ast = {:@, [], [{:callback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      assert FunctionSpec.callback?(ast)
+    end
+
+    test "returns false for @spec" do
+      ast = {:@, [], [{:spec, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      refute FunctionSpec.callback?(ast)
+    end
+
+    test "returns false for @macrocallback" do
+      ast = {:@, [], [{:macrocallback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      refute FunctionSpec.callback?(ast)
+    end
+  end
+
+  describe "macrocallback?/1" do
+    test "returns true for @macrocallback" do
+      ast = {:@, [], [{:macrocallback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      assert FunctionSpec.macrocallback?(ast)
+    end
+
+    test "returns false for @callback" do
+      ast = {:@, [], [{:callback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      refute FunctionSpec.macrocallback?(ast)
+    end
+  end
+
+  describe "optional_callbacks?/1" do
+    test "returns true for @optional_callbacks" do
+      ast = {:@, [], [{:optional_callbacks, [], [[foo: 1, bar: 2]]}]}
+      assert FunctionSpec.optional_callbacks?(ast)
+    end
+
+    test "returns false for @callback" do
+      ast = {:@, [], [{:callback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      refute FunctionSpec.optional_callbacks?(ast)
+    end
+  end
+
+  describe "any_spec?/1" do
+    test "returns true for @spec" do
+      ast = {:@, [], [{:spec, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      assert FunctionSpec.any_spec?(ast)
+    end
+
+    test "returns true for @callback" do
+      ast = {:@, [], [{:callback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      assert FunctionSpec.any_spec?(ast)
+    end
+
+    test "returns true for @macrocallback" do
+      ast = {:@, [], [{:macrocallback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      assert FunctionSpec.any_spec?(ast)
+    end
+
+    test "returns false for @optional_callbacks" do
+      ast = {:@, [], [{:optional_callbacks, [], [[foo: 1]]}]}
+      refute FunctionSpec.any_spec?(ast)
+    end
+
+    test "returns false for @doc" do
+      ast = {:@, [], [{:doc, [], ["docs"]}]}
+      refute FunctionSpec.any_spec?(ast)
+    end
+  end
+
+  # ===========================================================================
+  # Callback Extraction Tests
+  # ===========================================================================
+
+  describe "extract/2 @callback" do
+    test "extracts simple callback" do
+      ast = {:@, [], [{:callback, [], [{:"::", [], [{:init, [], [{:term, [], []}]}, :ok]}]}]}
+
+      assert {:ok, result} = FunctionSpec.extract(ast)
+      assert result.name == :init
+      assert result.arity == 1
+      assert result.spec_type == :callback
+    end
+
+    test "extracts callback with no parameters" do
+      ast = {:@, [], [{:callback, [], [{:"::", [], [{:start, [], []}, {:pid, [], []}]}]}]}
+
+      assert {:ok, result} = FunctionSpec.extract(ast)
+      assert result.name == :start
+      assert result.arity == 0
+      assert result.spec_type == :callback
+    end
+
+    test "extracts callback with when clause" do
+      ast =
+        {:@, [],
+         [
+           {:callback, [],
+            [
+              {:when, [],
+               [
+                 {:"::", [], [{:handle_call, [], [{:request, [], nil}]}, {:reply, [], nil}]},
+                 [request: {:term, [], []}, reply: {:term, [], []}]
+               ]}
+            ]}
+         ]}
+
+      assert {:ok, result} = FunctionSpec.extract(ast)
+      assert result.name == :handle_call
+      assert result.spec_type == :callback
+      assert FunctionSpec.has_when_clause?(result)
+    end
+
+    test "callback from quoted code" do
+      {:@, _, [{:callback, _, _}]} =
+        ast =
+        quote do
+          @callback init(args :: term()) :: {:ok, state :: term()} | {:error, reason :: term()}
+        end
+
+      assert {:ok, result} = FunctionSpec.extract(ast)
+      assert result.name == :init
+      assert result.spec_type == :callback
+    end
+  end
+
+  describe "extract/2 @macrocallback" do
+    test "extracts simple macrocallback" do
+      ast =
+        {:@, [],
+         [{:macrocallback, [], [{:"::", [], [{:__using__, [], [{:opts, [], nil}]}, :ok]}]}]}
+
+      assert {:ok, result} = FunctionSpec.extract(ast)
+      assert result.name == :__using__
+      assert result.arity == 1
+      assert result.spec_type == :macrocallback
+    end
+
+    test "macrocallback from quoted code" do
+      {:@, _, [{:macrocallback, _, _}]} =
+        ast =
+        quote do
+          @macrocallback __using__(opts :: keyword()) :: Macro.t()
+        end
+
+      assert {:ok, result} = FunctionSpec.extract(ast)
+      assert result.name == :__using__
+      assert result.spec_type == :macrocallback
+    end
+  end
+
+  # ===========================================================================
+  # Optional Callbacks Extraction Tests
+  # ===========================================================================
+
+  describe "extract_optional_callbacks/1" do
+    test "extracts optional callbacks list" do
+      ast = {:@, [], [{:optional_callbacks, [], [[foo: 1, bar: 2]]}]}
+
+      assert {:ok, result} = FunctionSpec.extract_optional_callbacks(ast)
+      assert result == [foo: 1, bar: 2]
+    end
+
+    test "returns error for non-optional_callbacks" do
+      ast = {:@, [], [{:callback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+
+      assert {:error, _} = FunctionSpec.extract_optional_callbacks(ast)
+    end
+  end
+
+  describe "extract_all_optional_callbacks/1" do
+    test "extracts from module body" do
+      body =
+        {:__block__, [],
+         [
+           {:@, [], [{:optional_callbacks, [], [[foo: 1]]}]},
+           {:@, [], [{:callback, [], [{:"::", [], [{:foo, [], [{:integer, [], []}]}, :ok]}]}]},
+           {:@, [], [{:optional_callbacks, [], [[bar: 2]]}]}
+         ]}
+
+      result = FunctionSpec.extract_all_optional_callbacks(body)
+      assert result == [foo: 1, bar: 2]
+    end
+
+    test "returns empty list when no optional_callbacks" do
+      body =
+        {:__block__, [],
+         [
+           {:@, [], [{:callback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+         ]}
+
+      assert FunctionSpec.extract_all_optional_callbacks(body) == []
+    end
+  end
+
+  # ===========================================================================
+  # Extract All with Callbacks Tests
+  # ===========================================================================
+
+  describe "extract_all/1 with callbacks" do
+    test "extracts specs and callbacks" do
+      body =
+        {:__block__, [],
+         [
+           {:@, [], [{:spec, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]},
+           {:@, [], [{:callback, [], [{:"::", [], [{:bar, [], []}, :ok]}]}]},
+           {:@, [], [{:doc, [], ["docs"]}]}
+         ]}
+
+      results = FunctionSpec.extract_all(body)
+      assert length(results) == 2
+      assert Enum.map(results, & &1.name) == [:foo, :bar]
+      assert Enum.map(results, & &1.spec_type) == [:spec, :callback]
+    end
+
+    test "extracts all spec types" do
+      body =
+        {:__block__, [],
+         [
+           {:@, [], [{:spec, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]},
+           {:@, [], [{:callback, [], [{:"::", [], [{:bar, [], []}, :ok]}]}]},
+           {:@, [], [{:macrocallback, [], [{:"::", [], [{:baz, [], [{:opts, [], nil}]}, :ok]}]}]}
+         ]}
+
+      results = FunctionSpec.extract_all(body)
+      assert length(results) == 3
+      assert Enum.map(results, & &1.spec_type) == [:spec, :callback, :macrocallback]
+    end
+  end
+
+  # ===========================================================================
+  # spec_type Field Tests
+  # ===========================================================================
+
+  describe "spec_type field" do
+    test "defaults to :spec for @spec" do
+      ast = {:@, [], [{:spec, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      {:ok, result} = FunctionSpec.extract(ast)
+      assert result.spec_type == :spec
+    end
+
+    test "is :callback for @callback" do
+      ast = {:@, [], [{:callback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      {:ok, result} = FunctionSpec.extract(ast)
+      assert result.spec_type == :callback
+    end
+
+    test "is :macrocallback for @macrocallback" do
+      ast = {:@, [], [{:macrocallback, [], [{:"::", [], [{:foo, [], []}, :ok]}]}]}
+      {:ok, result} = FunctionSpec.extract(ast)
+      assert result.spec_type == :macrocallback
+    end
+  end
 end

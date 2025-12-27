@@ -86,9 +86,8 @@ defmodule ElixirOntologies.SHACL.Reader do
   @spec parse_shapes(RDF.Graph.t(), keyword()) :: {:ok, [NodeShape.t()]} | {:error, term()}
   def parse_shapes(shapes_graph, opts \\ []) do
     with {:ok, shape_iris} <- find_node_shapes(shapes_graph),
-         {:ok, top_level_shapes} <- parse_all_node_shapes(shapes_graph, shape_iris, opts),
-         {:ok, all_shapes} <- parse_inline_shapes(shapes_graph, top_level_shapes, opts) do
-      {:ok, all_shapes}
+         {:ok, top_level_shapes} <- parse_all_node_shapes(shapes_graph, shape_iris, opts) do
+      parse_inline_shapes(shapes_graph, top_level_shapes, opts)
     end
   end
 
@@ -116,7 +115,7 @@ defmodule ElixirOntologies.SHACL.Reader do
       referenced_shape_ids
       |> Enum.filter(fn ref ->
         (match?(%RDF.BlankNode{}, ref) || match?(%RDF.IRI{}, ref)) &&
-        !MapSet.member?(parsed_ids, ref)
+          !MapSet.member?(parsed_ids, ref)
       end)
 
     # If no new shapes to parse, we're done
@@ -288,7 +287,8 @@ defmodule ElixirOntologies.SHACL.Reader do
 
   # Extract node-level constraints from node shape description
   # These are constraints applied directly to focus nodes (not to their properties)
-  @spec extract_node_constraints(RDF.Graph.t(), RDF.Description.t()) :: {:ok, map()} | {:error, term()}
+  @spec extract_node_constraints(RDF.Graph.t(), RDF.Description.t()) ::
+          {:ok, map()} | {:error, term()}
   defp extract_node_constraints(graph, desc) do
     with {:ok, datatype} <- extract_optional_iri(desc, SHACL.datatype()),
          {:ok, class_iri} <- extract_optional_iri(desc, SHACL.class()),
@@ -789,7 +789,8 @@ defmodule ElixirOntologies.SHACL.Reader do
         qualified_desc = RDF.Graph.description(graph, qualified_shape_id)
 
         with {:ok, qualified_class} <- extract_optional_iri(qualified_desc, SHACL.class()),
-             {:ok, qualified_min_count} <- extract_optional_integer(desc, SHACL.qualified_min_count()) do
+             {:ok, qualified_min_count} <-
+               extract_optional_integer(desc, SHACL.qualified_min_count()) do
           {:ok, {qualified_class, qualified_min_count}}
         end
     end
@@ -844,25 +845,24 @@ defmodule ElixirOntologies.SHACL.Reader do
         {:ok, nil}
 
       [list_head | _] ->
-        case parse_rdf_list(graph, list_head, 0) do
-          {:ok, []} ->
-            {:ok, nil}
-
-          {:ok, literals} ->
-            # Extract language tags as strings
-            language_tags =
-              Enum.map(literals, fn lit ->
-                case lit do
-                  %RDF.Literal{} -> RDF.Literal.value(lit)
-                  other -> to_string(other)
-                end
-              end)
-
-            {:ok, language_tags}
-
-          error ->
-            error
-        end
+        parse_language_in_list(graph, list_head)
     end
   end
+
+  defp parse_language_in_list(graph, list_head) do
+    case parse_rdf_list(graph, list_head, 0) do
+      {:ok, []} ->
+        {:ok, nil}
+
+      {:ok, literals} ->
+        language_tags = Enum.map(literals, &extract_language_tag/1)
+        {:ok, language_tags}
+
+      error ->
+        error
+    end
+  end
+
+  defp extract_language_tag(%RDF.Literal{} = lit), do: RDF.Literal.value(lit)
+  defp extract_language_tag(other), do: to_string(other)
 end

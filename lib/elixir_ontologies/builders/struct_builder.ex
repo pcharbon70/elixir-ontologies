@@ -265,6 +265,7 @@ defmodule ElixirOntologies.Builders.StructBuilder do
     if field.has_default do
       # Convert default value to string representation
       default_string = inspect(field.default_value)
+
       [
         Helpers.datatype_property(
           field_iri,
@@ -340,7 +341,7 @@ defmodule ElixirOntologies.Builders.StructBuilder do
   # Generate IRI for protocol in @derive
   defp generate_protocol_iri(protocol, context) when is_list(protocol) do
     # Protocol name as module list: [:Inspect]
-    protocol_name = Enum.map(protocol, &Atom.to_string/1) |> Enum.join(".")
+    protocol_name = Enum.map_join(protocol, ".", &Atom.to_string/1)
     IRI.for_module(context.base_iri, protocol_name)
   end
 

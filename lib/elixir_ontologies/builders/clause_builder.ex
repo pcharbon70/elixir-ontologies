@@ -137,11 +137,17 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
 
     # FunctionHead triples (includes parameters and guard)
     {head_bnode, head_triples} = build_function_head(clause_iri, clause_info, context)
-    triples = triples ++ head_triples ++ [Helpers.object_property(clause_iri, Structure.hasHead(), head_bnode)]
+
+    triples =
+      triples ++
+        head_triples ++ [Helpers.object_property(clause_iri, Structure.hasHead(), head_bnode)]
 
     # FunctionBody triples
     {body_bnode, body_triples} = build_function_body(clause_info)
-    triples = triples ++ body_triples ++ [Helpers.object_property(clause_iri, Structure.hasBody(), body_bnode)]
+
+    triples =
+      triples ++
+        body_triples ++ [Helpers.object_property(clause_iri, Structure.hasBody(), body_bnode)]
 
     # Flatten and deduplicate
     triples = List.flatten(triples) |> Enum.uniq()
@@ -192,6 +198,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
     {list_head, list_triples} = Helpers.build_rdf_list(parameter_iris)
 
     # Head triples
+    # Guard triples if present
     head_triples =
       [
         # rdf:type struct:FunctionHead
@@ -199,7 +206,6 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
         # struct:hasParameters <list_head>
         Helpers.object_property(head_bnode, Structure.hasParameters(), list_head)
       ] ++
-        # Guard triples if present
         build_guard_triples(head_bnode, clause_info)
 
     # Combine all triples

@@ -349,7 +349,8 @@ defmodule ElixirOntologies.SHACL.ValidatorTest do
       shapes_graph =
         RDF.Graph.new([
           {~I<http://example.org/shapes#S1>, RDF.type(), sh("NodeShape")},
-          {~I<http://example.org/shapes#S1>, sh("targetClass"), ~I<http://example.org/Supervisor>},
+          {~I<http://example.org/shapes#S1>, sh("targetClass"),
+           ~I<http://example.org/Supervisor>},
           {~I<http://example.org/shapes#S1>, sh("property"), RDF.bnode("b1")},
           {RDF.bnode("b1"), sh("path"), ~I<http://example.org/strategy>},
           {RDF.bnode("b1"), sh("in"), RDF.bnode("list")},

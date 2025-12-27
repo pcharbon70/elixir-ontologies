@@ -21,7 +21,8 @@ defmodule ElixirOntologies.SHACLTest do
       # Create simple shape requiring name property
       shapes_graph =
         RDF.Graph.new([
-          {~I<http://example.org/PersonShape>, RDF.type(), ~I<http://www.w3.org/ns/shacl#NodeShape>},
+          {~I<http://example.org/PersonShape>, RDF.type(),
+           ~I<http://www.w3.org/ns/shacl#NodeShape>},
           {~I<http://example.org/PersonShape>, ~I<http://www.w3.org/ns/shacl#targetClass>,
            ~I<http://example.org/Person>}
         ])
@@ -44,7 +45,8 @@ defmodule ElixirOntologies.SHACLTest do
       # Create shape requiring name property with minCount 1
       shapes_graph =
         RDF.Graph.new([
-          {~I<http://example.org/PersonShape>, RDF.type(), ~I<http://www.w3.org/ns/shacl#NodeShape>},
+          {~I<http://example.org/PersonShape>, RDF.type(),
+           ~I<http://www.w3.org/ns/shacl#NodeShape>},
           {~I<http://example.org/PersonShape>, ~I<http://www.w3.org/ns/shacl#targetClass>,
            ~I<http://example.org/Person>},
           {~I<http://example.org/PersonShape>, ~I<http://www.w3.org/ns/shacl#property>,
@@ -331,8 +333,9 @@ defmodule ElixirOntologies.SHACLTest do
 
               # Valid code should produce a validation report
               assert %ValidationReport{} = report
-              # Report should either conform or have specific expected violations
-              # (Don't assert conforms? as analyzer output may vary)
+
+            # Report should either conform or have specific expected violations
+            # (Don't assert conforms? as analyzer output may vary)
 
             false ->
               :ok
@@ -374,8 +377,9 @@ defmodule ElixirOntologies.SHACLTest do
               {:ok, report} = SHACL.validate(rdf_graph, shapes_graph)
 
               assert %ValidationReport{} = report
-              # The analyzed graph should conform to elixir-shapes.ttl
-              # (or have specific expected violations if shapes are strict)
+
+            # The analyzed graph should conform to elixir-shapes.ttl
+            # (or have specific expected violations if shapes are strict)
 
             false ->
               :ok

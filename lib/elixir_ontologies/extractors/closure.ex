@@ -1,0 +1,1607 @@
+defmodule ElixirOntologies.Extractors.Closure do
+  @moduledoc """
+  Detects free variables in anonymous functions and capture expressions.
+
+  Free variables are variables that appear in a function body but are not
+  bound by the function's parameters - they must be captured from the
+  enclosing scope, making the function a closure.
+
+  ## Ontology Alignment
+
+  This module supports RDF generation via `ClosureBuilder` which produces:
+  - `core:capturesVariable` - Links function to captured variable names
+  - `struct:AnonymousFunction` - The anonymous function class
+
+  See `priv/ontologies/elixir-structure.ttl` for class definitions.
+
+  ## Free Variable Detection
+
+  A **free variable** in a function is a variable that:
+  1. Is referenced in the function body
+  2. Is NOT bound by the function's parameters
+  3. Is NOT a special form, module name, or function call name
+
+  ## Examples
+
+      iex> ast = quote do: fn x -> x + y end
+      iex> {:ok, anon} = ElixirOntologies.Extractors.AnonymousFunction.extract(ast)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.analyze_closure(anon)
+      iex> analysis.has_captures
+      true
+      iex> hd(analysis.free_variables).name
+      :y
+
+      iex> # Function with no free variables (not a closure)
+      iex> ast = quote do: fn x -> x + 1 end
+      iex> {:ok, anon} = ElixirOntologies.Extractors.AnonymousFunction.extract(ast)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.analyze_closure(anon)
+      iex> analysis.has_captures
+      false
+  """
+
+  alias ElixirOntologies.Extractors.AnonymousFunction
+  alias ElixirOntologies.Extractors.Helpers
+
+  # ===========================================================================
+  # Constants
+  # ===========================================================================
+
+  # Maximum recursion depth for AST traversal (security limit)
+  @max_recursion_depth Helpers.max_recursion_depth()
+
+  # Maximum number of captured variables to process (security limit)
+  @max_captured_variables 100
+
+  # ===========================================================================
+  # FreeVariable Struct
+  # ===========================================================================
+
+  defmodule FreeVariable do
+    @moduledoc """
+    Represents a free variable captured from an enclosing scope.
+
+    ## Fields
+
+    - `:name` - The variable name (atom)
+    - `:reference_count` - Number of times this variable is referenced
+    - `:reference_locations` - Source locations where this variable is used
+    - `:captured_at` - Location of the fn/capture that captures this variable
+    - `:metadata` - Additional information
+    """
+
+    @type t :: %__MODULE__{
+            name: atom(),
+            reference_count: pos_integer(),
+            reference_locations: [map()],
+            captured_at: map() | nil,
+            metadata: map()
+          }
+
+    @enforce_keys [:name, :reference_count]
+    defstruct [
+      :name,
+      :reference_count,
+      reference_locations: [],
+      captured_at: nil,
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
+  # FreeVariableAnalysis Struct
+  # ===========================================================================
+
+  defmodule FreeVariableAnalysis do
+    @moduledoc """
+    Complete analysis of free variables in an anonymous function or closure.
+
+    ## Fields
+
+    - `:free_variables` - List of FreeVariable structs for captured variables
+    - `:bound_variables` - Variables bound by function parameters
+    - `:all_references` - All variable names referenced in the body
+    - `:has_captures` - Whether any free variables exist (is this a closure?)
+    - `:total_capture_count` - Total number of free variable references
+    - `:metadata` - Additional information
+    """
+
+    alias ElixirOntologies.Extractors.Closure.FreeVariable
+
+    @type t :: %__MODULE__{
+            free_variables: [FreeVariable.t()],
+            bound_variables: [atom()],
+            all_references: [atom()],
+            has_captures: boolean(),
+            total_capture_count: non_neg_integer(),
+            metadata: map()
+          }
+
+    @enforce_keys [:free_variables, :bound_variables]
+    defstruct [
+      :free_variables,
+      :bound_variables,
+      all_references: [],
+      has_captures: false,
+      total_capture_count: 0,
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
+  # ClosureScope Struct
+  # ===========================================================================
+
+  defmodule ClosureScope do
+    @moduledoc """
+    Represents a scope level in the closure hierarchy.
+
+    ## Fields
+
+    - `:level` - Scope depth (0 = module, 1 = function, 2+ = nested closures)
+    - `:type` - Type of scope (:module, :function, :closure, :block)
+    - `:variables` - Variables available/bound in this scope
+    - `:name` - Optional name (function name, nil for anonymous)
+    - `:location` - Source location where this scope is defined
+    - `:parent` - Parent scope (nil for module level)
+    - `:metadata` - Additional information
+    """
+
+    @type scope_type :: :module | :function | :closure | :block
+
+    @type t :: %__MODULE__{
+            level: non_neg_integer(),
+            type: scope_type(),
+            variables: [atom()],
+            name: atom() | nil,
+            location: map() | nil,
+            parent: t() | nil,
+            metadata: map()
+          }
+
+    @enforce_keys [:level, :type]
+    defstruct [
+      :level,
+      :type,
+      :name,
+      :location,
+      :parent,
+      variables: [],
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
+  # ScopeAnalysis Struct
+  # ===========================================================================
+
+  defmodule ScopeAnalysis do
+    @moduledoc """
+    Complete analysis of scope hierarchy for a closure.
+
+    ## Fields
+
+    - `:scope_chain` - List of scopes from innermost to outermost
+    - `:variable_sources` - Map from variable name to the scope providing it
+    - `:capture_depth` - Maximum depth of any capture (0 = immediate, 1 = grandparent, etc.)
+    - `:crosses_function_boundary` - Whether any capture crosses a function boundary
+    - `:captures_module_attributes` - Whether any module attributes are captured
+    - `:metadata` - Additional information
+    """
+
+    alias ElixirOntologies.Extractors.Closure.ClosureScope
+
+    @type t :: %__MODULE__{
+            scope_chain: [ClosureScope.t()],
+            variable_sources: %{atom() => ClosureScope.t()},
+            capture_depth: non_neg_integer(),
+            crosses_function_boundary: boolean(),
+            captures_module_attributes: boolean(),
+            metadata: map()
+          }
+
+    @enforce_keys [:scope_chain, :variable_sources]
+    defstruct [
+      :scope_chain,
+      :variable_sources,
+      capture_depth: 0,
+      crosses_function_boundary: false,
+      captures_module_attributes: false,
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
+  # MutationPattern Struct
+  # ===========================================================================
+
+  defmodule MutationPattern do
+    @moduledoc """
+    Represents a mutation pattern for a captured variable in a closure.
+
+    ## Pattern Types
+
+    - `:shadow` - Variable with same name is rebound, hiding the captured value
+    - `:rebind` - Captured variable is rebound using its captured value
+    - `:immutable` - Captured variable is used but never rebound (safe pattern)
+
+    ## Fields
+
+    - `:variable` - The variable name (atom)
+    - `:type` - The pattern type (:shadow, :rebind, or :immutable)
+    - `:locations` - Source locations where the pattern occurs
+    - `:metadata` - Additional information
+    """
+
+    @type pattern_type :: :shadow | :rebind | :immutable
+
+    @type t :: %__MODULE__{
+            variable: atom(),
+            type: pattern_type(),
+            locations: [map()],
+            metadata: map()
+          }
+
+    @enforce_keys [:variable, :type]
+    defstruct [
+      :variable,
+      :type,
+      locations: [],
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
+  # MutationAnalysis Struct
+  # ===========================================================================
+
+  defmodule MutationAnalysis do
+    @moduledoc """
+    Complete analysis of mutation patterns for captured variables.
+
+    ## Fields
+
+    - `:patterns` - List of MutationPattern structs for each captured variable
+    - `:has_shadows` - Whether any shadowing was detected
+    - `:has_rebinds` - Whether any rebinding was detected
+    - `:all_immutable` - Whether all captured variables are immutable
+    - `:metadata` - Additional information
+    """
+
+    alias ElixirOntologies.Extractors.Closure.MutationPattern
+
+    @type t :: %__MODULE__{
+            patterns: [MutationPattern.t()],
+            has_shadows: boolean(),
+            has_rebinds: boolean(),
+            all_immutable: boolean(),
+            metadata: map()
+          }
+
+    @enforce_keys [:patterns]
+    defstruct [
+      :patterns,
+      has_shadows: false,
+      has_rebinds: false,
+      all_immutable: true,
+      metadata: %{}
+    ]
+  end
+
+  # ===========================================================================
+  # High-Level Analysis
+  # ===========================================================================
+
+  @doc """
+  Analyzes an anonymous function for captured (free) variables.
+
+  Takes an `%AnonymousFunction{}` struct and returns a `%FreeVariableAnalysis{}`
+  with information about which variables are captured from the enclosing scope.
+
+  ## Examples
+
+      iex> ast = quote do: fn x -> x + y end
+      iex> {:ok, anon} = ElixirOntologies.Extractors.AnonymousFunction.extract(ast)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.analyze_closure(anon)
+      iex> analysis.has_captures
+      true
+      iex> Enum.map(analysis.free_variables, & &1.name)
+      [:y]
+
+      iex> ast = quote do: fn x, y -> x + y end
+      iex> {:ok, anon} = ElixirOntologies.Extractors.AnonymousFunction.extract(ast)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.analyze_closure(anon)
+      iex> analysis.has_captures
+      false
+  """
+  @spec analyze_closure(AnonymousFunction.t()) :: {:ok, FreeVariableAnalysis.t()}
+  def analyze_closure(%AnonymousFunction{clauses: clauses, location: location}) do
+    # Collect all bound variables from all clauses
+    bound_vars =
+      clauses
+      |> Enum.flat_map(fn clause -> clause.bound_variables end)
+      |> Enum.uniq()
+
+    # Collect all body ASTs and analyze them
+    bodies = Enum.map(clauses, fn clause -> clause.body end)
+
+    # Find all variable references in bodies
+    all_refs = find_variable_references_in_list(bodies)
+
+    # Detect free variables
+    detect_free_variables(all_refs, bound_vars, location)
+  end
+
+  # ===========================================================================
+  # Free Variable Detection
+  # ===========================================================================
+
+  @doc """
+  Detects free variables given variable references and bound variable names.
+
+  Takes a list of `{name, meta}` tuples (variable references with metadata)
+  and a list of bound variable names. Returns analysis of which variables
+  are free (not in the bound set).
+
+  ## Examples
+
+      iex> refs = [{:x, [line: 1]}, {:y, [line: 2]}, {:x, [line: 3]}]
+      iex> bound = [:x]
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.detect_free_variables(refs, bound)
+      iex> analysis.has_captures
+      true
+      iex> hd(analysis.free_variables).name
+      :y
+
+      iex> refs = [{:x, [line: 1]}, {:y, [line: 2]}]
+      iex> bound = [:x, :y]
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.detect_free_variables(refs, bound)
+      iex> analysis.has_captures
+      false
+  """
+  @spec detect_free_variables([{atom(), keyword()}], [atom()], map() | nil) ::
+          {:ok, FreeVariableAnalysis.t()}
+  def detect_free_variables(references, bound_vars, captured_at \\ nil) do
+    bound_set = MapSet.new(bound_vars)
+
+    # Group references by variable name
+    refs_by_name = Enum.group_by(references, fn {name, _meta} -> name end)
+
+    # Find free variables (not in bound set)
+    # Limit to @max_captured_variables for security against resource exhaustion
+    free_vars =
+      refs_by_name
+      |> Enum.filter(fn {name, _refs} -> not MapSet.member?(bound_set, name) end)
+      |> Enum.take(@max_captured_variables)
+      |> Enum.map(fn {name, refs} ->
+        locations =
+          refs
+          |> Enum.map(fn {_name, meta} -> extract_ref_location(meta) end)
+          |> Enum.reject(&is_nil/1)
+
+        %FreeVariable{
+          name: name,
+          reference_count: length(refs),
+          reference_locations: locations,
+          captured_at: captured_at,
+          metadata: %{}
+        }
+      end)
+      |> Enum.sort_by(& &1.name)
+
+    all_ref_names =
+      references
+      |> Enum.map(fn {name, _meta} -> name end)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    total_captures = Enum.sum(Enum.map(free_vars, & &1.reference_count))
+
+    {:ok,
+     %FreeVariableAnalysis{
+       free_variables: free_vars,
+       bound_variables: Enum.sort(bound_vars),
+       all_references: all_ref_names,
+       has_captures: free_vars != [],
+       total_capture_count: total_captures,
+       metadata: %{}
+     }}
+  end
+
+  # ===========================================================================
+  # Scope Analysis
+  # ===========================================================================
+
+  @doc """
+  Builds a scope chain representing the enclosing context for a closure.
+
+  Takes a list of scope definitions (from outermost to innermost) and builds
+  a linked chain of `%ClosureScope{}` structs.
+
+  Each scope definition should be a map with:
+  - `:type` - :module, :function, :closure, or :block
+  - `:variables` - list of variable names available in this scope
+  - `:name` - optional name (for functions)
+  - `:location` - optional source location
+
+  ## Examples
+
+      iex> scopes = [
+      ...>   %{type: :module, variables: []},
+      ...>   %{type: :function, variables: [:x, :y], name: :my_func}
+      ...> ]
+      iex> chain = ElixirOntologies.Extractors.Closure.build_scope_chain(scopes)
+      iex> length(chain)
+      2
+      iex> hd(chain).type
+      :module
+      iex> List.last(chain).type
+      :function
+      iex> List.last(chain).level
+      1
+  """
+  @spec build_scope_chain([map()]) :: [ClosureScope.t()]
+  def build_scope_chain(scope_defs) when is_list(scope_defs) do
+    {chain, _} =
+      scope_defs
+      |> Enum.with_index()
+      |> Enum.reduce({[], nil}, fn {scope_def, level}, {acc, parent} ->
+        scope = %ClosureScope{
+          level: level,
+          type: Map.get(scope_def, :type, :block),
+          variables: Map.get(scope_def, :variables, []),
+          name: Map.get(scope_def, :name),
+          location: Map.get(scope_def, :location),
+          parent: parent,
+          metadata: Map.get(scope_def, :metadata, %{})
+        }
+
+        {[scope | acc], scope}
+      end)
+
+    Enum.reverse(chain)
+  end
+
+  @doc """
+  Analyzes which scope provides each captured variable.
+
+  Takes a list of free variable names and a scope chain, and determines
+  which scope in the chain provides each variable.
+
+  Returns a `%ScopeAnalysis{}` with:
+  - `:variable_sources` - maps each variable to its providing scope
+  - `:capture_depth` - maximum depth any variable must traverse
+  - `:crosses_function_boundary` - whether any capture crosses function boundaries
+  - `:captures_module_attributes` - whether any module-level variables are captured
+
+  ## Examples
+
+      iex> scopes = [
+      ...>   %{type: :module, variables: [:config]},
+      ...>   %{type: :function, variables: [:x, :y]}
+      ...> ]
+      iex> chain = ElixirOntologies.Extractors.Closure.build_scope_chain(scopes)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.analyze_closure_scope([:y, :config], chain)
+      iex> analysis.captures_module_attributes
+      true
+      iex> analysis.variable_sources[:y].type
+      :function
+
+      iex> scopes = [%{type: :function, variables: [:a]}]
+      iex> chain = ElixirOntologies.Extractors.Closure.build_scope_chain(scopes)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.analyze_closure_scope([:a], chain)
+      iex> analysis.capture_depth
+      0
+  """
+  @spec analyze_closure_scope([atom()], [ClosureScope.t()]) :: {:ok, ScopeAnalysis.t()}
+  def analyze_closure_scope(free_variable_names, scope_chain) do
+    # Reverse the chain so we search from innermost to outermost
+    # (the chain is built outermost first)
+    search_chain = Enum.reverse(scope_chain)
+
+    # Find which scope provides each variable
+    variable_sources =
+      free_variable_names
+      |> Enum.map(fn var_name ->
+        source = find_variable_in_chain(var_name, search_chain)
+        {var_name, source}
+      end)
+      |> Enum.reject(fn {_name, source} -> is_nil(source) end)
+      |> Map.new()
+
+    # Calculate metrics
+    closure_level = if search_chain == [], do: 0, else: hd(search_chain).level + 1
+
+    capture_depths =
+      variable_sources
+      |> Map.values()
+      |> Enum.map(fn scope -> closure_level - scope.level - 1 end)
+
+    max_depth = if capture_depths == [], do: 0, else: Enum.max(capture_depths)
+
+    # Check if any capture crosses a function boundary
+    crosses_function =
+      variable_sources
+      |> Map.values()
+      |> Enum.any?(fn scope ->
+        # Find if there's a function boundary between the closure and this scope
+        has_function_boundary?(scope, search_chain, closure_level)
+      end)
+
+    # Check if any module-level variables are captured
+    captures_module =
+      variable_sources
+      |> Map.values()
+      |> Enum.any?(fn scope -> scope.type == :module end)
+
+    {:ok,
+     %ScopeAnalysis{
+       scope_chain: scope_chain,
+       variable_sources: variable_sources,
+       capture_depth: max_depth,
+       crosses_function_boundary: crosses_function,
+       captures_module_attributes: captures_module,
+       metadata: %{}
+     }}
+  end
+
+  @doc """
+  Analyzes closure scope with automatic scope chain building from context.
+
+  This is a convenience function that combines `analyze_closure/1` results
+  with scope analysis when you have the enclosing scope definitions.
+
+  ## Examples
+
+      iex> ast = quote do: fn x -> x + outer end
+      iex> {:ok, anon} = ElixirOntologies.Extractors.AnonymousFunction.extract(ast)
+      iex> scopes = [%{type: :function, variables: [:outer]}]
+      iex> {:ok, full_analysis} = ElixirOntologies.Extractors.Closure.analyze_closure_with_scope(anon, scopes)
+      iex> full_analysis.scope_analysis.variable_sources[:outer].type
+      :function
+  """
+  @spec analyze_closure_with_scope(AnonymousFunction.t(), [map()]) ::
+          {:ok,
+           %{free_variable_analysis: FreeVariableAnalysis.t(), scope_analysis: ScopeAnalysis.t()}}
+  def analyze_closure_with_scope(%AnonymousFunction{} = anon, scope_defs) do
+    {:ok, free_var_analysis} = analyze_closure(anon)
+
+    scope_chain = build_scope_chain(scope_defs)
+    free_var_names = Enum.map(free_var_analysis.free_variables, & &1.name)
+
+    {:ok, scope_analysis} = analyze_closure_scope(free_var_names, scope_chain)
+
+    {:ok,
+     %{
+       free_variable_analysis: free_var_analysis,
+       scope_analysis: scope_analysis
+     }}
+  end
+
+  # Find which scope provides a variable, searching from innermost outward
+  defp find_variable_in_chain(_var_name, []), do: nil
+
+  defp find_variable_in_chain(var_name, [scope | rest]) do
+    if var_name in scope.variables do
+      scope
+    else
+      find_variable_in_chain(var_name, rest)
+    end
+  end
+
+  # Check if there's a function boundary between the closure level and the source scope
+  defp has_function_boundary?(source_scope, search_chain, closure_level) do
+    # Find all scopes between the source and the closure
+    intermediate_scopes =
+      search_chain
+      |> Enum.filter(fn scope ->
+        scope.level > source_scope.level and scope.level < closure_level
+      end)
+
+    # Check if any intermediate scope is a function
+    Enum.any?(intermediate_scopes, fn scope -> scope.type == :function end)
+  end
+
+  # ===========================================================================
+  # Mutation Pattern Detection
+  # ===========================================================================
+
+  @doc """
+  Detects mutation patterns for captured variables in an anonymous function.
+
+  Analyzes how captured (free) variables are used within the closure body:
+  - `:shadow` - Variable is rebound without using captured value
+  - `:rebind` - Variable is rebound using its captured value
+  - `:immutable` - Variable is used but never rebound
+
+  ## Examples
+
+      iex> ast = quote do: fn -> x + 1 end
+      iex> {:ok, anon} = ElixirOntologies.Extractors.AnonymousFunction.extract(ast)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.detect_mutation_patterns(anon)
+      iex> hd(analysis.patterns).type
+      :immutable
+
+      iex> ast = quote do: fn -> x = 5; x end
+      iex> {:ok, anon} = ElixirOntologies.Extractors.AnonymousFunction.extract(ast)
+      iex> {:ok, analysis} = ElixirOntologies.Extractors.Closure.detect_mutation_patterns(anon)
+      iex> hd(analysis.patterns).type
+      :shadow
+  """
+  @spec detect_mutation_patterns(AnonymousFunction.t()) :: {:ok, MutationAnalysis.t()}
+  def detect_mutation_patterns(%AnonymousFunction{clauses: clauses} = anon) do
+    # First, get the free variables
+    {:ok, free_var_analysis} = analyze_closure(anon)
+    free_var_names = Enum.map(free_var_analysis.free_variables, & &1.name)
+
+    # Collect all body ASTs
+    bodies = Enum.map(clauses, fn clause -> clause.body end)
+
+    # Find all bindings in the bodies
+    all_bindings = find_bindings_in_list(bodies)
+
+    # Analyze each free variable for mutation patterns
+    patterns =
+      free_var_names
+      |> Enum.map(fn var_name ->
+        analyze_variable_mutation(var_name, bodies, all_bindings)
+      end)
+      |> Enum.sort_by(& &1.variable)
+
+    has_shadows = Enum.any?(patterns, fn p -> p.type == :shadow end)
+    has_rebinds = Enum.any?(patterns, fn p -> p.type == :rebind end)
+    all_immutable = Enum.all?(patterns, fn p -> p.type == :immutable end)
+
+    {:ok,
+     %MutationAnalysis{
+       patterns: patterns,
+       has_shadows: has_shadows,
+       has_rebinds: has_rebinds,
+       all_immutable: all_immutable,
+       metadata: %{}
+     }}
+  end
+
+  @doc """
+  Finds all variable bindings (assignments) in an AST.
+
+  Returns a list of `{name, meta, references_self}` tuples where:
+  - `name` is the variable being bound
+  - `meta` is the AST metadata
+  - `references_self` is true if the RHS references the same variable
+
+  ## Examples
+
+      iex> ast = quote do: x = 1
+      iex> bindings = ElixirOntologies.Extractors.Closure.find_bindings(ast)
+      iex> {name, _meta, refs_self} = hd(bindings)
+      iex> {name, refs_self}
+      {:x, false}
+
+      iex> ast = quote do: x = x + 1
+      iex> bindings = ElixirOntologies.Extractors.Closure.find_bindings(ast)
+      iex> {name, _meta, refs_self} = hd(bindings)
+      iex> {name, refs_self}
+      {:x, true}
+  """
+  @spec find_bindings(Macro.t()) :: [{atom(), keyword(), boolean()}]
+  def find_bindings(ast) do
+    {_, bindings} = do_find_bindings(ast, [])
+    Enum.reverse(bindings)
+  end
+
+  @doc """
+  Finds all variable bindings in a list of AST nodes.
+  """
+  @spec find_bindings_in_list([Macro.t()]) :: [{atom(), keyword(), boolean()}]
+  def find_bindings_in_list(asts) do
+    asts
+    |> Enum.flat_map(&find_bindings/1)
+  end
+
+  # Analyze a single variable for mutation patterns
+  defp analyze_variable_mutation(var_name, _bodies, all_bindings) do
+    # Find bindings of this variable
+    var_bindings =
+      all_bindings
+      |> Enum.filter(fn {name, _meta, _refs_self} -> name == var_name end)
+
+    case var_bindings do
+      [] ->
+        # No bindings - immutable use
+        %MutationPattern{
+          variable: var_name,
+          type: :immutable,
+          locations: [],
+          metadata: %{}
+        }
+
+      bindings ->
+        # Check if any binding references itself (rebind vs shadow)
+        any_self_ref = Enum.any?(bindings, fn {_name, _meta, refs_self} -> refs_self end)
+
+        locations =
+          bindings
+          |> Enum.map(fn {_name, meta, _refs_self} -> extract_binding_location(meta) end)
+          |> Enum.reject(&is_nil/1)
+
+        if any_self_ref do
+          %MutationPattern{
+            variable: var_name,
+            type: :rebind,
+            locations: locations,
+            metadata: %{binding_count: length(bindings)}
+          }
+        else
+          %MutationPattern{
+            variable: var_name,
+            type: :shadow,
+            locations: locations,
+            metadata: %{binding_count: length(bindings)}
+          }
+        end
+    end
+  end
+
+  # Find all bindings in AST, tracking whether RHS references the bound variable
+  # NOTE: do_find_bindings/3 returns {nil, accumulator} tuples where:
+  # - First element is always nil (placeholder for prewalk compatibility)
+  # - Second element is the accumulated list of bindings
+  defp do_find_bindings(ast, acc, depth \\ 0)
+
+  # Stop recursion at depth limit to prevent stack overflow
+  defp do_find_bindings(_ast, acc, depth) when depth > @max_recursion_depth do
+    {nil, acc}
+  end
+
+  # Match expression: x = expr
+  defp do_find_bindings({:=, meta, [left, right]}, acc, depth) do
+    # Extract variables being bound on the left side
+    left_vars = extract_bound_vars(left)
+
+    # Find variable references on the right side
+    right_refs =
+      find_variable_references(right)
+      |> Enum.map(fn {name, _meta} -> name end)
+      |> MapSet.new()
+
+    # For each left-side variable, check if it's referenced on the right
+    new_bindings =
+      Enum.map(left_vars, fn {var_name, var_meta} ->
+        refs_self = MapSet.member?(right_refs, var_name)
+        {var_name, var_meta || meta, refs_self}
+      end)
+
+    # Continue traversing the right side for nested bindings
+    {_, acc2} = do_find_bindings(right, acc, depth + 1)
+
+    {nil, new_bindings ++ acc2}
+  end
+
+  # Block - traverse all expressions
+  defp do_find_bindings({:__block__, _meta, exprs}, acc, depth) when is_list(exprs) do
+    new_acc =
+      Enum.reduce(exprs, acc, fn expr, acc2 ->
+        {_, updated} = do_find_bindings(expr, acc2, depth + 1)
+        updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # Case expression - traverse clauses
+  defp do_find_bindings({:case, _meta, [expr, [do: clauses]]}, acc, depth) do
+    {_, acc2} = do_find_bindings(expr, acc, depth + 1)
+
+    new_acc =
+      Enum.reduce(clauses, acc2, fn {:->, _, [_pattern, body]}, acc3 ->
+        {_, updated} = do_find_bindings(body, acc3, depth + 1)
+        updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # If expression
+  defp do_find_bindings({:if, _meta, [condition, blocks]}, acc, depth) do
+    {_, acc2} = do_find_bindings(condition, acc, depth + 1)
+
+    new_acc =
+      Enum.reduce(blocks, acc2, fn
+        {:do, body}, acc3 ->
+          {_, updated} = do_find_bindings(body, acc3, depth + 1)
+          updated
+
+        {:else, body}, acc3 ->
+          {_, updated} = do_find_bindings(body, acc3, depth + 1)
+          updated
+
+        _, acc3 ->
+          acc3
+      end)
+
+    {nil, new_acc}
+  end
+
+  # Cond expression
+  defp do_find_bindings({:cond, _meta, [[do: clauses]]}, acc, depth) do
+    new_acc =
+      Enum.reduce(clauses, acc, fn {:->, _, [[_condition], body]}, acc2 ->
+        {_, updated} = do_find_bindings(body, acc2, depth + 1)
+        updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # With expression
+  defp do_find_bindings({:with, _meta, args}, acc, depth) do
+    # Process all with clauses and options
+    new_acc =
+      Enum.reduce(args, acc, fn
+        {:<-, _, [_pattern, expr]}, acc2 ->
+          {_, updated} = do_find_bindings(expr, acc2, depth + 1)
+          updated
+
+        [do: body], acc2 ->
+          {_, updated} = do_find_bindings(body, acc2, depth + 1)
+          updated
+
+        [do: body, else: else_clauses], acc2 ->
+          {_, acc3} = do_find_bindings(body, acc2, depth + 1)
+
+          Enum.reduce(else_clauses, acc3, fn {:->, _, [_pattern, clause_body]}, acc4 ->
+            {_, updated} = do_find_bindings(clause_body, acc4, depth + 1)
+            updated
+          end)
+
+        other, acc2 ->
+          {_, updated} = do_find_bindings(other, acc2, depth + 1)
+          updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # For comprehension
+  defp do_find_bindings({:for, _meta, args}, acc, depth) do
+    new_acc =
+      Enum.reduce(args, acc, fn
+        {:<-, _, [_pattern, enumerable]}, acc2 ->
+          {_, updated} = do_find_bindings(enumerable, acc2, depth + 1)
+          updated
+
+        [do: body], acc2 ->
+          {_, updated} = do_find_bindings(body, acc2, depth + 1)
+          updated
+
+        [do: body, into: into_expr], acc2 ->
+          {_, acc3} = do_find_bindings(body, acc2, depth + 1)
+          {_, updated} = do_find_bindings(into_expr, acc3, depth + 1)
+          updated
+
+        filter, acc2 ->
+          {_, updated} = do_find_bindings(filter, acc2, depth + 1)
+          updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # Anonymous function - don't recurse into nested fns
+  defp do_find_bindings({:fn, _meta, _clauses}, acc, _depth) do
+    # Don't look inside nested anonymous functions
+    {nil, acc}
+  end
+
+  # Generic tuple with args - traverse args
+  defp do_find_bindings({_op, _meta, args}, acc, depth) when is_list(args) do
+    new_acc =
+      Enum.reduce(args, acc, fn arg, acc2 ->
+        {_, updated} = do_find_bindings(arg, acc2, depth + 1)
+        updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # List - traverse elements
+  defp do_find_bindings(list, acc, depth) when is_list(list) do
+    new_acc =
+      Enum.reduce(list, acc, fn elem, acc2 ->
+        {_, updated} = do_find_bindings(elem, acc2, depth + 1)
+        updated
+      end)
+
+    {nil, new_acc}
+  end
+
+  # Two-element tuple
+  defp do_find_bindings({left, right}, acc, depth) do
+    {_, acc2} = do_find_bindings(left, acc, depth + 1)
+    {_, acc3} = do_find_bindings(right, acc2, depth + 1)
+    {nil, acc3}
+  end
+
+  # Anything else - no bindings
+  defp do_find_bindings(_other, acc, _depth), do: {nil, acc}
+
+  # Extract variables being bound in a pattern (left side of =)
+  defp extract_bound_vars({name, meta, context}) when is_atom(name) and is_atom(context) do
+    if name != :_ and not Helpers.special_form?(name) do
+      [{name, meta}]
+    else
+      []
+    end
+  end
+
+  defp extract_bound_vars({:=, _meta, [left, right]}) do
+    extract_bound_vars(left) ++ extract_bound_vars(right)
+  end
+
+  defp extract_bound_vars({:|, _meta, [head, tail]}) do
+    extract_bound_vars(head) ++ extract_bound_vars(tail)
+  end
+
+  defp extract_bound_vars({:{}, _meta, elements}) do
+    Enum.flat_map(elements, &extract_bound_vars/1)
+  end
+
+  defp extract_bound_vars({:%{}, _meta, pairs}) do
+    Enum.flat_map(pairs, fn
+      {_key, value} -> extract_bound_vars(value)
+      _ -> []
+    end)
+  end
+
+  defp extract_bound_vars({:%, _meta, [_struct, {:%{}, _, pairs}]}) do
+    Enum.flat_map(pairs, fn
+      {_key, value} -> extract_bound_vars(value)
+      _ -> []
+    end)
+  end
+
+  defp extract_bound_vars(tuple) when is_tuple(tuple) and tuple_size(tuple) == 2 do
+    [left, right] = Tuple.to_list(tuple)
+    extract_bound_vars(left) ++ extract_bound_vars(right)
+  end
+
+  defp extract_bound_vars(list) when is_list(list) do
+    Enum.flat_map(list, &extract_bound_vars/1)
+  end
+
+  defp extract_bound_vars(_), do: []
+
+  defp extract_binding_location(meta) when is_list(meta) do
+    line = Keyword.get(meta, :line)
+    column = Keyword.get(meta, :column)
+
+    if line do
+      %{start_line: line, start_column: column, end_line: nil, end_column: nil}
+    else
+      nil
+    end
+  end
+
+  defp extract_binding_location(_), do: nil
+
+  # ===========================================================================
+  # Variable Reference Finding
+  # ===========================================================================
+
+  @doc """
+  Finds all variable references in an AST.
+
+  Traverses the AST and collects all variable references (excluding special forms,
+  function names in calls, module names, etc.).
+
+  Returns a list of `{name, metadata}` tuples.
+
+  ## Examples
+
+      iex> ast = quote do: x + y
+      iex> refs = ElixirOntologies.Extractors.Closure.find_variable_references(ast)
+      iex> Enum.map(refs, fn {name, _} -> name end) |> Enum.sort()
+      [:x, :y]
+
+      iex> ast = quote do: String.upcase(x)
+      iex> refs = ElixirOntologies.Extractors.Closure.find_variable_references(ast)
+      iex> Enum.map(refs, fn {name, _} -> name end)
+      [:x]
+  """
+  @spec find_variable_references(Macro.t()) :: [{atom(), keyword()}]
+  def find_variable_references(ast) do
+    {_, refs} = do_find_refs(ast, [], MapSet.new())
+    Enum.reverse(refs)
+  end
+
+  @doc """
+  Finds variable references in a list of AST nodes.
+
+  Useful for analyzing multiple clause bodies together.
+
+  ## Examples
+
+      iex> asts = [quote(do: x + 1), quote(do: y * 2)]
+      iex> refs = ElixirOntologies.Extractors.Closure.find_variable_references_in_list(asts)
+      iex> Enum.map(refs, fn {name, _} -> name end) |> Enum.sort()
+      [:x, :y]
+  """
+  @spec find_variable_references_in_list([Macro.t()]) :: [{atom(), keyword()}]
+  def find_variable_references_in_list(asts) do
+    asts
+    |> Enum.flat_map(&find_variable_references/1)
+  end
+
+  # ===========================================================================
+  # Private Helpers - Reference Finding
+  # ===========================================================================
+
+  # Main traversal function with scope tracking for locally bound variables
+  # NOTE: do_find_refs/4 returns {nil, accumulator} tuples where:
+  # - First element is always nil (placeholder for prewalk compatibility)
+  # - Second element is the accumulated list of variable references
+  defp do_find_refs(ast, acc, local_bindings, depth \\ 0)
+
+  # Stop recursion at depth limit to prevent stack overflow
+  defp do_find_refs(_ast, acc, _local_bindings, depth) when depth > @max_recursion_depth do
+    {nil, acc}
+  end
+
+  # Variable reference: {name, meta, context} where context is atom
+  defp do_find_refs({name, meta, context}, acc, local_bindings, _depth)
+       when is_atom(name) and is_atom(context) do
+    cond do
+      # Skip underscore/wildcard
+      name == :_ ->
+        {nil, acc}
+
+      # Skip special forms and operators
+      Helpers.special_form?(name) ->
+        {nil, acc}
+
+      # Skip locally bound variables (from case/with/for bindings)
+      MapSet.member?(local_bindings, name) ->
+        {nil, acc}
+
+      # Skip if it looks like a module attribute reference
+      String.starts_with?(Atom.to_string(name), "@") ->
+        {nil, acc}
+
+      # This is a variable reference
+      true ->
+        {nil, [{name, meta} | acc]}
+    end
+  end
+
+  # Remote function call: Module.func(args) - skip module and function name
+  defp do_find_refs({{:., _, [_module, _func]}, _, args}, acc, local_bindings, depth) do
+    # Only process the arguments, not the module or function
+    Enum.reduce(args, acc, fn arg, acc2 ->
+      {_, new_acc} = do_find_refs(arg, acc2, local_bindings, depth + 1)
+      new_acc
+    end)
+    |> then(&{nil, &1})
+  end
+
+  # Anonymous function - creates new scope, parameters are bound
+  defp do_find_refs({:fn, _, clauses}, acc, local_bindings, depth) do
+    # Process each clause, adding its parameters to local bindings
+    new_acc =
+      Enum.reduce(clauses, acc, fn clause, acc2 ->
+        process_fn_clause(clause, acc2, local_bindings, depth + 1)
+      end)
+
+    {nil, new_acc}
+  end
+
+  # Case expression - patterns in each clause bind new variables
+  defp do_find_refs({:case, _, [expr, [do: clauses]]}, acc, local_bindings, depth) do
+    # Process the expression being matched
+    {_, acc2} = do_find_refs(expr, acc, local_bindings, depth + 1)
+
+    # Process each clause with pattern bindings
+    new_acc =
+      Enum.reduce(clauses, acc2, fn clause, acc3 ->
+        process_case_clause(clause, acc3, local_bindings, depth + 1)
+      end)
+
+    {nil, new_acc}
+  end
+
+  # With expression - each <- binds new variables visible in subsequent matches
+  defp do_find_refs({:with, _, args}, acc, local_bindings, depth) do
+    process_with_expr(args, acc, local_bindings, depth + 1)
+  end
+
+  # For comprehension - generators bind variables
+  defp do_find_refs({:for, _, args}, acc, local_bindings, depth) do
+    process_for_expr(args, acc, local_bindings, depth + 1)
+  end
+
+  # Cond expression
+  defp do_find_refs({:cond, _, [[do: clauses]]}, acc, local_bindings, depth) do
+    new_acc =
+      Enum.reduce(clauses, acc, fn {:->, _, [[condition], body]}, acc2 ->
+        {_, acc3} = do_find_refs(condition, acc2, local_bindings, depth + 1)
+        {_, acc4} = do_find_refs(body, acc3, local_bindings, depth + 1)
+        acc4
+      end)
+
+    {nil, new_acc}
+  end
+
+  # Receive expression
+  defp do_find_refs({:receive, _, [opts]}, acc, local_bindings, depth) do
+    new_acc = process_receive_opts(opts, acc, local_bindings, depth + 1)
+    {nil, new_acc}
+  end
+
+  # Try expression
+  defp do_find_refs({:try, _, [opts]}, acc, local_bindings, depth) do
+    new_acc = process_try_opts(opts, acc, local_bindings, depth + 1)
+    {nil, new_acc}
+  end
+
+  # Match operator = (binding on left side)
+  defp do_find_refs({:=, _, [pattern, expr]}, acc, local_bindings, depth) do
+    # Process the right side first (it can reference existing vars)
+    {_, acc2} = do_find_refs(expr, acc, local_bindings, depth + 1)
+
+    # Extract bindings from pattern and add to local scope for left side
+    pattern_bindings = extract_pattern_bindings(pattern)
+    _new_local = MapSet.union(local_bindings, MapSet.new(pattern_bindings))
+
+    # We don't need to process pattern - it's binding, not referencing
+    # But the pattern might contain pin operators ^x which reference vars
+    {_, acc3} = find_pin_references(pattern, acc2, local_bindings, depth + 1)
+
+    # Return (bindings don't propagate out of this context)
+    {nil, acc3}
+  catch
+    # If pattern unpacking failed, just process normally
+    _ ->
+      {_, acc2} = do_find_refs(expr, acc, local_bindings, depth + 1)
+      {nil, acc2}
+  end
+
+  # Generic tuple handling (including function calls)
+  defp do_find_refs({op, _, args}, acc, local_bindings, depth) when is_list(args) do
+    # Skip function name in local calls
+    args_to_process =
+      if is_atom(op) and not Helpers.special_form?(op) and not operator?(op) do
+        # This looks like a function call - just process args
+        args
+      else
+        args
+      end
+
+    new_acc =
+      Enum.reduce(args_to_process, acc, fn arg, acc2 ->
+        {_, new_acc} = do_find_refs(arg, acc2, local_bindings, depth + 1)
+        new_acc
+      end)
+
+    {nil, new_acc}
+  end
+
+  # List
+  defp do_find_refs(list, acc, local_bindings, depth) when is_list(list) do
+    new_acc =
+      Enum.reduce(list, acc, fn elem, acc2 ->
+        {_, new_acc} = do_find_refs(elem, acc2, local_bindings, depth + 1)
+        new_acc
+      end)
+
+    {nil, new_acc}
+  end
+
+  # Two-element tuple (common in AST)
+  defp do_find_refs({left, right}, acc, local_bindings, depth) do
+    {_, acc2} = do_find_refs(left, acc, local_bindings, depth + 1)
+    {_, acc3} = do_find_refs(right, acc2, local_bindings, depth + 1)
+    {nil, acc3}
+  end
+
+  # Literals and other nodes - no variables here
+  defp do_find_refs(_other, acc, _local_bindings, _depth), do: {nil, acc}
+
+  # ===========================================================================
+  # Private Helpers - Control Flow Processing
+  # ===========================================================================
+
+  defp process_fn_clause({:->, _, [params_with_guard, body]}, acc, local_bindings, depth) do
+    # Extract parameters (may have guard)
+    {params, guard} = Helpers.extract_params_and_guard(params_with_guard)
+
+    # Get bindings from parameters
+    param_bindings = Enum.flat_map(params, &extract_pattern_bindings/1)
+    new_local = MapSet.union(local_bindings, MapSet.new(param_bindings))
+
+    # Process guard if present (can reference params)
+    acc2 =
+      if guard do
+        {_, new_acc} = do_find_refs(guard, acc, new_local, depth)
+        new_acc
+      else
+        acc
+      end
+
+    # Process body with parameter bindings
+    {_, acc3} = do_find_refs(body, acc2, new_local, depth)
+    acc3
+  end
+
+  defp process_case_clause({:->, _, [patterns, body]}, acc, local_bindings, depth) do
+    # patterns is a list (typically with one element, possibly with guard)
+    {pattern, guard} = extract_pattern_and_guard(patterns)
+
+    pattern_bindings = extract_pattern_bindings(pattern)
+    new_local = MapSet.union(local_bindings, MapSet.new(pattern_bindings))
+
+    # Check for pin operators in pattern
+    {_, acc2} = find_pin_references(pattern, acc, local_bindings, depth)
+
+    # Process guard if present
+    acc3 =
+      if guard do
+        {_, new_acc} = do_find_refs(guard, acc2, new_local, depth)
+        new_acc
+      else
+        acc2
+      end
+
+    # Process body
+    {_, acc4} = do_find_refs(body, acc3, new_local, depth)
+    acc4
+  end
+
+  defp process_with_expr(args, acc, local_bindings, depth) do
+    # with can have generators (<-), regular matches (=), and options ([do: ...])
+    {generators, opts} = split_with_args(args)
+
+    # Process generators, accumulating bindings
+    {acc2, final_bindings} =
+      Enum.reduce(generators, {acc, local_bindings}, fn
+        {:<-, _, [pattern, expr]}, {acc_inner, bindings} ->
+          # Process expression first (can use previous bindings)
+          {_, acc3} = do_find_refs(expr, acc_inner, bindings, depth)
+          # Add pattern bindings for next iteration
+          new_bindings = MapSet.union(bindings, MapSet.new(extract_pattern_bindings(pattern)))
+          {acc3, new_bindings}
+
+        {:=, _, [pattern, expr]}, {acc_inner, bindings} ->
+          # Match expression
+          {_, acc3} = do_find_refs(expr, acc_inner, bindings, depth)
+          new_bindings = MapSet.union(bindings, MapSet.new(extract_pattern_bindings(pattern)))
+          {acc3, new_bindings}
+
+        other, {acc_inner, bindings} ->
+          {_, acc3} = do_find_refs(other, acc_inner, bindings, depth)
+          {acc3, bindings}
+      end)
+
+    # Process do/else blocks with accumulated bindings
+    process_with_opts(opts, acc2, final_bindings, depth)
+  end
+
+  defp split_with_args(args) do
+    Enum.split_while(args, fn
+      [do: _] -> false
+      [do: _, else: _] -> false
+      _ -> true
+    end)
+  end
+
+  defp process_with_opts([], acc, _bindings, _depth), do: {nil, acc}
+
+  defp process_with_opts([[do: body] | rest], acc, bindings, depth) do
+    {_, acc2} = do_find_refs(body, acc, bindings, depth)
+    process_with_opts(rest, acc2, bindings, depth)
+  end
+
+  defp process_with_opts([[do: body, else: else_clauses] | rest], acc, bindings, depth) do
+    {_, acc2} = do_find_refs(body, acc, bindings, depth)
+
+    acc3 =
+      Enum.reduce(else_clauses, acc2, fn clause, acc_inner ->
+        process_case_clause(clause, acc_inner, bindings, depth)
+      end)
+
+    process_with_opts(rest, acc3, bindings, depth)
+  end
+
+  defp process_with_opts([_ | rest], acc, bindings, depth) do
+    process_with_opts(rest, acc, bindings, depth)
+  end
+
+  defp process_for_expr(args, acc, local_bindings, depth) do
+    # Separate generators from options
+    {generators, opts} =
+      Enum.split_while(args, fn
+        [_ | _] -> false
+        _ -> true
+      end)
+
+    # Process generators, accumulating bindings
+    {acc2, gen_bindings} =
+      Enum.reduce(generators, {acc, local_bindings}, fn
+        {:<-, _, [pattern, enumerable]}, {acc_inner, bindings} ->
+          {_, acc3} = do_find_refs(enumerable, acc_inner, bindings, depth)
+          new_bindings = MapSet.union(bindings, MapSet.new(extract_pattern_bindings(pattern)))
+          {acc3, new_bindings}
+
+        filter, {acc_inner, bindings} ->
+          {_, acc3} = do_find_refs(filter, acc_inner, bindings, depth)
+          {acc3, bindings}
+      end)
+
+    # Process do block with generator bindings
+    case opts do
+      [[do: body] | _] ->
+        {_, acc3} = do_find_refs(body, acc2, gen_bindings, depth)
+        {nil, acc3}
+
+      [[do: body, into: into] | _] ->
+        {_, acc3} = do_find_refs(body, acc2, gen_bindings, depth)
+        {_, acc4} = do_find_refs(into, acc3, local_bindings, depth)
+        {nil, acc4}
+
+      _ ->
+        {nil, acc2}
+    end
+  end
+
+  defp process_receive_opts(opts, acc, local_bindings, depth) do
+    Enum.reduce(opts, acc, fn
+      {:do, clauses}, acc2 ->
+        Enum.reduce(clauses, acc2, fn clause, acc3 ->
+          process_case_clause(clause, acc3, local_bindings, depth)
+        end)
+
+      {:after, [{:->, _, [[timeout], body]}]}, acc2 ->
+        {_, acc3} = do_find_refs(timeout, acc2, local_bindings, depth)
+        {_, acc4} = do_find_refs(body, acc3, local_bindings, depth)
+        acc4
+
+      _, acc2 ->
+        acc2
+    end)
+  end
+
+  defp process_try_opts(opts, acc, local_bindings, depth) do
+    Enum.reduce(opts, acc, fn
+      {:do, body}, acc2 ->
+        {_, new_acc} = do_find_refs(body, acc2, local_bindings, depth)
+        new_acc
+
+      {:rescue, clauses}, acc2 ->
+        Enum.reduce(clauses, acc2, fn clause, acc3 ->
+          process_rescue_clause(clause, acc3, local_bindings, depth)
+        end)
+
+      {:catch, clauses}, acc2 ->
+        Enum.reduce(clauses, acc2, fn clause, acc3 ->
+          process_case_clause(clause, acc3, local_bindings, depth)
+        end)
+
+      {:else, clauses}, acc2 ->
+        Enum.reduce(clauses, acc2, fn clause, acc3 ->
+          process_case_clause(clause, acc3, local_bindings, depth)
+        end)
+
+      {:after, body}, acc2 ->
+        {_, new_acc} = do_find_refs(body, acc2, local_bindings, depth)
+        new_acc
+
+      _, acc2 ->
+        acc2
+    end)
+  end
+
+  defp process_rescue_clause({:->, _, [[pattern], body]}, acc, local_bindings, depth) do
+    pattern_bindings = extract_pattern_bindings(pattern)
+    new_local = MapSet.union(local_bindings, MapSet.new(pattern_bindings))
+    {_, acc2} = do_find_refs(body, acc, new_local, depth)
+    acc2
+  end
+
+  defp process_rescue_clause(_, acc, _, _depth), do: acc
+
+  # ===========================================================================
+  # Private Helpers - Pattern Analysis
+  # ===========================================================================
+
+  # Extract bindings from a pattern (variables that get bound)
+  defp extract_pattern_bindings(pattern) do
+    {_, bindings} = extract_bindings_acc(pattern, [])
+    Enum.uniq(bindings)
+  end
+
+  defp extract_bindings_acc({:_, _, _}, acc), do: {nil, acc}
+  defp extract_bindings_acc({:^, _, _}, acc), do: {nil, acc}
+
+  defp extract_bindings_acc({name, _, context}, acc)
+       when is_atom(name) and is_atom(context) do
+    if valid_variable_name?(name) do
+      {nil, [name | acc]}
+    else
+      {nil, acc}
+    end
+  end
+
+  defp extract_bindings_acc({:=, _, [left, right]}, acc) do
+    {_, acc2} = extract_bindings_acc(left, acc)
+    extract_bindings_acc(right, acc2)
+  end
+
+  defp extract_bindings_acc({:when, _, [pattern, _guard]}, acc) do
+    extract_bindings_acc(pattern, acc)
+  end
+
+  defp extract_bindings_acc({:|, _, [head, tail]}, acc) do
+    {_, acc2} = extract_bindings_acc(head, acc)
+    extract_bindings_acc(tail, acc2)
+  end
+
+  defp extract_bindings_acc({:%{}, _, pairs}, acc) do
+    Enum.reduce(pairs, acc, fn
+      {_key, value}, acc2 ->
+        {_, new_acc} = extract_bindings_acc(value, acc2)
+        new_acc
+
+      _, acc2 ->
+        acc2
+    end)
+    |> then(&{nil, &1})
+  end
+
+  defp extract_bindings_acc({:%, _, [_struct, {:%{}, _, pairs}]}, acc) do
+    extract_bindings_acc({:%{}, [], pairs}, acc)
+  end
+
+  defp extract_bindings_acc({:{}, _, elements}, acc) do
+    Enum.reduce(elements, acc, fn elem, acc2 ->
+      {_, new_acc} = extract_bindings_acc(elem, acc2)
+      new_acc
+    end)
+    |> then(&{nil, &1})
+  end
+
+  defp extract_bindings_acc({:<<>>, _, segments}, acc) do
+    Enum.reduce(segments, acc, fn
+      {:"::", _, [pattern, _spec]}, acc2 ->
+        {_, new_acc} = extract_bindings_acc(pattern, acc2)
+        new_acc
+
+      elem, acc2 ->
+        {_, new_acc} = extract_bindings_acc(elem, acc2)
+        new_acc
+    end)
+    |> then(&{nil, &1})
+  end
+
+  defp extract_bindings_acc(tuple, acc) when is_tuple(tuple) and tuple_size(tuple) == 2 do
+    [left, right] = Tuple.to_list(tuple)
+    {_, acc2} = extract_bindings_acc(left, acc)
+    extract_bindings_acc(right, acc2)
+  end
+
+  defp extract_bindings_acc(list, acc) when is_list(list) do
+    Enum.reduce(list, acc, fn elem, acc2 ->
+      {_, new_acc} = extract_bindings_acc(elem, acc2)
+      new_acc
+    end)
+    |> then(&{nil, &1})
+  end
+
+  defp extract_bindings_acc(_, acc), do: {nil, acc}
+
+  # Find pin operator references (^x references existing variable x)
+  defp find_pin_references(_ast, acc, _local_bindings, depth) when depth > @max_recursion_depth do
+    {nil, acc}
+  end
+
+  defp find_pin_references({:^, _, [{name, meta, context}]}, acc, _local_bindings, _depth)
+       when is_atom(name) and is_atom(context) do
+    {nil, [{name, meta} | acc]}
+  end
+
+  defp find_pin_references({_, _, args}, acc, local_bindings, depth) when is_list(args) do
+    new_acc =
+      Enum.reduce(args, acc, fn arg, acc2 ->
+        {_, new_acc} = find_pin_references(arg, acc2, local_bindings, depth + 1)
+        new_acc
+      end)
+
+    {nil, new_acc}
+  end
+
+  defp find_pin_references(list, acc, local_bindings, depth) when is_list(list) do
+    new_acc =
+      Enum.reduce(list, acc, fn elem, acc2 ->
+        {_, new_acc} = find_pin_references(elem, acc2, local_bindings, depth + 1)
+        new_acc
+      end)
+
+    {nil, new_acc}
+  end
+
+  defp find_pin_references(tuple, acc, local_bindings, depth)
+       when is_tuple(tuple) and tuple_size(tuple) == 2 do
+    [left, right] = Tuple.to_list(tuple)
+    {_, acc2} = find_pin_references(left, acc, local_bindings, depth + 1)
+    find_pin_references(right, acc2, local_bindings, depth + 1)
+  end
+
+  defp find_pin_references(_, acc, _, _depth), do: {nil, acc}
+
+  # ===========================================================================
+  # Private Helpers - Utilities
+  # ===========================================================================
+
+  defp extract_pattern_and_guard([{:when, _, [pattern | guard_rest]}]) do
+    {pattern, List.last(guard_rest)}
+  end
+
+  defp extract_pattern_and_guard([pattern]), do: {pattern, nil}
+  defp extract_pattern_and_guard(patterns), do: {patterns, nil}
+
+  defp valid_variable_name?(name) when is_atom(name) do
+    name_str = Atom.to_string(name)
+
+    not String.starts_with?(name_str, "_") and
+      name != :_ and
+      not Helpers.special_form?(name) and
+      not operator?(name)
+  end
+
+  defp operator?(op) when is_atom(op) do
+    op in [
+      :+,
+      :-,
+      :*,
+      :/,
+      :==,
+      :!=,
+      :===,
+      :!==,
+      :<,
+      :>,
+      :<=,
+      :>=,
+      :and,
+      :or,
+      :not,
+      :in,
+      :|>,
+      :++,
+      :--,
+      :<>,
+      :..,
+      :|,
+      :&,
+      :@,
+      :^,
+      :.,
+      :"::"
+    ]
+  end
+
+  defp extract_ref_location(meta) when is_list(meta) do
+    line = Keyword.get(meta, :line)
+    column = Keyword.get(meta, :column)
+
+    if line do
+      %{
+        start_line: line,
+        start_column: column,
+        end_line: nil,
+        end_column: nil
+      }
+    else
+      nil
+    end
+  end
+
+  defp extract_ref_location(_), do: nil
+end

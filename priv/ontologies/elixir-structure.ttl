@@ -834,6 +834,136 @@
     rdfs:domain :ModuleAlias ;
     rdfs:range xsd:string .
 
+:aliasedModule a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "aliased module"@en ;
+    rdfs:comment "The target module that is aliased."@en ;
+    rdfs:domain :ModuleAlias ;
+    rdfs:range :Module .
+
+:hasAlias a owl:ObjectProperty ;
+    rdfs:label "has alias"@en ;
+    rdfs:comment "Links a module to its alias directives."@en ;
+    rdfs:domain :Module ;
+    rdfs:range :ModuleAlias .
+
+# Import dependency properties
+:importsModule a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "imports module"@en ;
+    rdfs:comment "The module from which functions are imported."@en ;
+    rdfs:domain :Import ;
+    rdfs:range :Module .
+
+:hasImport a owl:ObjectProperty ;
+    rdfs:label "has import"@en ;
+    rdfs:comment "Links a module to its import directives."@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Import .
+
+:importsFunction a owl:ObjectProperty ;
+    rdfs:label "imports function"@en ;
+    rdfs:comment "A function explicitly imported via the only: option."@en ;
+    rdfs:domain :Import ;
+    rdfs:range :Function .
+
+:excludesFunction a owl:ObjectProperty ;
+    rdfs:label "excludes function"@en ;
+    rdfs:comment "A function explicitly excluded via the except: option."@en ;
+    rdfs:domain :Import ;
+    rdfs:range :Function .
+
+:importType a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "import type"@en ;
+    rdfs:comment "Type-based import selector: 'functions', 'macros', or 'sigils'."@en ;
+    rdfs:domain :Import ;
+    rdfs:range xsd:string .
+
+:isFullImport a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is full import"@en ;
+    rdfs:comment "True if this import has no only/except restrictions."@en ;
+    rdfs:domain :Import ;
+    rdfs:range xsd:boolean .
+
+# Require dependency properties
+:requireModule a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "require module"@en ;
+    rdfs:comment "The module being required."@en ;
+    rdfs:domain :Require ;
+    rdfs:range :Module .
+
+:hasRequire a owl:ObjectProperty ;
+    rdfs:label "has require"@en ;
+    rdfs:comment "Links a module to its require directives."@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Require .
+
+:requireAlias a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "require alias"@en ;
+    rdfs:comment "The alias name for the required module (from as: option)."@en ;
+    rdfs:domain :Require ;
+    rdfs:range xsd:string .
+
+# Use dependency properties
+:useModule a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "use module"@en ;
+    rdfs:comment "The module being used (whose __using__/1 is invoked)."@en ;
+    rdfs:domain :Use ;
+    rdfs:range :Module .
+
+:hasUse a owl:ObjectProperty ;
+    rdfs:label "has use"@en ;
+    rdfs:comment "Links a module to its use directives."@en ;
+    rdfs:domain :Module ;
+    rdfs:range :Use .
+
+:hasUseOption a owl:ObjectProperty ;
+    rdfs:label "has use option"@en ;
+    rdfs:comment "Links a use directive to its option resources."@en ;
+    rdfs:domain :Use ;
+    rdfs:range :UseOption .
+
+# UseOption class and properties
+:UseOption a owl:Class ;
+    rdfs:label "Use Option"@en ;
+    rdfs:comment "An option passed to a use directive's __using__/1 callback."@en ;
+    rdfs:subClassOf core:CodeElement .
+
+:optionKey a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "option key"@en ;
+    rdfs:comment "The key of a use option (nil for positional options)."@en ;
+    rdfs:domain :UseOption ;
+    rdfs:range xsd:string .
+
+:optionValue a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "option value"@en ;
+    rdfs:comment "The string representation of the option value."@en ;
+    rdfs:domain :UseOption ;
+    rdfs:range xsd:string .
+
+:optionValueType a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "option value type"@en ;
+    rdfs:comment "The type of the option value (atom, string, integer, etc.)."@en ;
+    rdfs:domain :UseOption ;
+    rdfs:range xsd:string .
+
+:isDynamicOption a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is dynamic option"@en ;
+    rdfs:comment "True if the option value cannot be determined at analysis time."@en ;
+    rdfs:domain :UseOption ;
+    rdfs:range xsd:boolean .
+
+# Cross-module linking properties
+:isExternalModule a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is external module"@en ;
+    rdfs:comment """Indicates if the referenced module is outside the analysis scope.
+    External modules include Elixir stdlib, OTP, and third-party dependencies."""@en ;
+    rdfs:range xsd:boolean .
+
+:invokesUsing a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "invokes using"@en ;
+    rdfs:comment "Links a use directive to the __using__/1 macro it invokes."@en ;
+    rdfs:domain :Use ;
+    rdfs:range :Macro .
+
 # Function identity - CRITICAL: arity is intrinsic
 :functionName a owl:DatatypeProperty, owl:FunctionalProperty ;
     rdfs:label "function name"@en ;
@@ -982,6 +1112,66 @@
     rdfs:domain :QuotedExpression ;
     rdfs:range xsd:string .
 
+:hasBindQuoted a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "has bind quoted"@en ;
+    rdfs:comment "Whether the quote has bind_quoted option set."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range xsd:boolean .
+
+:locationKeep a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "location keep"@en ;
+    rdfs:comment "Whether the quote has location: :keep option set."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range xsd:boolean .
+
+:unquoteEnabled a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "unquote enabled"@en ;
+    rdfs:comment "Whether unquoting is enabled in this quote block (default true)."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range xsd:boolean .
+
+:isGenerated a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "is generated"@en ;
+    rdfs:comment "Whether the quote is marked as compiler-generated."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range xsd:boolean .
+
+:containsUnquote a owl:ObjectProperty ;
+    rdfs:label "contains unquote"@en ;
+    rdfs:comment "Links a quote block to an unquote expression it contains."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range :UnquoteExpression .
+
+:unquoteDepth a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "unquote depth"@en ;
+    rdfs:comment "The nesting depth of an unquote (1 = inside one quote)."@en ;
+    rdfs:domain :UnquoteExpression ;
+    rdfs:range xsd:positiveInteger .
+
+:hasHygieneViolation a owl:ObjectProperty ;
+    rdfs:label "has hygiene violation"@en ;
+    rdfs:comment "Links a quote block to a hygiene violation it contains."@en ;
+    rdfs:domain :QuotedExpression ;
+    rdfs:range :Hygiene .
+
+:violationType a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "violation type"@en ;
+    rdfs:comment "The type of hygiene violation: var_bang or macro_escape."@en ;
+    rdfs:domain :Hygiene ;
+    rdfs:range xsd:string .
+
+:unhygienicVariable a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "unhygienic variable"@en ;
+    rdfs:comment "The name of the variable used with var!."@en ;
+    rdfs:domain :Hygiene ;
+    rdfs:range xsd:string .
+
+:hygieneContext a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "hygiene context"@en ;
+    rdfs:comment "The context parameter for var!/2 calls."@en ;
+    rdfs:domain :Hygiene ;
+    rdfs:range xsd:string .
+
 # =============================================================================
 # OWL Axioms
 # =============================================================================
@@ -1082,4 +1272,46 @@
     owl:onProperty :parameterPosition ;
     owl:cardinality 1
 ] .
+
+# ==============================================================================
+# Macro Invocations
+# ==============================================================================
+
+:MacroInvocation a owl:Class ;
+    rdfs:label "Macro Invocation"@en ;
+    rdfs:comment """A call to a macro at a specific location in the source code.
+    Tracks where macros are invoked and which macro is being called."""@en ;
+    rdfs:subClassOf core:CodeElement .
+
+# Macro invocation properties
+
+:macroCategory a owl:DatatypeProperty ;
+    rdfs:label "macro category"@en ;
+    rdfs:comment "The category of macro (definition, control_flow, import, attribute, quote, library, custom, other)."@en ;
+    rdfs:domain :MacroInvocation ;
+    rdfs:range xsd:string .
+
+:macroModule a owl:DatatypeProperty ;
+    rdfs:label "macro module"@en ;
+    rdfs:comment "The module containing the invoked macro."@en ;
+    rdfs:domain :MacroInvocation ;
+    rdfs:range xsd:string .
+
+:resolutionStatus a owl:DatatypeProperty ;
+    rdfs:label "resolution status"@en ;
+    rdfs:comment "Whether the macro module was resolved (resolved, unresolved, kernel)."@en ;
+    rdfs:domain :MacroInvocation ;
+    rdfs:range xsd:string .
+
+:invokesMacro a owl:ObjectProperty ;
+    rdfs:label "invokes macro"@en ;
+    rdfs:comment "Links a macro invocation to the macro definition it calls."@en ;
+    rdfs:domain :MacroInvocation ;
+    rdfs:range :Macro .
+
+:invokedAt a owl:ObjectProperty ;
+    rdfs:label "invoked at"@en ;
+    rdfs:comment "Links a macro invocation to its source location."@en ;
+    rdfs:domain :MacroInvocation ;
+    rdfs:range core:SourceLocation .
 

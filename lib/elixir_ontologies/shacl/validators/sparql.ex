@@ -225,16 +225,14 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
   @spec execute_query(RDF.Graph.t(), String.t()) ::
           {:ok, SPARQL.Query.Result.t()} | {:error, term()}
   defp execute_query(data_graph, query_string) do
-    try do
-      case SPARQL.execute_query(data_graph, query_string) do
-        {:ok, result} -> {:ok, result}
-        {:error, reason} -> {:error, reason}
-        result -> {:ok, result}  # SPARQL.ex sometimes returns result directly
-      end
-    rescue
-      e ->
-        {:error, e}
+    case SPARQL.execute_query(data_graph, query_string) do
+      {:ok, result} -> {:ok, result}
+      {:error, reason} -> {:error, reason}
+      # SPARQL.ex sometimes returns result directly
+      result -> {:ok, result}
     end
+  rescue
+    e -> {:error, e}
   end
 
   # Convert SPARQL query results to validation violations

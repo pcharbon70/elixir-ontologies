@@ -9,6 +9,7 @@ defmodule ElixirOntologies.Extractors.ComprehensionTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.Comprehension
+  alias ElixirOntologies.Extractors.Comprehension.{Generator, Filter}
 
   doctest Comprehension
 
@@ -166,8 +167,8 @@ defmodule ElixirOntologies.Extractors.ComprehensionTest do
       assert length(result.filters) == 1
       assert result.metadata.filter_count == 1
 
-      [filter] = result.filters
-      assert {:>, _, [{:x, [], _}, 2]} = filter
+      [%Filter{expression: expression}] = result.filters
+      assert {:>, _, [{:x, [], _}, 2]} = expression
     end
 
     test "extracts multiple filters" do
@@ -192,8 +193,8 @@ defmodule ElixirOntologies.Extractors.ComprehensionTest do
       assert {:ok, result} = Comprehension.extract(ast)
 
       assert length(result.filters) == 1
-      [filter] = result.filters
-      assert {:==, _, _} = filter
+      [%Filter{expression: expression}] = result.filters
+      assert {:==, _, _} = expression
     end
   end
 
@@ -460,6 +461,169 @@ defmodule ElixirOntologies.Extractors.ComprehensionTest do
       assert length(result.generators) == 1
       assert length(result.filters) == 1
       assert Comprehension.has_into?(result)
+    end
+  end
+
+  # ===========================================================================
+  # ForLoop Alias Tests
+  # ===========================================================================
+
+  describe "for_loop?/1" do
+    test "returns true for for comprehension" do
+      ast = quote do: for(x <- [1, 2, 3], do: x)
+      assert Comprehension.for_loop?(ast)
+    end
+
+    test "returns false for if expression" do
+      ast = quote do: if(true, do: 1)
+      refute Comprehension.for_loop?(ast)
+    end
+
+    test "returns false for case expression" do
+      ast = quote do: case(x, do: (y -> y))
+      refute Comprehension.for_loop?(ast)
+    end
+  end
+
+  # ===========================================================================
+  # Bulk Extraction Tests
+  # ===========================================================================
+
+  describe "extract_for_loops/2" do
+    test "extracts multiple for loops from AST" do
+      ast =
+        quote do
+          x = for i <- [1, 2], do: i * 2
+          y = for j <- [3, 4], do: j + 1
+        end
+
+      loops = Comprehension.extract_for_loops(ast)
+      assert length(loops) == 2
+    end
+
+    test "extracts nested for loops" do
+      ast =
+        quote do
+          for i <- [1, 2] do
+            for j <- [3, 4], do: {i, j}
+          end
+        end
+
+      loops = Comprehension.extract_for_loops(ast)
+      assert length(loops) == 2
+
+      # Outer loop should come first (prewalk order)
+      [outer, inner] = loops
+      assert outer.metadata.generator_count == 1
+      assert inner.metadata.generator_count == 1
+    end
+
+    test "extracts for loop inside function" do
+      ast =
+        quote do
+          def my_func(list) do
+            for x <- list, do: x * 2
+          end
+        end
+
+      loops = Comprehension.extract_for_loops(ast)
+      assert length(loops) == 1
+    end
+
+    test "returns empty list when no for loops" do
+      ast =
+        quote do
+          x = 1 + 2
+          y = if true, do: 3
+        end
+
+      loops = Comprehension.extract_for_loops(ast)
+      assert loops == []
+    end
+
+    test "extracts for loops with options" do
+      ast =
+        quote do
+          for x <- [1, 2], into: %{}, do: {x, x}
+          for y <- [3, 4], uniq: true, do: y
+        end
+
+      loops = Comprehension.extract_for_loops(ast)
+      assert length(loops) == 2
+
+      [first, second] = loops
+      assert Comprehension.has_into?(first)
+      assert Comprehension.has_uniq?(second)
+    end
+  end
+
+  # ===========================================================================
+  # Generator Struct Tests
+  # ===========================================================================
+
+  describe "Generator struct" do
+    test "extract_generator returns Generator struct" do
+      ast = {:<-, [], [{:x, [], nil}, [1, 2, 3]]}
+      gen = Comprehension.extract_generator(ast)
+
+      assert %Generator{} = gen
+      assert gen.type == :generator
+      assert gen.pattern == {:x, [], nil}
+      assert gen.enumerable == [1, 2, 3]
+    end
+
+    test "extract_bitstring_generator returns Generator struct" do
+      ast = {:<<>>, [], [{:<-, [], [{:c, [], nil}, "hello"]}]}
+      gen = Comprehension.extract_bitstring_generator(ast)
+
+      assert %Generator{} = gen
+      assert gen.type == :bitstring_generator
+      assert gen.pattern == {:c, [], nil}
+      assert gen.enumerable == "hello"
+    end
+
+    test "generators in comprehension result are Generator structs" do
+      ast = quote do: for(x <- [1, 2], y <- [3, 4], do: {x, y})
+      {:ok, result} = Comprehension.extract(ast)
+
+      Enum.each(result.generators, fn gen ->
+        assert %Generator{} = gen
+        assert gen.type == :generator
+      end)
+    end
+  end
+
+  # ===========================================================================
+  # Filter Struct Tests
+  # ===========================================================================
+
+  describe "Filter struct" do
+    test "extract_filter returns Filter struct" do
+      ast = {:>, [], [{:x, [], nil}, 0]}
+      filter = Comprehension.extract_filter(ast)
+
+      assert %Filter{} = filter
+      assert filter.expression == ast
+    end
+
+    test "filters in comprehension result are Filter structs" do
+      ast = quote do: for(x <- [1, 2, 3], x > 1, x < 3, do: x)
+      {:ok, result} = Comprehension.extract(ast)
+
+      assert length(result.filters) == 2
+
+      Enum.each(result.filters, fn filter ->
+        assert %Filter{} = filter
+        assert filter.expression != nil
+      end)
+    end
+
+    test "filter contains the original expression" do
+      ast = quote do: for(x <- [1, 2, 3, 4], rem(x, 2) == 0, do: x)
+      {:ok, result} = Comprehension.extract(ast)
+
+      [%Filter{expression: expr}] = result.filters
+      assert {:==, _, _} = expr
     end
   end
 end

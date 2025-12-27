@@ -5,7 +5,7 @@ defmodule ElixirOntologies.Builders.FunctionBuilderTest do
 
   alias ElixirOntologies.Builders.{FunctionBuilder, Context}
   alias ElixirOntologies.Extractors.Function
-  alias ElixirOntologies.NS.Structure
+  alias ElixirOntologies.NS.{Structure, Core}
   alias ElixirOntologies.Analyzer.Location.SourceLocation
 
   doctest FunctionBuilder
@@ -444,7 +444,7 @@ defmodule ElixirOntologies.Builders.FunctionBuilderTest do
       # Verify location triple exists
       assert Enum.any?(triples, fn
                {^function_iri, pred, _obj} ->
-                 pred == ElixirOntologies.NS.Core.hasSourceLocation()
+                 pred == Core.hasSourceLocation()
 
                _ ->
                  false
@@ -462,7 +462,7 @@ defmodule ElixirOntologies.Builders.FunctionBuilderTest do
 
       # Should not have location triple
       refute Enum.any?(triples, fn
-               {_, pred, _} -> pred == ElixirOntologies.NS.Core.hasSourceLocation()
+               {_, pred, _} -> pred == Core.hasSourceLocation()
              end)
     end
 
@@ -482,7 +482,7 @@ defmodule ElixirOntologies.Builders.FunctionBuilderTest do
 
       # Should not have location triple (no file path in context)
       refute Enum.any?(triples, fn
-               {_, pred, _} -> pred == ElixirOntologies.NS.Core.hasSourceLocation()
+               {_, pred, _} -> pred == Core.hasSourceLocation()
              end)
     end
   end

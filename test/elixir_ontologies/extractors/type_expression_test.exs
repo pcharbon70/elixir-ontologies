@@ -57,7 +57,74 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert result.kind == :basic
       assert result.name == :list
       assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 1
       assert length(result.elements) == 1
+    end
+
+    test "parameterized type parameters have position tracking" do
+      {:ok, result} = TypeExpression.parse({:list, [], [{:integer, [], []}]})
+      assert result.metadata.param_count == 1
+      param = hd(result.elements)
+      assert param.metadata.param_position == 0
+    end
+
+    test "parses map(key, value) with two parameters" do
+      {:ok, result} = TypeExpression.parse({:map, [], [{:atom, [], []}, {:term, [], []}]})
+      assert result.kind == :basic
+      assert result.name == :map
+      assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 2
+      assert length(result.elements) == 2
+
+      [key_param, value_param] = result.elements
+      assert key_param.metadata.param_position == 0
+      assert key_param.name == :atom
+      assert value_param.metadata.param_position == 1
+      assert value_param.name == :term
+    end
+
+    test "parses keyword(value) parameterized type" do
+      {:ok, result} = TypeExpression.parse({:keyword, [], [{:binary, [], []}]})
+      assert result.kind == :basic
+      assert result.name == :keyword
+      assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 1
+      param = hd(result.elements)
+      assert param.name == :binary
+      assert param.metadata.param_position == 0
+    end
+
+    test "parses nested parameterized types list(map(k, v))" do
+      # list(map(atom(), integer()))
+      inner_map = {:map, [], [{:atom, [], []}, {:integer, [], []}]}
+      {:ok, result} = TypeExpression.parse({:list, [], [inner_map]})
+
+      assert result.kind == :basic
+      assert result.name == :list
+      assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 1
+
+      # Check the inner map
+      inner = hd(result.elements)
+      assert inner.kind == :basic
+      assert inner.name == :map
+      assert inner.metadata.parameterized == true
+      assert inner.metadata.param_count == 2
+      assert inner.metadata.param_position == 0
+
+      # Check inner map parameters
+      [key, value] = inner.elements
+      assert key.name == :atom
+      assert key.metadata.param_position == 0
+      assert value.name == :integer
+      assert value.metadata.param_position == 1
+    end
+
+    test "non-parameterized basic type has no param_count" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert result.kind == :basic
+      refute Map.has_key?(result.metadata, :parameterized)
+      refute Map.has_key?(result.metadata, :param_count)
     end
   end
 
@@ -110,6 +177,156 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert result.name == 3.14
       assert result.metadata.literal_type == :float
     end
+
+    test "parses range literal 1..10" do
+      ast = {:.., [], [1, 10]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.name == nil
+      assert result.metadata.literal_type == :range
+      assert result.metadata.range_start == 1
+      assert result.metadata.range_end == 10
+    end
+
+    test "parses step range literal 1..100//5" do
+      ast = {:..//, [], [1, 100, 5]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :range
+      assert result.metadata.range_start == 1
+      assert result.metadata.range_end == 100
+      assert result.metadata.range_step == 5
+    end
+
+    test "parses negative range literal -10..-1" do
+      # Negative numbers in AST are represented as {:-, _, [value]}
+      ast = {:.., [], [{:-, [], [10]}, {:-, [], [1]}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :range
+      assert result.metadata.range_start == -10
+      assert result.metadata.range_end == -1
+    end
+
+    test "parses empty binary literal <<>>" do
+      ast = {:<<>>, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :binary
+      assert result.metadata.binary_size == 0
+    end
+
+    test "parses binary with size <<_::8>>" do
+      ast = {:<<>>, [], [{:"::", [], [{:_, [], Elixir}, 8]}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :binary
+      assert result.metadata.segment_count == 1
+      assert length(result.elements) == 1
+      [segment] = result.elements
+      assert segment.type == :sized
+      assert segment.size == 8
+    end
+
+    test "parses binary with type <<_::binary>>" do
+      ast = {:<<>>, [], [{:"::", [], [{:_, [], Elixir}, {:binary, [], Elixir}]}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :binary
+      [segment] = result.elements
+      assert segment.type == :binary
+    end
+
+    test "parses bitstring with variable size <<_::_*8>>" do
+      ast =
+        {:<<>>, [], [{:"::", [], [{:_, [], Elixir}, {:*, [], [{:_, [], Elixir}, 8]}]}]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :literal
+      assert result.metadata.literal_type == :binary
+      [segment] = result.elements
+      assert segment.type == :variable_size
+      assert segment.unit == 8
+    end
+  end
+
+  describe "literal type helpers" do
+    test "literal_value/1 returns value for atom literal" do
+      {:ok, result} = TypeExpression.parse(:ok)
+      assert TypeExpression.literal_value(result) == :ok
+    end
+
+    test "literal_value/1 returns value for integer literal" do
+      {:ok, result} = TypeExpression.parse(42)
+      assert TypeExpression.literal_value(result) == 42
+    end
+
+    test "literal_value/1 returns nil for range literal" do
+      ast = {:.., [], [1, 10]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.literal_value(result) == nil
+    end
+
+    test "literal_value/1 returns nil for non-literal" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.literal_value(result) == nil
+    end
+
+    test "range?/1 returns true for range literal" do
+      ast = {:.., [], [1, 10]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.range?(result)
+    end
+
+    test "range?/1 returns true for step range literal" do
+      ast = {:..//, [], [1, 100, 5]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.range?(result)
+    end
+
+    test "range?/1 returns false for atom literal" do
+      {:ok, result} = TypeExpression.parse(:ok)
+      refute TypeExpression.range?(result)
+    end
+
+    test "range?/1 returns false for non-literal" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      refute TypeExpression.range?(result)
+    end
+
+    test "binary_literal?/1 returns true for empty binary" do
+      ast = {:<<>>, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.binary_literal?(result)
+    end
+
+    test "binary_literal?/1 returns true for sized binary" do
+      ast = {:<<>>, [], [{:"::", [], [{:_, [], Elixir}, 8]}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.binary_literal?(result)
+    end
+
+    test "binary_literal?/1 returns false for non-binary literal" do
+      {:ok, result} = TypeExpression.parse(:ok)
+      refute TypeExpression.binary_literal?(result)
+    end
+
+    test "range_bounds/1 returns bounds for range literal" do
+      ast = {:.., [], [1, 10]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.range_bounds(result) == %{start: 1, end: 10}
+    end
+
+    test "range_bounds/1 returns bounds with step for step range" do
+      ast = {:..//, [], [1, 100, 5]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.range_bounds(result) == %{start: 1, end: 100, step: 5}
+    end
+
+    test "range_bounds/1 returns nil for non-range" do
+      {:ok, result} = TypeExpression.parse(:ok)
+      assert TypeExpression.range_bounds(result) == nil
+    end
   end
 
   # ===========================================================================
@@ -142,6 +359,45 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
     test "union metadata includes element count" do
       {:ok, result} = TypeExpression.parse({:|, [], [:ok, :error]})
       assert result.metadata.element_count == 2
+    end
+
+    test "union members have position tracking" do
+      {:ok, result} = TypeExpression.parse({:|, [], [:ok, :error]})
+      assert Enum.at(result.elements, 0).metadata.union_position == 0
+      assert Enum.at(result.elements, 1).metadata.union_position == 1
+    end
+
+    test "nested union members have correct positions after flattening" do
+      # :a | :b | :c | :d parsed as nested unions
+      {:ok, result} =
+        TypeExpression.parse({:|, [], [:a, {:|, [], [:b, {:|, [], [:c, :d]}]}]})
+
+      assert result.metadata.element_count == 4
+      assert Enum.at(result.elements, 0).metadata.union_position == 0
+      assert Enum.at(result.elements, 0).name == :a
+      assert Enum.at(result.elements, 1).metadata.union_position == 1
+      assert Enum.at(result.elements, 1).name == :b
+      assert Enum.at(result.elements, 2).metadata.union_position == 2
+      assert Enum.at(result.elements, 2).name == :c
+      assert Enum.at(result.elements, 3).metadata.union_position == 3
+      assert Enum.at(result.elements, 3).name == :d
+    end
+
+    test "union with 5+ members preserves all positions" do
+      # Build a deeply nested union: :a | :b | :c | :d | :e
+      union =
+        {:|, [],
+         [
+           :a,
+           {:|, [], [:b, {:|, [], [:c, {:|, [], [:d, :e]}]}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(union)
+      assert result.metadata.element_count == 5
+
+      Enum.each(0..4, fn i ->
+        assert Enum.at(result.elements, i).metadata.union_position == i
+      end)
     end
   end
 
@@ -179,6 +435,157 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert result.kind == :tuple
       assert length(result.elements) == 3
       assert result.metadata.arity == 3
+    end
+
+    test "parses nested tuple {{atom(), integer()}, binary()}" do
+      inner_tuple = {{:atom, [], []}, {:integer, [], []}}
+      ast = {inner_tuple, {:binary, [], []}}
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :tuple
+      assert result.metadata.arity == 2
+
+      [first, second] = result.elements
+      assert first.kind == :tuple
+      assert first.metadata.arity == 2
+      assert second.kind == :basic
+      assert second.name == :binary
+    end
+
+    test "parses tuple with union element {atom(), :ok | :error}" do
+      union = {:|, [], [:ok, :error]}
+      ast = {{:atom, [], []}, union}
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :tuple
+      assert result.metadata.arity == 2
+
+      [first, second] = result.elements
+      assert first.kind == :basic
+      assert second.kind == :union
+      assert length(second.elements) == 2
+    end
+
+    test "parses tuple with remote type {String.t(), integer()}" do
+      remote = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      ast = {remote, {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :tuple
+      assert result.metadata.arity == 2
+
+      [first, second] = result.elements
+      assert first.kind == :remote
+      assert first.name == :t
+      assert second.kind == :basic
+    end
+
+    test "parses tagged tuple {:error, reason} with error tag" do
+      {:ok, result} = TypeExpression.parse({:error, {:term, [], []}})
+      assert result.kind == :tuple
+      assert result.metadata.tagged == true
+      assert result.metadata.tag == :error
+    end
+
+    test "parses 4-tuple" do
+      {:ok, result} =
+        TypeExpression.parse(
+          {:{}, [], [{:atom, [], []}, {:integer, [], []}, {:binary, [], []}, {:float, [], []}]}
+        )
+
+      assert result.kind == :tuple
+      assert length(result.elements) == 4
+      assert result.metadata.arity == 4
+    end
+
+    test "distinguishes generic tuple() from fixed-arity tuple" do
+      # generic tuple() is a basic type
+      {:ok, generic} = TypeExpression.parse({:tuple, [], []})
+      assert generic.kind == :basic
+      assert generic.name == :tuple
+
+      # fixed-arity tuple is a tuple type
+      {:ok, fixed} = TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      assert fixed.kind == :tuple
+      assert fixed.metadata.arity == 2
+    end
+  end
+
+  describe "tuple type helpers" do
+    test "tuple_arity/1 returns arity for 2-tuple" do
+      {:ok, result} = TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      assert TypeExpression.tuple_arity(result) == 2
+    end
+
+    test "tuple_arity/1 returns arity for 3-tuple" do
+      {:ok, result} =
+        TypeExpression.parse({:{}, [], [{:atom, [], []}, {:integer, [], []}, {:binary, [], []}]})
+
+      assert TypeExpression.tuple_arity(result) == 3
+    end
+
+    test "tuple_arity/1 returns 0 for empty tuple" do
+      {:ok, result} = TypeExpression.parse({:{}, [], []})
+      assert TypeExpression.tuple_arity(result) == 0
+    end
+
+    test "tuple_arity/1 returns nil for non-tuple" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.tuple_arity(result) == nil
+    end
+
+    test "tuple_elements/1 returns elements for tuple" do
+      {:ok, result} = TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      elements = TypeExpression.tuple_elements(result)
+
+      assert length(elements) == 2
+      assert Enum.at(elements, 0).name == :atom
+      assert Enum.at(elements, 1).name == :integer
+    end
+
+    test "tuple_elements/1 returns empty list for empty tuple" do
+      {:ok, result} = TypeExpression.parse({:{}, [], []})
+      assert TypeExpression.tuple_elements(result) == []
+    end
+
+    test "tuple_elements/1 returns nil for non-tuple" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.tuple_elements(result) == nil
+    end
+
+    test "tagged_tuple?/1 returns true for tagged tuple" do
+      {:ok, result} = TypeExpression.parse({:ok, {:term, [], []}})
+      assert TypeExpression.tagged_tuple?(result)
+    end
+
+    test "tagged_tuple?/1 returns false for untagged tuple" do
+      {:ok, result} = TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      refute TypeExpression.tagged_tuple?(result)
+    end
+
+    test "tagged_tuple?/1 returns false for non-tuple" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      refute TypeExpression.tagged_tuple?(result)
+    end
+
+    test "tuple_tag/1 returns tag for tagged tuple" do
+      {:ok, result} = TypeExpression.parse({:ok, {:term, [], []}})
+      assert TypeExpression.tuple_tag(result) == :ok
+    end
+
+    test "tuple_tag/1 returns :error for error tuple" do
+      {:ok, result} = TypeExpression.parse({:error, {:binary, [], []}})
+      assert TypeExpression.tuple_tag(result) == :error
+    end
+
+    test "tuple_tag/1 returns nil for untagged tuple" do
+      {:ok, result} = TypeExpression.parse({{:atom, [], []}, {:integer, [], []}})
+      assert TypeExpression.tuple_tag(result) == nil
+    end
+
+    test "tuple_tag/1 returns nil for non-tuple" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.tuple_tag(result) == nil
     end
   end
 
@@ -289,6 +696,147 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert result.param_types == :any
       assert result.metadata.arity == :any
     end
+
+    test "parses union of function types (multiple arities)" do
+      # (-> atom()) | (integer() -> atom())
+      ast =
+        {:|, [],
+         [
+           [{:->, [], [[], {:atom, [], []}]}],
+           [{:->, [], [[{:integer, [], []}], {:atom, [], []}]}]
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :union
+      assert length(result.elements) == 2
+
+      [zero_arity, one_arity] = result.elements
+
+      assert zero_arity.kind == :function
+      assert TypeExpression.function_arity(zero_arity) == 0
+
+      assert one_arity.kind == :function
+      assert TypeExpression.function_arity(one_arity) == 1
+    end
+
+    test "parses nested function type (function returning function)" do
+      # (integer() -> (atom() -> binary()))
+      inner_func = [{:->, [], [[{:atom, [], []}], {:binary, [], []}]}]
+      ast = [{:->, [], [[{:integer, [], []}], inner_func]}]
+
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :function
+      assert length(result.param_types) == 1
+      assert hd(result.param_types).kind == :basic
+      assert hd(result.param_types).name == :integer
+
+      # Return type is also a function
+      assert result.return_type.kind == :function
+      assert TypeExpression.function_arity(result.return_type) == 1
+      assert result.return_type.return_type.name == :binary
+    end
+
+    test "parses function type with complex parameter types" do
+      # ({integer(), atom()} -> [binary()])
+      tuple_param = {{:integer, [], []}, {:atom, [], []}}
+      list_return = [{:binary, [], []}]
+      ast = [{:->, [], [[tuple_param], list_return]}]
+
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :function
+      [param] = result.param_types
+      assert param.kind == :tuple
+      assert length(param.elements) == 2
+
+      assert result.return_type.kind == :list
+    end
+
+    test "parses function type with union parameter" do
+      # (integer() | atom() -> binary())
+      union_param = {:|, [], [{:integer, [], []}, {:atom, [], []}]}
+      ast = [{:->, [], [[union_param], {:binary, [], []}]}]
+
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :function
+      [param] = result.param_types
+      assert param.kind == :union
+      assert length(param.elements) == 2
+    end
+
+    test "parses function type with union return" do
+      # (integer() -> :ok | :error)
+      ast = [{:->, [], [[{:integer, [], []}], {:|, [], [:ok, :error]}]}]
+
+      {:ok, result} = TypeExpression.parse(ast)
+
+      assert result.kind == :function
+      assert result.return_type.kind == :union
+      assert length(result.return_type.elements) == 2
+    end
+  end
+
+  describe "function type helpers" do
+    test "param_types/1 returns parameter list for function" do
+      {:ok, result} =
+        TypeExpression.parse([
+          {:->, [], [[{:integer, [], []}, {:atom, [], []}], {:binary, [], []}]}
+        ])
+
+      params = TypeExpression.param_types(result)
+      assert length(params) == 2
+      assert Enum.at(params, 0).name == :integer
+      assert Enum.at(params, 1).name == :atom
+    end
+
+    test "param_types/1 returns :any for any-arity function" do
+      {:ok, result} = TypeExpression.parse([{:->, [], [[{:..., [], nil}], {:atom, [], []}]}])
+      assert TypeExpression.param_types(result) == :any
+    end
+
+    test "param_types/1 returns nil for non-function" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.param_types(result) == nil
+    end
+
+    test "return_type/1 returns return type for function" do
+      {:ok, result} = TypeExpression.parse([{:->, [], [[{:integer, [], []}], {:atom, [], []}]}])
+      return = TypeExpression.return_type(result)
+      assert return.kind == :basic
+      assert return.name == :atom
+    end
+
+    test "return_type/1 returns nil for non-function" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.return_type(result) == nil
+    end
+
+    test "function_arity/1 returns arity for fixed-arity function" do
+      {:ok, result} =
+        TypeExpression.parse([
+          {:->, [], [[{:integer, [], []}, {:atom, [], []}], {:binary, [], []}]}
+        ])
+
+      assert TypeExpression.function_arity(result) == 2
+    end
+
+    test "function_arity/1 returns 0 for zero-arity function" do
+      {:ok, result} = TypeExpression.parse([{:->, [], [[], {:atom, [], []}]}])
+      assert TypeExpression.function_arity(result) == 0
+    end
+
+    test "function_arity/1 returns :any for any-arity function" do
+      {:ok, result} = TypeExpression.parse([{:->, [], [[{:..., [], nil}], {:atom, [], []}]}])
+      assert TypeExpression.function_arity(result) == :any
+    end
+
+    test "function_arity/1 returns nil for non-function" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.function_arity(result) == nil
+    end
   end
 
   # ===========================================================================
@@ -326,7 +874,104 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       assert result.kind == :remote
       assert result.name == :t
       assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 1
       assert length(result.elements) == 1
+      param = hd(result.elements)
+      assert param.metadata.param_position == 0
+    end
+
+    test "non-parameterized remote type has parameterized: false" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.metadata.parameterized == false
+      refute Map.has_key?(result.metadata, :param_count)
+    end
+
+    test "parses remote type with multiple parameters" do
+      # Map.t(key, value) equivalent
+      ast =
+        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [], [{:key, [], nil}, {:value, [], nil}]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :remote
+      assert result.name == :t
+      assert result.metadata.parameterized == true
+      assert result.metadata.param_count == 2
+
+      [key_param, value_param] = result.elements
+      assert key_param.name == :key
+      assert key_param.metadata.param_position == 0
+      assert value_param.name == :value
+      assert value_param.metadata.param_position == 1
+    end
+
+    test "non-parameterized remote type has arity 0" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.metadata.arity == 0
+    end
+
+    test "parameterized remote type has arity equal to param_count" do
+      ast = {{:., [], [{:__aliases__, [], [:Enumerable]}, :t]}, [], [{:element, [], nil}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.metadata.arity == 1
+      assert result.metadata.arity == result.metadata.param_count
+    end
+
+    test "multi-param remote type has correct arity" do
+      ast =
+        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [], [{:key, [], nil}, {:value, [], nil}]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.metadata.arity == 2
+    end
+
+    test "module_iri/1 returns IRI for simple module" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.module_iri(result) == "Elixir.String"
+    end
+
+    test "module_iri/1 returns IRI for nested module" do
+      ast = {{:., [], [{:__aliases__, [], [:MyApp, :Accounts, :User]}, :t]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.module_iri(result) == "Elixir.MyApp.Accounts.User"
+    end
+
+    test "module_iri/1 returns nil for non-remote types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.module_iri(result) == nil
+    end
+
+    test "type_iri/1 returns IRI for non-parameterized type" do
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.type_iri(result) == "Elixir.String#t/0"
+    end
+
+    test "type_iri/1 returns IRI with arity for parameterized type" do
+      ast = {{:., [], [{:__aliases__, [], [:Enumerable]}, :t]}, [], [{:element, [], nil}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.type_iri(result) == "Elixir.Enumerable#t/1"
+    end
+
+    test "type_iri/1 handles multi-param types" do
+      ast =
+        {{:., [], [{:__aliases__, [], [:Map]}, :t]}, [], [{:key, [], nil}, {:value, [], nil}]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.type_iri(result) == "Elixir.Map#t/2"
+    end
+
+    test "type_iri/1 handles nested module with non-t type" do
+      ast = {{:., [], [{:__aliases__, [], [:GenServer]}, :on_start]}, [], []}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.type_iri(result) == "Elixir.GenServer#on_start/0"
+    end
+
+    test "type_iri/1 returns nil for non-remote types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.type_iri(result) == nil
     end
   end
 
@@ -347,6 +992,228 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       {:ok, result} = TypeExpression.parse(ast)
       assert result.kind == :struct
       assert result.module == [:MyApp, :Accounts, :User]
+    end
+
+    test "struct without fields has nil elements" do
+      ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], []}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.elements == nil
+      assert result.metadata.field_count == 0
+    end
+
+    test "parses struct with field type constraints" do
+      # %User{name: binary(), age: integer()}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:User]},
+           {:%{}, [], [name: {:binary, [], []}, age: {:integer, [], []}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.module == [:User]
+      assert result.metadata.field_count == 2
+      assert is_list(result.elements)
+      assert length(result.elements) == 2
+
+      [name_field, age_field] = result.elements
+      assert name_field.name == :name
+      assert name_field.type.kind == :basic
+      assert name_field.type.name == :binary
+
+      assert age_field.name == :age
+      assert age_field.type.kind == :basic
+      assert age_field.type.name == :integer
+    end
+
+    test "parses struct with remote type field" do
+      # %User{email: String.t()}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:User]},
+           {:%{}, [], [email: {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [email_field] = result.elements
+      assert email_field.name == :email
+      assert email_field.type.kind == :remote
+      assert email_field.type.name == :t
+      assert email_field.type.module == [:String]
+    end
+
+    test "parses struct with union type field" do
+      # %Response{status: :ok | :error}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:Response]},
+           {:%{}, [], [status: {:|, [], [:ok, :error]}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [status_field] = result.elements
+      assert status_field.name == :status
+      assert status_field.type.kind == :union
+      assert length(status_field.type.elements) == 2
+    end
+
+    test "parses struct with nested struct field" do
+      # %Order{user: %User{}}
+      user_struct = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], []}]}
+
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:Order]},
+           {:%{}, [], [user: user_struct]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [user_field] = result.elements
+      assert user_field.name == :user
+      assert user_field.type.kind == :struct
+      assert user_field.type.module == [:User]
+    end
+
+    test "parses struct with list type field" do
+      # %User{roles: [atom()]}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:User]},
+           {:%{}, [], [roles: [{:atom, [], []}]]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [roles_field] = result.elements
+      assert roles_field.name == :roles
+      assert roles_field.type.kind == :list
+    end
+
+    test "parses struct with complex nested types in fields" do
+      # %User{settings: %{theme: atom(), notifications: boolean()}}
+      map_type = {:%{}, [], [theme: {:atom, [], []}, notifications: {:boolean, [], []}]}
+
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:User]},
+           {:%{}, [], [settings: map_type]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [settings_field] = result.elements
+      assert settings_field.name == :settings
+      assert settings_field.type.kind == :map
+    end
+  end
+
+  describe "struct type helpers" do
+    test "struct_module/1 returns IRI for simple module" do
+      ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], []}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.struct_module(result) == "Elixir.User"
+    end
+
+    test "struct_module/1 returns IRI for nested module" do
+      ast = {:%, [], [{:__aliases__, [], [:MyApp, :Accounts, :User]}, {:%{}, [], []}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.struct_module(result) == "Elixir.MyApp.Accounts.User"
+    end
+
+    test "struct_module/1 returns nil for non-struct types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.struct_module(result) == nil
+    end
+
+    test "struct_fields/1 returns field list for struct with fields" do
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:User]},
+           {:%{}, [], [name: {:binary, [], []}, age: {:integer, [], []}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse(ast)
+      fields = TypeExpression.struct_fields(result)
+
+      assert is_list(fields)
+      assert length(fields) == 2
+
+      assert Enum.at(fields, 0).name == :name
+      assert Enum.at(fields, 1).name == :age
+    end
+
+    test "struct_fields/1 returns nil for struct without fields" do
+      ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], []}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.struct_fields(result) == nil
+    end
+
+    test "struct_fields/1 returns nil for non-struct types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.struct_fields(result) == nil
+    end
+  end
+
+  describe "parse_with_constraints/2 struct types" do
+    test "propagates constraints through struct field types" do
+      constraints = %{a: {:integer, [], []}}
+      # %Result{value: a}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:Result]},
+           {:%{}, [], [value: {:a, [], nil}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :struct
+      assert result.metadata.field_count == 1
+
+      [value_field] = result.elements
+      assert value_field.name == :value
+      assert value_field.type.kind == :variable
+      assert value_field.type.metadata.constrained == true
+      assert value_field.type.metadata.constraint.name == :integer
+    end
+
+    test "handles struct with multiple constrained fields" do
+      constraints = %{a: {:integer, [], []}, b: {:atom, [], []}}
+      # %Pair{first: a, second: b}
+      ast =
+        {:%, [],
+         [
+           {:__aliases__, [], [:Pair]},
+           {:%{}, [], [first: {:a, [], nil}, second: {:b, [], nil}]}
+         ]}
+
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :struct
+      [first_field, second_field] = result.elements
+
+      assert first_field.type.metadata.constraint.name == :integer
+      assert second_field.type.metadata.constraint.name == :atom
     end
   end
 
@@ -371,6 +1238,218 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
       {:ok, result} = TypeExpression.parse({:t, [], Elixir})
       assert result.kind == :variable
       assert result.name == :t
+    end
+  end
+
+  # ===========================================================================
+  # Type Variable Constraint Tests
+  # ===========================================================================
+
+  describe "parse_with_constraints/2" do
+    test "parses type variable with constraint" do
+      constraints = %{a: {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+
+      assert result.kind == :variable
+      assert result.name == :a
+      assert result.metadata.constrained == true
+      assert result.metadata.constraint.kind == :basic
+      assert result.metadata.constraint.name == :integer
+    end
+
+    test "parses type variable without matching constraint" do
+      constraints = %{a: {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:b, [], nil}, constraints)
+
+      assert result.kind == :variable
+      assert result.name == :b
+      assert result.metadata.constrained == false
+      refute Map.has_key?(result.metadata, :constraint)
+    end
+
+    test "parses basic type unchanged with constraints" do
+      constraints = %{a: {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:atom, [], []}, constraints)
+
+      assert result.kind == :basic
+      assert result.name == :atom
+    end
+
+    test "propagates constraints through union types" do
+      constraints = %{a: {:integer, [], []}, b: {:atom, [], []}}
+      ast = {:|, [], [{:a, [], nil}, {:b, [], nil}]}
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :union
+      [first, second] = result.elements
+
+      assert first.kind == :variable
+      assert first.metadata.constrained == true
+      assert first.metadata.constraint.name == :integer
+
+      assert second.kind == :variable
+      assert second.metadata.constrained == true
+      assert second.metadata.constraint.name == :atom
+    end
+
+    test "propagates constraints through tuple types" do
+      constraints = %{a: {:integer, [], []}}
+      ast = {{:a, [], nil}, {:string, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :tuple
+      [first, second] = result.elements
+
+      assert first.kind == :variable
+      assert first.metadata.constrained == true
+
+      assert second.kind == :basic
+      assert second.name == :string
+    end
+
+    test "propagates constraints through list types" do
+      constraints = %{element: {:integer, [], []}}
+      ast = [{:element, [], nil}]
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :list
+      [element] = result.elements
+
+      assert element.kind == :variable
+      assert element.metadata.constrained == true
+      assert element.metadata.constraint.name == :integer
+    end
+
+    test "propagates constraints through function types" do
+      constraints = %{a: {:integer, [], []}, b: {:atom, [], []}}
+      # (a) -> b
+      ast = [{:->, [], [[{:a, [], nil}], {:b, [], nil}]}]
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :function
+      [param] = result.param_types
+
+      assert param.kind == :variable
+      assert param.metadata.constrained == true
+      assert param.metadata.constraint.name == :integer
+
+      assert result.return_type.kind == :variable
+      assert result.return_type.metadata.constrained == true
+      assert result.return_type.metadata.constraint.name == :atom
+    end
+
+    test "propagates constraints through parameterized types" do
+      constraints = %{a: {:integer, [], []}}
+      # list(a)
+      ast = {:list, [], [{:a, [], nil}]}
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :basic
+      assert result.name == :list
+      [param] = result.elements
+
+      assert param.kind == :variable
+      assert param.metadata.constrained == true
+      assert param.metadata.constraint.name == :integer
+    end
+
+    test "handles empty constraints map" do
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, %{})
+
+      assert result.kind == :variable
+      assert result.name == :a
+      # Empty constraints map delegates to regular parse
+    end
+
+    test "parses remote type with constrained parameters" do
+      constraints = %{element: {:integer, [], []}}
+      # Enumerable.t(element)
+      ast = {{:., [], [{:__aliases__, [], [:Enumerable]}, :t]}, [], [{:element, [], nil}]}
+      {:ok, result} = TypeExpression.parse_with_constraints(ast, constraints)
+
+      assert result.kind == :remote
+      assert result.name == :t
+      [param] = result.elements
+
+      assert param.kind == :variable
+      assert param.metadata.constrained == true
+      assert param.metadata.constraint.name == :integer
+    end
+
+    test "constraint type can be a union" do
+      # when a: atom() | integer()
+      constraints = %{a: {:|, [], [{:atom, [], []}, {:integer, [], []}]}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+
+      assert result.kind == :variable
+      assert result.metadata.constrained == true
+      assert result.metadata.constraint.kind == :union
+      assert length(result.metadata.constraint.elements) == 2
+    end
+
+    test "constraint type can be a remote type" do
+      # when a: String.t()
+      constraints = %{a: {{:., [], [{:__aliases__, [], [:String]}, :t]}, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+
+      assert result.kind == :variable
+      assert result.metadata.constrained == true
+      assert result.metadata.constraint.kind == :remote
+      assert result.metadata.constraint.name == :t
+      assert result.metadata.constraint.module == [:String]
+    end
+  end
+
+  describe "constrained?/1" do
+    test "returns true for constrained type variable" do
+      constraints = %{a: {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+      assert TypeExpression.constrained?(result)
+    end
+
+    test "returns false for unconstrained type variable" do
+      {:ok, result} =
+        TypeExpression.parse_with_constraints({:b, [], nil}, %{a: {:integer, [], []}})
+
+      refute TypeExpression.constrained?(result)
+    end
+
+    test "returns false for regular parse" do
+      {:ok, result} = TypeExpression.parse({:a, [], nil})
+      refute TypeExpression.constrained?(result)
+    end
+
+    test "returns false for non-variable types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      refute TypeExpression.constrained?(result)
+    end
+  end
+
+  describe "constraint_type/1" do
+    test "returns constraint for constrained type variable" do
+      constraints = %{a: {:integer, [], []}}
+      {:ok, result} = TypeExpression.parse_with_constraints({:a, [], nil}, constraints)
+      constraint = TypeExpression.constraint_type(result)
+
+      assert constraint.kind == :basic
+      assert constraint.name == :integer
+    end
+
+    test "returns nil for unconstrained type variable" do
+      {:ok, result} =
+        TypeExpression.parse_with_constraints({:b, [], nil}, %{a: {:integer, [], []}})
+
+      assert TypeExpression.constraint_type(result) == nil
+    end
+
+    test "returns nil for regular parse" do
+      {:ok, result} = TypeExpression.parse({:a, [], nil})
+      assert TypeExpression.constraint_type(result) == nil
+    end
+
+    test "returns nil for non-variable types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      assert TypeExpression.constraint_type(result) == nil
     end
   end
 
@@ -424,6 +1503,22 @@ defmodule ElixirOntologies.Extractors.TypeExpressionTest do
     test "variable?/1" do
       {:ok, result} = TypeExpression.parse({:a, [], nil})
       assert TypeExpression.variable?(result)
+    end
+
+    test "parameterized?/1 returns true for parameterized basic type" do
+      {:ok, result} = TypeExpression.parse({:list, [], [{:integer, [], []}]})
+      assert TypeExpression.parameterized?(result)
+    end
+
+    test "parameterized?/1 returns true for parameterized remote type" do
+      ast = {{:., [], [{:__aliases__, [], [:Enumerable]}, :t]}, [], [{:element, [], nil}]}
+      {:ok, result} = TypeExpression.parse(ast)
+      assert TypeExpression.parameterized?(result)
+    end
+
+    test "parameterized?/1 returns false for non-parameterized types" do
+      {:ok, result} = TypeExpression.parse({:atom, [], []})
+      refute TypeExpression.parameterized?(result)
     end
 
     test "literal?/1" do
