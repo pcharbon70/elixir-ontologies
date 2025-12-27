@@ -152,10 +152,18 @@ defmodule ElixirOntologies.Builders.FunctionBuilder do
     end
   end
 
-  # Build rdf:type triple based on function type and visibility
+  # Build rdf:type triples for function
+  # We add both the base Function type and the specific subclass type
+  # This is needed because SHACL validation doesn't perform RDFS reasoning
   defp build_type_triple(function_iri, function_info) do
-    class = determine_function_class(function_info)
-    Helpers.type_triple(function_iri, class)
+    subclass = determine_function_class(function_info)
+
+    [
+      # Base Function type (required for SHACL sh:class validation)
+      Helpers.type_triple(function_iri, Structure.Function),
+      # Specific subclass type (PublicFunction, PrivateFunction, etc.)
+      Helpers.type_triple(function_iri, subclass)
+    ]
   end
 
   # Determine the appropriate RDF class for the function

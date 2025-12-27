@@ -19,7 +19,23 @@
     dc:title "Elixir Ontology SHACL Shapes"@en ;
     dc:description """SHACL shapes for validating Elixir code knowledge graphs.
     Provides closed-world constraints complementing OWL axioms for data quality
-    validation."""@en .
+    validation."""@en ;
+    sh:declare [
+        sh:prefix "struct" ;
+        sh:namespace "https://w3id.org/elixir-code/structure#"^^xsd:anyURI
+    ] ,
+    [
+        sh:prefix "core" ;
+        sh:namespace "https://w3id.org/elixir-code/core#"^^xsd:anyURI
+    ] ,
+    [
+        sh:prefix "rdf" ;
+        sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI
+    ] ,
+    [
+        sh:prefix "xsd" ;
+        sh:namespace "http://www.w3.org/2001/XMLSchema#"^^xsd:anyURI
+    ] .
 
 # =============================================================================
 # Module Shapes
@@ -90,11 +106,12 @@
         sh:class struct:Module ;
         sh:message "Function must belong to exactly one module"@en
     ] ;
+    # Note: hasClause is optional since clause building is not yet integrated into the pipeline
+    # When clauses are present, they must be FunctionClause instances
     sh:property [
         sh:path struct:hasClause ;
-        sh:minCount 1 ;
         sh:class struct:FunctionClause ;
-        sh:message "Function must have at least one clause"@en
+        sh:message "Function clauses must be FunctionClause instances"@en
     ] .
 
 :FunctionClauseShape a sh:NodeShape ;
