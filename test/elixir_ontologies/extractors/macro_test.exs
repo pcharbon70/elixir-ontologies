@@ -404,4 +404,53 @@ defmodule ElixirOntologies.Extractors.MacroTest do
       assert result.metadata.uses_var_bang == true
     end
   end
+
+  # ===========================================================================
+  # Dynamic Macro Name Tests
+  # ===========================================================================
+
+  describe "extract/2 dynamic macro names" do
+    test "extracts macro with unquote in name (atom literal)" do
+      # AST for: defmacro unquote(:dynamic_name)(x), do: x
+      ast =
+        {:defmacro, [],
+         [
+           {{:unquote, [], [:dynamic_name]}, [], [{:x, [], nil}]},
+           [do: {:x, [], nil}]
+         ]}
+
+      assert {:ok, result} = MacroExtractor.extract(ast)
+      assert result.name == :dynamic_name
+      assert result.arity == 1
+    end
+
+    test "extracts macro with unquote in name (non-literal uses __dynamic__)" do
+      # AST for: defmacro unquote(name_var)(x), do: x
+      # When the unquote contains a variable, we can't resolve it at extraction time
+      ast =
+        {:defmacro, [],
+         [
+           {{:unquote, [], [{:name_var, [], nil}]}, [], [{:x, [], nil}]},
+           [do: {:x, [], nil}]
+         ]}
+
+      assert {:ok, result} = MacroExtractor.extract(ast)
+      assert result.name == :__dynamic__
+      assert result.arity == 1
+    end
+
+    test "extracts no-arg macro with unquote in name" do
+      # AST for: defmacro unquote(:no_args), do: :ok
+      ast =
+        {:defmacro, [],
+         [
+           {{:unquote, [], [:no_args]}, [], nil},
+           [do: :ok]
+         ]}
+
+      assert {:ok, result} = MacroExtractor.extract(ast)
+      assert result.name == :no_args
+      assert result.arity == 0
+    end
+  end
 end

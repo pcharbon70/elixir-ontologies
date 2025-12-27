@@ -74,6 +74,8 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
       "https://example.org/code#MyApp/hello/0/clause/0"
   """
 
+  require Logger
+
   alias ElixirOntologies.Builders.{Context, Helpers}
   alias ElixirOntologies.{IRI, NS}
   alias ElixirOntologies.Extractors.{Clause, Parameter}
@@ -241,14 +243,21 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
     # Extract parameters from clause head
     parameter_asts = clause_info.head[:parameters] || []
 
-    # Extract each parameter with position
+    # Extract each parameter with position, logging failures
     parameters =
       parameter_asts
       |> Enum.with_index()
       |> Enum.map(fn {param_ast, index} ->
         case Parameter.extract(param_ast, position: index) do
-          {:ok, param} -> param
-          {:error, _} -> nil
+          {:ok, param} ->
+            param
+
+          {:error, reason} ->
+            Logger.warning(
+              "Failed to extract parameter at position #{index} in #{clause_info.name}/#{clause_info.arity}: #{reason}"
+            )
+
+            nil
         end
       end)
       |> Enum.reject(&is_nil/1)
