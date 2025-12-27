@@ -97,7 +97,7 @@ defmodule ElixirOntologies.Builders.CallGraphBuilder do
       |> add_type_triple(call_iri, call.type)
       |> add_name_triple(call_iri, call.name)
       |> add_arity_triple(call_iri, call.arity)
-      |> add_module_triple(call_iri, call.module)
+      |> add_module_triple(call_iri, call.module, context)
       |> add_caller_triple(call_iri, context.base_iri, caller_function)
       |> add_target_triple(call_iri, context, call)
       |> add_location_triples(call_iri, call.location)
@@ -222,18 +222,14 @@ defmodule ElixirOntologies.Builders.CallGraphBuilder do
   defp add_arity_triple(triples, _call_iri, _arity), do: triples
 
   # Add target module triple for remote calls (reuse structure:moduleName)
-  defp add_module_triple(triples, call_iri, module) when is_list(module) and module != [] do
-    module_name = Enum.map_join(module, ".", &Atom.to_string/1)
-    triple = Helpers.datatype_property(call_iri, Structure.moduleName(), module_name)
-    [triple | triples]
+  defp add_module_triple(triples, call_iri, module, context) do
+    case resolve_module(module, context) do
+      nil -> triples
+      module_name ->
+        triple = Helpers.datatype_property(call_iri, Structure.moduleName(), module_name)
+        [triple | triples]
+    end
   end
-
-  defp add_module_triple(triples, call_iri, module) when is_atom(module) and not is_nil(module) do
-    triple = Helpers.datatype_property(call_iri, Structure.moduleName(), Atom.to_string(module))
-    [triple | triples]
-  end
-
-  defp add_module_triple(triples, _call_iri, _module), do: triples
 
   # Add caller function triple (link to the function containing this call)
   defp add_caller_triple(triples, call_iri, base_iri, caller_function)
@@ -248,9 +244,10 @@ defmodule ElixirOntologies.Builders.CallGraphBuilder do
 
   # Add target function triple (for calls to known functions)
   defp add_target_triple(triples, call_iri, context, %FunctionCall{type: :remote} = call) do
-    # For remote calls, generate target function IRI
-    if call.module && call.name do
-      module_name = format_module_name(call.module)
+    # For remote calls, generate target function IRI (resolves __MODULE__ if present)
+    module_name = resolve_module(call.module, context)
+
+    if module_name && call.name do
       function_name = Atom.to_string(call.name)
       target_iri = IRI.for_function(context.base_iri, module_name, function_name, call.arity)
       triple = Helpers.object_property(call_iri, Structure.callsFunction(), target_iri)
@@ -293,16 +290,61 @@ defmodule ElixirOntologies.Builders.CallGraphBuilder do
   # Private Helpers
   # ===========================================================================
 
-  defp format_module_name(module) when is_list(module) do
-    Enum.map_join(module, ".", &Atom.to_string/1)
+  # Resolve a module reference to a string name, handling __MODULE__ AST nodes
+  defp resolve_module(module, context)
+
+  # Handle list of module parts (e.g., [:Foo, :Bar] or [{:__MODULE__, _, _}, :Foo])
+  defp resolve_module(module, context) when is_list(module) and module != [] do
+    resolved_parts =
+      Enum.map(module, fn
+        {:__MODULE__, _, _} -> get_context_module_atoms(context)
+        atom when is_atom(atom) -> [atom]
+        _other -> nil
+      end)
+
+    if Enum.any?(resolved_parts, &is_nil/1) do
+      nil
+    else
+      resolved_parts
+      |> List.flatten()
+      |> Enum.map_join(".", &Atom.to_string/1)
+    end
   end
 
-  defp format_module_name(module) when is_atom(module) do
+  # Handle single atom module
+  defp resolve_module(module, _context) when is_atom(module) and not is_nil(module) do
     Atom.to_string(module)
   end
 
-  defp get_module_from_context(%Context{metadata: %{module: module}}) when not is_nil(module) do
-    format_module_name(module)
+  # Handle __MODULE__ AST node directly
+  defp resolve_module({:__MODULE__, _, _}, context) do
+    get_module_from_context(context)
+  end
+
+  # Handle other cases (nil, unknown AST nodes)
+  defp resolve_module(_module, _context), do: nil
+
+  # Get module from context as a list of atoms for joining
+  defp get_context_module_atoms(%Context{metadata: %{module: module}}) when is_atom(module) and not is_nil(module) do
+    module
+    |> Atom.to_string()
+    |> String.split(".")
+    |> Enum.map(&String.to_atom/1)
+  end
+
+  defp get_context_module_atoms(%Context{metadata: %{module: module}}) when is_list(module) do
+    module
+  end
+
+  defp get_context_module_atoms(_context), do: []
+
+  # Get module from context as a string
+  defp get_module_from_context(%Context{metadata: %{module: module}}) when is_atom(module) and not is_nil(module) do
+    Atom.to_string(module)
+  end
+
+  defp get_module_from_context(%Context{metadata: %{module: module}}) when is_list(module) and module != [] do
+    Enum.map_join(module, ".", &Atom.to_string/1)
   end
 
   defp get_module_from_context(_context), do: nil
