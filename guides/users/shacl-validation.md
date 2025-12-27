@@ -48,7 +48,7 @@ The library includes shapes for Elixir code:
 
 | Shape File | Description |
 |------------|-------------|
-| `elixir-shapes.ttl` | Core Elixir code constraints |
+| `ontology/elixir-shapes.ttl` | Core Elixir code constraints |
 | `otp-shapes.ttl` | OTP pattern constraints |
 | `evolution-shapes.ttl` | Evolution/provenance constraints |
 

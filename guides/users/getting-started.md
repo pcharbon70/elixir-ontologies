@@ -100,10 +100,10 @@ Every code element gets a unique IRI (Internationalized Resource Identifier):
 
 The ontology is organized in layers:
 
-1. **elixir-core.ttl** - Base AST primitives
-2. **elixir-structure.ttl** - Elixir-specific: Module, Function, Protocol
-3. **elixir-otp.ttl** - OTP runtime: GenServer, Supervisor
-4. **elixir-evolution.ttl** - Version tracking with PROV-O
+1. **ontology/elixir-core.ttl** - Base AST primitives
+2. **ontology/elixir-structure.ttl** - Elixir-specific: Module, Function, Protocol
+3. **ontology/elixir-otp.ttl** - OTP runtime: GenServer, Supervisor
+4. **ontology/elixir-evolution.ttl** - Version tracking with PROV-O
 
 ## Common Options
 

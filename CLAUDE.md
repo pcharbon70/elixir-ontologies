@@ -11,15 +11,15 @@ This repository is developing an OWL ontology for modeling Elixir code structure
 Four-layer modular architecture with explicit import dependencies:
 
 ```
-elixir-core.ttl          → Base AST primitives, BFO/IAO alignment
+ontology/elixir-core.ttl          → Base AST primitives, BFO/IAO alignment
     ↓
-elixir-structure.ttl     → Elixir-specific: Module, Function, Protocol, Behaviour, Macro
+ontology/elixir-structure.ttl     → Elixir-specific: Module, Function, Protocol, Behaviour, Macro
     ↓
-elixir-otp.ttl           → OTP runtime: GenServer, Supervisor, Agent, Task, ETS
+ontology/elixir-otp.ttl           → OTP runtime: GenServer, Supervisor, Agent, Task, ETS
     ↓
-elixir-evolution.ttl     → PROV-O integration, version tracking, changesets
+ontology/elixir-evolution.ttl     → PROV-O integration, version tracking, changesets
 
-elixir-shapes.ttl        → SHACL validation constraints (cross-cutting)
+ontology/elixir-shapes.ttl        → SHACL validation constraints (cross-cutting)
 ```
 
 Each layer imports the previous via `owl:imports`. Changes to core classes cascade upward.
@@ -43,7 +43,7 @@ Each layer imports the previous via `owl:imports`. Changes to core classes casca
 
 ## Validation
 
-SHACL shapes in `elixir-shapes.ttl` validate:
+SHACL shapes in `ontology/elixir-shapes.ttl` validate:
 - Module/function naming patterns (regex constraints)
 - Required properties (arity, module membership, etc.)
 - Cardinality constraints (e.g., function must have ≥1 clause)
