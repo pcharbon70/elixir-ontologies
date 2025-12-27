@@ -2,7 +2,13 @@ defmodule ElixirOntologies.Extractors.Evolution.DeprecationTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.Evolution.Deprecation
-  alias ElixirOntologies.Extractors.Evolution.Deprecation.{DeprecationEvent, RemovalEvent, Replacement}
+
+  alias ElixirOntologies.Extractors.Evolution.Deprecation.{
+    DeprecationEvent,
+    RemovalEvent,
+    Replacement
+  }
+
   alias ElixirOntologies.Extractors.Evolution.Commit
 
   # ===========================================================================
@@ -297,7 +303,8 @@ defmodule ElixirOntologies.Extractors.Evolution.DeprecationTest do
     @tag :integration
     test "tracks deprecations for a file" do
       # Use a file that exists in the repo
-      {:ok, deprecations} = Deprecation.track_deprecations(".", "lib/elixir_ontologies.ex", limit: 10)
+      {:ok, deprecations} =
+        Deprecation.track_deprecations(".", "lib/elixir_ontologies.ex", limit: 10)
 
       assert is_list(deprecations)
     end
@@ -320,7 +327,8 @@ defmodule ElixirOntologies.Extractors.Evolution.DeprecationTest do
         result = Deprecation.parse_replacement(message)
 
         if expected_func do
-          assert result.function == expected_func, "Expected #{inspect(expected_func)} for: #{message}"
+          assert result.function == expected_func,
+                 "Expected #{inspect(expected_func)} for: #{message}"
         else
           assert result.function == nil, "Expected nil function for: #{message}"
         end

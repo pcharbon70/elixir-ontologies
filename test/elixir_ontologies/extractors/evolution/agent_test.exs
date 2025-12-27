@@ -117,7 +117,8 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
     test "builds agent ID from email" do
       id = Agent.build_agent_id("user@example.com")
       assert String.starts_with?(id, "agent:")
-      assert String.length(id) == 18  # "agent:" (6) + hash (12) = 18
+      # "agent:" (6) + hash (12) = 18
+      assert String.length(id) == 18
     end
 
     test "produces stable IDs for same email" do
@@ -250,7 +251,9 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
 
     test "bot type takes precedence over message" do
       message = "Co-authored-by: github-copilot"
-      assert Agent.detect_type_with_context("dependabot[bot]@users.noreply.github.com", message) == :bot
+
+      assert Agent.detect_type_with_context("dependabot[bot]@users.noreply.github.com", message) ==
+               :bot
     end
   end
 
@@ -276,25 +279,45 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
     test "bot?/1" do
       agent = %Agent{agent_id: "agent:abc", agent_type: :bot, email: "bot@example.com"}
       assert Agent.bot?(agent)
-      refute Agent.bot?(%Agent{agent_id: "agent:abc", agent_type: :developer, email: "dev@example.com"})
+
+      refute Agent.bot?(%Agent{
+               agent_id: "agent:abc",
+               agent_type: :developer,
+               email: "dev@example.com"
+             })
     end
 
     test "ci?/1" do
       agent = %Agent{agent_id: "agent:abc", agent_type: :ci, email: "ci@example.com"}
       assert Agent.ci?(agent)
-      refute Agent.ci?(%Agent{agent_id: "agent:abc", agent_type: :developer, email: "dev@example.com"})
+
+      refute Agent.ci?(%Agent{
+               agent_id: "agent:abc",
+               agent_type: :developer,
+               email: "dev@example.com"
+             })
     end
 
     test "llm?/1" do
       agent = %Agent{agent_id: "agent:abc", agent_type: :llm, email: "llm@example.com"}
       assert Agent.llm?(agent)
-      refute Agent.llm?(%Agent{agent_id: "agent:abc", agent_type: :developer, email: "dev@example.com"})
+
+      refute Agent.llm?(%Agent{
+               agent_id: "agent:abc",
+               agent_type: :developer,
+               email: "dev@example.com"
+             })
     end
 
     test "developer?/1" do
       agent = %Agent{agent_id: "agent:abc", agent_type: :developer, email: "dev@example.com"}
       assert Agent.developer?(agent)
-      refute Agent.developer?(%Agent{agent_id: "agent:abc", agent_type: :bot, email: "bot@example.com"})
+
+      refute Agent.developer?(%Agent{
+               agent_id: "agent:abc",
+               agent_type: :bot,
+               email: "bot@example.com"
+             })
     end
   end
 
@@ -319,10 +342,11 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
     end
 
     test "extracts single agent when author equals committer" do
-      commit = create_commit(
-        author_email: "same@example.com",
-        committer_email: "same@example.com"
-      )
+      commit =
+        create_commit(
+          author_email: "same@example.com",
+          committer_email: "same@example.com"
+        )
 
       {:ok, agents} = Agent.extract_agents(".", commit)
 
@@ -332,10 +356,11 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
     end
 
     test "extracts two agents when author differs from committer" do
-      commit = create_commit(
-        author_email: "author@example.com",
-        committer_email: "committer@example.com"
-      )
+      commit =
+        create_commit(
+          author_email: "author@example.com",
+          committer_email: "committer@example.com"
+        )
 
       {:ok, agents} = Agent.extract_agents(".", commit)
 
@@ -346,10 +371,11 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
     end
 
     test "detects bot agent" do
-      commit = create_commit(
-        author_email: "dependabot[bot]@users.noreply.github.com",
-        committer_email: "dependabot[bot]@users.noreply.github.com"
-      )
+      commit =
+        create_commit(
+          author_email: "dependabot[bot]@users.noreply.github.com",
+          committer_email: "dependabot[bot]@users.noreply.github.com"
+        )
 
       {:ok, agents} = Agent.extract_agents(".", commit)
 
@@ -358,10 +384,11 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
     end
 
     test "detects LLM from commit message" do
-      commit = create_commit(
-        author_email: "user@example.com",
-        message: "Fix bug\n\nCo-authored-by: github-copilot"
-      )
+      commit =
+        create_commit(
+          author_email: "user@example.com",
+          message: "Fix bug\n\nCo-authored-by: github-copilot"
+        )
 
       {:ok, agents} = Agent.extract_agents(".", commit)
 
@@ -370,10 +397,11 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
     end
 
     test "can disable LLM detection" do
-      commit = create_commit(
-        author_email: "user@example.com",
-        message: "Fix bug\n\nCo-authored-by: github-copilot"
-      )
+      commit =
+        create_commit(
+          author_email: "user@example.com",
+          message: "Fix bug\n\nCo-authored-by: github-copilot"
+        )
 
       {:ok, agents} = Agent.extract_agents(".", commit, detect_llm: false)
 
@@ -411,8 +439,8 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
       # At least one agent should have multiple activities
       if length(commits) > 1 do
         assert Enum.any?(agents, fn agent ->
-          length(agent.associated_activities) > 1
-        end)
+                 length(agent.associated_activities) > 1
+               end)
       end
     end
   end
@@ -434,7 +462,8 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
       assert agent.agent_type == :developer
       assert agent.name == "User Name"
       assert agent.email == "user@example.com"
-      assert length(agent.associated_activities) == 2  # Unique commits
+      # Unique commits
+      assert length(agent.associated_activities) == 2
     end
 
     test "detects bot from developer" do
@@ -472,10 +501,11 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
     end
 
     test "creates association for author" do
-      commit = create_commit(
-        author_email: "author@example.com",
-        committer_email: "author@example.com"
-      )
+      commit =
+        create_commit(
+          author_email: "author@example.com",
+          committer_email: "author@example.com"
+        )
 
       {:ok, associations} = Agent.extract_associations(".", commit)
 
@@ -485,10 +515,11 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
     end
 
     test "creates association for committer" do
-      commit = create_commit(
-        author_email: "author@example.com",
-        committer_email: "committer@example.com"
-      )
+      commit =
+        create_commit(
+          author_email: "author@example.com",
+          committer_email: "committer@example.com"
+        )
 
       {:ok, associations} = Agent.extract_associations(".", commit)
 
@@ -499,10 +530,11 @@ defmodule ElixirOntologies.Extractors.Evolution.AgentTest do
     test "includes timestamps" do
       now = DateTime.utc_now()
 
-      commit = create_commit(
-        author_date: now,
-        commit_date: now
-      )
+      commit =
+        create_commit(
+          author_date: now,
+          commit_date: now
+        )
 
       {:ok, associations} = Agent.extract_associations(".", commit)
 

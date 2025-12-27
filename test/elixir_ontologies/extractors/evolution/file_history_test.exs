@@ -58,7 +58,11 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistoryTest do
       history = %FileHistory{
         path: "new.ex",
         renames: [
-          %Rename{from_path: "old.ex", to_path: "new.ex", commit_sha: "abc123def456abc123def456abc123def456abc1"}
+          %Rename{
+            from_path: "old.ex",
+            to_path: "new.ex",
+            commit_sha: "abc123def456abc123def456abc123def456abc1"
+          }
         ]
       }
 
@@ -91,8 +95,16 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistoryTest do
       history = %FileHistory{
         path: "c.ex",
         renames: [
-          %Rename{from_path: "a.ex", to_path: "b.ex", commit_sha: "abc123def456abc123def456abc123def456abc1"},
-          %Rename{from_path: "b.ex", to_path: "c.ex", commit_sha: "def456abc123def456abc123def456abc123def4"}
+          %Rename{
+            from_path: "a.ex",
+            to_path: "b.ex",
+            commit_sha: "abc123def456abc123def456abc123def456abc1"
+          },
+          %Rename{
+            from_path: "b.ex",
+            to_path: "c.ex",
+            commit_sha: "def456abc123def456abc123def456abc123def4"
+          }
         ]
       }
 

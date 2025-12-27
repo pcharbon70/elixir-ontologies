@@ -178,8 +178,11 @@ defmodule ElixirOntologies.Extractors.Evolution.Snapshot do
   @spec extract_snapshot!(String.t(), String.t()) :: t()
   def extract_snapshot!(path, ref \\ "HEAD") do
     case extract_snapshot(path, ref) do
-      {:ok, snapshot} -> snapshot
-      {:error, reason} -> raise ArgumentError, "Failed to extract snapshot: #{GitUtils.format_error(reason)}"
+      {:ok, snapshot} ->
+        snapshot
+
+      {:error, reason} ->
+        raise ArgumentError, "Failed to extract snapshot: #{GitUtils.format_error(reason)}"
     end
   end
 

@@ -243,7 +243,12 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilder do
   defp build_project_version_triple(iri, version) when is_binary(version) do
     # Use versionString for project version info (different from snapshot ID)
     # We use a separate IRI for project-level version
-    Helpers.datatype_property(iri, RDF.iri("https://w3id.org/elixir-code/evolution#projectVersion"), version, RDF.XSD.String)
+    Helpers.datatype_property(
+      iri,
+      RDF.iri("https://w3id.org/elixir-code/evolution#projectVersion"),
+      version,
+      RDF.XSD.String
+    )
   end
 
   defp build_project_version_triple(_iri, _version), do: nil
@@ -258,10 +263,22 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilder do
     # We use raw IRIs for snapshot-specific statistics
     [
       build_stat_triple(snapshot_iri, RDF.iri("#{@evo_base}moduleCount"), stats[:module_count]),
-      build_stat_triple(snapshot_iri, RDF.iri("#{@evo_base}functionCount"), stats[:function_count]),
+      build_stat_triple(
+        snapshot_iri,
+        RDF.iri("#{@evo_base}functionCount"),
+        stats[:function_count]
+      ),
       build_stat_triple(snapshot_iri, RDF.iri("#{@evo_base}macroCount"), stats[:macro_count]),
-      build_stat_triple(snapshot_iri, RDF.iri("#{@evo_base}protocolCount"), stats[:protocol_count]),
-      build_stat_triple(snapshot_iri, RDF.iri("#{@evo_base}behaviourCount"), stats[:behaviour_count]),
+      build_stat_triple(
+        snapshot_iri,
+        RDF.iri("#{@evo_base}protocolCount"),
+        stats[:protocol_count]
+      ),
+      build_stat_triple(
+        snapshot_iri,
+        RDF.iri("#{@evo_base}behaviourCount"),
+        stats[:behaviour_count]
+      ),
       build_stat_triple(snapshot_iri, RDF.iri("#{@evo_base}lineCount"), stats[:line_count]),
       build_stat_triple(snapshot_iri, RDF.iri("#{@evo_base}fileCount"), stats[:file_count])
     ]
@@ -394,9 +411,24 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilder do
       # Type the blank node
       Helpers.type_triple(semver_node, Evolution.SemanticVersion),
       # Add version components
-      Helpers.datatype_property(semver_node, Evolution.majorVersion(), semver.major, RDF.XSD.Integer),
-      Helpers.datatype_property(semver_node, Evolution.minorVersion(), semver.minor, RDF.XSD.Integer),
-      Helpers.datatype_property(semver_node, Evolution.patchVersion(), semver.patch, RDF.XSD.Integer),
+      Helpers.datatype_property(
+        semver_node,
+        Evolution.majorVersion(),
+        semver.major,
+        RDF.XSD.Integer
+      ),
+      Helpers.datatype_property(
+        semver_node,
+        Evolution.minorVersion(),
+        semver.minor,
+        RDF.XSD.Integer
+      ),
+      Helpers.datatype_property(
+        semver_node,
+        Evolution.patchVersion(),
+        semver.patch,
+        RDF.XSD.Integer
+      ),
       build_prerelease_triple(semver_node, semver.pre_release),
       build_build_triple(semver_node, semver.build)
     ]

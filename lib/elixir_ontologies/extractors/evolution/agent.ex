@@ -408,10 +408,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Agent do
   """
   @spec extract_agents!(String.t(), Commit.t(), keyword()) :: [t()]
   def extract_agents!(repo_path, commit, opts \\ []) do
-    case extract_agents(repo_path, commit, opts) do
-      {:ok, agents} -> agents
-      {:error, reason} -> raise ArgumentError, "Failed to extract agents: #{inspect(reason)}"
-    end
+    {:ok, agents} = extract_agents(repo_path, commit, opts)
+    agents
   end
 
   @doc """
@@ -433,10 +431,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Agent do
     all_agents =
       commits
       |> Enum.flat_map(fn commit ->
-        case extract_agents(repo_path, commit, opts) do
-          {:ok, agents} -> agents
-          {:error, _} -> []
-        end
+        {:ok, agents} = extract_agents(repo_path, commit, opts)
+        agents
       end)
       |> aggregate_agents()
 
@@ -548,10 +544,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Agent do
   """
   @spec extract_associations!(String.t(), Commit.t(), keyword()) :: [Association.t()]
   def extract_associations!(repo_path, commit, opts \\ []) do
-    case extract_associations(repo_path, commit, opts) do
-      {:ok, associations} -> associations
-      {:error, reason} -> raise ArgumentError, "Failed to extract associations: #{inspect(reason)}"
-    end
+    {:ok, associations} = extract_associations(repo_path, commit, opts)
+    associations
   end
 
   # ===========================================================================
@@ -602,10 +596,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Agent do
   """
   @spec extract_attributions!(String.t(), Commit.t(), keyword()) :: [Attribution.t()]
   def extract_attributions!(repo_path, commit, opts \\ []) do
-    case extract_attributions(repo_path, commit, opts) do
-      {:ok, attributions} -> attributions
-      {:error, reason} -> raise ArgumentError, "Failed to extract attributions: #{inspect(reason)}"
-    end
+    {:ok, attributions} = extract_attributions(repo_path, commit, opts)
+    attributions
   end
 
   # ===========================================================================

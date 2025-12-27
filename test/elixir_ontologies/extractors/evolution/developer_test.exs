@@ -53,12 +53,13 @@ defmodule ElixirOntologies.Extractors.Evolution.DeveloperTest do
 
   describe "author_from_commit/1" do
     test "extracts author information" do
-      commit = create_commit(
-        author_name: "John Doe",
-        author_email: "john@example.com",
-        author_date: ~U[2024-06-01 12:00:00Z],
-        sha: "abc123"
-      )
+      commit =
+        create_commit(
+          author_name: "John Doe",
+          author_email: "john@example.com",
+          author_date: ~U[2024-06-01 12:00:00Z],
+          sha: "abc123"
+        )
 
       author = Developer.author_from_commit(commit)
 
@@ -93,12 +94,13 @@ defmodule ElixirOntologies.Extractors.Evolution.DeveloperTest do
 
   describe "committer_from_commit/1" do
     test "extracts committer information" do
-      commit = create_commit(
-        committer_name: "Jane Smith",
-        committer_email: "jane@example.com",
-        commit_date: ~U[2024-06-02 14:00:00Z],
-        sha: "def456"
-      )
+      commit =
+        create_commit(
+          committer_name: "Jane Smith",
+          committer_email: "jane@example.com",
+          commit_date: ~U[2024-06-02 14:00:00Z],
+          sha: "def456"
+        )
 
       committer = Developer.committer_from_commit(commit)
 
@@ -124,10 +126,11 @@ defmodule ElixirOntologies.Extractors.Evolution.DeveloperTest do
 
   describe "from_commit/1" do
     test "returns single developer when author == committer" do
-      commit = create_commit(
-        author_email: "same@example.com",
-        committer_email: "same@example.com"
-      )
+      commit =
+        create_commit(
+          author_email: "same@example.com",
+          committer_email: "same@example.com"
+        )
 
       developers = Developer.from_commit(commit)
 
@@ -139,10 +142,11 @@ defmodule ElixirOntologies.Extractors.Evolution.DeveloperTest do
     end
 
     test "returns two developers when author != committer" do
-      commit = create_commit(
-        author_email: "author@example.com",
-        committer_email: "committer@example.com"
-      )
+      commit =
+        create_commit(
+          author_email: "author@example.com",
+          committer_email: "committer@example.com"
+        )
 
       developers = Developer.from_commit(commit)
 
@@ -271,7 +275,8 @@ defmodule ElixirOntologies.Extractors.Evolution.DeveloperTest do
         email: "dev@example.com",
         names: MapSet.new(),
         authored_commits: ["abc", "def"],
-        committed_commits: ["abc"],  # Same as authored
+        # Same as authored
+        committed_commits: ["abc"],
         commit_count: 2
       }
 
@@ -348,10 +353,26 @@ defmodule ElixirOntologies.Extractors.Evolution.DeveloperTest do
 
     test "sorts by commit count descending" do
       commits = [
-        create_commit(sha: "a1", author_email: "prolific@example.com", committer_email: "prolific@example.com"),
-        create_commit(sha: "a2", author_email: "prolific@example.com", committer_email: "prolific@example.com"),
-        create_commit(sha: "a3", author_email: "prolific@example.com", committer_email: "prolific@example.com"),
-        create_commit(sha: "b1", author_email: "occasional@example.com", committer_email: "occasional@example.com")
+        create_commit(
+          sha: "a1",
+          author_email: "prolific@example.com",
+          committer_email: "prolific@example.com"
+        ),
+        create_commit(
+          sha: "a2",
+          author_email: "prolific@example.com",
+          committer_email: "prolific@example.com"
+        ),
+        create_commit(
+          sha: "a3",
+          author_email: "prolific@example.com",
+          committer_email: "prolific@example.com"
+        ),
+        create_commit(
+          sha: "b1",
+          author_email: "occasional@example.com",
+          committer_email: "occasional@example.com"
+        )
       ]
 
       developers = Developer.from_commits(commits)

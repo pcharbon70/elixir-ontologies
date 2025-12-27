@@ -357,7 +357,8 @@ defmodule ElixirOntologies.Extractors.Evolution.GitUtils do
       iex> GitUtils.parse_unix_timestamp(nil)
       {:error, :invalid_timestamp}
   """
-  @spec parse_unix_timestamp(integer() | nil) :: {:ok, DateTime.t()} | {:error, :invalid_timestamp}
+  @spec parse_unix_timestamp(integer() | nil) ::
+          {:ok, DateTime.t()} | {:error, :invalid_timestamp}
   def parse_unix_timestamp(timestamp) when is_integer(timestamp) do
     case DateTime.from_unix(timestamp) do
       {:ok, dt} -> {:ok, dt}

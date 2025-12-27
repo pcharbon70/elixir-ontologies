@@ -46,9 +46,6 @@ defmodule ElixirOntologies.IRI do
   # Module Constants
   # ===========================================================================
 
-  # Repository hash length (first N characters of SHA256)
-  @repo_hash_length 8
-
   # Compile-time regex patterns for IRI parsing
   @regex_parameter ~r/^(.+)\/clause\/(\d+)\/param\/(\d+)$/
   @regex_clause ~r/^(.+)\/(\d+)\/clause\/(\d+)$/
@@ -708,14 +705,17 @@ defmodule ElixirOntologies.IRI do
       iex> ElixirOntologies.IRI.for_child_spec(supervisor_iri, MyWorker, 2)
       ~I<https://example.org/code#MyApp.Supervisor/child/MyWorker/2>
   """
-  @spec for_child_spec(String.t() | RDF.IRI.t(), atom() | term(), non_neg_integer()) :: RDF.IRI.t()
+  @spec for_child_spec(String.t() | RDF.IRI.t(), atom() | term(), non_neg_integer()) ::
+          RDF.IRI.t()
   def for_child_spec(supervisor_iri, child_id, index) when is_integer(index) and index >= 0 do
     id_string = format_child_id(child_id) |> escape_name()
     append_to_iri(supervisor_iri, "child/#{id_string}/#{index}")
   end
 
   # Format child ID for IRI (atom, module, or other term)
-  defp format_child_id(id) when is_atom(id), do: Atom.to_string(id) |> String.replace("Elixir.", "")
+  defp format_child_id(id) when is_atom(id),
+    do: Atom.to_string(id) |> String.replace("Elixir.", "")
+
   defp format_child_id(id), do: inspect(id)
 
   # ===========================================================================

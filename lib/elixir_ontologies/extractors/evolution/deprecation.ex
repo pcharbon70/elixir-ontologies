@@ -297,7 +297,10 @@ defmodule ElixirOntologies.Extractors.Evolution.Deprecation do
   """
   @spec has_replacement?(t()) :: boolean()
   def has_replacement?(%__MODULE__{replacement: nil}), do: false
-  def has_replacement?(%__MODULE__{replacement: %Replacement{function: nil, module: nil}}), do: false
+
+  def has_replacement?(%__MODULE__{replacement: %Replacement{function: nil, module: nil}}),
+    do: false
+
   def has_replacement?(%__MODULE__{}), do: true
 
   @doc """

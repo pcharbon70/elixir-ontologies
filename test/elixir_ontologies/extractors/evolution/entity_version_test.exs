@@ -2,7 +2,12 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersionTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.Evolution.EntityVersion
-  alias ElixirOntologies.Extractors.Evolution.EntityVersion.{ModuleVersion, FunctionVersion, Derivation}
+
+  alias ElixirOntologies.Extractors.Evolution.EntityVersion.{
+    ModuleVersion,
+    FunctionVersion,
+    Derivation
+  }
 
   # ===========================================================================
   # Struct Tests

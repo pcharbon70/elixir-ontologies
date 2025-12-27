@@ -272,5 +272,4 @@ defmodule ElixirOntologies.Builders.Evolution.AgentBuilder do
 
   # Only developers have email in the ontology schema
   defp build_email_triple(_agent_iri, _agent), do: []
-
 end

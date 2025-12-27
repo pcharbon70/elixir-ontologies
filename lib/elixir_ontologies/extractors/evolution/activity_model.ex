@@ -614,15 +614,23 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModel do
 
   defp parse_file_status(line) do
     case String.split(line, "\t", parts: 2) do
-      ["A", path] -> {:added, path}
-      ["M", path] -> {:modified, path}
-      ["D", path] -> {:deleted, path}
+      ["A", path] ->
+        {:added, path}
+
+      ["M", path] ->
+        {:modified, path}
+
+      ["D", path] ->
+        {:deleted, path}
+
       ["R" <> _, paths] ->
         case String.split(paths, "\t", parts: 2) do
           [_old, new] -> {:modified, new}
           _ -> nil
         end
-      _ -> nil
+
+      _ ->
+        nil
     end
   end
 
@@ -714,7 +722,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModel do
 
   defp link_informs_relationships(activities) do
     # Build a map of activity_id -> activity for quick lookup
-    activity_map =
+    _activity_map =
       activities
       |> Enum.map(fn a -> {a.activity_id, a} end)
       |> Map.new()

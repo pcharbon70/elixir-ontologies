@@ -80,10 +80,12 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
 
         # Verify commit has expected type
         assert Enum.any?(triples, fn
-          {^iri, pred, type} ->
-            pred == RDF.type() and type == Evolution.Commit
-          _ -> false
-        end)
+                 {^iri, pred, type} ->
+                   pred == RDF.type() and type == Evolution.Commit
+
+                 _ ->
+                   false
+               end)
       end
     end
 
@@ -104,10 +106,12 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
 
       # Verify activity has prov:Activity type
       assert Enum.any?(triples, fn
-        {^iri, pred, type} ->
-          pred == RDF.type() and type == PROV.Activity
-        _ -> false
-      end)
+               {^iri, pred, type} ->
+                 pred == RDF.type() and type == PROV.Activity
+
+               _ ->
+                 false
+             end)
     end
 
     test "agent extraction to builder pipeline" do
@@ -128,10 +132,12 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
 
         # Verify agent has prov:Agent type
         assert Enum.any?(triples, fn
-          {^iri, pred, type} ->
-            pred == RDF.type() and type == PROV.Agent
-          _ -> false
-        end)
+                 {^iri, pred, type} ->
+                   pred == RDF.type() and type == PROV.Agent
+
+                 _ ->
+                   false
+               end)
       end
     end
 
@@ -148,16 +154,20 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
 
       # Verify snapshot has expected types
       assert Enum.any?(triples, fn
-        {^iri, pred, type} ->
-          pred == RDF.type() and type == Evolution.CodebaseSnapshot
-        _ -> false
-      end)
+               {^iri, pred, type} ->
+                 pred == RDF.type() and type == Evolution.CodebaseSnapshot
+
+               _ ->
+                 false
+             end)
 
       assert Enum.any?(triples, fn
-        {^iri, pred, type} ->
-          pred == RDF.type() and type == PROV.Entity
-        _ -> false
-      end)
+               {^iri, pred, type} ->
+                 pred == RDF.type() and type == PROV.Entity
+
+               _ ->
+                 false
+             end)
     end
 
     test "release extraction to builder pipeline" do
@@ -173,10 +183,12 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
 
             # Verify release has expected types
             assert Enum.any?(triples, fn
-              {^iri, pred, type} ->
-                pred == RDF.type() and type == Evolution.Release
-              _ -> false
-            end)
+                     {^iri, pred, type} ->
+                       pred == RDF.type() and type == Evolution.Release
+
+                     _ ->
+                       false
+                   end)
           end
 
         {:ok, []} ->
@@ -202,17 +214,21 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
 
       # Verify prov:Entity type
       assert Enum.any?(triples, fn
-        {^iri, pred, type} ->
-          pred == RDF.type() and type == PROV.Entity
-        _ -> false
-      end)
+               {^iri, pred, type} ->
+                 pred == RDF.type() and type == PROV.Entity
+
+               _ ->
+                 false
+             end)
 
       # Verify prov:generatedAtTime timestamp
       assert Enum.any?(triples, fn
-        {^iri, pred, _literal} ->
-          pred == PROV.generatedAtTime()
-        _ -> false
-      end)
+               {^iri, pred, _literal} ->
+                 pred == PROV.generatedAtTime()
+
+               _ ->
+                 false
+             end)
     end
 
     test "activities have prov:Activity typing" do
@@ -226,10 +242,12 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
 
       # Verify prov:Activity type
       assert Enum.any?(triples, fn
-        {^iri, pred, type} ->
-          pred == RDF.type() and type == PROV.Activity
-        _ -> false
-      end)
+               {^iri, pred, type} ->
+                 pred == RDF.type() and type == PROV.Activity
+
+               _ ->
+                 false
+             end)
     end
 
     test "agents have prov:Agent typing" do
@@ -243,10 +261,12 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
 
       # Verify prov:Agent type
       assert Enum.any?(triples, fn
-        {^iri, pred, type} ->
-          pred == RDF.type() and type == PROV.Agent
-        _ -> false
-      end)
+               {^iri, pred, type} ->
+                 pred == RDF.type() and type == PROV.Agent
+
+               _ ->
+                 false
+             end)
     end
 
     test "activity builder generates prov:wasAssociatedWith relationships" do
@@ -272,16 +292,20 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
       {iri, triples} = CommitBuilder.build(commit, context)
 
       # Commit should have timestamp (check for any timestamp predicate)
-      has_timestamp = Enum.any?(triples, fn
-        {^iri, pred, _} ->
-          pred_str = to_string(pred)
-          pred == PROV.generatedAtTime() or
-            pred == PROV.startedAtTime() or
-            pred == PROV.endedAtTime() or
-            String.contains?(pred_str, "authoredAt") or
-            String.contains?(pred_str, "committedAt")
-        _ -> false
-      end)
+      has_timestamp =
+        Enum.any?(triples, fn
+          {^iri, pred, _} ->
+            pred_str = to_string(pred)
+
+            pred == PROV.generatedAtTime() or
+              pred == PROV.startedAtTime() or
+              pred == PROV.endedAtTime() or
+              String.contains?(pred_str, "authoredAt") or
+              String.contains?(pred_str, "committedAt")
+
+          _ ->
+            false
+        end)
 
       assert has_timestamp
     end
@@ -447,7 +471,9 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
         if length(agents_with_email) > 1 do
           # All agents with the same email should have consistent agent_type
           types = Enum.map(agents_with_email, & &1.agent_type) |> Enum.uniq()
-          assert length(types) == 1, "Agent with email #{email} has inconsistent types: #{inspect(types)}"
+
+          assert length(types) == 1,
+                 "Agent with email #{email} has inconsistent types: #{inspect(types)}"
         end
       end
     end
@@ -562,9 +588,9 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
 
       # All triples should be valid 3-tuples
       assert Enum.all?(all_triples, fn
-        {_s, _p, _o} -> true
-        _ -> false
-      end)
+               {_s, _p, _o} -> true
+               _ -> false
+             end)
 
       # Should have at least some triples per commit
       assert length(all_triples) >= length(commits) * 3
@@ -584,6 +610,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
 
       # Build agent RDF
       {:ok, agents} = Agent.extract_agents(".", commit)
+
       agent_triples =
         Enum.flat_map(agents, fn agent ->
           {_iri, triples} = AgentBuilder.build(agent, context)
@@ -618,15 +645,16 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
           {:ok, refactorings} ->
             for refactoring <- refactorings do
               assert refactoring.type in [
-                :extract_function,
-                :extract_module,
-                :rename_function,
-                :rename_module,
-                :rename_variable,
-                :inline_function,
-                :move_function,
-                :unknown
-              ]
+                       :extract_function,
+                       :extract_module,
+                       :rename_function,
+                       :rename_module,
+                       :rename_variable,
+                       :inline_function,
+                       :move_function,
+                       :unknown
+                     ]
+
               # Refactoring struct has :commit field with full Commit struct
               assert %Commit{} = refactoring.commit
               assert is_binary(refactoring.commit.sha)

@@ -592,7 +592,10 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
 
       # All should have type triples
       child_spec_class = OTP.ChildSpec
-      assert Enum.count(triples, fn {_, pred, obj} -> pred == RDF.type() and obj == child_spec_class end) == 3
+
+      assert Enum.count(triples, fn {_, pred, obj} ->
+               pred == RDF.type() and obj == child_spec_class
+             end) == 3
 
       # Check different restart strategies
       assert {Enum.at(iris, 0), OTP.hasRestartStrategy(), OTP.Permanent} in triples
@@ -911,11 +914,12 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
         SupervisorBuilder.build_supervisor(supervisor_info, module_iri, context)
 
       # Build strategy with custom restart intensity
-      strategy_info = build_test_strategy(
-        type: :one_for_all,
-        max_restarts: 10,
-        max_seconds: 60
-      )
+      strategy_info =
+        build_test_strategy(
+          type: :one_for_all,
+          max_restarts: 10,
+          max_seconds: 60
+        )
 
       {strategy_iri, strategy_triples} =
         SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
@@ -1039,7 +1043,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       context = build_test_context()
       supervisor_iri = build_test_module_iri()
 
-      {list_iri, triples} = SupervisorBuilder.build_ordered_children(children, supervisor_iri, context)
+      {list_iri, triples} =
+        SupervisorBuilder.build_ordered_children(children, supervisor_iri, context)
 
       # List IRI should be a blank node
       assert %RDF.BlankNode{} = list_iri
@@ -1066,10 +1071,12 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       context = build_test_context()
       supervisor_iri = build_test_module_iri()
 
-      {list_iri, triples} = SupervisorBuilder.build_ordered_children(children, supervisor_iri, context)
+      {list_iri, triples} =
+        SupervisorBuilder.build_ordered_children(children, supervisor_iri, context)
 
       # Find first element (should be w1 at position 0)
       rdf_first = RDF.first()
+
       first_element =
         Enum.find_value(triples, fn
           {subj, ^rdf_first, obj} when subj == list_iri -> obj
@@ -1146,10 +1153,12 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       assert {w1_iri, OTP.supervisedBy(), supervisor_iri} in triples
 
       # Should have ordered children (hasChildren)
-      has_children_triple = Enum.find(triples, fn
-        {^supervisor_iri, pred, _} -> pred == OTP.hasChildren()
-        _ -> false
-      end)
+      has_children_triple =
+        Enum.find(triples, fn
+          {^supervisor_iri, pred, _} -> pred == OTP.hasChildren()
+          _ -> false
+        end)
+
       assert has_children_triple != nil
     end
 
@@ -1164,8 +1173,11 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
 
       {returned_tree_iri, triples} =
         SupervisorBuilder.build_supervision_tree(
-          children, supervisor_iri, context,
-          is_root: true, tree_iri: tree_iri
+          children,
+          supervisor_iri,
+          context,
+          is_root: true,
+          tree_iri: tree_iri
         )
 
       assert returned_tree_iri == tree_iri
@@ -1186,8 +1198,11 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
 
       {returned_tree_iri, triples} =
         SupervisorBuilder.build_supervision_tree(
-          children, supervisor_iri, context,
-          is_root: true, app_name: :my_app
+          children,
+          supervisor_iri,
+          context,
+          is_root: true,
+          app_name: :my_app
         )
 
       # Tree IRI should be generated from app_name
@@ -1225,10 +1240,12 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       assert {supervisor_iri, OTP.supervises(), w2_iri} in triples
 
       # Should not have supervises for nil child_spec
-      supervision_triples = Enum.filter(triples, fn
-        {^supervisor_iri, pred, _} -> pred == OTP.supervises()
-        _ -> false
-      end)
+      supervision_triples =
+        Enum.filter(triples, fn
+          {^supervisor_iri, pred, _} -> pred == OTP.supervises()
+          _ -> false
+        end)
+
       assert length(supervision_triples) == 1
     end
   end
@@ -1248,6 +1265,7 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
 
       # Build strategy
       strategy_info = build_test_strategy(type: :one_for_all)
+
       {_strategy_iri, strategy_triples} =
         SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
 
@@ -1280,8 +1298,11 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       # Build supervision tree as root
       {tree_iri, tree_triples} =
         SupervisorBuilder.build_supervision_tree(
-          children, supervisor_iri, context,
-          is_root: true, app_name: :my_app
+          children,
+          supervisor_iri,
+          context,
+          is_root: true,
+          app_name: :my_app
         )
 
       # Combine all triples
@@ -1307,10 +1328,12 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       assert {supervisor_iri, OTP.partOfTree(), tree_iri} in all_triples
 
       # Verify ordered children list exists
-      has_children_triple = Enum.find(all_triples, fn
-        {^supervisor_iri, pred, _} -> pred == OTP.hasChildren()
-        _ -> false
-      end)
+      has_children_triple =
+        Enum.find(all_triples, fn
+          {^supervisor_iri, pred, _} -> pred == OTP.hasChildren()
+          _ -> false
+        end)
+
       assert has_children_triple != nil
     end
   end

@@ -120,19 +120,30 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
   # Message (%B) is placed LAST because it can contain any characters including newlines
   # All other fields are safe (no embedded delimiters)
   @git_format [
-    "%H",  # full hash
-    "%h",  # abbreviated hash
-    "%an", # author name
-    "%ae", # author email
-    "%aI", # author date (ISO 8601)
-    "%cn", # committer name
-    "%ce", # committer email
-    "%cI", # committer date (ISO 8601)
-    "%P",  # parent hashes (space-separated)
-    "%T",  # tree hash
-    "%B"   # full message (subject + body) - MUST BE LAST
-  ]
-  |> Enum.join(@field_delimiter)
+                # full hash
+                "%H",
+                # abbreviated hash
+                "%h",
+                # author name
+                "%an",
+                # author email
+                "%ae",
+                # author date (ISO 8601)
+                "%aI",
+                # committer name
+                "%cn",
+                # committer email
+                "%ce",
+                # committer date (ISO 8601)
+                "%cI",
+                # parent hashes (space-separated)
+                "%P",
+                # tree hash
+                "%T",
+                # full message (subject + body) - MUST BE LAST
+                "%B"
+              ]
+              |> Enum.join(@field_delimiter)
 
   # ===========================================================================
   # Extraction Functions
@@ -192,8 +203,11 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
   @spec extract_commit!(String.t(), String.t()) :: t()
   def extract_commit!(path, ref \\ "HEAD") do
     case extract_commit(path, ref) do
-      {:ok, commit} -> commit
-      {:error, reason} -> raise ArgumentError, "Failed to extract commit: #{GitUtils.format_error(reason)}"
+      {:ok, commit} ->
+        commit
+
+      {:error, reason} ->
+        raise ArgumentError, "Failed to extract commit: #{GitUtils.format_error(reason)}"
     end
   end
 
@@ -242,8 +256,11 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
   @spec extract_commits!(String.t(), keyword()) :: [t()]
   def extract_commits!(path, opts \\ []) do
     case extract_commits(path, opts) do
-      {:ok, commits} -> commits
-      {:error, reason} -> raise ArgumentError, "Failed to extract commits: #{GitUtils.format_error(reason)}"
+      {:ok, commits} ->
+        commits
+
+      {:error, reason} ->
+        raise ArgumentError, "Failed to extract commits: #{GitUtils.format_error(reason)}"
     end
   end
 
@@ -421,8 +438,19 @@ defmodule ElixirOntologies.Extractors.Evolution.Commit do
     fields = String.split(String.trim(output), @field_delimiter, parts: 11)
 
     case fields do
-      [sha, short_sha, author_name, author_email, author_date,
-       committer_name, committer_email, commit_date, parents_str, tree_sha, message] ->
+      [
+        sha,
+        short_sha,
+        author_name,
+        author_email,
+        author_date,
+        committer_name,
+        committer_email,
+        commit_date,
+        parents_str,
+        tree_sha,
+        message
+      ] ->
         parents = parse_parents(parents_str)
         trimmed_message = String.trim(message)
         subject = extract_subject(trimmed_message)

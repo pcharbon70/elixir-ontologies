@@ -195,8 +195,11 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
   @spec extract_blame!(String.t(), String.t(), keyword()) :: t()
   def extract_blame!(repo_path, file_path, opts \\ []) do
     case extract_blame(repo_path, file_path, opts) do
-      {:ok, blame} -> blame
-      {:error, reason} -> raise ArgumentError, "Failed to extract blame: #{GitUtils.format_error(reason)}"
+      {:ok, blame} ->
+        blame
+
+      {:error, reason} ->
+        raise ArgumentError, "Failed to extract blame: #{GitUtils.format_error(reason)}"
     end
   end
 
@@ -572,7 +575,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Blame do
       author_time: author_time,
       author_date: GitUtils.parse_unix_timestamp!(author_time),
       committer_name: Map.get(info, :committer_name),
-      committer_email: GitUtils.maybe_anonymize_email(committer_email, anonymize_emails: anonymize),
+      committer_email:
+        GitUtils.maybe_anonymize_email(committer_email, anonymize_emails: anonymize),
       committer_time: committer_time,
       commit_date: GitUtils.parse_unix_timestamp!(committer_time),
       summary: Map.get(info, :summary),

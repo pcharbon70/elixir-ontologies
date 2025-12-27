@@ -84,13 +84,13 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Should have prov:Entity type
       assert Enum.any?(triples, fn triple ->
-        triple == {iri, RDF.type(), PROV.Entity}
-      end)
+               triple == {iri, RDF.type(), PROV.Entity}
+             end)
 
       # Should have evo:CodebaseSnapshot type
       assert Enum.any?(triples, fn triple ->
-        triple == {iri, RDF.type(), Evolution.CodebaseSnapshot}
-      end)
+               triple == {iri, RDF.type(), Evolution.CodebaseSnapshot}
+             end)
     end
 
     test "generates snapshot ID triple" do
@@ -98,10 +98,12 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Uses versionString for snapshot ID
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "snapshot:abc123d"}}} ->
-          pred == Evolution.versionString()
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "snapshot:abc123d"}}} ->
+                 pred == Evolution.versionString()
+
+               _ ->
+                 false
+             end)
     end
 
     test "generates commit hash triple" do
@@ -109,20 +111,24 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
       {iri, triples} = SnapshotReleaseBuilder.build(snapshot, default_context())
 
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: value}}} ->
-          pred == Evolution.commitHash() and value == snapshot.commit_sha
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: value}}} ->
+                 pred == Evolution.commitHash() and value == snapshot.commit_sha
+
+               _ ->
+                 false
+             end)
     end
 
     test "generates short hash triple" do
       {iri, triples} = SnapshotReleaseBuilder.build(sample_snapshot(), default_context())
 
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "abc123d"}}} ->
-          pred == Evolution.shortHash()
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "abc123d"}}} ->
+                 pred == Evolution.shortHash()
+
+               _ ->
+                 false
+             end)
     end
 
     test "generates project name triple" do
@@ -130,10 +136,12 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Uses repositoryName for project name
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "elixir_ontologies"}}} ->
-          pred == Evolution.repositoryName()
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "elixir_ontologies"}}} ->
+                 pred == Evolution.repositoryName()
+
+               _ ->
+                 false
+             end)
     end
 
     test "generates project version triple" do
@@ -141,11 +149,14 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Uses raw IRI for project version
       project_version_iri = RDF.iri("https://w3id.org/elixir-code/evolution#projectVersion")
+
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "0.1.0"}}} ->
-          pred == project_version_iri
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "0.1.0"}}} ->
+                 pred == project_version_iri
+
+               _ ->
+                 false
+             end)
     end
 
     test "generates statistics triples" do
@@ -153,37 +164,48 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Module count - uses raw IRI
       module_count_iri = RDF.iri("https://w3id.org/elixir-code/evolution#moduleCount")
+
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 42}}} ->
-          pred == module_count_iri
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 42}}} ->
+                 pred == module_count_iri
+
+               _ ->
+                 false
+             end)
 
       # Function count - uses raw IRI
       function_count_iri = RDF.iri("https://w3id.org/elixir-code/evolution#functionCount")
+
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 156}}} ->
-          pred == function_count_iri
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 156}}} ->
+                 pred == function_count_iri
+
+               _ ->
+                 false
+             end)
 
       # Line count - uses raw IRI
       line_count_iri = RDF.iri("https://w3id.org/elixir-code/evolution#lineCount")
+
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 5234}}} ->
-          pred == line_count_iri
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 5234}}} ->
+                 pred == line_count_iri
+
+               _ ->
+                 false
+             end)
     end
 
     test "generates timestamp triple" do
       {iri, triples} = SnapshotReleaseBuilder.build(sample_snapshot(), default_context())
 
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.DateTime{}}} ->
-          pred == PROV.generatedAtTime()
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.DateTime{}}} ->
+                 pred == PROV.generatedAtTime()
+
+               _ ->
+                 false
+             end)
     end
 
     test "handles nil project name" do
@@ -192,8 +214,8 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Should not crash, should not have project name triple
       refute Enum.any?(triples, fn
-        {_, pred, _} -> pred == Evolution.repositoryName()
-      end)
+               {_, pred, _} -> pred == Evolution.repositoryName()
+             end)
     end
 
     test "handles nil project version" do
@@ -201,9 +223,10 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
       {_iri, triples} = SnapshotReleaseBuilder.build(snapshot, default_context())
 
       project_version_iri = RDF.iri("https://w3id.org/elixir-code/evolution#projectVersion")
+
       refute Enum.any?(triples, fn
-        {_, pred, _} -> pred == project_version_iri
-      end)
+               {_, pred, _} -> pred == project_version_iri
+             end)
     end
 
     test "handles nil timestamp" do
@@ -211,8 +234,8 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
       {_iri, triples} = SnapshotReleaseBuilder.build(snapshot, default_context())
 
       refute Enum.any?(triples, fn
-        {_, pred, _} -> pred == PROV.generatedAtTime()
-      end)
+               {_, pred, _} -> pred == PROV.generatedAtTime()
+             end)
     end
   end
 
@@ -239,12 +262,12 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
       {iri, triples} = SnapshotReleaseBuilder.build(sample_release(), default_context())
 
       assert Enum.any?(triples, fn triple ->
-        triple == {iri, RDF.type(), PROV.Entity}
-      end)
+               triple == {iri, RDF.type(), PROV.Entity}
+             end)
 
       assert Enum.any?(triples, fn triple ->
-        triple == {iri, RDF.type(), Evolution.Release}
-      end)
+               triple == {iri, RDF.type(), Evolution.Release}
+             end)
     end
 
     test "generates release ID triple" do
@@ -252,21 +275,26 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Uses versionString for release ID
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "release:v1.2.3"}}} ->
-          pred == Evolution.versionString()
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "release:v1.2.3"}}} ->
+                 pred == Evolution.versionString()
+
+               _ ->
+                 false
+             end)
     end
 
     test "generates version triple" do
       {iri, triples} = SnapshotReleaseBuilder.build(sample_release(), default_context())
 
       release_version_iri = RDF.iri("https://w3id.org/elixir-code/evolution#releaseVersion")
+
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "1.2.3"}}} ->
-          pred == release_version_iri
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "1.2.3"}}} ->
+                 pred == release_version_iri
+
+               _ ->
+                 false
+             end)
     end
 
     test "generates tag triple" do
@@ -274,10 +302,12 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Uses tagName from ontology
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "v1.2.3"}}} ->
-          pred == Evolution.tagName()
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "v1.2.3"}}} ->
+                 pred == Evolution.tagName()
+
+               _ ->
+                 false
+             end)
     end
 
     test "generates semantic version triples" do
@@ -285,31 +315,39 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Should have SemanticVersion type on blank node
       assert Enum.any?(triples, fn
-        {%RDF.BlankNode{}, pred, class} ->
-          pred == RDF.type() and class == Evolution.SemanticVersion
-        _ -> false
-      end)
+               {%RDF.BlankNode{}, pred, class} ->
+                 pred == RDF.type() and class == Evolution.SemanticVersion
+
+               _ ->
+                 false
+             end)
 
       # Should have major version
       assert Enum.any?(triples, fn
-        {%RDF.BlankNode{}, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 1}}} ->
-          pred == Evolution.majorVersion()
-        _ -> false
-      end)
+               {%RDF.BlankNode{}, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 1}}} ->
+                 pred == Evolution.majorVersion()
+
+               _ ->
+                 false
+             end)
 
       # Should have minor version
       assert Enum.any?(triples, fn
-        {%RDF.BlankNode{}, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 2}}} ->
-          pred == Evolution.minorVersion()
-        _ -> false
-      end)
+               {%RDF.BlankNode{}, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 2}}} ->
+                 pred == Evolution.minorVersion()
+
+               _ ->
+                 false
+             end)
 
       # Should have patch version
       assert Enum.any?(triples, fn
-        {%RDF.BlankNode{}, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 3}}} ->
-          pred == Evolution.patchVersion()
-        _ -> false
-      end)
+               {%RDF.BlankNode{}, pred, %RDF.Literal{literal: %RDF.XSD.Integer{value: 3}}} ->
+                 pred == Evolution.patchVersion()
+
+               _ ->
+                 false
+             end)
     end
 
     test "generates previous release link" do
@@ -319,20 +357,24 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Uses hasPreviousVersion from ontology
       assert Enum.any?(triples, fn
-        {^iri, pred, ^expected_previous_iri} ->
-          pred == Evolution.hasPreviousVersion()
-        _ -> false
-      end)
+               {^iri, pred, ^expected_previous_iri} ->
+                 pred == Evolution.hasPreviousVersion()
+
+               _ ->
+                 false
+             end)
     end
 
     test "generates timestamp triple" do
       {iri, triples} = SnapshotReleaseBuilder.build(sample_release(), default_context())
 
       assert Enum.any?(triples, fn
-        {^iri, pred, %RDF.Literal{literal: %RDF.XSD.DateTime{}}} ->
-          pred == PROV.generatedAtTime()
-        _ -> false
-      end)
+               {^iri, pred, %RDF.Literal{literal: %RDF.XSD.DateTime{}}} ->
+                 pred == PROV.generatedAtTime()
+
+               _ ->
+                 false
+             end)
     end
 
     test "handles nil tag" do
@@ -341,8 +383,8 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Uses tagName from ontology
       refute Enum.any?(triples, fn
-        {_, pred, _} -> pred == Evolution.tagName()
-      end)
+               {_, pred, _} -> pred == Evolution.tagName()
+             end)
     end
 
     test "handles nil semver" do
@@ -351,9 +393,10 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Uses raw IRI for hasSemanticVersion
       has_semver_iri = RDF.iri("https://w3id.org/elixir-code/evolution#hasSemanticVersion")
+
       refute Enum.any?(triples, fn
-        {_, pred, _} -> pred == has_semver_iri
-      end)
+               {_, pred, _} -> pred == has_semver_iri
+             end)
     end
 
     test "handles nil previous version" do
@@ -362,8 +405,8 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Uses hasPreviousVersion from ontology
       refute Enum.any?(triples, fn
-        {_, pred, _} -> pred == Evolution.hasPreviousVersion()
-      end)
+               {_, pred, _} -> pred == Evolution.hasPreviousVersion()
+             end)
     end
 
     test "handles pre-release version" do
@@ -373,10 +416,12 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
 
       # Uses prereleaseLabel from ontology
       assert Enum.any?(triples, fn
-        {%RDF.BlankNode{}, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "alpha.1"}}} ->
-          pred == Evolution.prereleaseLabel()
-        _ -> false
-      end)
+               {%RDF.BlankNode{}, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "alpha.1"}}} ->
+                 pred == Evolution.prereleaseLabel()
+
+               _ ->
+                 false
+             end)
     end
 
     test "handles build metadata" do
@@ -385,10 +430,13 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
       {_iri, triples} = SnapshotReleaseBuilder.build(release, default_context())
 
       assert Enum.any?(triples, fn
-        {%RDF.BlankNode{}, pred, %RDF.Literal{literal: %RDF.XSD.String{value: "build.123"}}} ->
-          pred == Evolution.buildMetadata()
-        _ -> false
-      end)
+               {%RDF.BlankNode{}, pred,
+                %RDF.Literal{literal: %RDF.XSD.String{value: "build.123"}}} ->
+                 pred == Evolution.buildMetadata()
+
+               _ ->
+                 false
+             end)
     end
   end
 
@@ -410,10 +458,11 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
       results = SnapshotReleaseBuilder.build_all(snapshots, default_context())
 
       assert length(results) == 2
+
       assert Enum.all?(results, fn {iri, triples} ->
-        %RDF.IRI{} = iri
-        is_list(triples) and length(triples) > 0
-      end)
+               %RDF.IRI{} = iri
+               is_list(triples) and length(triples) > 0
+             end)
     end
 
     test "builds multiple releases" do
@@ -450,9 +499,9 @@ defmodule ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilderTest do
       assert length(triples) > 0
       # All items should be triples
       assert Enum.all?(triples, fn
-        {_, _, _} -> true
-        _ -> false
-      end)
+               {_, _, _} -> true
+               _ -> false
+             end)
     end
   end
 

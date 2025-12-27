@@ -2,7 +2,14 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModelTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.Evolution.ActivityModel, as: AM
-  alias ElixirOntologies.Extractors.Evolution.ActivityModel.{ActivityModel, Usage, Generation, Communication}
+
+  alias ElixirOntologies.Extractors.Evolution.ActivityModel.{
+    ActivityModel,
+    Usage,
+    Generation,
+    Communication
+  }
+
   alias ElixirOntologies.Extractors.Evolution.Commit
 
   # ===========================================================================
@@ -255,6 +262,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModelTest do
       {:ok, usages} = AM.extract_usages(".", commit)
 
       assert is_list(usages)
+
       Enum.each(usages, fn usage ->
         assert %Usage{} = usage
         assert String.starts_with?(usage.activity_id, "activity:")
@@ -283,6 +291,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModelTest do
       {:ok, generations} = AM.extract_generations(".", commit)
 
       assert is_list(generations)
+
       Enum.each(generations, fn generation ->
         assert %Generation{} = generation
         assert String.starts_with?(generation.activity_id, "activity:")
@@ -311,6 +320,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModelTest do
       {:ok, communications} = AM.extract_communications(".", commit)
 
       assert is_list(communications)
+
       Enum.each(communications, fn comm ->
         assert %Communication{} = comm
         assert String.starts_with?(comm.informed_activity, "activity:")
@@ -508,11 +518,13 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModelTest do
 
     @tag :integration
     test "detects merge commits" do
-      commit = create_commit(
-        subject: "Merge branch 'feature'",
-        is_merge: true,
-        parents: ["abc", "def"]
-      )
+      commit =
+        create_commit(
+          subject: "Merge branch 'feature'",
+          is_merge: true,
+          parents: ["abc", "def"]
+        )
+
       {:ok, activity} = AM.extract_activity(".", commit)
       assert activity.activity_type == :merge
     end
@@ -573,10 +585,15 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModelTest do
 
     @tag :integration
     test "handles merge commit with multiple parents" do
-      commit = create_commit(
-        parents: ["abc123def456abc123def456abc123def456abc1", "def456abc123def456abc123def456abc123def4"],
-        is_merge: true
-      )
+      commit =
+        create_commit(
+          parents: [
+            "abc123def456abc123def456abc123def456abc1",
+            "def456abc123def456abc123def456abc123def4"
+          ],
+          is_merge: true
+        )
+
       {:ok, activity} = AM.extract_activity(".", commit)
 
       assert length(activity.informed_by) == 2

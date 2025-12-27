@@ -403,7 +403,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilder do
   defp build_start_module_triple(_child_spec_iri, %{start: nil}), do: nil
   defp build_start_module_triple(_child_spec_iri, %{module: nil, start: %{module: nil}}), do: nil
 
-  defp build_start_module_triple(child_spec_iri, %{start: %{module: module}}) when not is_nil(module) do
+  defp build_start_module_triple(child_spec_iri, %{start: %{module: module}})
+       when not is_nil(module) do
     module_string = format_id_for_literal(module)
     Helpers.datatype_property(child_spec_iri, OTP.startModule(), module_string)
   end
@@ -419,7 +420,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilder do
   defp build_start_function_triple(_child_spec_iri, %{start: nil}), do: nil
   defp build_start_function_triple(_child_spec_iri, %{start: %{function: nil}}), do: nil
 
-  defp build_start_function_triple(child_spec_iri, %{start: %{function: function}}) when not is_nil(function) do
+  defp build_start_function_triple(child_spec_iri, %{start: %{function: function}})
+       when not is_nil(function) do
     function_string = Atom.to_string(function)
     Helpers.datatype_property(child_spec_iri, OTP.startFunction(), function_string)
   end
@@ -490,7 +492,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilder do
   """
   @spec build_supervision_relationships([Supervisor.ChildSpec.t()], RDF.IRI.t(), Context.t()) ::
           [RDF.Triple.t()]
-  def build_supervision_relationships(child_specs, supervisor_iri, context) when is_list(child_specs) do
+  def build_supervision_relationships(child_specs, supervisor_iri, context)
+      when is_list(child_specs) do
     child_specs
     |> Enum.flat_map(fn child_spec ->
       build_child_supervision_triples(child_spec, supervisor_iri, context)
@@ -673,7 +676,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilder do
     supervision_triples = build_supervision_relationships(child_specs, supervisor_iri, context)
 
     # Build ordered children list
-    {_list_iri, children_triples} = build_ordered_children(ordered_children, supervisor_iri, context)
+    {_list_iri, children_triples} =
+      build_ordered_children(ordered_children, supervisor_iri, context)
 
     # Build root supervisor triples if applicable
     {final_tree_iri, root_triples} =

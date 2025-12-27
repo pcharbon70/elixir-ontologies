@@ -2,7 +2,13 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTrackingTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Extractors.Evolution.FeatureTracking
-  alias ElixirOntologies.Extractors.Evolution.FeatureTracking.{IssueReference, FeatureAddition, BugFix}
+
+  alias ElixirOntologies.Extractors.Evolution.FeatureTracking.{
+    IssueReference,
+    FeatureAddition,
+    BugFix
+  }
+
   alias ElixirOntologies.Extractors.Evolution.Commit
 
   # ===========================================================================

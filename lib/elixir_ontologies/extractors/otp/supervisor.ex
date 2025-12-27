@@ -1435,7 +1435,8 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   @spec nested_supervisor?(ChildOrder.t()) :: boolean()
   def nested_supervisor?(%ChildOrder{child_spec: %ChildSpec{type: :supervisor}}), do: true
 
-  def nested_supervisor?(%ChildOrder{child_spec: %ChildSpec{module: module}}) when is_atom(module) do
+  def nested_supervisor?(%ChildOrder{child_spec: %ChildSpec{module: module}})
+      when is_atom(module) do
     supervisor_module?(module)
   end
 
@@ -1981,7 +1982,9 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   """
   @spec extract_supervision_strategy(Macro.t(), keyword()) ::
           {:ok, Strategy.t()} | {:error, String.t()}
-  defdelegate extract_supervision_strategy(body, opts \\ []), to: __MODULE__, as: :extract_strategy
+  defdelegate extract_supervision_strategy(body, opts \\ []),
+    to: __MODULE__,
+    as: :extract_strategy
 
   @doc """
   Returns a human-readable description for a strategy type.
@@ -2392,7 +2395,10 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   """
   @spec start_function_arity(StartSpec.t() | nil) :: non_neg_integer() | nil
   def start_function_arity(nil), do: nil
-  def start_function_arity(%StartSpec{arity: arity}) when is_integer(arity) and arity > 0, do: arity
+
+  def start_function_arity(%StartSpec{arity: arity}) when is_integer(arity) and arity > 0,
+    do: arity
+
   def start_function_arity(%StartSpec{args: args}) when is_list(args), do: length(args)
   def start_function_arity(%StartSpec{}), do: 0
 
@@ -2494,10 +2500,12 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
   # Check if restart was explicitly set based on child spec format
   defp explicitly_set_restart?(%{format: :map}), do: true
   defp explicitly_set_restart?(%{format: :legacy_tuple}), do: true
+
   defp explicitly_set_restart?(%{format: :tuple, has_args: true} = meta) do
     # Tuple format with keyword list args might have restart option
     Map.get(meta, :has_restart_option, false)
   end
+
   defp explicitly_set_restart?(_), do: false
 
   @doc """

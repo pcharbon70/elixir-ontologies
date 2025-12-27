@@ -421,10 +421,12 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilderTest do
     end
 
     test "handles special characters in module name" do
-      version = create_module_version(
-        module_name: "MyApp.Users.External",
-        version_id: "MyApp.Users.External@abc123d"
-      )
+      version =
+        create_module_version(
+          module_name: "MyApp.Users.External",
+          version_id: "MyApp.Users.External@abc123d"
+        )
+
       context = create_context()
 
       {version_iri, triples} = VersionBuilder.build(version, context)
@@ -434,10 +436,12 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilderTest do
     end
 
     test "handles unicode in module name" do
-      version = create_module_version(
-        module_name: "MyApp.ユーザー",
-        version_id: "MyApp.ユーザー@abc123d"
-      )
+      version =
+        create_module_version(
+          module_name: "MyApp.ユーザー",
+          version_id: "MyApp.ユーザー@abc123d"
+        )
+
       context = create_context()
 
       {version_iri, triples} = VersionBuilder.build(version, context)
@@ -447,11 +451,13 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilderTest do
     end
 
     test "handles high arity function version" do
-      version = create_function_version(
-        function_name: :complex_function,
-        arity: 10,
-        version_id: "MyApp.Complex.complex_function/10@abc123d"
-      )
+      version =
+        create_function_version(
+          function_name: :complex_function,
+          arity: 10,
+          version_id: "MyApp.Complex.complex_function/10@abc123d"
+        )
+
       context = create_context()
 
       {version_iri, triples} = VersionBuilder.build(version, context)

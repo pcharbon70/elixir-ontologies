@@ -124,12 +124,13 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
     end
 
     test "tracks has_start_callback in metadata" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
-        def start(_type, _args), do: {:ok, self()}
-      end
-      """)
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
+          def start(_type, _args), do: {:ok, self()}
+        end
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       assert result.metadata.has_start_callback == true
@@ -163,12 +164,13 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
 
   describe "extract_start_callback/1" do
     test "returns start/2 function AST" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
-        def start(_type, _args), do: {:ok, self()}
-      end
-      """)
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
+          def start(_type, _args), do: {:ok, self()}
+        end
+        """)
 
       start_fn = AppExtractor.extract_start_callback(body)
       assert match?({:def, _, [{:start, _, [_, _]} | _]}, start_fn)
@@ -180,26 +182,28 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
     end
 
     test "ignores start/1 function" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
-        def start(_type), do: {:ok, self()}
-      end
-      """)
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
+          def start(_type), do: {:ok, self()}
+        end
+        """)
 
       assert AppExtractor.extract_start_callback(body) == nil
     end
 
     test "finds start/2 among other functions" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
 
-        def init(_), do: :ok
-        def start(_type, _args), do: {:ok, self()}
-        def stop(_state), do: :ok
-      end
-      """)
+          def init(_), do: :ok
+          def start(_type, _args), do: {:ok, self()}
+          def stop(_state), do: :ok
+        end
+        """)
 
       start_fn = AppExtractor.extract_start_callback(body)
       assert match?({:def, _, [{:start, _, [_, _]} | _]}, start_fn)
@@ -208,13 +212,14 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
 
   describe "extract_start_clauses/1" do
     test "returns all start/2 clauses" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
-        def start(:normal, args), do: do_start(args)
-        def start(:takeover, args), do: do_takeover(args)
-      end
-      """)
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
+          def start(:normal, args), do: do_start(args)
+          def start(:takeover, args), do: do_takeover(args)
+        end
+        """)
 
       clauses = AppExtractor.extract_start_clauses(body)
       assert length(clauses) == 2
@@ -232,17 +237,18 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
 
   describe "extract/1 with inline Supervisor.start_link" do
     test "detects inline supervisor pattern" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
 
-        def start(_type, _args) do
-          children = []
-          opts = [strategy: :one_for_one, name: MyApp.Supervisor]
-          Supervisor.start_link(children, opts)
+          def start(_type, _args) do
+            children = []
+            opts = [strategy: :one_for_one, name: MyApp.Supervisor]
+            Supervisor.start_link(children, opts)
+          end
         end
-      end
-      """)
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       assert result.uses_inline_supervisor == true
@@ -250,30 +256,32 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
     end
 
     test "extracts supervisor name" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
 
-        def start(_type, _args) do
-          Supervisor.start_link([], strategy: :one_for_one, name: MyApp.Supervisor)
+          def start(_type, _args) do
+            Supervisor.start_link([], strategy: :one_for_one, name: MyApp.Supervisor)
+          end
         end
-      end
-      """)
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       assert match?({:__aliases__, _, [:MyApp, :Supervisor]}, result.supervisor_name)
     end
 
     test "extracts supervisor strategy" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
 
-        def start(_type, _args) do
-          Supervisor.start_link([], strategy: :one_for_all, name: MyApp.Supervisor)
+          def start(_type, _args) do
+            Supervisor.start_link([], strategy: :one_for_all, name: MyApp.Supervisor)
+          end
         end
-      end
-      """)
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       assert result.supervisor_strategy == :one_for_all
@@ -286,15 +294,16 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
 
   describe "extract/1 with dedicated supervisor module" do
     test "detects dedicated supervisor module pattern" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
 
-        def start(_type, _args) do
-          MyApp.Supervisor.start_link(name: MyApp.Supervisor)
+          def start(_type, _args) do
+            MyApp.Supervisor.start_link(name: MyApp.Supervisor)
+          end
         end
-      end
-      """)
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       assert result.uses_inline_supervisor == false
@@ -302,30 +311,32 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
     end
 
     test "extracts supervisor name from dedicated module call" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
 
-        def start(_type, _args) do
-          MyApp.Supervisor.start_link(name: MyApp.RootSupervisor)
+          def start(_type, _args) do
+            MyApp.Supervisor.start_link(name: MyApp.RootSupervisor)
+          end
         end
-      end
-      """)
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       assert match?({:__aliases__, _, [:MyApp, :RootSupervisor]}, result.supervisor_name)
     end
 
     test "handles supervisor module without name option" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
 
-        def start(_type, _args) do
-          MyApp.Supervisor.start_link([])
+          def start(_type, _args) do
+            MyApp.Supervisor.start_link([])
+          end
         end
-      end
-      """)
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       assert result.uses_inline_supervisor == false
@@ -340,41 +351,43 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
 
   describe "edge cases" do
     test "handles complex start body with assignments" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
 
-        def start(_type, _args) do
-          children = [
-            MyWorker,
-            {MyOtherWorker, []}
-          ]
+          def start(_type, _args) do
+            children = [
+              MyWorker,
+              {MyOtherWorker, []}
+            ]
 
-          opts = [
-            strategy: :one_for_one,
-            name: MyApp.Supervisor,
-            max_restarts: 5
-          ]
+            opts = [
+              strategy: :one_for_one,
+              name: MyApp.Supervisor,
+              max_restarts: 5
+            ]
 
-          Supervisor.start_link(children, opts)
+            Supervisor.start_link(children, opts)
+          end
         end
-      end
-      """)
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       assert result.uses_inline_supervisor == true
     end
 
     test "handles start returning tuple directly" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
 
-        def start(_type, _args) do
-          {:ok, self()}
+          def start(_type, _args) do
+            {:ok, self()}
+          end
         end
-      end
-      """)
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       # No supervisor call detected
@@ -383,19 +396,20 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
     end
 
     test "handles Application with stop callback" do
-      body = parse_module_body("""
-      defmodule MyApp do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule MyApp do
+          use Application
 
-        def start(_type, _args) do
-          Supervisor.start_link([], strategy: :one_for_one)
-        end
+          def start(_type, _args) do
+            Supervisor.start_link([], strategy: :one_for_one)
+          end
 
-        def stop(_state) do
-          :ok
+          def stop(_state) do
+            :ok
+          end
         end
-      end
-      """)
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       assert result.detection_method == :use
@@ -403,13 +417,14 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
     end
 
     test "extracts location from start callback" do
-      body = parse_module_body_with_columns("""
-      defmodule MyApp do
-        use Application
+      body =
+        parse_module_body_with_columns("""
+        defmodule MyApp do
+          use Application
 
-        def start(_type, _args), do: {:ok, self()}
-      end
-      """)
+          def start(_type, _args), do: {:ok, self()}
+        end
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       # Location is now a SourceLocation struct from Helpers.extract_location_if
@@ -424,20 +439,21 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
 
   describe "real-world patterns" do
     test "handles Credo-style inline supervisor" do
-      body = parse_module_body("""
-      defmodule Credo.Application do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule Credo.Application do
+          use Application
 
-        def start(_type, _args) do
-          opts = [strategy: :one_for_one, name: Credo.Supervisor]
-          Supervisor.start_link(children(), opts)
-        end
+          def start(_type, _args) do
+            opts = [strategy: :one_for_one, name: Credo.Supervisor]
+            Supervisor.start_link(children(), opts)
+          end
 
-        def children do
-          [Worker1, Worker2]
+          def children do
+            [Worker1, Worker2]
+          end
         end
-      end
-      """)
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       assert result.uses_inline_supervisor == true
@@ -445,15 +461,16 @@ defmodule ElixirOntologies.Extractors.OTP.ApplicationTest do
     end
 
     test "handles Phoenix-style supervisor delegation" do
-      body = parse_module_body("""
-      defmodule MyApp.Application do
-        use Application
+      body =
+        parse_module_body("""
+        defmodule MyApp.Application do
+          use Application
 
-        def start(_type, _args) do
-          MyApp.Supervisor.start_link(name: MyApp.Supervisor)
+          def start(_type, _args) do
+            MyApp.Supervisor.start_link(name: MyApp.Supervisor)
+          end
         end
-      end
-      """)
+        """)
 
       {:ok, result} = AppExtractor.extract(body)
       assert result.uses_inline_supervisor == false

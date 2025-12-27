@@ -172,8 +172,11 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
   @spec extract_file_history!(String.t(), String.t(), keyword()) :: t()
   def extract_file_history!(repo_path, file_path, opts \\ []) do
     case extract_file_history(repo_path, file_path, opts) do
-      {:ok, history} -> history
-      {:error, reason} -> raise ArgumentError, "Failed to extract file history: #{GitUtils.format_error(reason)}"
+      {:ok, history} ->
+        history
+
+      {:error, reason} ->
+        raise ArgumentError, "Failed to extract file history: #{GitUtils.format_error(reason)}"
     end
   end
 
@@ -193,7 +196,9 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
           {:ok, [String.t()]} | {:error, atom()}
   def extract_commits_for_file(repo_path, file_path, follow \\ true, limit \\ nil) do
     # Enforce maximum limit
-    effective_limit = if limit, do: min(limit, GitUtils.max_commits()), else: GitUtils.max_commits()
+    effective_limit =
+      if limit, do: min(limit, GitUtils.max_commits()), else: GitUtils.max_commits()
+
     args = build_log_args(follow, effective_limit) ++ ["--", file_path]
 
     case GitUtils.run_git_command(repo_path, args) do
@@ -333,7 +338,10 @@ defmodule ElixirOntologies.Extractors.Evolution.FileHistory do
     current_path
   end
 
-  def path_at_commit(%__MODULE__{path: current_path, renames: renames, commits: commits}, commit_sha) do
+  def path_at_commit(
+        %__MODULE__{path: current_path, renames: renames, commits: commits},
+        commit_sha
+      ) do
     # Find where this commit is in history
     commit_index = Enum.find_index(commits, &(&1 == commit_sha))
 

@@ -60,7 +60,11 @@ defmodule ElixirOntologies.Extractors.Evolution.SnapshotTest do
       assert is_list(snapshot.files)
       assert length(snapshot.files) > 0
       assert Enum.all?(snapshot.files, &is_binary/1)
-      assert Enum.all?(snapshot.files, &(String.ends_with?(&1, ".ex") or String.ends_with?(&1, ".exs")))
+
+      assert Enum.all?(
+               snapshot.files,
+               &(String.ends_with?(&1, ".ex") or String.ends_with?(&1, ".exs"))
+             )
     end
 
     test "snapshot has stats map" do
@@ -95,7 +99,8 @@ defmodule ElixirOntologies.Extractors.Evolution.SnapshotTest do
     end
 
     test "returns error for invalid commit ref" do
-      assert {:error, _} = Snapshot.extract_snapshot(".", "invalid_ref_that_does_not_exist_xyz123")
+      assert {:error, _} =
+               Snapshot.extract_snapshot(".", "invalid_ref_that_does_not_exist_xyz123")
     end
 
     test "modules list contains expected modules" do
@@ -109,9 +114,9 @@ defmodule ElixirOntologies.Extractors.Evolution.SnapshotTest do
       {:ok, snapshot} = Snapshot.extract_snapshot(".")
 
       assert Enum.all?(snapshot.files, fn file ->
-        String.starts_with?(file, "lib/") or
-          Regex.match?(~r/^apps\/[^\/]+\/lib\//, file)
-      end)
+               String.starts_with?(file, "lib/") or
+                 Regex.match?(~r/^apps\/[^\/]+\/lib\//, file)
+             end)
     end
   end
 
@@ -163,17 +168,17 @@ defmodule ElixirOntologies.Extractors.Evolution.SnapshotTest do
       {:ok, files} = Snapshot.list_elixir_files_at_commit(".", "HEAD")
 
       assert Enum.all?(files, fn file ->
-        String.ends_with?(file, ".ex") or String.ends_with?(file, ".exs")
-      end)
+               String.ends_with?(file, ".ex") or String.ends_with?(file, ".exs")
+             end)
     end
 
     test "files are from lib/ directory" do
       {:ok, files} = Snapshot.list_elixir_files_at_commit(".", "HEAD")
 
       assert Enum.all?(files, fn file ->
-        String.starts_with?(file, "lib/") or
-          Regex.match?(~r/^apps\/[^\/]+\/lib\//, file)
-      end)
+               String.starts_with?(file, "lib/") or
+                 Regex.match?(~r/^apps\/[^\/]+\/lib\//, file)
+             end)
     end
 
     test "returns error for invalid commit" do
@@ -296,10 +301,14 @@ defmodule ElixirOntologies.Extractors.Evolution.SnapshotTest do
 
       # Verify the snapshot reflects a real Elixir project
       assert snapshot.project_name == :elixir_ontologies
-      assert length(snapshot.modules) > 10  # Should have many modules
-      assert length(snapshot.files) > 10    # Should have many files
-      assert snapshot.stats.function_count > 50  # Should have many functions
-      assert snapshot.stats.line_count > 1000    # Should have substantial code
+      # Should have many modules
+      assert length(snapshot.modules) > 10
+      # Should have many files
+      assert length(snapshot.files) > 10
+      # Should have many functions
+      assert snapshot.stats.function_count > 50
+      # Should have substantial code
+      assert snapshot.stats.line_count > 1000
     end
 
     @tag :integration

@@ -1586,15 +1586,18 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
     alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
 
     test "returns permanent for permanent restart" do
-      assert SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :permanent}) == :permanent
+      assert SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :permanent}) ==
+               :permanent
     end
 
     test "returns temporary for temporary restart" do
-      assert SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :temporary}) == :temporary
+      assert SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :temporary}) ==
+               :temporary
     end
 
     test "returns transient for transient restart" do
-      assert SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :transient}) == :transient
+      assert SupervisorExtractor.restart_strategy_type(%ChildSpec{restart: :transient}) ==
+               :transient
     end
   end
 
@@ -1627,15 +1630,18 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
 
   describe "restart_description/1" do
     test "returns description for permanent" do
-      assert SupervisorExtractor.restart_description(:permanent) == "Always restart the child process"
+      assert SupervisorExtractor.restart_description(:permanent) ==
+               "Always restart the child process"
     end
 
     test "returns description for temporary" do
-      assert SupervisorExtractor.restart_description(:temporary) == "Never restart the child process"
+      assert SupervisorExtractor.restart_description(:temporary) ==
+               "Never restart the child process"
     end
 
     test "returns description for transient" do
-      assert SupervisorExtractor.restart_description(:transient) == "Restart only if child exits abnormally"
+      assert SupervisorExtractor.restart_description(:transient) ==
+               "Restart only if child exits abnormally"
     end
   end
 
@@ -1999,15 +2005,18 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
 
   describe "strategy_description/1" do
     test "returns description for one_for_one" do
-      assert SupervisorExtractor.strategy_description(:one_for_one) == "Only restart the failed child"
+      assert SupervisorExtractor.strategy_description(:one_for_one) ==
+               "Only restart the failed child"
     end
 
     test "returns description for one_for_all" do
-      assert SupervisorExtractor.strategy_description(:one_for_all) == "Restart all children on any failure"
+      assert SupervisorExtractor.strategy_description(:one_for_all) ==
+               "Restart all children on any failure"
     end
 
     test "returns description for rest_for_one" do
-      assert SupervisorExtractor.strategy_description(:rest_for_one) == "Restart failed child and all started after it"
+      assert SupervisorExtractor.strategy_description(:rest_for_one) ==
+               "Restart failed child and all started after it"
     end
   end
 
@@ -2414,7 +2423,12 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
 
   describe "restart_intensity_description/1" do
     test "returns description for explicit values" do
-      strategy = %Strategy{max_restarts: 3, max_seconds: 5, is_default_max_restarts: false, is_default_max_seconds: false}
+      strategy = %Strategy{
+        max_restarts: 3,
+        max_seconds: 5,
+        is_default_max_restarts: false,
+        is_default_max_seconds: false
+      }
 
       desc = SupervisorExtractor.restart_intensity_description(strategy)
 
@@ -2430,7 +2444,12 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
     end
 
     test "returns description for custom high intensity" do
-      strategy = %Strategy{max_restarts: 100, max_seconds: 10, is_default_max_restarts: false, is_default_max_seconds: false}
+      strategy = %Strategy{
+        max_restarts: 100,
+        max_seconds: 10,
+        is_default_max_restarts: false,
+        is_default_max_seconds: false
+      }
 
       desc = SupervisorExtractor.restart_intensity_description(strategy)
 
@@ -2438,7 +2457,11 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
     end
 
     test "does not add defaults marker when only one is default" do
-      strategy = %Strategy{max_restarts: 10, is_default_max_restarts: false, is_default_max_seconds: true}
+      strategy = %Strategy{
+        max_restarts: 10,
+        is_default_max_restarts: false,
+        is_default_max_seconds: true
+      }
 
       desc = SupervisorExtractor.restart_intensity_description(strategy)
 
@@ -2483,17 +2506,33 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
     end
 
     test "returns false when max_restarts is not default" do
-      strategy = %Strategy{max_restarts: 10, is_default_max_restarts: false, is_default_max_seconds: true}
+      strategy = %Strategy{
+        max_restarts: 10,
+        is_default_max_restarts: false,
+        is_default_max_seconds: true
+      }
+
       refute SupervisorExtractor.within_default_intensity?(strategy)
     end
 
     test "returns false when max_seconds is not default" do
-      strategy = %Strategy{max_seconds: 60, is_default_max_restarts: true, is_default_max_seconds: false}
+      strategy = %Strategy{
+        max_seconds: 60,
+        is_default_max_restarts: true,
+        is_default_max_seconds: false
+      }
+
       refute SupervisorExtractor.within_default_intensity?(strategy)
     end
 
     test "returns false when neither is default" do
-      strategy = %Strategy{max_restarts: 10, max_seconds: 60, is_default_max_restarts: false, is_default_max_seconds: false}
+      strategy = %Strategy{
+        max_restarts: 10,
+        max_seconds: 60,
+        is_default_max_restarts: false,
+        is_default_max_seconds: false
+      }
+
       refute SupervisorExtractor.within_default_intensity?(strategy)
     end
   end
@@ -3959,7 +3998,9 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
       assert nested == []
       refute SupervisorExtractor.has_nested_supervisors?(ordered)
       assert SupervisorExtractor.supervision_depth(ordered) == 1
-      assert SupervisorExtractor.supervision_tree_description(ordered) == "Flat tree with 3 worker(s)"
+
+      assert SupervisorExtractor.supervision_tree_description(ordered) ==
+               "Flat tree with 3 worker(s)"
     end
 
     test "handles mixed explicit and heuristic detection" do

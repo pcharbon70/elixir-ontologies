@@ -221,11 +221,14 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
     # Test - check before feature because "Add tests" should be test
     {:test, ~r/\b(test|tests|testing|spec|specs|coverage)\b/i},
     # Performance - check before feature because "Add caching" should be perf
-    {:perf, ~r/\b(perf|performance|optimize|optimized|optimization|speed|faster|cache|caching)\b/i},
+    {:perf,
+     ~r/\b(perf|performance|optimize|optimized|optimization|speed|faster|cache|caching)\b/i},
     # Bug fix patterns
-    {:bugfix, ~r/\b(fix|fixed|fixing|bug|bugfix|repair|resolve|resolved|resolves|closes?|closed)\b/i},
+    {:bugfix,
+     ~r/\b(fix|fixed|fixing|bug|bugfix|repair|resolve|resolved|resolves|closes?|closed)\b/i},
     # Refactor
-    {:refactor, ~r/\b(refactor|refactored|refactoring|restructure|reorganize|cleanup|clean up|simplify)\b/i},
+    {:refactor,
+     ~r/\b(refactor|refactored|refactoring|restructure|reorganize|cleanup|clean up|simplify)\b/i},
     # Chore
     {:chore, ~r/\b(chore|build|tooling|config|configure|setup|maintenance)\b/i},
     # Style
@@ -233,13 +236,15 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
     # CI
     {:ci, ~r/\b(ci|cd|pipeline|github actions|travis|circle|jenkins|workflow)\b/i},
     # Dependencies
-    {:deps, ~r/\b(deps|dependency|dependencies|upgrade|update|bump|version)\s+(mix\.exs|package\.json|gemfile)/i},
+    {:deps,
+     ~r/\b(deps|dependency|dependencies|upgrade|update|bump|version)\s+(mix\.exs|package\.json|gemfile)/i},
     # Release
     {:release, ~r/\b(release|version|v?\d+\.\d+\.\d+|bump version|prepare release)\b/i},
     # WIP
     {:wip, ~r/\b(wip|work in progress|todo|fixme|hack)\b/i},
     # Feature - last, as it's the most generic pattern
-    {:feature, ~r/\b(add|added|adding|implement|implemented|implementing|new|create|created|introduce|introduced)\b/i}
+    {:feature,
+     ~r/\b(add|added|adding|implement|implemented|implementing|new|create|created|introduce|introduced)\b/i}
   ]
 
   # ===========================================================================
@@ -317,10 +322,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
   """
   @spec classify_commit!(String.t(), Commit.t(), keyword()) :: t()
   def classify_commit!(repo_path, commit, opts \\ []) do
-    case classify_commit(repo_path, commit, opts) do
-      {:ok, activity} -> activity
-      {:error, reason} -> raise ArgumentError, "Failed to classify commit: #{inspect(reason)}"
-    end
+    {:ok, activity} = classify_commit(repo_path, commit, opts)
+    activity
   end
 
   @doc """
@@ -340,12 +343,9 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
     activities =
       commits
       |> Enum.map(fn commit ->
-        case classify_commit(repo_path, commit, opts) do
-          {:ok, activity} -> activity
-          {:error, _} -> nil
-        end
+        {:ok, activity} = classify_commit(repo_path, commit, opts)
+        activity
       end)
-      |> Enum.filter(& &1)
 
     {:ok, activities}
   end
@@ -355,10 +355,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
   """
   @spec classify_commits!(String.t(), [Commit.t()], keyword()) :: [t()]
   def classify_commits!(repo_path, commits, opts \\ []) do
-    case classify_commits(repo_path, commits, opts) do
-      {:ok, activities} -> activities
-      {:error, reason} -> raise ArgumentError, "Failed to classify commits: #{inspect(reason)}"
-    end
+    {:ok, activities} = classify_commits(repo_path, commits, opts)
+    activities
   end
 
   # ===========================================================================
@@ -385,7 +383,13 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
       {:error, :not_conventional}
   """
   @spec parse_conventional_commit(String.t() | nil) ::
-          {:ok, %{type: String.t(), scope: String.t() | nil, breaking: boolean(), description: String.t()}}
+          {:ok,
+           %{
+             type: String.t(),
+             scope: String.t() | nil,
+             breaking: boolean(),
+             description: String.t()
+           }}
           | {:error, :not_conventional}
   def parse_conventional_commit(nil), do: {:error, :not_conventional}
 
@@ -593,7 +597,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
     end
   end
 
-  defp classify_by_keywords(nil), do: {:unknown, %Classification{method: :keyword, confidence: :low}}
+  defp classify_by_keywords(nil),
+    do: {:unknown, %Classification{method: :keyword, confidence: :low}}
 
   defp classify_by_keywords(subject) when is_binary(subject) do
     # Find the first matching pattern

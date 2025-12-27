@@ -107,6 +107,7 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       {activity_iri, triples} = ActivityBuilder.build(activity, context)
 
       type_triples = find_triples(triples, RDF.type())
+
       prov_activity_triple =
         Enum.find(type_triples, fn {^activity_iri, _, o} -> o == PROV.Activity end)
 
@@ -120,6 +121,7 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       {activity_iri, triples} = ActivityBuilder.build(activity, context)
 
       type_triples = find_triples(triples, RDF.type())
+
       feature_triple =
         Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.FeatureAddition end)
 
@@ -133,6 +135,7 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       {activity_iri, triples} = ActivityBuilder.build(activity, context)
 
       type_triples = find_triples(triples, RDF.type())
+
       bugfix_triple =
         Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.BugFix end)
 
@@ -146,6 +149,7 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       {activity_iri, triples} = ActivityBuilder.build(activity, context)
 
       type_triples = find_triples(triples, RDF.type())
+
       refactor_triple =
         Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.Refactoring end)
 
@@ -159,6 +163,7 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       {activity_iri, triples} = ActivityBuilder.build(activity, context)
 
       type_triples = find_triples(triples, RDF.type())
+
       dev_activity_triple =
         Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.DevelopmentActivity end)
 
@@ -172,6 +177,7 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       {activity_iri, triples} = ActivityBuilder.build(activity, context)
 
       type_triples = find_triples(triples, RDF.type())
+
       dev_activity_triple =
         Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.DevelopmentActivity end)
 
@@ -185,6 +191,7 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       {activity_iri, triples} = ActivityBuilder.build(activity, context)
 
       type_triples = find_triples(triples, RDF.type())
+
       deprecation_triple =
         Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.Deprecation end)
 

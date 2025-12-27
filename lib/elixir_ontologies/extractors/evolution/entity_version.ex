@@ -224,16 +224,16 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
            {:ok, content} <- extract_file_at_commit(repo_root, file_path, commit_ref),
            {:ok, module_source} <- extract_module_source(content, module_name),
            {:ok, commit_info} <- get_commit_info(repo_root, commit_ref) do
-      content_hash = compute_content_hash(module_source)
-      short_sha = String.slice(commit_info.sha, 0, 7)
-      version_id = "#{module_name}@#{short_sha}"
+        content_hash = compute_content_hash(module_source)
+        short_sha = String.slice(commit_info.sha, 0, 7)
+        version_id = "#{module_name}@#{short_sha}"
 
-      functions =
-        if include_functions do
-          extract_function_names(module_source)
-        else
-          []
-        end
+        functions =
+          if include_functions do
+            extract_function_names(module_source)
+          else
+            []
+          end
 
         {:ok,
          %ModuleVersion{
@@ -255,7 +255,8 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
   @doc """
   Extracts a module version, raising on error.
   """
-  @spec extract_module_version!(String.t(), String.t(), String.t(), keyword()) :: ModuleVersion.t()
+  @spec extract_module_version!(String.t(), String.t(), String.t(), keyword()) ::
+          ModuleVersion.t()
   def extract_module_version!(repo_path, module_name, commit_ref, opts \\ []) do
     case extract_module_version(repo_path, module_name, commit_ref, opts) do
       {:ok, version} -> version
@@ -508,7 +509,10 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
   @doc """
   Checks if two versions have the same content.
   """
-  @spec same_content?(ModuleVersion.t() | FunctionVersion.t(), ModuleVersion.t() | FunctionVersion.t()) ::
+  @spec same_content?(
+          ModuleVersion.t() | FunctionVersion.t(),
+          ModuleVersion.t() | FunctionVersion.t()
+        ) ::
           boolean()
   def same_content?(version1, version2) do
     version1.content_hash == version2.content_hash

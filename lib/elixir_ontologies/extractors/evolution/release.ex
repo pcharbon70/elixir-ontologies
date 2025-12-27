@@ -209,12 +209,20 @@ defmodule ElixirOntologies.Extractors.Evolution.Release do
   defp compare_semver(s1, s2) do
     # Compare major.minor.patch first
     case {s1.major, s2.major} do
-      {m1, m2} when m1 < m2 -> :lt
-      {m1, m2} when m1 > m2 -> :gt
+      {m1, m2} when m1 < m2 ->
+        :lt
+
+      {m1, m2} when m1 > m2 ->
+        :gt
+
       _ ->
         case {s1.minor, s2.minor} do
-          {m1, m2} when m1 < m2 -> :lt
-          {m1, m2} when m1 > m2 -> :gt
+          {m1, m2} when m1 < m2 ->
+            :lt
+
+          {m1, m2} when m1 > m2 ->
+            :gt
+
           _ ->
             case {s1.patch, s2.patch} do
               {p1, p2} when p1 < p2 -> :lt
@@ -226,8 +234,10 @@ defmodule ElixirOntologies.Extractors.Evolution.Release do
   end
 
   defp compare_pre_release(nil, nil), do: :eq
-  defp compare_pre_release(nil, _), do: :gt  # Release > pre-release
-  defp compare_pre_release(_, nil), do: :lt  # Pre-release < release
+  # Release > pre-release
+  defp compare_pre_release(nil, _), do: :gt
+  # Pre-release < release
+  defp compare_pre_release(_, nil), do: :lt
 
   defp compare_pre_release(p1, p2) do
     # Simple string comparison for pre-release
@@ -645,6 +655,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Release do
   end
 
   defp add_previous_versions([]), do: []
+
   defp add_previous_versions([first | rest]) do
     add_previous_versions_rec([first], rest)
   end

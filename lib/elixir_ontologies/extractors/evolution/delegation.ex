@@ -358,10 +358,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Delegation do
   """
   @spec extract_delegations!(String.t(), Commit.t(), keyword()) :: [t()]
   def extract_delegations!(repo_path, commit, opts \\ []) do
-    case extract_delegations(repo_path, commit, opts) do
-      {:ok, delegations} -> delegations
-      {:error, reason} -> raise ArgumentError, "Failed to extract delegations: #{inspect(reason)}"
-    end
+    {:ok, delegations} = extract_delegations(repo_path, commit, opts)
+    delegations
   end
 
   # ===========================================================================

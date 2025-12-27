@@ -138,7 +138,8 @@ defmodule ElixirOntologies.Extractors.Evolution.DelegationTest do
     test "builds delegation ID from delegate and delegator" do
       id = Delegation.build_delegation_id("agent:abc", "agent:def")
       assert String.starts_with?(id, "delegation:")
-      assert String.length(id) == 23  # "delegation:" (11) + hash (12)
+      # "delegation:" (11) + hash (12)
+      assert String.length(id) == 23
     end
 
     test "produces stable IDs" do
@@ -479,7 +480,8 @@ defmodule ElixirOntologies.Extractors.Evolution.DelegationTest do
         team_id: "team:small",
         name: "Small",
         leads: ["agent:alice"],
-        members: ["agent:alice", "agent:bob"]  # alice is both lead and member
+        # alice is both lead and member
+        members: ["agent:alice", "agent:bob"]
       }
 
       delegations = Delegation.build_team_delegations(team)
@@ -506,9 +508,7 @@ defmodule ElixirOntologies.Extractors.Evolution.DelegationTest do
     end
 
     test "extracts bot delegation" do
-      commit = create_commit(
-        author_email: "dependabot[bot]@users.noreply.github.com"
-      )
+      commit = create_commit(author_email: "dependabot[bot]@users.noreply.github.com")
 
       {:ok, delegations} = Delegation.extract_delegations(".", commit)
 
@@ -517,9 +517,7 @@ defmodule ElixirOntologies.Extractors.Evolution.DelegationTest do
     end
 
     test "extracts review delegations" do
-      commit = create_commit(
-        message: "Fix bug\n\nReviewed-by: Alice <alice@example.com>"
-      )
+      commit = create_commit(message: "Fix bug\n\nReviewed-by: Alice <alice@example.com>")
 
       {:ok, delegations} = Delegation.extract_delegations(".", commit)
 
@@ -536,22 +534,20 @@ defmodule ElixirOntologies.Extractors.Evolution.DelegationTest do
     end
 
     test "can exclude bot delegation" do
-      commit = create_commit(
-        author_email: "dependabot[bot]@users.noreply.github.com"
-      )
+      commit = create_commit(author_email: "dependabot[bot]@users.noreply.github.com")
 
-      {:ok, delegations} = Delegation.extract_delegations(".", commit, include_bot_delegation: false)
+      {:ok, delegations} =
+        Delegation.extract_delegations(".", commit, include_bot_delegation: false)
 
       bot_delegations = Enum.filter(delegations, &(&1.reason == :bot_config))
       assert length(bot_delegations) == 0
     end
 
     test "can exclude review approvals" do
-      commit = create_commit(
-        message: "Fix\n\nReviewed-by: Alice <alice@example.com>"
-      )
+      commit = create_commit(message: "Fix\n\nReviewed-by: Alice <alice@example.com>")
 
-      {:ok, delegations} = Delegation.extract_delegations(".", commit, include_review_approvals: false)
+      {:ok, delegations} =
+        Delegation.extract_delegations(".", commit, include_review_approvals: false)
 
       review_delegations = Enum.filter(delegations, &(&1.reason == :review_approval))
       assert length(review_delegations) == 0
@@ -671,10 +667,11 @@ defmodule ElixirOntologies.Extractors.Evolution.DelegationTest do
     end
 
     test "delegation chain for bot with reviewer" do
-      commit = create_commit(
-        author_email: "dependabot[bot]@users.noreply.github.com",
-        message: "Update deps\n\nReviewed-by: Alice <alice@example.com>"
-      )
+      commit =
+        create_commit(
+          author_email: "dependabot[bot]@users.noreply.github.com",
+          message: "Update deps\n\nReviewed-by: Alice <alice@example.com>"
+        )
 
       {:ok, delegations} = Delegation.extract_delegations(".", commit)
 
@@ -693,10 +690,11 @@ defmodule ElixirOntologies.Extractors.Evolution.DelegationTest do
     test "handles commit with no trailers" do
       commit = create_commit(message: "Simple commit with no trailers")
 
-      {:ok, delegations} = Delegation.extract_delegations(".", commit,
-        include_code_owners: false,
-        include_bot_delegation: false
-      )
+      {:ok, delegations} =
+        Delegation.extract_delegations(".", commit,
+          include_code_owners: false,
+          include_bot_delegation: false
+        )
 
       assert delegations == []
     end

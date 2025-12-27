@@ -247,17 +247,13 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
     tracker_opts = Keyword.get(opts, :tracker_opts, [])
 
     # Use Activity module to classify
-    case Activity.classify_commit(repo_path, commit, include_scope: include_scope) do
-      {:ok, activity} ->
-        if activity.type == :feature do
-          feature = build_feature(commit, activity, tracker_opts)
-          {:ok, [feature]}
-        else
-          {:ok, []}
-        end
+    {:ok, activity} = Activity.classify_commit(repo_path, commit, include_scope: include_scope)
 
-      {:error, reason} ->
-        {:error, reason}
+    if activity.type == :feature do
+      feature = build_feature(commit, activity, tracker_opts)
+      {:ok, [feature]}
+    else
+      {:ok, []}
     end
   end
 
@@ -266,10 +262,8 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
   """
   @spec detect_features!(String.t(), Commit.t(), keyword()) :: [FeatureAddition.t()]
   def detect_features!(repo_path, commit, opts \\ []) do
-    case detect_features(repo_path, commit, opts) do
-      {:ok, features} -> features
-      {:error, reason} -> raise ArgumentError, "Failed to detect features: #{inspect(reason)}"
-    end
+    {:ok, features} = detect_features(repo_path, commit, opts)
+    features
   end
 
   # ===========================================================================
@@ -298,17 +292,13 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
     tracker_opts = Keyword.get(opts, :tracker_opts, [])
 
     # Use Activity module to classify
-    case Activity.classify_commit(repo_path, commit, include_scope: include_scope) do
-      {:ok, activity} ->
-        if activity.type == :bugfix do
-          bugfix = build_bugfix(commit, activity, tracker_opts)
-          {:ok, [bugfix]}
-        else
-          {:ok, []}
-        end
+    {:ok, activity} = Activity.classify_commit(repo_path, commit, include_scope: include_scope)
 
-      {:error, reason} ->
-        {:error, reason}
+    if activity.type == :bugfix do
+      bugfix = build_bugfix(commit, activity, tracker_opts)
+      {:ok, [bugfix]}
+    else
+      {:ok, []}
     end
   end
 
@@ -317,10 +307,8 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
   """
   @spec detect_bugfixes!(String.t(), Commit.t(), keyword()) :: [BugFix.t()]
   def detect_bugfixes!(repo_path, commit, opts \\ []) do
-    case detect_bugfixes(repo_path, commit, opts) do
-      {:ok, bugfixes} -> bugfixes
-      {:error, reason} -> raise ArgumentError, "Failed to detect bugfixes: #{inspect(reason)}"
-    end
+    {:ok, bugfixes} = detect_bugfixes(repo_path, commit, opts)
+    bugfixes
   end
 
   # ===========================================================================
@@ -338,18 +326,10 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
     results =
       commits
       |> Enum.reduce(%{features: [], bugfixes: []}, fn commit, acc ->
-        case detect_features(repo_path, commit, opts) do
-          {:ok, features} ->
-            acc = %{acc | features: acc.features ++ features}
+        {:ok, features} = detect_features(repo_path, commit, opts)
+        {:ok, bugfixes} = detect_bugfixes(repo_path, commit, opts)
 
-            case detect_bugfixes(repo_path, commit, opts) do
-              {:ok, bugfixes} -> %{acc | bugfixes: acc.bugfixes ++ bugfixes}
-              {:error, _} -> acc
-            end
-
-          {:error, _} ->
-            acc
-        end
+        %{acc | features: acc.features ++ features, bugfixes: acc.bugfixes ++ bugfixes}
       end)
 
     {:ok, results}
@@ -383,7 +363,8 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
 
   defp find_closing_references(message) do
     # Pattern: (fixes|closes|resolves|fix|close|resolve) #N or GH-N etc.
-    closing_pattern = ~r/\b(fix(?:es)?|close[sd]?|resolve[sd]?)\s+(?:#(\d+)|GH-(\d+)|GL-(\d+)|([A-Z][A-Z0-9]+-\d+))/i
+    closing_pattern =
+      ~r/\b(fix(?:es)?|close[sd]?|resolve[sd]?)\s+(?:#(\d+)|GH-(\d+)|GL-(\d+)|([A-Z][A-Z0-9]+-\d+))/i
 
     Regex.scan(closing_pattern, message)
     |> Enum.map(fn match ->
@@ -517,9 +498,10 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
     issue_refs = parse_issue_references(message <> " " <> (commit.body || ""))
 
     # Add URLs to issue refs
-    issue_refs = Enum.map(issue_refs, fn ref ->
-      %{ref | url: build_issue_url(ref, tracker_opts)}
-    end)
+    issue_refs =
+      Enum.map(issue_refs, fn ref ->
+        %{ref | url: build_issue_url(ref, tracker_opts)}
+      end)
 
     # Extract feature name from message
     name = extract_feature_name(message)
@@ -575,9 +557,10 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
     issue_refs = parse_issue_references(message <> " " <> (commit.body || ""))
 
     # Add URLs to issue refs
-    issue_refs = Enum.map(issue_refs, fn ref ->
-      %{ref | url: build_issue_url(ref, tracker_opts)}
-    end)
+    issue_refs =
+      Enum.map(issue_refs, fn ref ->
+        %{ref | url: build_issue_url(ref, tracker_opts)}
+      end)
 
     # Extract description
     description = extract_bugfix_description(message)

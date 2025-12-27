@@ -290,9 +290,24 @@ defmodule ElixirOntologies.Extractors.Evolution.ReleaseTest do
   describe "sort_releases/1" do
     test "sorts releases by version descending" do
       releases = [
-        %Release{release_id: "r1", version: "1.0.0", commit_sha: "a" |> String.pad_trailing(40, "0"), short_sha: "a"},
-        %Release{release_id: "r3", version: "3.0.0", commit_sha: "c" |> String.pad_trailing(40, "0"), short_sha: "c"},
-        %Release{release_id: "r2", version: "2.0.0", commit_sha: "b" |> String.pad_trailing(40, "0"), short_sha: "b"}
+        %Release{
+          release_id: "r1",
+          version: "1.0.0",
+          commit_sha: "a" |> String.pad_trailing(40, "0"),
+          short_sha: "a"
+        },
+        %Release{
+          release_id: "r3",
+          version: "3.0.0",
+          commit_sha: "c" |> String.pad_trailing(40, "0"),
+          short_sha: "c"
+        },
+        %Release{
+          release_id: "r2",
+          version: "2.0.0",
+          commit_sha: "b" |> String.pad_trailing(40, "0"),
+          short_sha: "b"
+        }
       ]
 
       sorted = Release.sort_releases(releases)
@@ -302,9 +317,24 @@ defmodule ElixirOntologies.Extractors.Evolution.ReleaseTest do
 
     test "handles pre-release versions" do
       releases = [
-        %Release{release_id: "r1", version: "1.0.0", commit_sha: "a" |> String.pad_trailing(40, "0"), short_sha: "a"},
-        %Release{release_id: "r2", version: "1.0.0-alpha", commit_sha: "b" |> String.pad_trailing(40, "0"), short_sha: "b"},
-        %Release{release_id: "r3", version: "1.0.0-beta", commit_sha: "c" |> String.pad_trailing(40, "0"), short_sha: "c"}
+        %Release{
+          release_id: "r1",
+          version: "1.0.0",
+          commit_sha: "a" |> String.pad_trailing(40, "0"),
+          short_sha: "a"
+        },
+        %Release{
+          release_id: "r2",
+          version: "1.0.0-alpha",
+          commit_sha: "b" |> String.pad_trailing(40, "0"),
+          short_sha: "b"
+        },
+        %Release{
+          release_id: "r3",
+          version: "1.0.0-beta",
+          commit_sha: "c" |> String.pad_trailing(40, "0"),
+          short_sha: "c"
+        }
       ]
 
       sorted = Release.sort_releases(releases)
