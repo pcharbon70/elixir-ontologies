@@ -474,6 +474,17 @@ defmodule ElixirOntologies.Extractors.Exception do
     }
   end
 
+  # Handle catch with two patterns where kind is a variable or complex pattern
+  # e.g., `kind, value -> ...` where kind is a variable binding
+  defp extract_single_catch_clause({:->, _meta, [[kind_pattern, value_pattern], body]} = node, opts) do
+    %CatchClause{
+      kind: :any,
+      pattern: {kind_pattern, value_pattern},
+      body: body,
+      location: Helpers.extract_location_if(node, opts)
+    }
+  end
+
   # ===========================================================================
   # Else Clause Extraction
   # ===========================================================================
