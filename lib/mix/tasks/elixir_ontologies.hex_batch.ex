@@ -92,7 +92,6 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
   alias ElixirOntologies.Hex.Filter
   alias ElixirOntologies.Hex.HttpClient
   alias ElixirOntologies.Hex.PackageHandler
-  alias ElixirOntologies.Hex.Progress
   alias ElixirOntologies.Hex.Progress.PackageResult
   alias ElixirOntologies.Hex.ProgressDisplay
   alias ElixirOntologies.Hex.AnalyzerAdapter
@@ -213,17 +212,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     case BatchProcessor.run(config) do
       {:ok, summary} ->
         unless quiet do
-          # Create a minimal progress for display
-          progress = %Progress{
-            started_at: DateTime.utc_now(),
-            updated_at: DateTime.utc_now(),
-            processed: [],
-            current_page: 1,
-            total_packages: nil,
-            config: %{}
-          }
-
-          ProgressDisplay.display_summary(progress, %{
+          ProgressDisplay.display_summary_map(summary, %{
             output_dir: config.output_dir,
             progress_file: config.progress_file
           })
