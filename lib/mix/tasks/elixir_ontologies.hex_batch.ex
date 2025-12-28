@@ -34,6 +34,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     * `--sort-by`, `-s` - Sort order: "popularity" or "alphabetical" (default: popularity)
     * `--package`, `-p` - Analyze a single package by name
     * `--dry-run` - List packages only, don't analyze
+    * `--build-list` - Create progress.json with package list, don't analyze
     * `--quiet`, `-q` - Minimal output
     * `--verbose`, `-v` - Detailed output with timestamps
 
@@ -92,8 +93,10 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
   alias ElixirOntologies.Hex.Filter
   alias ElixirOntologies.Hex.HttpClient
   alias ElixirOntologies.Hex.PackageHandler
+  alias ElixirOntologies.Hex.Progress
   alias ElixirOntologies.Hex.Progress.PackageResult
   alias ElixirOntologies.Hex.ProgressDisplay
+  alias ElixirOntologies.Hex.ProgressStore
   alias ElixirOntologies.Hex.AnalyzerAdapter
   alias ElixirOntologies.Hex.OutputManager
   alias ElixirOntologies.Hex.Utils
@@ -111,6 +114,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     package: :string,
     sort_by: :string,
     dry_run: :boolean,
+    build_list: :boolean,
     quiet: :boolean,
     verbose: :boolean
   ]
@@ -153,6 +157,9 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
 
       opts[:dry_run] ->
         run_dry_run(config, opts)
+
+      opts[:build_list] ->
+        run_build_list(config, opts)
 
       true ->
         run_batch(config, opts)
@@ -376,6 +383,80 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     end
 
     :ok
+  end
+
+  defp run_build_list(%Config{} = config, opts) do
+    quiet = opts[:quiet]
+
+    unless quiet do
+      IO.puts("Building package list from hex.pm...")
+      IO.puts("Sort order: #{config.sort_by}")
+      IO.puts("")
+    end
+
+    http_client = HttpClient.new()
+    package_stream = get_package_stream(http_client, config)
+
+    # Collect packages with progress display
+    packages =
+      package_stream
+      |> Filter.filter_elixir_packages(http_client, delay_ms: config.api_delay_ms || 200, verbose: config.verbose)
+      |> maybe_limit(config.limit)
+      |> Stream.with_index(1)
+      |> Enum.map(fn {package, index} ->
+        version = Api.latest_stable_version(package)
+
+        unless quiet do
+          IO.write("\r  Fetching package #{index}...")
+        end
+
+        %{name: package.name, version: version, downloads: package.downloads}
+      end)
+
+    unless quiet do
+      IO.puts("\r  Fetched #{length(packages)} packages.    ")
+      IO.puts("")
+    end
+
+    # Build progress with pending packages
+    progress = %Progress{
+      Progress.new(%{output_dir: config.output_dir})
+      | total_packages: length(packages)
+    }
+
+    # Save pending list as a separate JSON file
+    pending_file = Path.join(config.output_dir, "pending.json")
+    File.mkdir_p!(config.output_dir)
+
+    pending_data = %{
+      "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
+      "sort_by" => Atom.to_string(config.sort_by),
+      "total_packages" => length(packages),
+      "packages" => Enum.map(packages, fn pkg ->
+        %{"name" => pkg.name, "version" => pkg.version, "downloads" => pkg.downloads}
+      end)
+    }
+
+    case File.write(pending_file, Jason.encode!(pending_data, pretty: true)) do
+      :ok ->
+        # Also save empty progress file
+        ProgressStore.save(progress, config.progress_file)
+
+        unless quiet do
+          IO.puts("Package list created:")
+          IO.puts("  Pending: #{pending_file}")
+          IO.puts("  Progress: #{config.progress_file}")
+          IO.puts("  Total packages: #{length(packages)}")
+          IO.puts("")
+          IO.puts("Run without --build-list to start processing.")
+        end
+
+        :ok
+
+      {:error, reason} ->
+        error("Failed to write pending file: #{inspect(reason)}")
+        exit({:shutdown, 1})
+    end
   end
 
   defp get_package_stream(http_client, config) do
