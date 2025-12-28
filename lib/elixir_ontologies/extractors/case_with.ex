@@ -629,6 +629,9 @@ defmodule ElixirOntologies.Extractors.CaseWith do
     end)
   end
 
+  # Handle macro-generated clauses (unquote, etc.) - skip them gracefully
+  defp build_case_clauses(_non_list_clauses, _opts), do: []
+
   defp build_case_clause({:->, _meta, [[pattern_with_guard], body]} = ast, index, opts) do
     {pattern, guard, has_guard} = extract_pattern_and_guard(pattern_with_guard)
     location = Helpers.extract_location_if(ast, opts)
@@ -856,4 +859,7 @@ defmodule ElixirOntologies.Extractors.CaseWith do
         []
     end)
   end
+
+  # Handle macro-generated clauses (unquote, etc.) - skip them gracefully
+  defp extract_from_case_clauses(_non_list_clauses, _type, _opts, _depth, _max), do: []
 end

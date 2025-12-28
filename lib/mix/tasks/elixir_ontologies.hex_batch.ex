@@ -270,7 +270,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
             http_client,
             package_name,
             version,
-            config.temp_dir,
+            [temp_dir: config.temp_dir],
             fn context ->
               analyze_single(context, package_name, version, config)
             end
@@ -334,20 +334,20 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
         {:ok, graph, metadata} ->
           case OutputManager.save_graph(graph, config.output_dir, name, version) do
             {:ok, output_path} ->
-              PackageResult.success(name, version,
+              {:ok, PackageResult.success(name, version,
                 output_path: output_path,
                 module_count: metadata.module_count
-              )
+              )}
 
             {:error, reason} ->
-              PackageResult.failure(name, version, error: inspect(reason))
+              {:ok, PackageResult.failure(name, version, error: inspect(reason))}
           end
 
         {:error, reason} ->
-          PackageResult.failure(name, version, error: inspect(reason))
+          {:ok, PackageResult.failure(name, version, error: inspect(reason))}
       end
     else
-      PackageResult.failure(name, version, error: "No Elixir source files found")
+      {:ok, PackageResult.failure(name, version, error: "No Elixir source files found")}
     end
   end
 
