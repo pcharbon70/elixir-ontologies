@@ -10,7 +10,6 @@ defmodule ElixirOntologies.SHACL.Validators.QualifiedTest do
 
   # Test IRIs
   @genserver_iri ~I<http://example.org/GenServer1>
-  @module_iri ~I<http://example.org/Module1>
   @has_function_prop ~I<https://w3id.org/elixir-code/structure#hasFunction>
   @has_child_prop ~I<http://example.org/hasChild>
 

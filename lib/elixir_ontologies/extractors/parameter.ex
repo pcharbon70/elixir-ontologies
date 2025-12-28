@@ -33,6 +33,8 @@ defmodule ElixirOntologies.Extractors.Parameter do
       10
   """
 
+  require Logger
+
   alias ElixirOntologies.Extractors.Helpers
 
   # ===========================================================================
@@ -368,8 +370,12 @@ defmodule ElixirOntologies.Extractors.Parameter do
     |> Enum.with_index()
     |> Enum.map(fn {param, index} ->
       case extract(param, position: index) do
-        {:ok, result} -> result
-        {:error, _} -> nil
+        {:ok, result} ->
+          result
+
+        {:error, reason} ->
+          Logger.warning("Failed to extract parameter at position #{index}: #{reason}")
+          nil
       end
     end)
     |> Enum.reject(&is_nil/1)

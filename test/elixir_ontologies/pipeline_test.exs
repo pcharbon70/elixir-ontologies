@@ -35,7 +35,7 @@ defmodule ElixirOntologies.PipelineTest do
     }
   end
 
-  defp build_minimal_function_info(opts \\ []) do
+  defp build_minimal_function_info(opts) do
     %FunctionExtractor{
       type: :function,
       name: Keyword.get(opts, :name, :test_function),

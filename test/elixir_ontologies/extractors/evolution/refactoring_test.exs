@@ -29,7 +29,7 @@ defmodule ElixirOntologies.Extractors.Evolution.RefactoringTest do
     }
   end
 
-  defp create_diff_hunk(opts \\ []) do
+  defp create_diff_hunk(opts) do
     %DiffHunk{
       file: Keyword.get(opts, :file, "lib/test.ex"),
       old_file: Keyword.get(opts, :old_file),

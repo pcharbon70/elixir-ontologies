@@ -31,6 +31,8 @@ defmodule ElixirOntologies.Extractors.Macro do
       :private
   """
 
+  require Logger
+
   alias ElixirOntologies.Extractors.Helpers
 
   # ===========================================================================
@@ -146,47 +148,57 @@ defmodule ElixirOntologies.Extractors.Macro do
   # defmacro/defmacrop with guard: defmacro name(args) when guard do body end
   def extract({form, meta, [{:when, _, [call, guard]}, body_opts]}, _opts)
       when form in @macro_forms do
-    {name, params} = extract_name_and_params(call)
-    body = extract_body(body_opts)
-    visibility = form_to_visibility(form)
-    location = Helpers.extract_location({form, meta, []})
-    {is_hygienic, hygiene_info} = analyze_hygiene(body)
+    case extract_name_and_params(call) do
+      {:ok, name, params} ->
+        body = extract_body(body_opts)
+        visibility = form_to_visibility(form)
+        location = Helpers.extract_location({form, meta, []})
+        {is_hygienic, hygiene_info} = analyze_hygiene(body)
 
-    {:ok,
-     %__MODULE__{
-       name: name,
-       arity: length(params),
-       visibility: visibility,
-       parameters: params,
-       guard: guard,
-       body: body,
-       is_hygienic: is_hygienic,
-       location: location,
-       metadata: Map.merge(hygiene_info, %{has_guard: true})
-     }}
+        {:ok,
+         %__MODULE__{
+           name: name,
+           arity: length(params),
+           visibility: visibility,
+           parameters: params,
+           guard: guard,
+           body: body,
+           is_hygienic: is_hygienic,
+           location: location,
+           metadata: Map.merge(hygiene_info, %{has_guard: true})
+         }}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   # defmacro/defmacrop without guard: defmacro name(args) do body end
   def extract({form, meta, [call, body_opts]}, _opts)
       when form in @macro_forms do
-    {name, params} = extract_name_and_params(call)
-    body = extract_body(body_opts)
-    visibility = form_to_visibility(form)
-    location = Helpers.extract_location({form, meta, []})
-    {is_hygienic, hygiene_info} = analyze_hygiene(body)
+    case extract_name_and_params(call) do
+      {:ok, name, params} ->
+        body = extract_body(body_opts)
+        visibility = form_to_visibility(form)
+        location = Helpers.extract_location({form, meta, []})
+        {is_hygienic, hygiene_info} = analyze_hygiene(body)
 
-    {:ok,
-     %__MODULE__{
-       name: name,
-       arity: length(params),
-       visibility: visibility,
-       parameters: params,
-       guard: nil,
-       body: body,
-       is_hygienic: is_hygienic,
-       location: location,
-       metadata: Map.merge(hygiene_info, %{has_guard: false})
-     }}
+        {:ok,
+         %__MODULE__{
+           name: name,
+           arity: length(params),
+           visibility: visibility,
+           parameters: params,
+           guard: nil,
+           body: body,
+           is_hygienic: is_hygienic,
+           location: location,
+           metadata: Map.merge(hygiene_info, %{has_guard: false})
+         }}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   def extract(node, _opts) do
@@ -241,8 +253,12 @@ defmodule ElixirOntologies.Extractors.Macro do
     |> Enum.filter(&macro?/1)
     |> Enum.map(fn node ->
       case extract(node) do
-        {:ok, result} -> result
-        {:error, _} -> nil
+        {:ok, result} ->
+          result
+
+        {:error, reason} ->
+          Logger.warning("Failed to extract macro: #{reason}")
+          nil
       end
     end)
     |> Enum.reject(&is_nil/1)
@@ -251,8 +267,12 @@ defmodule ElixirOntologies.Extractors.Macro do
   def extract_all(statement) do
     if macro?(statement) do
       case extract(statement) do
-        {:ok, result} -> [result]
-        {:error, _} -> []
+        {:ok, result} ->
+          [result]
+
+        {:error, reason} ->
+          Logger.warning("Failed to extract macro: #{reason}")
+          []
       end
     else
       []
@@ -351,19 +371,42 @@ defmodule ElixirOntologies.Extractors.Macro do
   # Private Helpers
   # ===========================================================================
 
+  # Standard macro: defmacro foo(...) - name with nil context (no args marker)
   defp extract_name_and_params({name, _, nil}) when is_atom(name) do
-    {name, []}
+    {:ok, name, []}
   end
 
+  # Standard macro with atom context (e.g., from quoted code)
   defp extract_name_and_params({name, _, context}) when is_atom(name) and is_atom(context) do
-    {name, []}
+    {:ok, name, []}
   end
 
+  # Standard macro with params list
   defp extract_name_and_params({name, _, params}) when is_atom(name) and is_list(params) do
-    {name, params}
+    {:ok, name, params}
   end
 
-  defp extract_name_and_params(_), do: {nil, []}
+  # Dynamic macro name: defmacro unquote(:name)(...)
+  # The name is an AST node like {:unquote, _, [actual_name]}
+  defp extract_name_and_params({{:unquote, _, [name_expr]}, _, params}) when is_list(params) do
+    # Try to extract the actual name if it's a literal
+    name = extract_dynamic_name(name_expr)
+    {:ok, name, params}
+  end
+
+  defp extract_name_and_params({{:unquote, _, [name_expr]}, _, nil}) do
+    name = extract_dynamic_name(name_expr)
+    {:ok, name, []}
+  end
+
+  # Catch-all returns error instead of silently returning {nil, []}
+  defp extract_name_and_params(node) do
+    {:error, "Unable to extract macro name from: #{inspect(node)}"}
+  end
+
+  # Extract name from unquote expressions
+  defp extract_dynamic_name(name) when is_atom(name), do: name
+  defp extract_dynamic_name(_), do: :__dynamic__
 
   defp extract_body(body_opts) when is_list(body_opts) do
     Keyword.get(body_opts, :do)

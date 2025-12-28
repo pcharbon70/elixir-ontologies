@@ -143,14 +143,11 @@ defmodule ElixirOntologies.SHACL.DomainValidationTest do
              end)
     end
 
-    test "rejects function with no clauses", %{shapes: shapes} do
-      report = assert_violation("functions/invalid_function_no_clause.ttl", shapes)
-
-      # Verify it's a minCount violation for hasClause
-      assert Enum.any?(report.results, fn result ->
-               result.details[:constraint_component] ==
-                 RDF.iri("http://www.w3.org/ns/shacl#MinCountConstraintComponent")
-             end)
+    test "accepts function with no clauses (clauses are optional)", %{shapes: shapes} do
+      # Since clauses are built separately and not always available during analysis,
+      # we made hasClause optional in the SHACL shapes
+      {:ok, report} = validate_fixture("functions/invalid_function_no_clause.ttl", shapes)
+      assert report.conforms?
     end
 
     test "rejects function with invalid name pattern", %{shapes: shapes} do

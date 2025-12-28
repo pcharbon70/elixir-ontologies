@@ -1,0 +1,390 @@
+defmodule Mix.Tasks.ElixirOntologies.HexBatch do
+  @moduledoc """
+  Analyzes all Elixir packages from hex.pm and generates RDF knowledge graphs.
+
+  ## Usage
+
+      # Analyze all packages to output directory
+      mix elixir_ontologies.hex_batch /path/to/output
+
+      # Resume interrupted processing
+      mix elixir_ontologies.hex_batch /path/to/output --resume
+
+      # Analyze with package limit (for testing)
+      mix elixir_ontologies.hex_batch /path/to/output --limit 100
+
+      # Analyze a single package
+      mix elixir_ontologies.hex_batch /path/to/output --package phoenix
+
+      # List packages without processing (dry run)
+      mix elixir_ontologies.hex_batch /path/to/output --dry-run --limit 50
+
+  ## Options
+
+    * `--output-dir`, `-o` - Output directory path (can also be positional arg)
+    * `--progress-file` - Progress file path (default: OUTPUT_DIR/progress.json)
+    * `--resume`, `-r` - Resume from progress file (default: true)
+    * `--limit`, `-l` - Maximum number of packages to process
+    * `--start-page` - Starting API page number (default: 1)
+    * `--delay` - Delay between packages in milliseconds (default: 100)
+    * `--timeout` - Per-package timeout in minutes (default: 5)
+    * `--sort-by`, `-s` - Sort order: "popularity" or "alphabetical" (default: popularity)
+    * `--package`, `-p` - Analyze a single package by name
+    * `--dry-run` - List packages only, don't analyze
+    * `--quiet`, `-q` - Minimal output
+    * `--verbose`, `-v` - Detailed output with timestamps
+
+  ## Sort Order
+
+  By default, packages are processed in popularity order:
+  1. Recent downloads (descending)
+  2. Total downloads (descending)
+  3. Package name (ascending, as tiebreaker)
+
+  This ensures the most important packages are analyzed first. Use `--sort-by alphabetical`
+  to process packages in alphabetical order instead.
+
+  ## Examples
+
+      # Full batch analysis (processes popular packages first)
+      mix elixir_ontologies.hex_batch ./hex_output
+
+      # Process in alphabetical order
+      mix elixir_ontologies.hex_batch ./hex_output --sort-by alphabetical
+
+      # Resume after interruption
+      mix elixir_ontologies.hex_batch ./hex_output --resume
+
+      # Test with limited packages
+      mix elixir_ontologies.hex_batch ./hex_output --limit 10 --verbose
+
+      # Analyze single package for testing
+      mix elixir_ontologies.hex_batch ./hex_output --package phoenix
+
+      # Preview packages without processing
+      mix elixir_ontologies.hex_batch ./hex_output --dry-run --limit 100
+
+  ## Output
+
+  Each successfully analyzed package produces a TTL file in the output directory:
+
+      OUTPUT_DIR/
+        phoenix-1.7.10.ttl
+        ecto-3.11.0.ttl
+        ...
+        progress.json
+
+  The progress.json file tracks processing state for resume capability.
+  """
+
+  use Mix.Task
+
+  alias ElixirOntologies.Hex.Api
+  alias ElixirOntologies.Hex.BatchProcessor
+  alias ElixirOntologies.Hex.BatchProcessor.Config
+  alias ElixirOntologies.Hex.Filter
+  alias ElixirOntologies.Hex.HttpClient
+  alias ElixirOntologies.Hex.PackageHandler
+  alias ElixirOntologies.Hex.Progress
+  alias ElixirOntologies.Hex.Progress.PackageResult
+  alias ElixirOntologies.Hex.ProgressDisplay
+  alias ElixirOntologies.Hex.AnalyzerAdapter
+  alias ElixirOntologies.Hex.OutputManager
+  alias ElixirOntologies.Hex.Utils
+
+  @shortdoc "Analyze all Elixir packages from hex.pm"
+
+  @switches [
+    output_dir: :string,
+    progress_file: :string,
+    resume: :boolean,
+    limit: :integer,
+    start_page: :integer,
+    delay: :integer,
+    timeout: :integer,
+    package: :string,
+    sort_by: :string,
+    dry_run: :boolean,
+    quiet: :boolean,
+    verbose: :boolean
+  ]
+
+  @aliases [
+    o: :output_dir,
+    r: :resume,
+    l: :limit,
+    p: :package,
+    s: :sort_by,
+    q: :quiet,
+    v: :verbose
+  ]
+
+  @impl Mix.Task
+  @spec run([String.t()]) :: :ok
+  def run(args) do
+    # Ensure required applications are started
+    Application.ensure_all_started(:req)
+    Application.ensure_all_started(:jason)
+
+    # Parse options
+    {opts, remaining, invalid} = OptionParser.parse(args, strict: @switches, aliases: @aliases)
+
+    if invalid != [] do
+      error("Invalid options: #{format_invalid(invalid)}")
+      exit({:shutdown, 1})
+    end
+
+    # Get output directory from positional arg or option
+    output_dir = get_output_dir(opts, remaining)
+
+    unless output_dir do
+      error("Output directory is required")
+      IO.puts("")
+      IO.puts("Usage: mix elixir_ontologies.hex_batch OUTPUT_DIR [options]")
+      exit({:shutdown, 1})
+    end
+
+    # Build config
+    config = build_config(output_dir, opts)
+
+    # Handle different modes
+    cond do
+      opts[:package] ->
+        run_single_package(opts[:package], config, opts)
+
+      opts[:dry_run] ->
+        run_dry_run(config, opts)
+
+      true ->
+        run_batch(config, opts)
+    end
+  end
+
+  defp get_output_dir(opts, remaining) do
+    cond do
+      opts[:output_dir] -> opts[:output_dir]
+      remaining != [] -> hd(remaining)
+      true -> nil
+    end
+  end
+
+  defp build_config(output_dir, opts) do
+    Config.new(
+      output_dir: output_dir,
+      progress_file: opts[:progress_file],
+      resume: Keyword.get(opts, :resume, true),
+      limit: opts[:limit],
+      start_page: Keyword.get(opts, :start_page, 1),
+      delay_ms: Keyword.get(opts, :delay, 100),
+      timeout_minutes: Keyword.get(opts, :timeout, 5),
+      sort_by: parse_sort_by(opts[:sort_by]),
+      dry_run: Keyword.get(opts, :dry_run, false),
+      verbose: Keyword.get(opts, :verbose, false)
+    )
+  end
+
+  defp parse_sort_by(nil), do: :popularity
+  defp parse_sort_by("popularity"), do: :popularity
+  defp parse_sort_by("alphabetical"), do: :alphabetical
+  defp parse_sort_by("alpha"), do: :alphabetical
+  defp parse_sort_by(_), do: :popularity
+
+  defp run_batch(%Config{} = config, opts) do
+    quiet = opts[:quiet]
+
+    unless quiet do
+      ProgressDisplay.display_banner(%{
+        output_dir: config.output_dir,
+        limit: config.limit,
+        resume: config.resume,
+        dry_run: config.dry_run
+      })
+    end
+
+    case BatchProcessor.run(config) do
+      {:ok, summary} ->
+        unless quiet do
+          # Create a minimal progress for display
+          progress = %Progress{
+            started_at: DateTime.utc_now(),
+            updated_at: DateTime.utc_now(),
+            processed: [],
+            current_page: 1,
+            total_packages: nil,
+            config: %{}
+          }
+
+          ProgressDisplay.display_summary(progress, %{
+            output_dir: config.output_dir,
+            progress_file: config.progress_file
+          })
+        end
+
+        if summary.failed > 0 do
+          exit({:shutdown, 1})
+        else
+          :ok
+        end
+
+      {:error, reason} ->
+        error("Batch processing failed: #{inspect(reason)}")
+        exit({:shutdown, 1})
+    end
+  end
+
+  defp run_single_package(package_name, %Config{} = config, opts) do
+    quiet = opts[:quiet]
+    verbose = opts[:verbose]
+
+    unless quiet do
+      IO.puts("Analyzing single package: #{package_name}")
+      IO.puts("")
+    end
+
+    # Initialize HTTP client
+    http_client = HttpClient.new()
+
+    # Fetch package metadata
+    case Api.get_package(http_client, package_name) do
+      {:ok, package} ->
+        version = Api.latest_stable_version(package)
+
+        if verbose do
+          ProgressDisplay.log_start(package_name, version)
+        end
+
+        start_time = System.monotonic_time(:millisecond)
+
+        # Process the package
+        result =
+          PackageHandler.with_package(
+            http_client,
+            package_name,
+            version,
+            config.temp_dir,
+            fn context ->
+              analyze_single(context, package_name, version, config)
+            end
+          )
+
+        duration_ms = System.monotonic_time(:millisecond) - start_time
+
+        case result do
+          {:ok, %PackageResult{status: :completed} = pkg_result} ->
+            if verbose do
+              ProgressDisplay.log_complete(package_name, version, duration_ms)
+            end
+
+            unless quiet do
+              IO.puts("Success: #{package_name} v#{version}")
+              IO.puts("  Output: #{pkg_result.output_path}")
+              IO.puts("  Modules: #{pkg_result.module_count || "unknown"}")
+              IO.puts("  Duration: #{Utils.format_duration_ms(duration_ms)}")
+            end
+
+            :ok
+
+          {:ok, %PackageResult{status: :failed} = pkg_result} ->
+            if verbose do
+              ProgressDisplay.log_error(package_name, version, pkg_result.error)
+            end
+
+            error("Failed: #{package_name} v#{version}")
+            error("  Reason: #{pkg_result.error}")
+            exit({:shutdown, 1})
+
+          {:error, reason} ->
+            if verbose do
+              ProgressDisplay.log_error(package_name, version, reason)
+            end
+
+            error("Failed: #{package_name} v#{version}")
+            error("  Reason: #{inspect(reason)}")
+            exit({:shutdown, 1})
+        end
+
+      {:error, :not_found} ->
+        error("Package not found: #{package_name}")
+        exit({:shutdown, 1})
+
+      {:error, reason} ->
+        error("Failed to fetch package: #{inspect(reason)}")
+        exit({:shutdown, 1})
+    end
+  end
+
+  defp analyze_single(context, name, version, config) do
+    if Filter.has_elixir_source?(context.extract_dir) do
+      analyze_config = %{
+        base_iri_template: config.base_iri_template,
+        timeout_minutes: config.timeout_minutes,
+        version: version
+      }
+
+      case AnalyzerAdapter.analyze_package(context.extract_dir, name, analyze_config) do
+        {:ok, graph, metadata} ->
+          case OutputManager.save_graph(graph, config.output_dir, name, version) do
+            {:ok, output_path} ->
+              PackageResult.success(name, version,
+                output_path: output_path,
+                module_count: metadata.module_count
+              )
+
+            {:error, reason} ->
+              PackageResult.failure(name, version, error: inspect(reason))
+          end
+
+        {:error, reason} ->
+          PackageResult.failure(name, version, error: inspect(reason))
+      end
+    else
+      PackageResult.failure(name, version, error: "No Elixir source files found")
+    end
+  end
+
+  defp run_dry_run(%Config{} = config, opts) do
+    quiet = opts[:quiet]
+
+    unless quiet do
+      IO.puts("Dry run - listing Elixir packages from hex.pm")
+      IO.puts("")
+    end
+
+    http_client = HttpClient.new()
+
+    packages =
+      http_client
+      |> Api.stream_all_packages(page: config.start_page)
+      |> Filter.filter_likely_elixir()
+      |> maybe_limit(config.limit)
+      |> Enum.with_index(1)
+
+    count =
+      Enum.reduce(packages, 0, fn {package, index}, _acc ->
+        version = Api.latest_stable_version(package)
+
+        unless quiet do
+          ProgressDisplay.print_dry_run_package(package.name, version, index)
+        end
+
+        index
+      end)
+
+    unless quiet do
+      ProgressDisplay.display_dry_run_summary(count)
+    end
+
+    :ok
+  end
+
+  defp maybe_limit(stream, nil), do: stream
+  defp maybe_limit(stream, limit), do: Stream.take(stream, limit)
+
+  defp format_invalid(invalid) do
+    Enum.map_join(invalid, ", ", fn {opt, _} -> opt end)
+  end
+
+  defp error(message) do
+    IO.puts(:stderr, "Error: #{message}")
+  end
+end

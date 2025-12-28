@@ -16,7 +16,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModelTest do
   # Test Helpers
   # ===========================================================================
 
-  defp create_commit(opts \\ []) do
+  defp create_commit(opts) do
     %Commit{
       sha: Keyword.get(opts, :sha, "abc123def456abc123def456abc123def456abc1"),
       short_sha: Keyword.get(opts, :short_sha, "abc123d"),
@@ -241,9 +241,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModelTest do
 
       # Check that informs is populated based on informed_by
       if length(activities) > 1 do
-        [newest | _rest] = activities
-        # The newest activity's informed_by should point to older activities
-        # And those older activities' informs should point back
+        # All activities should have informs populated
         Enum.each(activities, fn activity ->
           assert is_list(activity.informs)
         end)
@@ -556,7 +554,7 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModelTest do
 
       if length(activities) > 1 do
         # Check that informed_by chain matches parent relationships
-        [newest | rest] = activities
+        [newest | _rest] = activities
 
         # The newest commit's informed_by should include parent activity IDs
         parent_short = String.slice(List.first(commits).parents |> List.first() || "", 0, 7)

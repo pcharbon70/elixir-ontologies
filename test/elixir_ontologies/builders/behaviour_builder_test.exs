@@ -34,7 +34,7 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
     }
   end
 
-  defp build_test_callback(opts \\ []) do
+  defp build_test_callback(opts) do
     %{
       name: Keyword.get(opts, :name, :test_callback),
       arity: Keyword.get(opts, :arity, 1),
@@ -56,7 +56,7 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
     }
   end
 
-  defp build_test_behaviour_impl(opts \\ []) do
+  defp build_test_behaviour_impl(opts) do
     %{
       behaviour: Keyword.get(opts, :behaviour, :GenServer),
       behaviour_alias: Keyword.get(opts, :behaviour_alias, nil),

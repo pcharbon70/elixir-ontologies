@@ -33,7 +33,7 @@ defmodule ElixirOntologies.Builders.StructBuilderTest do
     }
   end
 
-  defp build_test_field(opts \\ []) do
+  defp build_test_field(opts) do
     %{
       name: Keyword.get(opts, :name, :test_field),
       has_default: Keyword.get(opts, :has_default, false),

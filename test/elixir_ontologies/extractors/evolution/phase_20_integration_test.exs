@@ -39,7 +39,6 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
   alias ElixirOntologies.Builders.Evolution.AgentBuilder
   alias ElixirOntologies.Builders.Evolution.CommitBuilder
   alias ElixirOntologies.Builders.Evolution.SnapshotReleaseBuilder
-  alias ElixirOntologies.Builders.Evolution.VersionBuilder
 
   # Support
   alias ElixirOntologies.Builders.Context
@@ -78,10 +77,10 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
         assert is_list(triples)
         assert length(triples) > 0
 
-        # Verify commit has expected type
+        # Verify commit has expected type (Commit or MergeCommit for merge commits)
         assert Enum.any?(triples, fn
                  {^iri, pred, type} ->
-                   pred == RDF.type() and type == Evolution.Commit
+                   pred == RDF.type() and type in [Evolution.Commit, Evolution.MergeCommit]
 
                  _ ->
                    false
@@ -454,10 +453,8 @@ defmodule ElixirOntologies.Extractors.Evolution.Phase20IntegrationTest do
       all_agents =
         commits
         |> Enum.flat_map(fn commit ->
-          case Agent.extract_agents(".", commit) do
-            {:ok, agents} -> agents
-            {:error, _} -> []
-          end
+          {:ok, agents} = Agent.extract_agents(".", commit)
+          agents
         end)
 
       # Check for email uniqueness (agents should be deduplicated by email)

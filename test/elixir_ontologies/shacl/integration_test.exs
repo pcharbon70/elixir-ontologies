@@ -41,14 +41,14 @@ defmodule ElixirOntologies.SHACL.IntegrationTest do
     file_path
   end
 
-  defp analyze_and_validate(file_path, opts \\ []) do
+  defp analyze_and_validate(file_path, opts) do
     with {:ok, graph} <- ElixirOntologies.analyze_file(file_path, opts),
          {:ok, report} <- Validator.validate(graph, opts) do
       {:ok, graph, report}
     end
   end
 
-  defp assert_conforms(report, message \\ "Expected graph to conform") do
+  defp assert_conforms(report, message) do
     assert %ValidationReport{conforms?: true} = report, """
     #{message}
 
@@ -57,7 +57,7 @@ defmodule ElixirOntologies.SHACL.IntegrationTest do
     """
   end
 
-  defp assert_violations(report, min_count \\ 1) do
+  defp assert_violations(report, min_count) do
     refute report.conforms?, "Expected violations but graph conformed"
 
     assert length(report.results) >= min_count,
