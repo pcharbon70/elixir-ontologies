@@ -356,14 +356,17 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
 
     unless quiet do
       IO.puts("Dry run - listing Elixir packages from hex.pm")
+      IO.puts("Sort order: #{config.sort_by}")
       IO.puts("")
     end
 
     http_client = HttpClient.new()
 
+    # Use the same sorting logic as batch processor
+    package_stream = get_package_stream(http_client, config)
+
     packages =
-      http_client
-      |> Api.stream_all_packages(page: config.start_page)
+      package_stream
       |> Filter.filter_likely_elixir()
       |> maybe_limit(config.limit)
       |> Enum.with_index(1)
@@ -384,6 +387,18 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     end
 
     :ok
+  end
+
+  defp get_package_stream(http_client, config) do
+    case config.sort_by do
+      :popularity ->
+        Api.stream_all_packages_by_popularity(http_client,
+          delay_ms: config.api_delay_ms || 50
+        )
+
+      :alphabetical ->
+        Api.stream_all_packages(http_client, page: config.start_page)
+    end
   end
 
   defp maybe_limit(stream, nil), do: stream
