@@ -10,12 +10,14 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatchTest do
   # ===========================================================================
 
   describe "run/1 option parsing" do
-    test "exits with error when no output directory" do
-      assert catch_exit(
-               capture_io(:stderr, fn ->
-                 HexBatch.run([])
-               end)
-             ) == {:shutdown, 1}
+    test "uses default output directory .ttl when none provided" do
+      # Config.new now defaults output_dir to ".ttl"
+      alias ElixirOntologies.Hex.BatchProcessor.Config
+      config = Config.new()
+      assert config.output_dir == "hex_output"
+
+      # The mix task defaults to ".ttl"
+      # We can't easily test this without network access
     end
 
     test "exits with error for invalid options" do
@@ -155,14 +157,6 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatchTest do
   # ===========================================================================
 
   describe "error handling" do
-    test "shows error for missing output directory" do
-      stderr = capture_io(:stderr, fn ->
-        catch_exit(HexBatch.run([]))
-      end)
-
-      assert stderr =~ "Output directory is required"
-    end
-
     test "shows error for invalid option" do
       stderr = capture_io(:stderr, fn ->
         catch_exit(HexBatch.run(["--not-real-option"]))

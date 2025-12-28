@@ -169,9 +169,8 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
   end
 
   defp build_config(output_dir, opts) do
-    Config.new(
+    base_opts = [
       output_dir: output_dir,
-      progress_file: opts[:progress_file],
       resume: Keyword.get(opts, :resume, true),
       limit: opts[:limit],
       start_page: Keyword.get(opts, :start_page, 1),
@@ -180,7 +179,17 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
       sort_by: parse_sort_by(opts[:sort_by]),
       dry_run: Keyword.get(opts, :dry_run, false),
       verbose: Keyword.get(opts, :verbose, false)
-    )
+    ]
+
+    # Only include progress_file if explicitly provided
+    config_opts =
+      if opts[:progress_file] do
+        Keyword.put(base_opts, :progress_file, opts[:progress_file])
+      else
+        base_opts
+      end
+
+    Config.new(config_opts)
   end
 
   defp parse_sort_by(nil), do: :popularity
