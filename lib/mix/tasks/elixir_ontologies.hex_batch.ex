@@ -4,24 +4,27 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
 
   ## Usage
 
-      # Analyze all packages to output directory
+      # Analyze all packages to default output directory (.ttl/)
+      mix elixir_ontologies.hex_batch
+
+      # Analyze all packages to custom output directory
       mix elixir_ontologies.hex_batch /path/to/output
 
       # Resume interrupted processing
-      mix elixir_ontologies.hex_batch /path/to/output --resume
+      mix elixir_ontologies.hex_batch --resume
 
       # Analyze with package limit (for testing)
-      mix elixir_ontologies.hex_batch /path/to/output --limit 100
+      mix elixir_ontologies.hex_batch --limit 100
 
       # Analyze a single package
-      mix elixir_ontologies.hex_batch /path/to/output --package phoenix
+      mix elixir_ontologies.hex_batch --package phoenix
 
       # List packages without processing (dry run)
-      mix elixir_ontologies.hex_batch /path/to/output --dry-run --limit 50
+      mix elixir_ontologies.hex_batch --dry-run --limit 50
 
   ## Options
 
-    * `--output-dir`, `-o` - Output directory path (can also be positional arg)
+    * `--output-dir`, `-o` - Output directory path (default: .ttl)
     * `--progress-file` - Progress file path (default: OUTPUT_DIR/progress.json)
     * `--resume`, `-r` - Resume from progress file (default: true)
     * `--limit`, `-l` - Maximum number of packages to process
@@ -46,29 +49,33 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
 
   ## Examples
 
-      # Full batch analysis (processes popular packages first)
+      # Full batch analysis to default .ttl/ directory
+      mix elixir_ontologies.hex_batch
+
+      # Full batch analysis to custom directory
       mix elixir_ontologies.hex_batch ./hex_output
 
       # Process in alphabetical order
-      mix elixir_ontologies.hex_batch ./hex_output --sort-by alphabetical
+      mix elixir_ontologies.hex_batch --sort-by alphabetical
 
       # Resume after interruption
-      mix elixir_ontologies.hex_batch ./hex_output --resume
+      mix elixir_ontologies.hex_batch --resume
 
       # Test with limited packages
-      mix elixir_ontologies.hex_batch ./hex_output --limit 10 --verbose
+      mix elixir_ontologies.hex_batch --limit 10 --verbose
 
       # Analyze single package for testing
-      mix elixir_ontologies.hex_batch ./hex_output --package phoenix
+      mix elixir_ontologies.hex_batch --package phoenix
 
       # Preview packages without processing
-      mix elixir_ontologies.hex_batch ./hex_output --dry-run --limit 100
+      mix elixir_ontologies.hex_batch --dry-run --limit 100
 
   ## Output
 
-  Each successfully analyzed package produces a TTL file in the output directory:
+  Each successfully analyzed package produces a TTL file in the output directory
+  (default: .ttl/):
 
-      OUTPUT_DIR/
+      .ttl/
         phoenix-1.7.10.ttl
         ecto-3.11.0.ttl
         ...
@@ -134,15 +141,8 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
       exit({:shutdown, 1})
     end
 
-    # Get output directory from positional arg or option
+    # Get output directory from positional arg or option (default: .ttl)
     output_dir = get_output_dir(opts, remaining)
-
-    unless output_dir do
-      error("Output directory is required")
-      IO.puts("")
-      IO.puts("Usage: mix elixir_ontologies.hex_batch OUTPUT_DIR [options]")
-      exit({:shutdown, 1})
-    end
 
     # Build config
     config = build_config(output_dir, opts)
@@ -164,7 +164,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     cond do
       opts[:output_dir] -> opts[:output_dir]
       remaining != [] -> hd(remaining)
-      true -> nil
+      true -> ".ttl"
     end
   end
 

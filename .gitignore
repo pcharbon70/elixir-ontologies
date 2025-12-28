@@ -24,3 +24,6 @@ elixir_ontologies-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Generated TTL output from hex batch analyzer.
+/.ttl/
