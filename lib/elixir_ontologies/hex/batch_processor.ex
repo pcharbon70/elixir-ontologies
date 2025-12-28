@@ -339,7 +339,7 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
         state.http_client,
         package.name,
         version,
-        state.config.temp_dir,
+        [temp_dir: state.config.temp_dir],
         fn context ->
           analyze_and_save(context, package.name, version, state)
         end
@@ -401,10 +401,10 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
   defp save_analysis_output(graph, name, version, metadata, %State{} = state) do
     case OutputManager.save_graph(graph, state.config.output_dir, name, version) do
       {:ok, output_path} ->
-        PackageResult.success(name, version,
+        {:ok, PackageResult.success(name, version,
           output_path: output_path,
           module_count: metadata.module_count
-        )
+        )}
 
       {:error, reason} ->
         {:error, {:output_error, reason}}
