@@ -1287,6 +1287,17 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
           value: do_parse(value),
           required: detect_required(key)
         }
+
+      # Macro expressions (unquote, unquote_splicing) - skip gracefully
+      {:unquote, _, _} ->
+        %{key: %{type: :macro_expression}, value: %{type: :macro_expression}, required: true}
+
+      {:unquote_splicing, _, _} ->
+        %{key: %{type: :macro_expression}, value: %{type: :macro_expression}, required: true}
+
+      # Any other unexpected pattern - skip gracefully
+      _other ->
+        %{key: %{type: :unknown}, value: %{type: :unknown}, required: true}
     end)
   end
 
@@ -1665,6 +1676,17 @@ defmodule ElixirOntologies.Extractors.TypeExpression do
           value: do_parse_with_constraints(value, constraints),
           required: detect_required(key)
         }
+
+      # Macro expressions (unquote, unquote_splicing) - skip gracefully
+      {:unquote, _, _} ->
+        %{key: %{type: :macro_expression}, value: %{type: :macro_expression}, required: true}
+
+      {:unquote_splicing, _, _} ->
+        %{key: %{type: :macro_expression}, value: %{type: :macro_expression}, required: true}
+
+      # Any other unexpected pattern - skip gracefully
+      _other ->
+        %{key: %{type: :unknown}, value: %{type: :unknown}, required: true}
     end)
   end
 end
