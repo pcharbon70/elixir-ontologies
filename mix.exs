@@ -31,6 +31,10 @@ defmodule ElixirOntologies.MixProject do
       {:rdf, "~> 2.0"},
       {:sparql, "~> 0.3", optional: true},
 
+      # HTTP client for Hex.pm API
+      {:req, "~> 0.5"},
+      {:castore, "~> 1.0"},
+
       # Development and documentation
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
 
@@ -40,6 +44,9 @@ defmodule ElixirOntologies.MixProject do
 
       # Property-based testing
       {:stream_data, "~> 1.0", only: :test},
+
+      # HTTP mocking for tests
+      {:bypass, "~> 2.1", only: :test},
 
       # Benchmarking
       {:benchee, "~> 1.3", only: :dev}
