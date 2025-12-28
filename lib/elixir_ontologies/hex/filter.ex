@@ -281,7 +281,7 @@ defmodule ElixirOntologies.Hex.Filter do
   """
   @spec filter_elixir_packages(Enumerable.t(), Req.Request.t(), keyword()) :: Enumerable.t()
   def filter_elixir_packages(packages, http_client, opts \\ []) do
-    delay_ms = Keyword.get(opts, :delay_ms, 50)
+    delay_ms = Keyword.get(opts, :delay_ms, 200)
     verbose = Keyword.get(opts, :verbose, false)
 
     alias ElixirOntologies.Hex.Api
@@ -289,10 +289,10 @@ defmodule ElixirOntologies.Hex.Filter do
     Stream.filter(packages, fn package ->
       version = Api.latest_stable_version(package)
 
-      # Add small delay to avoid rate limiting
+      # Add delay to avoid rate limiting
       if delay_ms > 0, do: Process.sleep(delay_ms)
 
-      is_elixir = Api.elixir_package?(http_client, package.name, version)
+      is_elixir = check_elixir_with_retry(http_client, package.name, version, delay_ms)
 
       if not is_elixir and verbose do
         require Logger
@@ -301,6 +301,35 @@ defmodule ElixirOntologies.Hex.Filter do
 
       is_elixir
     end)
+  end
+
+  # Check if package is Elixir with retry on rate limit
+  defp check_elixir_with_retry(http_client, name, version, delay_ms, retries \\ 3) do
+    alias ElixirOntologies.Hex.Api
+
+    case Api.get_release_meta(http_client, name, version) do
+      {:ok, meta} ->
+        build_tools = meta["build_tools"] || []
+        elixir_version = meta["elixir"]
+        "mix" in build_tools or not is_nil(elixir_version)
+
+      {:error, :rate_limited} when retries > 0 ->
+        # Back off and retry
+        require Logger
+        Logger.warning("Rate limited, backing off for #{delay_ms * 5}ms...")
+        Process.sleep(delay_ms * 5)
+        check_elixir_with_retry(http_client, name, version, delay_ms, retries - 1)
+
+      {:error, :rate_limited} ->
+        # Exhausted retries, assume Elixir (fail open)
+        require Logger
+        Logger.warning("Rate limit retries exhausted for #{name}, assuming Elixir")
+        true
+
+      {:error, _} ->
+        # On other errors, assume it might be Elixir (fail open)
+        true
+    end
   end
 
   @doc """

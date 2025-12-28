@@ -130,12 +130,12 @@ defmodule ElixirOntologies.Hex.Api do
   ## Example
 
       client
-      |> Api.stream_all_packages(delay_ms: 500)
+      |> Api.stream_all_packages(delay_ms: 1000)
       |> Enum.take(100)
   """
   @spec stream_all_packages(Req.Request.t(), keyword()) :: Enumerable.t()
   def stream_all_packages(client, opts \\ []) do
-    delay_ms = Keyword.get(opts, :delay_ms, 1000)
+    delay_ms = Keyword.get(opts, :delay_ms, 500)
     start_page = Keyword.get(opts, :start_page, 1)
 
     Stream.resource(
