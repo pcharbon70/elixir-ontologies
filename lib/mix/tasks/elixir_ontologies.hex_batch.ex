@@ -356,7 +356,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
 
     packages =
       package_stream
-      |> Filter.filter_likely_elixir()
+      |> Filter.filter_elixir_packages(http_client, delay_ms: config.api_delay_ms || 50, verbose: config.verbose)
       |> maybe_limit(config.limit)
       |> Enum.with_index(1)
 

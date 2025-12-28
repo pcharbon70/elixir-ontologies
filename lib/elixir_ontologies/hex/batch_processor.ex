@@ -237,7 +237,7 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
     state =
       state.http_client
       |> get_package_stream(state.config)
-      |> filter_packages()
+      |> filter_packages(state.http_client, state.config)
       |> skip_processed(state.progress)
       |> maybe_limit(state.config.limit)
       |> Enum.reduce_while(state, fn package, acc_state ->
@@ -275,8 +275,11 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
     end
   end
 
-  defp filter_packages(stream) do
-    Filter.filter_likely_elixir(stream)
+  defp filter_packages(stream, http_client, config) do
+    Filter.filter_elixir_packages(stream, http_client,
+      delay_ms: config.api_delay_ms,
+      verbose: config.verbose
+    )
   end
 
   defp skip_processed(stream, progress) do

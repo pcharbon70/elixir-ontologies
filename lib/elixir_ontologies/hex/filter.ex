@@ -233,11 +233,13 @@ defmodule ElixirOntologies.Hex.Filter do
   # ===========================================================================
 
   @doc """
-  Filters a stream of packages to include likely Elixir packages.
+  Filters a stream of packages to include likely Elixir packages (heuristic-based).
 
   Packages with clear Erlang indicators are rejected.
   Packages with Elixir indicators or unknown status are passed through.
   Unknown packages should be verified via source inspection after download.
+
+  For accurate filtering using release metadata, use `filter_elixir_packages/2` instead.
 
   ## Examples
 
@@ -254,6 +256,50 @@ defmodule ElixirOntologies.Hex.Filter do
         :unknown -> true
         false -> false
       end
+    end)
+  end
+
+  @doc """
+  Filters packages using release metadata to accurately identify Elixir packages.
+
+  Makes an API call per package to check build_tools and elixir version requirement.
+  Only packages with `mix` in build_tools or non-null elixir requirement are included.
+
+  This is slower than `filter_likely_elixir/1` but 100% accurate.
+
+  ## Options
+
+    * `:delay_ms` - Delay between API calls in milliseconds (default: 50)
+    * `:verbose` - Log skipped packages (default: false)
+
+  ## Examples
+
+      packages
+      |> Filter.filter_elixir_packages(http_client)
+      |> Stream.each(&process/1)
+      |> Stream.run()
+  """
+  @spec filter_elixir_packages(Enumerable.t(), Req.Request.t(), keyword()) :: Enumerable.t()
+  def filter_elixir_packages(packages, http_client, opts \\ []) do
+    delay_ms = Keyword.get(opts, :delay_ms, 50)
+    verbose = Keyword.get(opts, :verbose, false)
+
+    alias ElixirOntologies.Hex.Api
+
+    Stream.filter(packages, fn package ->
+      version = Api.latest_stable_version(package)
+
+      # Add small delay to avoid rate limiting
+      if delay_ms > 0, do: Process.sleep(delay_ms)
+
+      is_elixir = Api.elixir_package?(http_client, package.name, version)
+
+      if not is_elixir and verbose do
+        require Logger
+        Logger.info("Skipping Erlang package: #{package.name}")
+      end
+
+      is_elixir
     end)
   end
 

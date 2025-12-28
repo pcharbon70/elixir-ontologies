@@ -202,6 +202,54 @@ defmodule ElixirOntologies.Hex.Api do
   end
 
   @doc """
+  Fetches release metadata for a specific package version.
+
+  Returns build tools, elixir version requirement, and other release metadata.
+
+  ## Returns
+
+    * `{:ok, release_meta}` on success
+    * `{:error, reason}` on failure
+
+  ## Examples
+
+      {:ok, meta} = Api.get_release_meta(client, "phoenix", "1.7.14")
+      # => %{"build_tools" => ["mix"], "elixir" => "~> 1.11", "app" => "phoenix"}
+  """
+  @spec get_release_meta(Req.Request.t(), String.t(), String.t()) :: {:ok, map()} | {:error, term()}
+  def get_release_meta(client, name, version) when is_binary(name) and is_binary(version) do
+    url = "#{@hex_api_url}/packages/#{URI.encode(name)}/releases/#{version}"
+
+    case HttpClient.get(client, url) do
+      {:ok, response} ->
+        {:ok, response.body["meta"] || %{}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Checks if a package version is an Elixir package based on release metadata.
+
+  Returns `true` if the package uses Mix as a build tool or has an Elixir version requirement.
+  """
+  @spec elixir_package?(Req.Request.t(), String.t(), String.t()) :: boolean()
+  def elixir_package?(client, name, version) do
+    case get_release_meta(client, name, version) do
+      {:ok, meta} ->
+        build_tools = meta["build_tools"] || []
+        elixir_version = meta["elixir"]
+
+        "mix" in build_tools or not is_nil(elixir_version)
+
+      {:error, _} ->
+        # On error, assume it might be Elixir (fail open)
+        true
+    end
+  end
+
+  @doc """
   Returns the tarball download URL for a package version.
 
   Delegates to `ElixirOntologies.Hex.Utils.tarball_url/2`.
