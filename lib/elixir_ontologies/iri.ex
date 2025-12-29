@@ -53,9 +53,10 @@ defmodule ElixirOntologies.IRI do
   @regex_commit ~r/^(.+#repo\/[a-f0-9]+)\/commit\/([a-f0-9]+)$/
   @regex_repository ~r/^(.+#)repo\/([a-f0-9]+)$/
   @regex_file ~r/^(.+#)file\/(.+)$/
-  @regex_function ~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)\/([^\/]+)\/(\d+)$/
-  @regex_module ~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)$/
-  @regex_function_prefix ~r/^(.+#)([A-Z][A-Za-z0-9_.%]*)\/([^\/]+)$/
+  # Module patterns: support both Elixir (uppercase start) and Erlang (lowercase/underscore start)
+  @regex_function ~r/^(.+#)([A-Za-z_][A-Za-z0-9_.%]*)\/([^\/]+)\/(\d+)$/
+  @regex_module ~r/^(.+#)([A-Za-z_][A-Za-z0-9_.%]*)$/
+  @regex_function_prefix ~r/^(.+#)([A-Za-z_][A-Za-z0-9_.%]*)\/([^\/]+)$/
   @regex_strip_clause ~r/^(.+)\/clause\/\d+$/
   @regex_strip_param ~r/^(.+)\/param\/\d+$/
 
