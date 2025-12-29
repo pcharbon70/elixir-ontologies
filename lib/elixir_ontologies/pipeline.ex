@@ -249,16 +249,11 @@ defmodule ElixirOntologies.Pipeline do
   defp extract_behaviours(%{definition: definition}) when not is_nil(definition), do: [definition]
   defp extract_behaviours(_), do: []
 
-  defp extract_structs(%ModuleAnalysis{attributes: attributes}) do
-    # Look for defstruct in attributes or separate struct extraction
-    # For now, return empty - structs are detected separately
-    attributes
-    |> Enum.filter(fn attr ->
-      case attr do
-        %{name: :defstruct} -> true
-        _ -> false
-      end
-    end)
+  defp extract_structs(%ModuleAnalysis{} = _ma) do
+    # Struct detection is not yet implemented in the analyzer
+    # defstruct is a macro call, not an attribute, so it requires
+    # separate extraction logic from the module body AST
+    []
   end
 
   defp extract_otp_pattern(nil, _key), do: []
