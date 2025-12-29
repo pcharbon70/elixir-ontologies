@@ -97,7 +97,7 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
         limit: Keyword.get(opts, :limit),
         start_page: Keyword.get(opts, :start_page, 1),
         delay_ms: Keyword.get(opts, :delay_ms, 100),
-        api_delay_ms: Keyword.get(opts, :api_delay_ms, 200),
+        api_delay_ms: Keyword.get(opts, :api_delay_ms, 500),
         timeout_minutes: Keyword.get(opts, :timeout_minutes, 5),
         base_iri_template: Keyword.get(opts, :base_iri_template, "https://elixir-code.org/:name/:version/"),
         sort_by: Keyword.get(opts, :sort_by, :popularity),

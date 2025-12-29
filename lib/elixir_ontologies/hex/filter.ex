@@ -281,7 +281,7 @@ defmodule ElixirOntologies.Hex.Filter do
   """
   @spec filter_elixir_packages(Enumerable.t(), Req.Request.t(), keyword()) :: Enumerable.t()
   def filter_elixir_packages(packages, http_client, opts \\ []) do
-    delay_ms = Keyword.get(opts, :delay_ms, 200)
+    delay_ms = Keyword.get(opts, :delay_ms, 500)
     verbose = Keyword.get(opts, :verbose, false)
 
     alias ElixirOntologies.Hex.Api

@@ -363,7 +363,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
 
     packages =
       package_stream
-      |> Filter.filter_elixir_packages(http_client, delay_ms: config.api_delay_ms || 200, verbose: config.verbose)
+      |> Filter.filter_elixir_packages(http_client, delay_ms: config.api_delay_ms || 500, verbose: config.verbose)
       |> maybe_limit(config.limit)
       |> Enum.with_index(1)
 
@@ -400,7 +400,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     # Collect packages with progress display
     packages =
       package_stream
-      |> Filter.filter_elixir_packages(http_client, delay_ms: config.api_delay_ms || 200, verbose: config.verbose)
+      |> Filter.filter_elixir_packages(http_client, delay_ms: config.api_delay_ms || 500, verbose: config.verbose)
       |> maybe_limit(config.limit)
       |> Stream.with_index(1)
       |> Enum.map(fn {package, index} ->
@@ -463,7 +463,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     case config.sort_by do
       :popularity ->
         Api.stream_all_packages_by_popularity(http_client,
-          delay_ms: config.api_delay_ms || 200
+          delay_ms: config.api_delay_ms || 500
         )
 
       :alphabetical ->
