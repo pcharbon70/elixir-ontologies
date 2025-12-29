@@ -31,6 +31,9 @@ defmodule ElixirOntologies.MixProject do
       {:rdf, "~> 2.0"},
       {:sparql, "~> 0.3", optional: true},
 
+      # Embedded triple store (optional - for persistent knowledge graph)
+      {:triple_store, path: "../triple_store", optional: true},
+
       # HTTP client for Hex.pm API
       {:req, "~> 0.5"},
       {:castore, "~> 1.0"},
@@ -99,7 +102,8 @@ defmodule ElixirOntologies.MixProject do
       "guides/structure.md",
       "guides/otp.md",
       "guides/evolution.md",
-      "guides/shapes.md"
+      "guides/shapes.md",
+      "guides/knowledge-graph.md"
     ]
   end
 
@@ -111,6 +115,9 @@ defmodule ElixirOntologies.MixProject do
         guides/otp.md
         guides/evolution.md
         guides/shapes.md
+      ),
+      "Tools": ~w(
+        guides/knowledge-graph.md
       )
     ]
   end

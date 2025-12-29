@@ -402,6 +402,137 @@ defmodule ElixirOntologies do
   end
 
   # ===========================================================================
+  # Knowledge Graph Integration
+  # ===========================================================================
+
+  @doc """
+  Analyzes a project and stores the result in a knowledge graph.
+
+  This combines `analyze_project/2` with `KnowledgeGraph.load_graph/2` to
+  provide a single-step pipeline from source code to persistent storage.
+
+  Requires the optional `triple_store` dependency.
+
+  ## Parameters
+
+  - `project_path` - Path to project root (containing mix.exs)
+  - `kg_path` - Path to knowledge graph database
+  - `opts` - Keyword list of options
+
+  ## Options
+
+  Same as `analyze_project/2`, plus:
+  - `:create_if_missing` - Create the database if it doesn't exist (default: true)
+
+  ## Returns
+
+  - `{:ok, result}` - Success with analysis result and triple count
+  - `{:error, reason}` - Analysis or storage failed
+
+  ## Examples
+
+      # Analyze project and store to knowledge graph
+      {:ok, result} = ElixirOntologies.analyze_to_kg(".", "./knowledge_graph")
+      IO.puts("Stored \#{result.triple_count} triples")
+
+      # With custom options
+      {:ok, result} = ElixirOntologies.analyze_to_kg(
+        "/path/to/project",
+        "./kg",
+        base_iri: "https://myorg.com/code#"
+      )
+  """
+  @spec analyze_to_kg(Path.t(), Path.t(), keyword()) ::
+          {:ok, %{graph: Graph.t(), metadata: map(), errors: list(), triple_count: non_neg_integer()}}
+          | {:error, term()}
+  def analyze_to_kg(project_path, kg_path, opts \\ []) do
+    alias ElixirOntologies.KnowledgeGraph
+
+    unless KnowledgeGraph.available?() do
+      {:error, :triple_store_not_available}
+    else
+      kg_opts = Keyword.take(opts, [:create_if_missing])
+
+      with {:ok, result} <- analyze_project(project_path, opts),
+           {:ok, store} <- KnowledgeGraph.open(kg_path, kg_opts),
+           {:ok, count} <- KnowledgeGraph.load_graph(store, result.graph),
+           :ok <- KnowledgeGraph.close(store) do
+        {:ok, Map.put(result, :triple_count, count)}
+      end
+    end
+  end
+
+  @doc """
+  Stores an RDF graph in a knowledge graph database.
+
+  This is useful for storing graphs that have already been analyzed
+  or loaded from files.
+
+  Requires the optional `triple_store` dependency.
+
+  ## Parameters
+
+  - `graph` - The RDF graph to store
+  - `kg_path` - Path to knowledge graph database
+  - `opts` - Options passed to `KnowledgeGraph.open/2`
+
+  ## Returns
+
+  - `{:ok, count}` - Number of triples stored
+  - `{:error, reason}` - Storage failed
+
+  ## Examples
+
+      # Store existing graph
+      {:ok, graph} = ElixirOntologies.analyze_file("lib/my_module.ex")
+      {:ok, count} = ElixirOntologies.store_graph(graph, "./knowledge_graph")
+
+      # Load TTL and store
+      {:ok, graph} = RDF.Turtle.read_file("ontology.ttl")
+      {:ok, count} = ElixirOntologies.store_graph(graph, "./kg")
+  """
+  @spec store_graph(Graph.t() | RDF.Graph.t(), Path.t(), keyword()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  def store_graph(graph, kg_path, opts \\ []) do
+    alias ElixirOntologies.KnowledgeGraph
+
+    unless KnowledgeGraph.available?() do
+      {:error, :triple_store_not_available}
+    else
+      # Extract RDF.Graph from our Graph wrapper if needed
+      rdf_graph =
+        case graph do
+          %Graph{} = g -> Graph.to_rdf_graph(g)
+          %RDF.Graph{} = g -> g
+        end
+
+      with {:ok, store} <- KnowledgeGraph.open(kg_path, opts),
+           {:ok, count} <- KnowledgeGraph.load_graph(store, rdf_graph),
+           :ok <- KnowledgeGraph.close(store) do
+        {:ok, count}
+      end
+    end
+  end
+
+  @doc """
+  Checks if knowledge graph features are available.
+
+  Returns `true` if the `triple_store` dependency is installed.
+
+  ## Examples
+
+      if ElixirOntologies.kg_available?() do
+        {:ok, _} = ElixirOntologies.analyze_to_kg(".", "./kg")
+      else
+        IO.puts("Install triple_store for knowledge graph features")
+      end
+  """
+  @spec kg_available?() :: boolean()
+  def kg_available? do
+    Code.ensure_loaded?(TripleStore)
+  end
+
+  # ===========================================================================
   # Private Helpers
   # ===========================================================================
 
