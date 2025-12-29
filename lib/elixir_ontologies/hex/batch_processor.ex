@@ -234,10 +234,11 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
   defp run_processing(%State{} = state) do
     setup_signal_handlers()
 
+    # Check for pending.json first - if it exists, use it instead of fetching from API
+    package_stream = get_package_stream_with_pending(state.http_client, state.config)
+
     state =
-      state.http_client
-      |> get_package_stream(state.config)
-      |> filter_packages(state.http_client, state.config)
+      package_stream
       |> skip_processed(state.progress)
       |> maybe_limit(state.config.limit)
       |> Enum.reduce_while(state, fn package, acc_state ->
@@ -254,6 +255,62 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
 
     summary = Progress.summary(state.progress)
     {:ok, summary}
+  end
+
+  defp get_package_stream_with_pending(http_client, config) do
+    pending_file = Path.join(config.output_dir, "pending.json")
+
+    case load_pending_file(pending_file) do
+      {:ok, packages} ->
+        if config.verbose do
+          Logger.info("Loaded #{length(packages)} packages from pending.json")
+        end
+
+        # Convert to stream of Package-like maps (already filtered)
+        Stream.map(packages, & &1)
+
+      {:error, _reason} ->
+        # No pending.json - fetch from API and filter
+        if config.verbose do
+          Logger.info("No pending.json found, fetching from hex.pm API...")
+        end
+
+        http_client
+        |> get_package_stream(config)
+        |> filter_packages(http_client, config)
+    end
+  end
+
+  defp load_pending_file(path) do
+    case File.read(path) do
+      {:ok, content} ->
+        case Jason.decode(content) do
+          {:ok, %{"packages" => packages}} when is_list(packages) ->
+            # Convert to Package-like structs
+            parsed =
+              Enum.map(packages, fn pkg ->
+                %Api.Package{
+                  name: pkg["name"],
+                  latest_stable_version: pkg["version"],
+                  downloads: pkg["downloads"] || %{}
+                }
+              end)
+
+            {:ok, parsed}
+
+          {:ok, _} ->
+            {:error, :invalid_format}
+
+          {:error, reason} ->
+            {:error, {:json_decode, reason}}
+        end
+
+      {:error, :enoent} ->
+        {:error, :not_found}
+
+      {:error, reason} ->
+        {:error, {:file_read, reason}}
+    end
   end
 
   defp get_package_stream(http_client, config) do
