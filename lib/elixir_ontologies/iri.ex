@@ -83,11 +83,21 @@ defmodule ElixirOntologies.IRI do
       iex> ElixirOntologies.IRI.escape_name("normal_name")
       "normal_name"
   """
-  @spec escape_name(String.t() | atom()) :: String.t()
+  @spec escape_name(String.t() | atom() | tuple()) :: String.t()
   def escape_name(name) when is_atom(name), do: escape_name(Atom.to_string(name))
 
   def escape_name(name) when is_binary(name) do
     URI.encode(name, &uri_safe_char?/1)
+  end
+
+  # Handle macro expressions (unquote, etc.) - use the macro name as identifier
+  def escape_name({macro_name, _meta, _args}) when is_atom(macro_name) do
+    escape_name("__#{macro_name}__")
+  end
+
+  # Fallback for other unexpected structures
+  def escape_name(other) do
+    escape_name("__unknown_#{:erlang.phash2(other)}__")
   end
 
   # Characters that are safe in our IRI paths (don't need encoding)
