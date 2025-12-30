@@ -224,7 +224,14 @@ defmodule ElixirOntologies.Hex.ProgressDisplay do
   @spec display_summary(Progress.t(), map()) :: :ok
   def display_summary(%Progress{} = progress, config \\ %{}) do
     summary = Progress.summary(progress)
+    display_summary_map(summary, config)
+  end
 
+  @doc """
+  Displays final summary from a pre-computed summary map.
+  """
+  @spec display_summary_map(map(), map()) :: :ok
+  def display_summary_map(summary, config \\ %{}) when is_map(summary) do
     IO.puts("")
     IO.puts(separator())
     IO.puts(header("Batch Processing Complete"))
@@ -242,7 +249,7 @@ defmodule ElixirOntologies.Hex.ProgressDisplay do
     # Timing
     if summary.total_processed > 0 do
       IO.puts("Timing:")
-      IO.puts("  Total duration:    #{format_total_duration(progress)}")
+      IO.puts("  Total duration:    #{Utils.format_duration_seconds(summary.duration_seconds)}")
       IO.puts("  Average per pkg:   #{Utils.format_duration_ms(summary.avg_duration_ms)}")
       IO.puts("")
     end
@@ -284,15 +291,6 @@ defmodule ElixirOntologies.Hex.ProgressDisplay do
       color(:bold, text)
     else
       text
-    end
-  end
-
-  defp format_total_duration(%Progress{} = progress) do
-    if progress.started_at do
-      diff_seconds = DateTime.diff(DateTime.utc_now(), progress.started_at)
-      format_eta(diff_seconds)
-    else
-      "unknown"
     end
   end
 

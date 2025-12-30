@@ -660,9 +660,13 @@ defmodule ElixirOntologies.IRITest do
       assert {:error, _} = IRI.parse("https://example.org/no-hash-separator")
     end
 
-    test "parse returns error for IRI with lowercase module name" do
-      # Module names must start with uppercase
-      assert {:error, _} = IRI.parse("https://example.org/code#lowercase")
+    test "parse accepts Erlang-style lowercase module names" do
+      # Erlang modules can have lowercase names (e.g., :appsignal_tasks, :ets)
+      assert {:ok, %{type: :module, module: "lowercase"}} =
+               IRI.parse("https://example.org/code#lowercase")
+
+      assert {:ok, %{type: :module, module: "appsignal_tasks"}} =
+               IRI.parse("https://example.org/code#appsignal_tasks")
     end
 
     test "parse returns error for empty fragment" do

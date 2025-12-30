@@ -4,24 +4,27 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
 
   ## Usage
 
-      # Analyze all packages to output directory
+      # Analyze all packages to default output directory (.ttl/)
+      mix elixir_ontologies.hex_batch
+
+      # Analyze all packages to custom output directory
       mix elixir_ontologies.hex_batch /path/to/output
 
       # Resume interrupted processing
-      mix elixir_ontologies.hex_batch /path/to/output --resume
+      mix elixir_ontologies.hex_batch --resume
 
       # Analyze with package limit (for testing)
-      mix elixir_ontologies.hex_batch /path/to/output --limit 100
+      mix elixir_ontologies.hex_batch --limit 100
 
       # Analyze a single package
-      mix elixir_ontologies.hex_batch /path/to/output --package phoenix
+      mix elixir_ontologies.hex_batch --package phoenix
 
       # List packages without processing (dry run)
-      mix elixir_ontologies.hex_batch /path/to/output --dry-run --limit 50
+      mix elixir_ontologies.hex_batch --dry-run --limit 50
 
   ## Options
 
-    * `--output-dir`, `-o` - Output directory path (can also be positional arg)
+    * `--output-dir`, `-o` - Output directory path (default: .ttl)
     * `--progress-file` - Progress file path (default: OUTPUT_DIR/progress.json)
     * `--resume`, `-r` - Resume from progress file (default: true)
     * `--limit`, `-l` - Maximum number of packages to process
@@ -31,6 +34,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     * `--sort-by`, `-s` - Sort order: "popularity" or "alphabetical" (default: popularity)
     * `--package`, `-p` - Analyze a single package by name
     * `--dry-run` - List packages only, don't analyze
+    * `--build-list` - Create progress.json with package list, don't analyze
     * `--quiet`, `-q` - Minimal output
     * `--verbose`, `-v` - Detailed output with timestamps
 
@@ -46,29 +50,33 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
 
   ## Examples
 
-      # Full batch analysis (processes popular packages first)
+      # Full batch analysis to default .ttl/ directory
+      mix elixir_ontologies.hex_batch
+
+      # Full batch analysis to custom directory
       mix elixir_ontologies.hex_batch ./hex_output
 
       # Process in alphabetical order
-      mix elixir_ontologies.hex_batch ./hex_output --sort-by alphabetical
+      mix elixir_ontologies.hex_batch --sort-by alphabetical
 
       # Resume after interruption
-      mix elixir_ontologies.hex_batch ./hex_output --resume
+      mix elixir_ontologies.hex_batch --resume
 
       # Test with limited packages
-      mix elixir_ontologies.hex_batch ./hex_output --limit 10 --verbose
+      mix elixir_ontologies.hex_batch --limit 10 --verbose
 
       # Analyze single package for testing
-      mix elixir_ontologies.hex_batch ./hex_output --package phoenix
+      mix elixir_ontologies.hex_batch --package phoenix
 
       # Preview packages without processing
-      mix elixir_ontologies.hex_batch ./hex_output --dry-run --limit 100
+      mix elixir_ontologies.hex_batch --dry-run --limit 100
 
   ## Output
 
-  Each successfully analyzed package produces a TTL file in the output directory:
+  Each successfully analyzed package produces a TTL file in the output directory
+  (default: .ttl/):
 
-      OUTPUT_DIR/
+      .ttl/
         phoenix-1.7.10.ttl
         ecto-3.11.0.ttl
         ...
@@ -88,6 +96,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
   alias ElixirOntologies.Hex.Progress
   alias ElixirOntologies.Hex.Progress.PackageResult
   alias ElixirOntologies.Hex.ProgressDisplay
+  alias ElixirOntologies.Hex.ProgressStore
   alias ElixirOntologies.Hex.AnalyzerAdapter
   alias ElixirOntologies.Hex.OutputManager
   alias ElixirOntologies.Hex.Utils
@@ -105,6 +114,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     package: :string,
     sort_by: :string,
     dry_run: :boolean,
+    build_list: :boolean,
     quiet: :boolean,
     verbose: :boolean
   ]
@@ -134,15 +144,8 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
       exit({:shutdown, 1})
     end
 
-    # Get output directory from positional arg or option
+    # Get output directory from positional arg or option (default: .ttl)
     output_dir = get_output_dir(opts, remaining)
-
-    unless output_dir do
-      error("Output directory is required")
-      IO.puts("")
-      IO.puts("Usage: mix elixir_ontologies.hex_batch OUTPUT_DIR [options]")
-      exit({:shutdown, 1})
-    end
 
     # Build config
     config = build_config(output_dir, opts)
@@ -155,6 +158,9 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
       opts[:dry_run] ->
         run_dry_run(config, opts)
 
+      opts[:build_list] ->
+        run_build_list(config, opts)
+
       true ->
         run_batch(config, opts)
     end
@@ -164,14 +170,13 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     cond do
       opts[:output_dir] -> opts[:output_dir]
       remaining != [] -> hd(remaining)
-      true -> nil
+      true -> ".ttl"
     end
   end
 
   defp build_config(output_dir, opts) do
-    Config.new(
+    base_opts = [
       output_dir: output_dir,
-      progress_file: opts[:progress_file],
       resume: Keyword.get(opts, :resume, true),
       limit: opts[:limit],
       start_page: Keyword.get(opts, :start_page, 1),
@@ -180,7 +185,17 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
       sort_by: parse_sort_by(opts[:sort_by]),
       dry_run: Keyword.get(opts, :dry_run, false),
       verbose: Keyword.get(opts, :verbose, false)
-    )
+    ]
+
+    # Only include progress_file if explicitly provided
+    config_opts =
+      if opts[:progress_file] do
+        Keyword.put(base_opts, :progress_file, opts[:progress_file])
+      else
+        base_opts
+      end
+
+    Config.new(config_opts)
   end
 
   defp parse_sort_by(nil), do: :popularity
@@ -204,17 +219,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     case BatchProcessor.run(config) do
       {:ok, summary} ->
         unless quiet do
-          # Create a minimal progress for display
-          progress = %Progress{
-            started_at: DateTime.utc_now(),
-            updated_at: DateTime.utc_now(),
-            processed: [],
-            current_page: 1,
-            total_packages: nil,
-            config: %{}
-          }
-
-          ProgressDisplay.display_summary(progress, %{
+          ProgressDisplay.display_summary_map(summary, %{
             output_dir: config.output_dir,
             progress_file: config.progress_file
           })
@@ -261,7 +266,7 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
             http_client,
             package_name,
             version,
-            config.temp_dir,
+            [temp_dir: config.temp_dir],
             fn context ->
               analyze_single(context, package_name, version, config)
             end
@@ -325,20 +330,20 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
         {:ok, graph, metadata} ->
           case OutputManager.save_graph(graph, config.output_dir, name, version) do
             {:ok, output_path} ->
-              PackageResult.success(name, version,
+              {:ok, PackageResult.success(name, version,
                 output_path: output_path,
                 module_count: metadata.module_count
-              )
+              )}
 
             {:error, reason} ->
-              PackageResult.failure(name, version, error: inspect(reason))
+              {:ok, PackageResult.failure(name, version, error: inspect(reason))}
           end
 
         {:error, reason} ->
-          PackageResult.failure(name, version, error: inspect(reason))
+          {:ok, PackageResult.failure(name, version, error: inspect(reason))}
       end
     else
-      PackageResult.failure(name, version, error: "No Elixir source files found")
+      {:ok, PackageResult.failure(name, version, error: "No Elixir source files found")}
     end
   end
 
@@ -347,15 +352,18 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
 
     unless quiet do
       IO.puts("Dry run - listing Elixir packages from hex.pm")
+      IO.puts("Sort order: #{config.sort_by}")
       IO.puts("")
     end
 
     http_client = HttpClient.new()
 
+    # Use the same sorting logic as batch processor
+    package_stream = get_package_stream(http_client, config)
+
     packages =
-      http_client
-      |> Api.stream_all_packages(page: config.start_page)
-      |> Filter.filter_likely_elixir()
+      package_stream
+      |> Filter.filter_elixir_packages(http_client, delay_ms: config.api_delay_ms || 500, verbose: config.verbose)
       |> maybe_limit(config.limit)
       |> Enum.with_index(1)
 
@@ -375,6 +383,92 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     end
 
     :ok
+  end
+
+  defp run_build_list(%Config{} = config, opts) do
+    quiet = opts[:quiet]
+
+    unless quiet do
+      IO.puts("Building package list from hex.pm...")
+      IO.puts("Sort order: #{config.sort_by}")
+      IO.puts("")
+    end
+
+    http_client = HttpClient.new()
+    package_stream = get_package_stream(http_client, config)
+
+    # Collect packages with progress display
+    packages =
+      package_stream
+      |> Filter.filter_elixir_packages(http_client, delay_ms: config.api_delay_ms || 500, verbose: config.verbose)
+      |> maybe_limit(config.limit)
+      |> Stream.with_index(1)
+      |> Enum.map(fn {package, index} ->
+        version = Api.latest_stable_version(package)
+
+        unless quiet do
+          IO.write("\r  Fetching package #{index}...")
+        end
+
+        %{name: package.name, version: version, downloads: package.downloads}
+      end)
+
+    unless quiet do
+      IO.puts("\r  Fetched #{length(packages)} packages.    ")
+      IO.puts("")
+    end
+
+    # Build progress with pending packages
+    progress = %Progress{
+      Progress.new(%{output_dir: config.output_dir})
+      | total_packages: length(packages)
+    }
+
+    # Save pending list as a separate JSON file
+    pending_file = Path.join(config.output_dir, "pending.json")
+    File.mkdir_p!(config.output_dir)
+
+    pending_data = %{
+      "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
+      "sort_by" => Atom.to_string(config.sort_by),
+      "total_packages" => length(packages),
+      "packages" => Enum.map(packages, fn pkg ->
+        %{"name" => pkg.name, "version" => pkg.version, "downloads" => pkg.downloads}
+      end)
+    }
+
+    case File.write(pending_file, Jason.encode!(pending_data, pretty: true)) do
+      :ok ->
+        # Also save empty progress file
+        ProgressStore.save(progress, config.progress_file)
+
+        unless quiet do
+          IO.puts("Package list created:")
+          IO.puts("  Pending: #{pending_file}")
+          IO.puts("  Progress: #{config.progress_file}")
+          IO.puts("  Total packages: #{length(packages)}")
+          IO.puts("")
+          IO.puts("Run without --build-list to start processing.")
+        end
+
+        :ok
+
+      {:error, reason} ->
+        error("Failed to write pending file: #{inspect(reason)}")
+        exit({:shutdown, 1})
+    end
+  end
+
+  defp get_package_stream(http_client, config) do
+    case config.sort_by do
+      :popularity ->
+        Api.stream_all_packages_by_popularity(http_client,
+          delay_ms: config.api_delay_ms || 500
+        )
+
+      :alphabetical ->
+        Api.stream_all_packages(http_client, page: config.start_page)
+    end
   end
 
   defp maybe_limit(stream, nil), do: stream

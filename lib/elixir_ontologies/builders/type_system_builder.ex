@@ -678,13 +678,20 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
 
     type_triple = Helpers.type_triple(node, Structure.FunctionType)
 
+    # param_types can be a list, nil, or :any (for variadic functions)
     param_triples =
-      (param_types || [])
-      |> Enum.flat_map(fn param_expr ->
-        {param_node, param_type_triples} = build_from_type_expression(param_expr, context)
-        param_link = Helpers.object_property(node, Structure.hasParameterType(), param_node)
-        [param_link | param_type_triples]
-      end)
+      case param_types do
+        types when is_list(types) ->
+          Enum.flat_map(types, fn param_expr ->
+            {param_node, param_type_triples} = build_from_type_expression(param_expr, context)
+            param_link = Helpers.object_property(node, Structure.hasParameterType(), param_node)
+            [param_link | param_type_triples]
+          end)
+
+        _ ->
+          # :any or nil - no specific parameter types
+          []
+      end
 
     return_triples =
       if return_type do
@@ -707,9 +714,9 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
     # Use BasicType for now - ParameterizedType would be for generic remote types
     type_triple = Helpers.type_triple(node, Structure.BasicType)
 
-    # Format module.type name
-    module_str = if module, do: Enum.map_join(module, ".", &Atom.to_string/1), else: ""
-    name_str = if name, do: Atom.to_string(name), else: "t"
+    # Format module.type name - use safe conversion for AST tuples like __MODULE__
+    module_str = if module, do: Enum.map_join(module, ".", &module_part_to_string/1), else: ""
+    name_str = if name, do: safe_name_to_string(name), else: "t"
     full_name = "#{module_str}.#{name_str}"
 
     name_triple = Helpers.datatype_property(node, Structure.typeName(), full_name, RDF.XSD.String)
@@ -726,11 +733,13 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
     # Use BasicType with struct name for now
     type_triple = Helpers.type_triple(node, Structure.BasicType)
 
+    # Use safe conversion for AST tuples like __MODULE__
     module_str =
       case module do
         nil -> "%{}"
-        mods when is_list(mods) -> "%" <> Enum.map_join(mods, ".", &Atom.to_string/1) <> "{}"
+        mods when is_list(mods) -> "%" <> Enum.map_join(mods, ".", &module_part_to_string/1) <> "{}"
         mod when is_atom(mod) -> "%" <> Atom.to_string(mod) <> "{}"
+        mod -> "%" <> module_part_to_string(mod) <> "{}"
       end
 
     name_triple =
@@ -778,4 +787,20 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
     |> List.last()
     |> URI.decode()
   end
+
+  # Safely convert a module part to string
+  # Handles both atoms and AST tuples (e.g., {:__MODULE__, [], nil})
+  defp module_part_to_string(part) when is_atom(part), do: Atom.to_string(part)
+
+  defp module_part_to_string({:__MODULE__, _meta, _context}), do: "__MODULE__"
+
+  defp module_part_to_string({name, _meta, _args}) when is_atom(name),
+    do: Atom.to_string(name)
+
+  defp module_part_to_string(other), do: inspect(other)
+
+  # Safely convert a name (atom or AST) to string
+  defp safe_name_to_string(name) when is_atom(name), do: Atom.to_string(name)
+  defp safe_name_to_string({name, _meta, _args}) when is_atom(name), do: Atom.to_string(name)
+  defp safe_name_to_string(other), do: inspect(other)
 end

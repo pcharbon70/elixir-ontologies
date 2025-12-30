@@ -97,7 +97,7 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
         limit: Keyword.get(opts, :limit),
         start_page: Keyword.get(opts, :start_page, 1),
         delay_ms: Keyword.get(opts, :delay_ms, 100),
-        api_delay_ms: Keyword.get(opts, :api_delay_ms, 50),
+        api_delay_ms: Keyword.get(opts, :api_delay_ms, 500),
         timeout_minutes: Keyword.get(opts, :timeout_minutes, 5),
         base_iri_template: Keyword.get(opts, :base_iri_template, "https://elixir-code.org/:name/:version/"),
         sort_by: Keyword.get(opts, :sort_by, :popularity),
@@ -234,10 +234,11 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
   defp run_processing(%State{} = state) do
     setup_signal_handlers()
 
+    # Check for pending.json first - if it exists, use it instead of fetching from API
+    package_stream = get_package_stream_with_pending(state.http_client, state.config)
+
     state =
-      state.http_client
-      |> get_package_stream(state.config)
-      |> filter_packages()
+      package_stream
       |> skip_processed(state.progress)
       |> maybe_limit(state.config.limit)
       |> Enum.reduce_while(state, fn package, acc_state ->
@@ -254,6 +255,62 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
 
     summary = Progress.summary(state.progress)
     {:ok, summary}
+  end
+
+  defp get_package_stream_with_pending(http_client, config) do
+    pending_file = Path.join(config.output_dir, "pending.json")
+
+    case load_pending_file(pending_file) do
+      {:ok, packages} ->
+        if config.verbose do
+          Logger.info("Loaded #{length(packages)} packages from pending.json")
+        end
+
+        # Convert to stream of Package-like maps (already filtered)
+        Stream.map(packages, & &1)
+
+      {:error, _reason} ->
+        # No pending.json - fetch from API and filter
+        if config.verbose do
+          Logger.info("No pending.json found, fetching from hex.pm API...")
+        end
+
+        http_client
+        |> get_package_stream(config)
+        |> filter_packages(http_client, config)
+    end
+  end
+
+  defp load_pending_file(path) do
+    case File.read(path) do
+      {:ok, content} ->
+        case Jason.decode(content) do
+          {:ok, %{"packages" => packages}} when is_list(packages) ->
+            # Convert to Package-like structs
+            parsed =
+              Enum.map(packages, fn pkg ->
+                %Api.Package{
+                  name: pkg["name"],
+                  latest_stable_version: pkg["version"],
+                  downloads: pkg["downloads"] || %{}
+                }
+              end)
+
+            {:ok, parsed}
+
+          {:ok, _} ->
+            {:error, :invalid_format}
+
+          {:error, reason} ->
+            {:error, {:json_decode, reason}}
+        end
+
+      {:error, :enoent} ->
+        {:error, :not_found}
+
+      {:error, reason} ->
+        {:error, {:file_read, reason}}
+    end
   end
 
   defp get_package_stream(http_client, config) do
@@ -275,8 +332,11 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
     end
   end
 
-  defp filter_packages(stream) do
-    Filter.filter_likely_elixir(stream)
+  defp filter_packages(stream, http_client, config) do
+    Filter.filter_elixir_packages(stream, http_client,
+      delay_ms: config.api_delay_ms,
+      verbose: config.verbose
+    )
   end
 
   defp skip_processed(stream, progress) do
@@ -339,7 +399,7 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
         state.http_client,
         package.name,
         version,
-        state.config.temp_dir,
+        [temp_dir: state.config.temp_dir],
         fn context ->
           analyze_and_save(context, package.name, version, state)
         end
@@ -401,10 +461,10 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
   defp save_analysis_output(graph, name, version, metadata, %State{} = state) do
     case OutputManager.save_graph(graph, state.config.output_dir, name, version) do
       {:ok, output_path} ->
-        PackageResult.success(name, version,
+        {:ok, PackageResult.success(name, version,
           output_path: output_path,
           module_count: metadata.module_count
-        )
+        )}
 
       {:error, reason} ->
         {:error, {:output_error, reason}}

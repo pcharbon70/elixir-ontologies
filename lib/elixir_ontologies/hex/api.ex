@@ -130,12 +130,12 @@ defmodule ElixirOntologies.Hex.Api do
   ## Example
 
       client
-      |> Api.stream_all_packages(delay_ms: 500)
+      |> Api.stream_all_packages(delay_ms: 1000)
       |> Enum.take(100)
   """
   @spec stream_all_packages(Req.Request.t(), keyword()) :: Enumerable.t()
   def stream_all_packages(client, opts \\ []) do
-    delay_ms = Keyword.get(opts, :delay_ms, 1000)
+    delay_ms = Keyword.get(opts, :delay_ms, 500)
     start_page = Keyword.get(opts, :start_page, 1)
 
     Stream.resource(
@@ -198,6 +198,54 @@ defmodule ElixirOntologies.Hex.Api do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  @doc """
+  Fetches release metadata for a specific package version.
+
+  Returns build tools, elixir version requirement, and other release metadata.
+
+  ## Returns
+
+    * `{:ok, release_meta}` on success
+    * `{:error, reason}` on failure
+
+  ## Examples
+
+      {:ok, meta} = Api.get_release_meta(client, "phoenix", "1.7.14")
+      # => %{"build_tools" => ["mix"], "elixir" => "~> 1.11", "app" => "phoenix"}
+  """
+  @spec get_release_meta(Req.Request.t(), String.t(), String.t()) :: {:ok, map()} | {:error, term()}
+  def get_release_meta(client, name, version) when is_binary(name) and is_binary(version) do
+    url = "#{@hex_api_url}/packages/#{URI.encode(name)}/releases/#{version}"
+
+    case HttpClient.get(client, url) do
+      {:ok, response} ->
+        {:ok, response.body["meta"] || %{}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Checks if a package version is an Elixir package based on release metadata.
+
+  Returns `true` if the package uses Mix as a build tool or has an Elixir version requirement.
+  """
+  @spec elixir_package?(Req.Request.t(), String.t(), String.t()) :: boolean()
+  def elixir_package?(client, name, version) do
+    case get_release_meta(client, name, version) do
+      {:ok, meta} ->
+        build_tools = meta["build_tools"] || []
+        elixir_version = meta["elixir"]
+
+        "mix" in build_tools or not is_nil(elixir_version)
+
+      {:error, _} ->
+        # On error, assume it might be Elixir (fail open)
+        true
     end
   end
 
@@ -333,11 +381,9 @@ defmodule ElixirOntologies.Hex.Api do
     delay_ms = Keyword.get(opts, :delay_ms, 1000)
     on_page = Keyword.get(opts, :on_page, fn _ -> :ok end)
 
-    # Fetch all packages using API's default sorting (faster pagination)
-    packages = fetch_all_packages(client, delay_ms, on_page)
-
-    # Sort by: recent_downloads DESC, total_downloads DESC, name ASC
-    Enum.sort(packages, &popularity_comparator/2)
+    # Use API's native sorting by recent_downloads - the list endpoint
+    # doesn't return download counts so we can't sort client-side
+    fetch_all_packages(client, delay_ms, on_page, "recent_downloads")
   end
 
   @doc """
@@ -363,12 +409,12 @@ defmodule ElixirOntologies.Hex.Api do
     |> Stream.map(& &1)
   end
 
-  defp fetch_all_packages(client, delay_ms, on_page, page \\ 1, acc \\ []) do
+  defp fetch_all_packages(client, delay_ms, on_page, sort, page \\ 1, acc \\ []) do
     on_page.(page)
 
     if page > 1, do: Process.sleep(delay_ms)
 
-    case list_packages(client, page: page) do
+    case list_packages(client, page: page, sort: sort) do
       {:ok, [], _rate_limit} ->
         # Empty page means we've reached the end
         Enum.reverse(acc)
@@ -378,12 +424,12 @@ defmodule ElixirOntologies.Hex.Api do
         additional_delay = HttpClient.rate_limit_delay(rate_limit)
         if additional_delay > 0, do: Process.sleep(additional_delay)
 
-        fetch_all_packages(client, delay_ms, on_page, page + 1, Enum.reverse(packages) ++ acc)
+        fetch_all_packages(client, delay_ms, on_page, sort, page + 1, Enum.reverse(packages) ++ acc)
 
       {:error, :rate_limited} ->
         # Wait and retry the same page
         Process.sleep(delay_ms * 10)
-        fetch_all_packages(client, delay_ms, on_page, page, acc)
+        fetch_all_packages(client, delay_ms, on_page, sort, page, acc)
 
       {:error, reason} ->
         require Logger

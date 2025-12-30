@@ -347,8 +347,26 @@ defmodule ElixirOntologies.Builders.ModuleBuilder do
 
   # Convert module name list to string
   defp module_name_string(name) when is_list(name) do
-    Enum.join(name, ".")
+    name
+    |> Enum.map(&module_part_to_string/1)
+    |> Enum.join(".")
   end
+
+  # Convert individual module name parts to strings
+  # Handles atoms, strings, and AST tuples like {:__MODULE__, _, _}
+  defp module_part_to_string(part) when is_atom(part), do: to_string(part)
+  defp module_part_to_string(part) when is_binary(part), do: part
+
+  # Handle __MODULE__ AST tuple
+  defp module_part_to_string({:__MODULE__, _meta, _context}), do: "__MODULE__"
+
+  # Handle other macro expressions (unquote, etc.)
+  defp module_part_to_string({macro_name, _meta, _args}) when is_atom(macro_name) do
+    to_string(macro_name)
+  end
+
+  # Fallback for unexpected structures
+  defp module_part_to_string(other), do: inspect(other)
 
   # Handle both atom and list module names in directives
   defp normalize_module_name(module) when is_list(module), do: module_name_string(module)

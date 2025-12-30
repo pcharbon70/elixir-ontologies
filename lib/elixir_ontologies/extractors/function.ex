@@ -205,7 +205,7 @@ defmodule ElixirOntologies.Extractors.Function do
 
   # Regular function with guard: def foo(x) when is_integer(x), do: x
   def extract({type, meta, [{:when, _, [{name, _, args}, _guard]}, _body]} = node, opts)
-      when type in @public_functions or type in @private_functions do
+      when is_atom(name) and (type in @public_functions or type in @private_functions) do
     extract_regular_function(type, meta, name, args, node, opts, true)
   end
 
@@ -218,7 +218,7 @@ defmodule ElixirOntologies.Extractors.Function do
   # Bodyless function with guard: def foo(x) when is_atom(x)
   # NOTE: This must come before the regular bodyless pattern to match :when correctly
   def extract({type, meta, [{:when, _, [{name, _, args}, _guard]}]} = node, opts)
-      when type in @public_functions or type in @private_functions do
+      when is_atom(name) and (type in @public_functions or type in @private_functions) do
     extract_regular_function(type, meta, name, args, node, opts, true)
   end
 
@@ -230,7 +230,7 @@ defmodule ElixirOntologies.Extractors.Function do
 
   # Guard function: defguard is_valid(x) when x > 0
   def extract({type, meta, [{:when, _, [{name, _, args}, guard_expr]}]} = node, opts)
-      when type in @public_guards or type in @private_guards do
+      when is_atom(name) and (type in @public_guards or type in @private_guards) do
     extract_guard_function(type, meta, name, args, guard_expr, node, opts)
   end
 

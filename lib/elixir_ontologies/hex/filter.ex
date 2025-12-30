@@ -33,14 +33,51 @@ defmodule ElixirOntologies.Hex.Filter do
     # GitHub paths that suggest Elixir
     github_patterns: ["/elixir", "elixir-", "-ex", "_ex"],
     # Package name patterns common in Elixir
-    name_patterns: [~r/^ex_/, ~r/_ex$/, ~r/^phoenix/, ~r/^ecto/, ~r/^plug/]
+    name_patterns: [~r/^ex_/, ~r/_ex$/, ~r/^phoenix/, ~r/^ecto/, ~r/^plug/, ~r/^nerves/, ~r/^absinthe/]
   }
 
   @erlang_indicators %{
     # Package name patterns common in Erlang
-    name_patterns: [~r/^erl_/, ~r/_erl$/, ~r/^rebar/],
-    # Known Erlang-only packages
-    known_erlang: ["cowboy", "cowlib", "ranch", "jsx", "jiffy", "meck", "proper"]
+    name_patterns: [
+      ~r/^erl_/,
+      ~r/_erl$/,
+      ~r/^rebar/,
+      ~r/^erlang_/,
+      ~r/_nif$/,
+      ~r/^gen_/,
+      ~r/^lager/,
+      ~r/^erlfmt/
+    ],
+    # Known Erlang-only packages (popular dependencies without Elixir code)
+    known_erlang: [
+      # HTTP/Network
+      "cowboy", "cowlib", "ranch", "gun", "hackney", "ssl_verify_fun",
+      "idna", "unicode_util_compat", "mimerl", "certifi", "parse_trans",
+      # JSON
+      "jsx", "jiffy", "jsone", "jsonx",
+      # Testing
+      "meck", "proper", "eunit_formatters",
+      # Compression
+      "ezlib", "zstd",
+      # Database drivers
+      "epgsql", "eredis", "mysql", "emysql", "mongodb",
+      # Parsing
+      "leex", "yecc", "neotoma", "abnf",
+      # Crypto
+      "bcrypt", "pbkdf2", "fast_tls", "p1_utils",
+      # Utilities
+      "gproc", "poolboy", "worker_pool", "jobs", "recon", "observer_cli",
+      "bear", "folsom", "exometer_core", "lager", "goldrush",
+      # Misc
+      "cf", "edown", "getopt", "uuid", "base64url", "quickrand",
+      "erlware_commons", "providers", "relx", "bbmustache",
+      # Format/Protocol
+      "gpb", "protobuffs", "msgpack", "bert", "erlfmt",
+      # NIF wrappers
+      "asn1", "crypto", "public_key", "ssl", "inets", "xmerl",
+      # OTP apps
+      "sasl", "stdlib", "kernel", "compiler"
+    ]
   }
 
   # ===========================================================================
@@ -100,9 +137,21 @@ defmodule ElixirOntologies.Hex.Filter do
 
   defp has_elixir_description?(_), do: false
 
-  defp has_erlang_indicators?(%Package{name: name}) do
-    has_erlang_name?(name) or is_known_erlang?(name)
+  defp has_erlang_indicators?(%Package{name: name, meta: meta}) do
+    has_erlang_name?(name) or is_known_erlang?(name) or has_erlang_only_description?(meta)
   end
+
+  defp has_erlang_only_description?(%{"description" => desc}) when is_binary(desc) do
+    desc_lower = String.downcase(desc)
+    # Erlang-only if mentions "erlang" but not "elixir"
+    (String.contains?(desc_lower, "erlang") and not String.contains?(desc_lower, "elixir")) or
+      String.contains?(desc_lower, "erlang only") or
+      String.contains?(desc_lower, "erlang library") or
+      String.contains?(desc_lower, "pure erlang") or
+      String.contains?(desc_lower, "otp application")
+  end
+
+  defp has_erlang_only_description?(_), do: false
 
   defp has_erlang_name?(name) when is_binary(name) do
     Enum.any?(@erlang_indicators.name_patterns, &Regex.match?(&1, name))
@@ -184,11 +233,13 @@ defmodule ElixirOntologies.Hex.Filter do
   # ===========================================================================
 
   @doc """
-  Filters a stream of packages to include likely Elixir packages.
+  Filters a stream of packages to include likely Elixir packages (heuristic-based).
 
   Packages with clear Erlang indicators are rejected.
   Packages with Elixir indicators or unknown status are passed through.
   Unknown packages should be verified via source inspection after download.
+
+  For accurate filtering using release metadata, use `filter_elixir_packages/2` instead.
 
   ## Examples
 
@@ -206,6 +257,79 @@ defmodule ElixirOntologies.Hex.Filter do
         false -> false
       end
     end)
+  end
+
+  @doc """
+  Filters packages using release metadata to accurately identify Elixir packages.
+
+  Makes an API call per package to check build_tools and elixir version requirement.
+  Only packages with `mix` in build_tools or non-null elixir requirement are included.
+
+  This is slower than `filter_likely_elixir/1` but 100% accurate.
+
+  ## Options
+
+    * `:delay_ms` - Delay between API calls in milliseconds (default: 50)
+    * `:verbose` - Log skipped packages (default: false)
+
+  ## Examples
+
+      packages
+      |> Filter.filter_elixir_packages(http_client)
+      |> Stream.each(&process/1)
+      |> Stream.run()
+  """
+  @spec filter_elixir_packages(Enumerable.t(), Req.Request.t(), keyword()) :: Enumerable.t()
+  def filter_elixir_packages(packages, http_client, opts \\ []) do
+    delay_ms = Keyword.get(opts, :delay_ms, 500)
+    verbose = Keyword.get(opts, :verbose, false)
+
+    alias ElixirOntologies.Hex.Api
+
+    Stream.filter(packages, fn package ->
+      version = Api.latest_stable_version(package)
+
+      # Add delay to avoid rate limiting
+      if delay_ms > 0, do: Process.sleep(delay_ms)
+
+      is_elixir = check_elixir_with_retry(http_client, package.name, version, delay_ms)
+
+      if not is_elixir and verbose do
+        require Logger
+        Logger.info("Skipping Erlang package: #{package.name}")
+      end
+
+      is_elixir
+    end)
+  end
+
+  # Check if package is Elixir with retry on rate limit
+  defp check_elixir_with_retry(http_client, name, version, delay_ms, retries \\ 3) do
+    alias ElixirOntologies.Hex.Api
+
+    case Api.get_release_meta(http_client, name, version) do
+      {:ok, meta} ->
+        build_tools = meta["build_tools"] || []
+        elixir_version = meta["elixir"]
+        "mix" in build_tools or not is_nil(elixir_version)
+
+      {:error, :rate_limited} when retries > 0 ->
+        # Back off and retry
+        require Logger
+        Logger.warning("Rate limited, backing off for #{delay_ms * 5}ms...")
+        Process.sleep(delay_ms * 5)
+        check_elixir_with_retry(http_client, name, version, delay_ms, retries - 1)
+
+      {:error, :rate_limited} ->
+        # Exhausted retries, assume Elixir (fail open)
+        require Logger
+        Logger.warning("Rate limit retries exhausted for #{name}, assuming Elixir")
+        true
+
+      {:error, _} ->
+        # On other errors, assume it might be Elixir (fail open)
+        true
+    end
   end
 
   @doc """
