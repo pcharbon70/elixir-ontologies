@@ -444,3 +444,4 @@ File.write!("mycode.nt", ntriples)
 - [Getting Started](./getting-started.md) - Basic setup
 - [Code Analysis](./analyzing-code.md) - Generate graphs
 - [Evolution Tracking](./evolution-tracking.md) - Query provenance
+- [TripleStore in IEx](./triple-store-iex.md) - Persistent storage and querying

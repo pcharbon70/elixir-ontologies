@@ -399,3 +399,9 @@ Only one process can have the database open at a time. Ensure you close the stor
 | `export/1` | Export as RDF.Graph |
 | `export_file/3` | Export to file |
 | `materialize/2` | Run OWL reasoning (if available) |
+
+## Related Guides
+
+- [TripleStore in IEx](./users/triple-store-iex.md) - Interactive session guide
+- [Querying RDF Graphs](./users/querying.md) - In-memory graph querying
+- [Hex Batch Analyzer](./users/hex-batch-analyzer.md) - Analyze multiple packages

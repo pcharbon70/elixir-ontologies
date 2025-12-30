@@ -145,6 +145,7 @@ mix elixir_ontologies.analyze --validate
 - [Evolution Tracking Guide](./evolution-tracking.md) - Track code changes with Git
 - [SHACL Validation Guide](./shacl-validation.md) - Validate your graphs
 - [Querying the Graph](./querying.md) - Query your RDF data
+- [TripleStore in IEx](./triple-store-iex.md) - Interactive querying with persistent storage
 
 ## Getting Help
 

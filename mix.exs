@@ -103,7 +103,8 @@ defmodule ElixirOntologies.MixProject do
       "guides/otp.md",
       "guides/evolution.md",
       "guides/shapes.md",
-      "guides/knowledge-graph.md"
+      "guides/knowledge-graph.md",
+      "guides/users/triple-store-iex.md"
     ]
   end
 
@@ -118,6 +119,7 @@ defmodule ElixirOntologies.MixProject do
       ),
       "Tools": ~w(
         guides/knowledge-graph.md
+        guides/users/triple-store-iex.md
       )
     ]
   end

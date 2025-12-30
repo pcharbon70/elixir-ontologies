@@ -234,4 +234,5 @@ The `progress.json` file tracks:
 
 - [Analyzing Code](analyzing-code.md) - Using the project analyzer directly
 - [Querying](querying.md) - SPARQL queries on generated graphs
+- [TripleStore in IEx](triple-store-iex.md) - Load and query turtle files interactively
 - [Structure Guide](../structure.md) - Understanding the ontology structure
