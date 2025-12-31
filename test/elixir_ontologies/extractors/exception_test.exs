@@ -629,11 +629,9 @@ defmodule ElixirOntologies.Extractors.ExceptionTest do
       ast =
         quote do
           def my_func do
-            try do
-              risky()
-            rescue
-              _ -> :error
-            end
+            risky()
+          rescue
+            _ -> :error
           end
         end
 

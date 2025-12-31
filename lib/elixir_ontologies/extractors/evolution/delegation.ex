@@ -202,7 +202,9 @@ defmodule ElixirOntologies.Extractors.Evolution.Delegation do
       iex> length(owners)
       2
   """
-  @spec parse_codeowners(String.t(), String.t()) :: {:ok, [CodeOwner.t()]} | {:error, atom()}
+  @spec parse_codeowners(String.t()) :: {:ok, [CodeOwner.t()]} | {:error, atom()}
+  @spec parse_codeowners(String.t(), String.t() | nil) ::
+          {:ok, [CodeOwner.t()]} | {:error, atom()}
   def parse_codeowners(repo_path, codeowners_path \\ nil) do
     paths_to_try =
       if codeowners_path do

@@ -17,7 +17,8 @@ defmodule ElixirOntologies.Phase17IntegrationTest do
     Context,
     CallGraphBuilder,
     ControlFlowBuilder,
-    ExceptionBuilder
+    ExceptionBuilder,
+    Orchestrator
   }
 
   alias ElixirOntologies.NS.Core
@@ -769,7 +770,7 @@ defmodule ElixirOntologies.Phase17IntegrationTest do
       }
 
       context = Context.new(base_iri: "https://test.org/code#")
-      {:ok, graph} = ElixirOntologies.Builders.Orchestrator.build_module_graph(analysis, context)
+      {:ok, graph} = Orchestrator.build_module_graph(analysis, context)
 
       # Verify graph was built
       assert %RDF.Graph{} = graph
@@ -820,7 +821,7 @@ defmodule ElixirOntologies.Phase17IntegrationTest do
       }
 
       context = Context.new(base_iri: "https://test.org/code#")
-      {:ok, graph} = ElixirOntologies.Builders.Orchestrator.build_module_graph(analysis, context)
+      {:ok, graph} = Orchestrator.build_module_graph(analysis, context)
 
       # Should succeed with just module triples
       assert %RDF.Graph{} = graph

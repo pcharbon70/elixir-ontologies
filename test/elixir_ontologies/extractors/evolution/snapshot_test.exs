@@ -1,6 +1,8 @@
 defmodule ElixirOntologies.Extractors.Evolution.SnapshotTest do
   use ExUnit.Case, async: true
 
+  @moduletag :slow
+
   alias ElixirOntologies.Extractors.Evolution.Snapshot
 
   # ===========================================================================

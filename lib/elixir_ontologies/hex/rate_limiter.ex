@@ -25,7 +25,7 @@ defmodule ElixirOntologies.Hex.RateLimiter do
   @default_burst 10
 
   defmodule State do
-    @moduledoc false
+    @moduledoc "Internal state for the token bucket rate limiter."
     defstruct [
       :tokens,
       :max_tokens,

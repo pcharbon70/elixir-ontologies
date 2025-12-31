@@ -27,58 +27,93 @@ defmodule ElixirOntologies.Hex.Filter do
 
   alias ElixirOntologies.Hex.Api.Package
 
-  @elixir_indicators %{
-    # Common Elixir project licenses
-    licenses: ["MIT", "Apache-2.0", "Apache 2.0", "BSD", "MPL-2.0"],
-    # GitHub paths that suggest Elixir
-    github_patterns: ["/elixir", "elixir-", "-ex", "_ex"],
-    # Package name patterns common in Elixir
-    name_patterns: [~r/^ex_/, ~r/_ex$/, ~r/^phoenix/, ~r/^ecto/, ~r/^plug/, ~r/^nerves/, ~r/^absinthe/]
-  }
+  # Known Erlang-only packages (popular dependencies without Elixir code)
+  @known_erlang_packages [
+    # HTTP/Network
+    "cowboy",
+    "cowlib",
+    "ranch",
+    "gun",
+    "hackney",
+    "ssl_verify_fun",
+    "idna",
+    "unicode_util_compat",
+    "mimerl",
+    "certifi",
+    "parse_trans",
+    # JSON
+    "jsx",
+    "jiffy",
+    "jsone",
+    "jsonx",
+    # Testing
+    "meck",
+    "proper",
+    "eunit_formatters",
+    # Compression
+    "ezlib",
+    "zstd",
+    # Database drivers
+    "epgsql",
+    "eredis",
+    "mysql",
+    "emysql",
+    "mongodb",
+    # Parsing
+    "leex",
+    "yecc",
+    "neotoma",
+    "abnf",
+    # Crypto
+    "bcrypt",
+    "pbkdf2",
+    "fast_tls",
+    "p1_utils",
+    # Utilities
+    "gproc",
+    "poolboy",
+    "worker_pool",
+    "jobs",
+    "recon",
+    "observer_cli",
+    "bear",
+    "folsom",
+    "exometer_core",
+    "lager",
+    "goldrush",
+    # Misc
+    "cf",
+    "edown",
+    "getopt",
+    "uuid",
+    "base64url",
+    "quickrand",
+    "erlware_commons",
+    "providers",
+    "relx",
+    "bbmustache",
+    # Format/Protocol
+    "gpb",
+    "protobuffs",
+    "msgpack",
+    "bert",
+    "erlfmt",
+    # NIF wrappers
+    "asn1",
+    "crypto",
+    "public_key",
+    "ssl",
+    "inets",
+    "xmerl",
+    # OTP apps
+    "sasl",
+    "stdlib",
+    "kernel",
+    "compiler"
+  ]
 
-  @erlang_indicators %{
-    # Package name patterns common in Erlang
-    name_patterns: [
-      ~r/^erl_/,
-      ~r/_erl$/,
-      ~r/^rebar/,
-      ~r/^erlang_/,
-      ~r/_nif$/,
-      ~r/^gen_/,
-      ~r/^lager/,
-      ~r/^erlfmt/
-    ],
-    # Known Erlang-only packages (popular dependencies without Elixir code)
-    known_erlang: [
-      # HTTP/Network
-      "cowboy", "cowlib", "ranch", "gun", "hackney", "ssl_verify_fun",
-      "idna", "unicode_util_compat", "mimerl", "certifi", "parse_trans",
-      # JSON
-      "jsx", "jiffy", "jsone", "jsonx",
-      # Testing
-      "meck", "proper", "eunit_formatters",
-      # Compression
-      "ezlib", "zstd",
-      # Database drivers
-      "epgsql", "eredis", "mysql", "emysql", "mongodb",
-      # Parsing
-      "leex", "yecc", "neotoma", "abnf",
-      # Crypto
-      "bcrypt", "pbkdf2", "fast_tls", "p1_utils",
-      # Utilities
-      "gproc", "poolboy", "worker_pool", "jobs", "recon", "observer_cli",
-      "bear", "folsom", "exometer_core", "lager", "goldrush",
-      # Misc
-      "cf", "edown", "getopt", "uuid", "base64url", "quickrand",
-      "erlware_commons", "providers", "relx", "bbmustache",
-      # Format/Protocol
-      "gpb", "protobuffs", "msgpack", "bert", "erlfmt",
-      # NIF wrappers
-      "asn1", "crypto", "public_key", "ssl", "inets", "xmerl",
-      # OTP apps
-      "sasl", "stdlib", "kernel", "compiler"
-    ]
-  }
+  # GitHub paths that suggest Elixir
+  @elixir_github_patterns ["/elixir", "elixir-", "-ex", "_ex"]
 
   # ===========================================================================
   # Metadata-Based Filtering
@@ -114,7 +149,7 @@ defmodule ElixirOntologies.Hex.Filter do
   end
 
   defp has_elixir_name?(name) when is_binary(name) do
-    Enum.any?(@elixir_indicators.name_patterns, &Regex.match?(&1, name))
+    Enum.any?(elixir_name_patterns(), &Regex.match?(&1, name))
   end
 
   defp has_elixir_name?(_), do: false
@@ -124,7 +159,7 @@ defmodule ElixirOntologies.Hex.Filter do
     |> Map.values()
     |> Enum.any?(fn url ->
       is_binary(url) and
-        Enum.any?(@elixir_indicators.github_patterns, &String.contains?(url, &1))
+        Enum.any?(@elixir_github_patterns, &String.contains?(url, &1))
     end)
   end
 
@@ -154,13 +189,13 @@ defmodule ElixirOntologies.Hex.Filter do
   defp has_erlang_only_description?(_), do: false
 
   defp has_erlang_name?(name) when is_binary(name) do
-    Enum.any?(@erlang_indicators.name_patterns, &Regex.match?(&1, name))
+    Enum.any?(erlang_name_patterns(), &Regex.match?(&1, name))
   end
 
   defp has_erlang_name?(_), do: false
 
   defp is_known_erlang?(name) when is_binary(name) do
-    name in @erlang_indicators.known_erlang
+    name in @known_erlang_packages
   end
 
   defp is_known_erlang?(_), do: false
@@ -336,5 +371,23 @@ defmodule ElixirOntologies.Hex.Filter do
   Returns the known Erlang package names that should be skipped.
   """
   @spec known_erlang_packages() :: [String.t()]
-  def known_erlang_packages, do: @erlang_indicators.known_erlang
+  def known_erlang_packages, do: @known_erlang_packages
+
+  # Pattern functions - defined as functions to avoid compile-time escaping issues with Regex references
+  defp elixir_name_patterns do
+    [~r/^ex_/, ~r/_ex$/, ~r/^phoenix/, ~r/^ecto/, ~r/^plug/, ~r/^nerves/, ~r/^absinthe/]
+  end
+
+  defp erlang_name_patterns do
+    [
+      ~r/^erl_/,
+      ~r/_erl$/,
+      ~r/^rebar/,
+      ~r/^erlang_/,
+      ~r/_nif$/,
+      ~r/^gen_/,
+      ~r/^lager/,
+      ~r/^erlfmt/
+    ]
+  end
 end

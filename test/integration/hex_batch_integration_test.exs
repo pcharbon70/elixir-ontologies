@@ -23,6 +23,7 @@ defmodule Integration.HexBatchIntegrationTest do
   alias ElixirOntologies.Hex.HttpClient
   alias ElixirOntologies.Hex.Progress
   alias ElixirOntologies.Hex.ProgressStore
+  alias Mix.Tasks.ElixirOntologies.HexBatch
 
   import ExUnit.CaptureIO
   import ExUnit.CaptureLog
@@ -456,7 +457,7 @@ defmodule Integration.HexBatchIntegrationTest do
     test "rejects missing output directory" do
       stderr =
         capture_io(:stderr, fn ->
-          catch_exit(Mix.Tasks.ElixirOntologies.HexBatch.run([]))
+          catch_exit(HexBatch.run([]))
         end)
 
       assert stderr =~ "Output directory is required"
@@ -465,7 +466,7 @@ defmodule Integration.HexBatchIntegrationTest do
     test "rejects invalid options" do
       stderr =
         capture_io(:stderr, fn ->
-          catch_exit(Mix.Tasks.ElixirOntologies.HexBatch.run(["--invalid-flag"]))
+          catch_exit(HexBatch.run(["--invalid-flag"]))
         end)
 
       assert stderr =~ "Invalid options"

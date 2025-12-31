@@ -224,12 +224,12 @@ defmodule ElixirOntologies.Builders.Evolution.AgentBuilder do
       true
   """
   @spec agent_type_to_class(atom()) :: RDF.IRI.t()
-  def agent_type_to_class(:developer), do: Evolution.Developer
-  def agent_type_to_class(:bot), do: Evolution.Bot
-  def agent_type_to_class(:ci), do: Evolution.CISystem
-  def agent_type_to_class(:llm), do: Evolution.LLMAgent
+  def agent_type_to_class(:developer), do: Evolution.Developer |> RDF.iri()
+  def agent_type_to_class(:bot), do: Evolution.Bot |> RDF.iri()
+  def agent_type_to_class(:ci), do: Evolution.CISystem |> RDF.iri()
+  def agent_type_to_class(:llm), do: Evolution.LLMAgent |> RDF.iri()
   # Catch-all with guard for unknown atom types
-  def agent_type_to_class(type) when is_atom(type), do: Evolution.DevelopmentAgent
+  def agent_type_to_class(type) when is_atom(type), do: Evolution.DevelopmentAgent |> RDF.iri()
 
   # ===========================================================================
   # Name Triple Generation

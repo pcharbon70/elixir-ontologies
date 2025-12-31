@@ -50,6 +50,10 @@ defmodule Mix.Tasks.ElixirOntologies.Update do
   @shortdoc "Update RDF knowledge graph with incremental analysis"
   @requirements ["compile"]
 
+  # Dialyzer may not have Mix.Task in PLT
+  @dialyzer :no_behaviours
+  @dialyzer :no_missing_calls
+
   @impl Mix.Task
   @spec run([String.t()]) :: :ok
   def run(args) do

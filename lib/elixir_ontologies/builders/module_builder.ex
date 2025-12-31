@@ -347,9 +347,7 @@ defmodule ElixirOntologies.Builders.ModuleBuilder do
 
   # Convert module name list to string
   defp module_name_string(name) when is_list(name) do
-    name
-    |> Enum.map(&module_part_to_string/1)
-    |> Enum.join(".")
+    Enum.map_join(name, ".", &module_part_to_string/1)
   end
 
   # Convert individual module name parts to strings

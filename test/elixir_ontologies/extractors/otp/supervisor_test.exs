@@ -1759,7 +1759,7 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
     test "can be created with all shutdown types" do
       assert %ShutdownSpec{type: :brutal_kill, value: nil}.type == :brutal_kill
       assert %ShutdownSpec{type: :infinity, value: nil}.type == :infinity
-      assert %ShutdownSpec{type: :timeout, value: 10000}.type == :timeout
+      assert %ShutdownSpec{type: :timeout, value: 10_000}.type == :timeout
     end
   end
 
@@ -1832,8 +1832,8 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
     alias ElixirOntologies.Extractors.OTP.Supervisor.ChildSpec
 
     test "returns timeout value" do
-      spec = %ChildSpec{shutdown: 10000}
-      assert SupervisorExtractor.shutdown_timeout(spec) == 10000
+      spec = %ChildSpec{shutdown: 10_000}
+      assert SupervisorExtractor.shutdown_timeout(spec) == 10_000
     end
 
     test "returns nil for infinity" do
@@ -1867,7 +1867,7 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
 
     test "returns description for timeout" do
       assert SupervisorExtractor.shutdown_description(5000) == "Wait up to 5000ms"
-      assert SupervisorExtractor.shutdown_description(10000) == "Wait up to 10000ms"
+      assert SupervisorExtractor.shutdown_description(10_000) == "Wait up to 10000ms"
     end
   end
 
@@ -2258,7 +2258,7 @@ defmodule ElixirOntologies.Extractors.OTP.SupervisorTest do
       shutdown = SupervisorExtractor.extract_shutdown(child)
 
       assert shutdown.type == :timeout
-      assert shutdown.value == 10000
+      assert shutdown.value == 10_000
       assert shutdown.is_default == false
     end
 

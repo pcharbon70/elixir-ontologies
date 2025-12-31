@@ -137,7 +137,7 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
         SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
 
       # Verify strategy IRI is predefined individual
-      assert strategy_iri == OTP.OneForOne
+      assert strategy_iri == RDF.iri(OTP.OneForOne)
 
       # Verify hasStrategy link
       assert {supervisor_iri, OTP.hasStrategy(), strategy_iri} in triples
@@ -154,7 +154,7 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
         SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
 
       # Verify strategy IRI is predefined individual
-      assert strategy_iri == OTP.OneForAll
+      assert strategy_iri == RDF.iri(OTP.OneForAll)
 
       # Verify hasStrategy link
       assert {supervisor_iri, OTP.hasStrategy(), strategy_iri} in triples
@@ -171,7 +171,7 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
         SupervisorBuilder.build_strategy(strategy_info, supervisor_iri, context)
 
       # Verify strategy IRI is predefined individual
-      assert strategy_iri == OTP.RestForOne
+      assert strategy_iri == RDF.iri(OTP.RestForOne)
 
       # Verify hasStrategy link
       assert {supervisor_iri, OTP.hasStrategy(), strategy_iri} in triples
@@ -262,7 +262,7 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       assert {supervisor_iri, OTP.hasStrategy(), strategy_iri} in strategy_triples
 
       # Verify strategy is predefined individual
-      assert strategy_iri == OTP.OneForOne
+      assert strategy_iri == RDF.iri(OTP.OneForOne)
     end
 
     test "can build Supervisor with multiple strategies for different children" do
@@ -285,8 +285,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
         SupervisorBuilder.build_strategy(strategy2, supervisor_iri, context)
 
       # Verify different strategies
-      assert strategy_iri1 == OTP.OneForOne
-      assert strategy_iri2 == OTP.OneForAll
+      assert strategy_iri1 == RDF.iri(OTP.OneForOne)
+      assert strategy_iri2 == RDF.iri(OTP.OneForAll)
       assert strategy_iri1 != strategy_iri2
 
       # Verify links
@@ -717,7 +717,7 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       assert {supervisor_iri, RDF.type(), OTP.Supervisor} in all_triples
 
       # Verify strategy link
-      assert {supervisor_iri, OTP.hasStrategy(), OTP.OneForOne} in all_triples
+      assert {supervisor_iri, OTP.hasStrategy(), RDF.iri(OTP.OneForOne)} in all_triples
 
       # Verify child specs are linked to supervisor
       Enum.each(child_iris, fn child_iri ->
@@ -745,10 +745,10 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
         SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
 
       # Verify strategy is predefined individual
-      assert strategy_iri == OTP.OneForOne
+      assert strategy_iri == RDF.iri(OTP.OneForOne)
 
       # Verify hasStrategy link
-      assert {supervisor_iri, OTP.hasStrategy(), OTP.OneForOne} in triples
+      assert {supervisor_iri, OTP.hasStrategy(), RDF.iri(OTP.OneForOne)} in triples
 
       # Verify maxRestarts on supervisor
       assert {supervisor_iri, OTP.maxRestarts(), RDF.literal(5)} in triples
@@ -766,8 +766,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
         SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
 
       # Verify strategy
-      assert strategy_iri == OTP.OneForAll
-      assert {supervisor_iri, OTP.hasStrategy(), OTP.OneForAll} in triples
+      assert strategy_iri == RDF.iri(OTP.OneForAll)
+      assert {supervisor_iri, OTP.hasStrategy(), RDF.iri(OTP.OneForAll)} in triples
     end
 
     test "builds rest_for_one strategy" do
@@ -779,8 +779,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
         SupervisorBuilder.build_supervision_strategy(strategy_info, supervisor_iri, context)
 
       # Verify strategy
-      assert strategy_iri == OTP.RestForOne
-      assert {supervisor_iri, OTP.hasStrategy(), OTP.RestForOne} in triples
+      assert strategy_iri == RDF.iri(OTP.RestForOne)
+      assert {supervisor_iri, OTP.hasStrategy(), RDF.iri(OTP.RestForOne)} in triples
     end
   end
 
@@ -946,7 +946,7 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
 
       # Verify strategy link
       assert {supervisor_iri, OTP.hasStrategy(), strategy_iri} in all_triples
-      assert strategy_iri == OTP.OneForAll
+      assert strategy_iri == RDF.iri(OTP.OneForAll)
 
       # Verify restart intensity on supervisor
       assert {supervisor_iri, OTP.maxRestarts(), RDF.literal(10)} in all_triples
@@ -1312,7 +1312,7 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilderTest do
       assert {supervisor_iri, RDF.type(), OTP.Supervisor} in all_triples
 
       # Verify strategy
-      assert {supervisor_iri, OTP.hasStrategy(), OTP.OneForAll} in all_triples
+      assert {supervisor_iri, OTP.hasStrategy(), RDF.iri(OTP.OneForAll)} in all_triples
 
       # Verify supervision relationships
       worker1_iri = RDF.iri("https://example.org/code#Worker1")

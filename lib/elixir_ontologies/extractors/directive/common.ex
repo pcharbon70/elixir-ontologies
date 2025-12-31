@@ -136,7 +136,7 @@ defmodule ElixirOntologies.Extractors.Directive.Common do
   end
 
   def module_parts_to_string(parts) when is_list(parts) do
-    parts |> Enum.map(&Atom.to_string/1) |> Enum.join(".")
+    Enum.map_join(parts, ".", &Atom.to_string/1)
   end
 
   # ===========================================================================

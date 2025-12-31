@@ -211,42 +211,6 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
     "wip" => :wip
   }
 
-  # Keyword patterns for heuristic classification
-  # Order matters! More specific patterns should come before generic ones
-  @keyword_patterns [
-    # Revert must come first (exact pattern)
-    {:revert, ~r/^revert\b/i},
-    # Documentation - check before feature because "Add documentation" should be docs
-    {:docs, ~r/\b(doc|docs|documentation|readme|comment|comments|javadoc|typedoc|moduledoc)\b/i},
-    # Test - check before feature because "Add tests" should be test
-    {:test, ~r/\b(test|tests|testing|spec|specs|coverage)\b/i},
-    # Performance - check before feature because "Add caching" should be perf
-    {:perf,
-     ~r/\b(perf|performance|optimize|optimized|optimization|speed|faster|cache|caching)\b/i},
-    # Bug fix patterns
-    {:bugfix,
-     ~r/\b(fix|fixed|fixing|bug|bugfix|repair|resolve|resolved|resolves|closes?|closed)\b/i},
-    # Refactor
-    {:refactor,
-     ~r/\b(refactor|refactored|refactoring|restructure|reorganize|cleanup|clean up|simplify)\b/i},
-    # Chore
-    {:chore, ~r/\b(chore|build|tooling|config|configure|setup|maintenance)\b/i},
-    # Style
-    {:style, ~r/\b(style|format|formatting|lint|linting|prettier|credo)\b/i},
-    # CI
-    {:ci, ~r/\b(ci|cd|pipeline|github actions|travis|circle|jenkins|workflow)\b/i},
-    # Dependencies
-    {:deps,
-     ~r/\b(deps|dependency|dependencies|upgrade|update|bump|version)\s+(mix\.exs|package\.json|gemfile)/i},
-    # Release
-    {:release, ~r/\b(release|version|v?\d+\.\d+\.\d+|bump version|prepare release)\b/i},
-    # WIP
-    {:wip, ~r/\b(wip|work in progress|todo|fixme|hack)\b/i},
-    # Feature - last, as it's the most generic pattern
-    {:feature,
-     ~r/\b(add|added|adding|implement|implemented|implementing|new|create|created|introduce|introduced)\b/i}
-  ]
-
   # ===========================================================================
   # Main Classification Functions
   # ===========================================================================
@@ -402,16 +366,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
         {:ok,
          %{
            type: String.downcase(type),
-           scope: if(scope && scope != "", do: scope, else: nil),
-           breaking: breaking == "!",
-           description: String.trim(description)
-         }}
-
-      [_, type, nil, breaking, description] ->
-        {:ok,
-         %{
-           type: String.downcase(type),
-           scope: nil,
+           scope: if(scope != "", do: scope, else: nil),
            breaking: breaking == "!",
            description: String.trim(description)
          }}
@@ -603,7 +558,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
   defp classify_by_keywords(subject) when is_binary(subject) do
     # Find the first matching pattern
     result =
-      Enum.find_value(@keyword_patterns, fn {type, pattern} ->
+      Enum.find_value(keyword_patterns(), fn {type, pattern} ->
         if Regex.match?(pattern, subject) do
           {type, pattern}
         else
@@ -626,6 +581,46 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
       nil ->
         {:unknown, %Classification{method: :keyword, confidence: :low}}
     end
+  end
+
+  # Keyword patterns for heuristic classification
+  # Order matters! More specific patterns should come before generic ones
+  # Defined as a function to avoid compile-time escaping issues with Regex references
+  defp keyword_patterns do
+    [
+      # Revert must come first (exact pattern)
+      {:revert, ~r/^revert\b/i},
+      # Documentation - check before feature because "Add documentation" should be docs
+      {:docs,
+       ~r/\b(doc|docs|documentation|readme|comment|comments|javadoc|typedoc|moduledoc)\b/i},
+      # Test - check before feature because "Add tests" should be test
+      {:test, ~r/\b(test|tests|testing|spec|specs|coverage)\b/i},
+      # Performance - check before feature because "Add caching" should be perf
+      {:perf,
+       ~r/\b(perf|performance|optimize|optimized|optimization|speed|faster|cache|caching)\b/i},
+      # Bug fix patterns
+      {:bugfix,
+       ~r/\b(fix|fixed|fixing|bug|bugfix|repair|resolve|resolved|resolves|closes?|closed)\b/i},
+      # Refactor
+      {:refactor,
+       ~r/\b(refactor|refactored|refactoring|restructure|reorganize|cleanup|clean up|simplify)\b/i},
+      # Chore
+      {:chore, ~r/\b(chore|build|tooling|config|configure|setup|maintenance)\b/i},
+      # Style
+      {:style, ~r/\b(style|format|formatting|lint|linting|prettier|credo)\b/i},
+      # CI
+      {:ci, ~r/\b(ci|cd|pipeline|github actions|travis|circle|jenkins|workflow)\b/i},
+      # Dependencies
+      {:deps,
+       ~r/\b(deps|dependency|dependencies|upgrade|update|bump|version)\s+(mix\.exs|package\.json|gemfile)/i},
+      # Release
+      {:release, ~r/\b(release|version|v?\d+\.\d+\.\d+|bump version|prepare release)\b/i},
+      # WIP
+      {:wip, ~r/\b(wip|work in progress|todo|fixme|hack)\b/i},
+      # Feature - last, as it's the most generic pattern
+      {:feature,
+       ~r/\b(add|added|adding|implement|implemented|implementing|new|create|created|introduce|introduced)\b/i}
+    ]
   end
 
   defp classify_by_files([]) do
@@ -680,9 +675,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
       path == "Jenkinsfile"
   end
 
-  defp check_breaking_change(nil), do: false
-
-  defp check_breaking_change(text) do
+  defp check_breaking_change(text) when is_binary(text) do
     String.contains?(text, "BREAKING CHANGE") or
       String.contains?(text, "BREAKING:") or
       Regex.match?(~r/\bbreaking\b/i, text)
@@ -716,8 +709,9 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
 
   defp extract_modules_from_files(files) do
     files
-    |> Enum.filter(&String.ends_with?(&1, ".ex"))
-    |> Enum.filter(&(not String.ends_with?(&1, "_test.exs")))
+    |> Enum.filter(fn file ->
+      String.ends_with?(file, ".ex") and not String.ends_with?(file, "_test.exs")
+    end)
     |> Enum.map(&path_to_module/1)
     |> Enum.filter(& &1)
     |> Enum.uniq()
@@ -725,17 +719,14 @@ defmodule ElixirOntologies.Extractors.Evolution.Activity do
 
   defp path_to_module(path) do
     # Convert lib/foo/bar.ex to Foo.Bar
-    cond do
-      String.starts_with?(path, "lib/") ->
-        path
-        |> String.trim_leading("lib/")
-        |> String.trim_trailing(".ex")
-        |> String.split("/")
-        |> Enum.map(&Macro.camelize/1)
-        |> Enum.join(".")
-
-      true ->
-        nil
+    if String.starts_with?(path, "lib/") do
+      path
+      |> String.trim_leading("lib/")
+      |> String.trim_trailing(".ex")
+      |> String.split("/")
+      |> Enum.map_join(".", &Macro.camelize/1)
+    else
+      nil
     end
   end
 end

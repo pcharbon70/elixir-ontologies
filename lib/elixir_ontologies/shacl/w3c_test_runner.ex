@@ -114,7 +114,7 @@ defmodule ElixirOntologies.SHACL.W3CTestRunner do
       {:ok, test_case} = W3CTestRunner.parse_test_file("test/fixtures/w3c/core/class-001.ttl")
       {:ok, report} = W3CTestRunner.run_test(test_case)
   """
-  @spec run_test(test_case()) :: {:ok, SHACL.ValidationReport.t()} | {:error, term()}
+  @spec run_test(test_case()) :: {:ok, SHACL.Model.ValidationReport.t()} | {:error, term()}
   def run_test(%{data_graph: data, shapes_graph: shapes}) do
     SHACL.validate(data, shapes)
   end
@@ -136,7 +136,7 @@ defmodule ElixirOntologies.SHACL.W3CTestRunner do
       W3CTestRunner.test_passed?(test_case, report)
       # => true (if sh:conforms matches expected)
   """
-  @spec test_passed?(test_case(), SHACL.ValidationReport.t()) :: boolean()
+  @spec test_passed?(test_case(), SHACL.Model.ValidationReport.t()) :: boolean()
   def test_passed?(%{expected_conforms: expected}, %{conforms?: actual}) do
     expected == actual
   end
@@ -157,7 +157,7 @@ defmodule ElixirOntologies.SHACL.W3CTestRunner do
       comparison.conforms_match
       # => false (if there's a mismatch)
   """
-  @spec compare_results(test_case(), SHACL.ValidationReport.t()) :: map()
+  @spec compare_results(test_case(), SHACL.Model.ValidationReport.t()) :: map()
   def compare_results(test_case, report) do
     %{
       conforms_match: test_case.expected_conforms == report.conforms?,

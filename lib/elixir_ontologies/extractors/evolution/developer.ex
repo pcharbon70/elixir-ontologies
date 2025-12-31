@@ -1,4 +1,11 @@
 defmodule ElixirOntologies.Extractors.Evolution.Developer do
+  # MapSet is an opaque type; Dialyzer can't track it through struct fields
+  @dialyzer {:nowarn_function, author_from_commit: 1}
+  @dialyzer {:nowarn_function, committer_from_commit: 1}
+  @dialyzer {:nowarn_function, from_commit: 1}
+  @dialyzer {:nowarn_function, merge_developers: 2}
+  @dialyzer {:nowarn_function, names_set: 1}
+
   @moduledoc """
   Extracts and aggregates developer identity from Git commits.
 
@@ -71,7 +78,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Developer do
   @type t :: %__MODULE__{
           email: String.t(),
           name: String.t() | nil,
-          names: MapSet.t(String.t()),
+          names: MapSet.t(),
           authored_commits: [String.t()],
           committed_commits: [String.t()],
           first_authored: DateTime.t() | nil,
@@ -390,6 +397,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Developer do
   # Private Helpers
   # ===========================================================================
 
+  @spec names_set(String.t() | nil) :: MapSet.t()
   defp names_set(nil), do: MapSet.new()
   defp names_set(name), do: MapSet.new([name])
 

@@ -72,6 +72,11 @@ defmodule Mix.Tasks.ElixirOntologies.Kg do
 
   @requirements ["app.start"]
 
+  # Dialyzer may not have Mix.Task in PLT
+  @dialyzer :no_behaviours
+  @dialyzer :no_missing_calls
+  @dialyzer :no_return
+
   @impl Mix.Task
   def run(args) do
     # Ensure triple_store is available
@@ -190,7 +195,7 @@ defmodule Mix.Tasks.ElixirOntologies.Kg do
         opts[:file] ->
           File.read!(opts[:file])
 
-        length(rest) > 0 ->
+        rest != [] ->
           Enum.join(rest, " ")
 
         true ->
@@ -221,7 +226,10 @@ defmodule Mix.Tasks.ElixirOntologies.Kg do
 
       {:ok, %RDF.Graph{} = graph} ->
         Mix.shell().info(RDF.Turtle.write_string!(graph))
-        Mix.shell().info("\n#{RDF.Graph.triple_count(graph)} triple(s) in #{format_duration(elapsed)}")
+
+        Mix.shell().info(
+          "\n#{RDF.Graph.triple_count(graph)} triple(s) in #{format_duration(elapsed)}"
+        )
 
       {:error, reason} ->
         Mix.raise("Query failed: #{inspect(reason)}")
@@ -278,8 +286,7 @@ defmodule Mix.Tasks.ElixirOntologies.Kg do
     # Header row
     header_line =
       Enum.zip(headers, widths)
-      |> Enum.map(fn {h, w} -> String.pad_trailing(h, w) end)
-      |> Enum.join(" | ")
+      |> Enum.map_join(" | ", fn {h, w} -> String.pad_trailing(h, w) end)
 
     Mix.shell().info(header_line)
     Mix.shell().info(String.duplicate("-", String.length(header_line)))
@@ -288,8 +295,7 @@ defmodule Mix.Tasks.ElixirOntologies.Kg do
     Enum.each(rows, fn row ->
       line =
         Enum.zip(headers, widths)
-        |> Enum.map(fn {h, w} -> String.pad_trailing(format_term(row[h]), w) end)
-        |> Enum.join(" | ")
+        |> Enum.map_join(" | ", fn {h, w} -> String.pad_trailing(format_term(row[h]), w) end)
 
       Mix.shell().info(line)
     end)
@@ -348,13 +354,18 @@ defmodule Mix.Tasks.ElixirOntologies.Kg do
     Mix.shell().info("Exporting to: #{output_path}")
 
     start_time = System.monotonic_time(:millisecond)
-    :ok = KnowledgeGraph.export_file(store, output_path)
-    elapsed = System.monotonic_time(:millisecond) - start_time
 
-    :ok = KnowledgeGraph.close(store)
+    case KnowledgeGraph.export_file(store, output_path) do
+      {:ok, _bytes} ->
+        elapsed = System.monotonic_time(:millisecond) - start_time
+        :ok = KnowledgeGraph.close(store)
+        file_size = File.stat!(output_path).size
+        Mix.shell().info("Exported #{format_bytes(file_size)} in #{format_duration(elapsed)}")
 
-    file_size = File.stat!(output_path).size
-    Mix.shell().info("Exported #{format_bytes(file_size)} in #{format_duration(elapsed)}")
+      {:error, reason} ->
+        :ok = KnowledgeGraph.close(store)
+        Mix.raise("Export failed: #{inspect(reason)}")
+    end
   end
 
   # ===========================================================================

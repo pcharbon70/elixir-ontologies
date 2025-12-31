@@ -1,4 +1,11 @@
 defmodule ElixirOntologies.Extractors.Evolution.Refactoring do
+  # MapSet is an opaque type; Dialyzer can't track it through helper functions
+  @dialyzer {:nowarn_function, has_similar_deleted_code?: 2}
+  @dialyzer {:nowarn_function, tokenize_code: 1}
+  @dialyzer {:nowarn_function, jaccard_similarity: 2}
+  @dialyzer {:nowarn_function, code_similarity: 2}
+  @dialyzer {:nowarn_function, token_overlap_ratio: 2}
+
   @moduledoc """
   Detects and classifies refactoring activities from code changes.
 
@@ -456,9 +463,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Refactoring do
     |> Enum.filter(&is_elixir_file?(&1.file))
     |> Enum.flat_map(fn hunk ->
       additions_text =
-        hunk.additions
-        |> Enum.map(fn {_, line} -> line end)
-        |> Enum.join("\n")
+        Enum.map_join(hunk.additions, "\n", fn {_, line} -> line end)
 
       # Pattern to match function definitions
       # Matches: def/defp name(args) do/when
@@ -486,7 +491,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Refactoring do
         div(line_num, 10)
       end)
       |> Enum.map(fn lines ->
-        code = lines |> Enum.map(fn {_, line} -> line end) |> Enum.join("\n")
+        code = Enum.map_join(lines, "\n", fn {_, line} -> line end)
         {start_line, _} = List.first(lines) || {0, ""}
         {end_line, _} = List.last(lines) || {0, ""}
         {hunk.file, code, {start_line, end_line}}
@@ -610,6 +615,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Refactoring do
     end)
   end
 
+  @spec tokenize_code(binary()) :: MapSet.t()
   defp tokenize_code(code) when is_binary(code) do
     code
     |> String.split(~r/\s+|[^\w]+/, trim: true)
@@ -617,13 +623,31 @@ defmodule ElixirOntologies.Extractors.Evolution.Refactoring do
     |> MapSet.new()
   end
 
+  @spec tokenize_code(term()) :: MapSet.t()
   defp tokenize_code(_), do: MapSet.new()
 
+  @spec jaccard_similarity(MapSet.t(), MapSet.t()) :: float()
   defp jaccard_similarity(set1, set2) do
     intersection = MapSet.intersection(set1, set2) |> MapSet.size()
     union = MapSet.union(set1, set2) |> MapSet.size()
 
     if union == 0, do: 0.0, else: intersection / union
+  end
+
+  # Calculates what proportion of source tokens appear in target tokens
+  @spec token_overlap_ratio(binary() | nil, binary() | nil) :: float()
+  defp token_overlap_ratio(source_code, target_code) do
+    source_tokens = tokenize_code(source_code)
+    target_tokens = tokenize_code(target_code)
+
+    source_size = MapSet.size(source_tokens)
+
+    if source_size == 0 do
+      0.0
+    else
+      common = MapSet.intersection(source_tokens, target_tokens) |> MapSet.size()
+      common / source_size
+    end
   end
 
   # ===========================================================================
@@ -807,6 +831,7 @@ defmodule ElixirOntologies.Extractors.Evolution.Refactoring do
     |> Enum.join("\n")
   end
 
+  @spec code_similarity(binary() | nil, binary() | nil) :: float()
   defp code_similarity(code1, code2) do
     tokens1 = tokenize_code(code1)
     tokens2 = tokenize_code(code2)
@@ -867,23 +892,13 @@ defmodule ElixirOntologies.Extractors.Evolution.Refactoring do
 
       # Find added code blocks (potential inlined code)
       added_code =
-        hunk.additions
-        |> Enum.map(fn {_, line} -> line end)
-        |> Enum.join("\n")
+        Enum.map_join(hunk.additions, "\n", fn {_, line} -> line end)
 
       # Check if deleted function body appears in additions
       deleted_funcs
       |> Enum.filter(fn {_name, _arity, body} ->
-        body_tokens = tokenize_code(body)
-        added_tokens = tokenize_code(added_code)
-
         # Check if most of the function body tokens appear in additions
-        if MapSet.size(body_tokens) > 0 do
-          common = MapSet.intersection(body_tokens, added_tokens) |> MapSet.size()
-          common / MapSet.size(body_tokens) > 0.6
-        else
-          false
-        end
+        token_overlap_ratio(body, added_code) > 0.6
       end)
       |> Enum.map(fn {name, arity, body} ->
         %__MODULE__{
@@ -1014,7 +1029,6 @@ defmodule ElixirOntologies.Extractors.Evolution.Refactoring do
     |> String.replace(~r/^(lib|test)\//, "")
     |> String.replace(~r/\.exs?$/, "")
     |> String.split("/")
-    |> Enum.map(&Macro.camelize/1)
-    |> Enum.join(".")
+    |> Enum.map_join(".", &Macro.camelize/1)
   end
 end

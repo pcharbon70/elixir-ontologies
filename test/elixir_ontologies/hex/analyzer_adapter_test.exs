@@ -10,6 +10,8 @@ defmodule ElixirOntologies.Hex.AnalyzerAdapterTest do
   # ===========================================================================
 
   describe "analyze_package/3" do
+    @describetag :slow
+
     test "analyzes package directory and returns graph with metadata" do
       config = %{
         base_iri_template: "https://elixir-code.org/:name/:version/",
@@ -60,42 +62,47 @@ defmodule ElixirOntologies.Hex.AnalyzerAdapterTest do
 
   describe "with_timeout/2" do
     test "returns result when function completes in time" do
-      result = AnalyzerAdapter.with_timeout(1000, fn ->
-        {:ok, :completed}
-      end)
+      result =
+        AnalyzerAdapter.with_timeout(1000, fn ->
+          {:ok, :completed}
+        end)
 
       assert result == {:ok, :completed}
     end
 
     test "returns {:error, :timeout} when function exceeds timeout" do
-      result = AnalyzerAdapter.with_timeout(10, fn ->
-        Process.sleep(100)
-        {:ok, :should_not_reach}
-      end)
+      result =
+        AnalyzerAdapter.with_timeout(10, fn ->
+          Process.sleep(100)
+          {:ok, :should_not_reach}
+        end)
 
       assert result == {:error, :timeout}
     end
 
     test "propagates errors from function" do
-      result = AnalyzerAdapter.with_timeout(1000, fn ->
-        {:error, :some_error}
-      end)
+      result =
+        AnalyzerAdapter.with_timeout(1000, fn ->
+          {:error, :some_error}
+        end)
 
       assert result == {:error, :some_error}
     end
 
     test "handles exceptions in function" do
-      result = AnalyzerAdapter.with_timeout(1000, fn ->
-        raise "test error"
-      end)
+      result =
+        AnalyzerAdapter.with_timeout(1000, fn ->
+          raise "test error"
+        end)
 
       assert {:error, {:task_exit, {:error, %RuntimeError{message: "test error"}}}} = result
     end
 
     test "handles throws in function" do
-      result = AnalyzerAdapter.with_timeout(1000, fn ->
-        throw(:deliberate_error)
-      end)
+      result =
+        AnalyzerAdapter.with_timeout(1000, fn ->
+          throw(:deliberate_error)
+        end)
 
       assert {:error, {:task_exit, {:throw, :deliberate_error}}} = result
     end

@@ -80,9 +80,7 @@ defmodule ElixirOntologies.Hex.Extractor do
   def extract_contents(outer_dir, target_dir) do
     contents_path = Path.join(outer_dir, "contents.tar.gz")
 
-    if not File.exists?(contents_path) do
-      {:error, :no_contents}
-    else
+    if File.exists?(contents_path) do
       File.mkdir_p!(target_dir)
 
       case File.read(contents_path) do
@@ -92,20 +90,20 @@ defmodule ElixirOntologies.Hex.Extractor do
         {:error, reason} ->
           {:error, {:read_contents, reason}}
       end
+    else
+      {:error, :no_contents}
     end
   end
 
   defp extract_gzipped_tar(compressed_data, target_dir) do
-    try do
-      # Decompress the gzip data
-      decompressed = :zlib.gunzip(compressed_data)
+    # Decompress the gzip data
+    decompressed = :zlib.gunzip(compressed_data)
 
-      # Use safe extraction that validates paths
-      safe_extract_tar(decompressed, target_dir)
-    rescue
-      e in ErlangError ->
-        {:error, {:decompress, e.original}}
-    end
+    # Use safe extraction that validates paths
+    safe_extract_tar(decompressed, target_dir)
+  rescue
+    e in ErlangError ->
+      {:error, {:decompress, e.original}}
   end
 
   # Safely extract tar by validating each file path
@@ -197,9 +195,8 @@ defmodule ElixirOntologies.Hex.Extractor do
     outer_temp = Path.join(Path.dirname(tarball_path), "outer_#{:erlang.phash2(make_ref())}")
 
     try do
-      with {:ok, outer_dir} <- extract_outer(tarball_path, outer_temp),
-           {:ok, source_dir} <- extract_contents(outer_dir, target_dir) do
-        {:ok, source_dir}
+      with {:ok, outer_dir} <- extract_outer(tarball_path, outer_temp) do
+        extract_contents(outer_dir, target_dir)
       end
     after
       # Always clean up outer temp dir
@@ -221,9 +218,7 @@ defmodule ElixirOntologies.Hex.Extractor do
   def extract_metadata(outer_dir) do
     metadata_path = Path.join(outer_dir, "metadata.config")
 
-    if not File.exists?(metadata_path) do
-      {:error, :no_metadata}
-    else
+    if File.exists?(metadata_path) do
       case :file.consult(to_charlist(metadata_path)) do
         {:ok, terms} ->
           metadata = terms_to_map(terms)
@@ -232,6 +227,8 @@ defmodule ElixirOntologies.Hex.Extractor do
         {:error, reason} ->
           {:error, {:parse_metadata, reason}}
       end
+    else
+      {:error, :no_metadata}
     end
   end
 

@@ -205,7 +205,7 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
   ## Parameters
 
   - `file_path` - Path to the Elixir source file (relative or absolute)
-  - `config` - Configuration options (defaults to `Config.default/0`)
+  - `config` - Configuration options (uses default configuration if not provided)
 
   ## Returns
 
@@ -227,7 +227,8 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
         {:error, :file_not_found} -> IO.puts("File does not exist")
       end
   """
-  @spec analyze(String.t(), Config.t()) :: {:ok, Result.t()} | {:error, atom() | String.t()}
+  @spec analyze(String.t(), Config.t()) ::
+          {:ok, Result.t()} | {:error, atom() | String.t() | {:file_error, atom()}}
   def analyze(file_path, config \\ Config.default()) do
     with {:ok, validated_config} <- validate_config(config),
          {:ok, parse_result} <- Parser.parse_file(file_path),
@@ -278,7 +279,7 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
   ## Parameters
 
   - `source_code` - Elixir source code as a string
-  - `config` - Configuration options (defaults to `Config.default/0`)
+  - `config` - Configuration options (uses default configuration if not provided)
 
   ## Returns
 
@@ -583,9 +584,6 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
         node
         |> Tuple.to_list()
         |> Enum.reduce(acc, &walk_ast(&1, fun, &2))
-
-      :skip ->
-        acc
     end
   end
 
@@ -604,7 +602,6 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
     case extractor_fn.() do
       {:ok, result} -> result
       {:error, _} -> nil
-      result -> result
     end
   rescue
     e ->

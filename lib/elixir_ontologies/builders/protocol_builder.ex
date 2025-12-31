@@ -146,7 +146,7 @@ defmodule ElixirOntologies.Builders.ProtocolBuilder do
 
   ## Parameters
 
-  - `impl_info` - Implementation extraction result from `Protocol.extract_implementation/1`
+  - `impl_info` - Implementation extraction result from Protocol extractor
   - `context` - Builder context with base IRI and configuration
 
   ## Returns

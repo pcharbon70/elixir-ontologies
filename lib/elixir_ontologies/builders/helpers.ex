@@ -44,7 +44,7 @@ defmodule ElixirOntologies.Builders.Helpers do
       iex> s
       ~I<https://example.org/code#MyApp>
   """
-  @spec type_triple(RDF.IRI.t() | RDF.BlankNode.t(), RDF.IRI.t()) :: RDF.Triple.t()
+  @spec type_triple(RDF.IRI.t() | RDF.BlankNode.t(), RDF.IRI.coercible()) :: RDF.Triple.t()
   def type_triple(subject, class) do
     {subject, RDF.type(), class}
   end
@@ -133,7 +133,7 @@ defmodule ElixirOntologies.Builders.Helpers do
   @spec object_property(
           RDF.IRI.t() | RDF.BlankNode.t(),
           RDF.IRI.t(),
-          RDF.IRI.t() | RDF.BlankNode.t()
+          RDF.IRI.coercible() | RDF.BlankNode.t()
         ) :: RDF.Triple.t()
   def object_property(subject, predicate, object) do
     {subject, predicate, object}
@@ -377,7 +377,11 @@ defmodule ElixirOntologies.Builders.Helpers do
       iex> Enum.all?(triples, fn {_s, p, _o} -> p == RDF.type() end)
       true
   """
-  @spec dual_type_triples(RDF.IRI.t() | RDF.BlankNode.t(), RDF.IRI.t(), RDF.IRI.t()) ::
+  @spec dual_type_triples(
+          RDF.IRI.t() | RDF.BlankNode.t(),
+          RDF.IRI.coercible(),
+          RDF.IRI.coercible()
+        ) ::
           [RDF.Triple.t()]
   def dual_type_triples(subject, base_class, specialized_class) do
     [

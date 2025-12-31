@@ -52,16 +52,18 @@ defmodule ElixirOntologies.SHACL.Validators.Helpers do
   """
   @spec get_property_values(RDF.Graph.t(), RDF.Term.t(), RDF.IRI.t()) :: [RDF.Term.t()]
   def get_property_values(data_graph, focus_node, property_path) do
-    case RDF.Graph.description(data_graph, focus_node) do
-      nil ->
-        []
-
-      desc ->
-        desc
-        |> RDF.Description.get(property_path)
-        |> normalize_to_list()
-    end
+    data_graph
+    |> RDF.Graph.description(focus_node)
+    |> get_from_description(property_path)
+    |> normalize_to_list()
   end
+
+  # Get property values from description, handling nil case
+  # Returns nil, a single term, or a list of terms
+  # Note: RDF.Graph.description/2 may return nil for non-existent nodes in some versions
+  @dialyzer {:nowarn_function, get_from_description: 2}
+  defp get_from_description(nil, _property_path), do: nil
+  defp get_from_description(desc, property_path), do: RDF.Description.get(desc, property_path)
 
   # Normalize RDF.Description.get result to a list
   defp normalize_to_list(nil), do: []

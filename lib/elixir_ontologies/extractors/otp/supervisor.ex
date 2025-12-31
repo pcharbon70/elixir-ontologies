@@ -1351,7 +1351,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
 
   def ordering_description(ordered_children) do
     count = length(ordered_children)
-    ids = Enum.map(ordered_children, & &1.id) |> Enum.join(" -> ")
+    ids = Enum.map_join(ordered_children, " -> ", & &1.id)
     "#{count} children in order: #{ids}"
   end
 
@@ -1609,10 +1609,7 @@ defmodule ElixirOntologies.Extractors.OTP.Supervisor do
     parts = if heuristic > 0, do: ["#{heuristic} heuristic"] ++ parts, else: parts
 
     modules =
-      nested_supervisors
-      |> Enum.map(& &1.module)
-      |> Enum.map(&inspect/1)
-      |> Enum.join(", ")
+      Enum.map_join(nested_supervisors, ", ", &inspect(&1.module))
 
     "#{count} nested supervisor(s) (#{Enum.join(parts, ", ")}): #{modules}"
   end

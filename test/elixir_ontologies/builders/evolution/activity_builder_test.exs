@@ -123,7 +123,9 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       type_triples = find_triples(triples, RDF.type())
 
       feature_triple =
-        Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.FeatureAddition end)
+        Enum.find(type_triples, fn {^activity_iri, _, o} ->
+          o == RDF.iri(Evolution.FeatureAddition)
+        end)
 
       assert feature_triple != nil
     end
@@ -137,7 +139,7 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       type_triples = find_triples(triples, RDF.type())
 
       bugfix_triple =
-        Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.BugFix end)
+        Enum.find(type_triples, fn {^activity_iri, _, o} -> o == RDF.iri(Evolution.BugFix) end)
 
       assert bugfix_triple != nil
     end
@@ -151,7 +153,9 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       type_triples = find_triples(triples, RDF.type())
 
       refactor_triple =
-        Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.Refactoring end)
+        Enum.find(type_triples, fn {^activity_iri, _, o} ->
+          o == RDF.iri(Evolution.Refactoring)
+        end)
 
       assert refactor_triple != nil
     end
@@ -165,7 +169,9 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       type_triples = find_triples(triples, RDF.type())
 
       dev_activity_triple =
-        Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.DevelopmentActivity end)
+        Enum.find(type_triples, fn {^activity_iri, _, o} ->
+          o == RDF.iri(Evolution.DevelopmentActivity)
+        end)
 
       assert dev_activity_triple != nil
     end
@@ -179,7 +185,9 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       type_triples = find_triples(triples, RDF.type())
 
       dev_activity_triple =
-        Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.DevelopmentActivity end)
+        Enum.find(type_triples, fn {^activity_iri, _, o} ->
+          o == RDF.iri(Evolution.DevelopmentActivity)
+        end)
 
       assert dev_activity_triple != nil
     end
@@ -193,7 +201,9 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
       type_triples = find_triples(triples, RDF.type())
 
       deprecation_triple =
-        Enum.find(type_triples, fn {^activity_iri, _, o} -> o == Evolution.Deprecation end)
+        Enum.find(type_triples, fn {^activity_iri, _, o} ->
+          o == RDF.iri(Evolution.Deprecation)
+        end)
 
       assert deprecation_triple != nil
     end
@@ -205,43 +215,50 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilderTest do
 
   describe "activity_type_to_class/1" do
     test "maps :feature to FeatureAddition" do
-      assert ActivityBuilder.activity_type_to_class(:feature) == Evolution.FeatureAddition
+      assert ActivityBuilder.activity_type_to_class(:feature) ==
+               RDF.iri(Evolution.FeatureAddition)
     end
 
     test "maps :bugfix to BugFix" do
-      assert ActivityBuilder.activity_type_to_class(:bugfix) == Evolution.BugFix
+      assert ActivityBuilder.activity_type_to_class(:bugfix) == RDF.iri(Evolution.BugFix)
     end
 
     test "maps :refactor to Refactoring" do
-      assert ActivityBuilder.activity_type_to_class(:refactor) == Evolution.Refactoring
+      assert ActivityBuilder.activity_type_to_class(:refactor) == RDF.iri(Evolution.Refactoring)
     end
 
     test "maps :deprecation to Deprecation" do
-      assert ActivityBuilder.activity_type_to_class(:deprecation) == Evolution.Deprecation
+      assert ActivityBuilder.activity_type_to_class(:deprecation) ==
+               RDF.iri(Evolution.Deprecation)
     end
 
     test "maps :deletion to Deletion" do
-      assert ActivityBuilder.activity_type_to_class(:deletion) == Evolution.Deletion
+      assert ActivityBuilder.activity_type_to_class(:deletion) == RDF.iri(Evolution.Deletion)
     end
 
     test "maps :docs to DevelopmentActivity" do
-      assert ActivityBuilder.activity_type_to_class(:docs) == Evolution.DevelopmentActivity
+      assert ActivityBuilder.activity_type_to_class(:docs) ==
+               RDF.iri(Evolution.DevelopmentActivity)
     end
 
     test "maps :test to DevelopmentActivity" do
-      assert ActivityBuilder.activity_type_to_class(:test) == Evolution.DevelopmentActivity
+      assert ActivityBuilder.activity_type_to_class(:test) ==
+               RDF.iri(Evolution.DevelopmentActivity)
     end
 
     test "maps :chore to DevelopmentActivity" do
-      assert ActivityBuilder.activity_type_to_class(:chore) == Evolution.DevelopmentActivity
+      assert ActivityBuilder.activity_type_to_class(:chore) ==
+               RDF.iri(Evolution.DevelopmentActivity)
     end
 
     test "maps :unknown to DevelopmentActivity" do
-      assert ActivityBuilder.activity_type_to_class(:unknown) == Evolution.DevelopmentActivity
+      assert ActivityBuilder.activity_type_to_class(:unknown) ==
+               RDF.iri(Evolution.DevelopmentActivity)
     end
 
     test "maps unknown atoms to DevelopmentActivity" do
-      assert ActivityBuilder.activity_type_to_class(:random_type) == Evolution.DevelopmentActivity
+      assert ActivityBuilder.activity_type_to_class(:random_type) ==
+               RDF.iri(Evolution.DevelopmentActivity)
     end
   end
 

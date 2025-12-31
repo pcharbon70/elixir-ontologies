@@ -211,6 +211,7 @@ defmodule ElixirOntologies.Hex.HttpClientTest do
       assert result == {:error, :not_found}
     end
 
+    @tag :slow
     test "returns {:error, :rate_limited} for 429 status", %{bypass: bypass, base_url: base_url} do
       Bypass.expect(bypass, "GET", "/limited", fn conn ->
         Plug.Conn.resp(conn, 429, "Rate Limited")
@@ -248,7 +249,9 @@ defmodule ElixirOntologies.Hex.HttpClientTest do
       end)
 
       client = HttpClient.new()
-      {:ok, response} = HttpClient.get(client, "#{base_url}/headers", headers: [{"x-custom", "test-value"}])
+
+      {:ok, response} =
+        HttpClient.get(client, "#{base_url}/headers", headers: [{"x-custom", "test-value"}])
 
       assert response.status == 200
     end
@@ -297,7 +300,11 @@ defmodule ElixirOntologies.Hex.HttpClientTest do
       assert File.read!(tmp_file) == content
     end
 
-    test "returns error for 404 response", %{bypass: bypass, base_url: base_url, tmp_file: tmp_file} do
+    test "returns error for 404 response", %{
+      bypass: bypass,
+      base_url: base_url,
+      tmp_file: tmp_file
+    } do
       Bypass.expect(bypass, "GET", "/missing.txt", fn conn ->
         Plug.Conn.resp(conn, 404, "Not Found")
       end)
@@ -309,7 +316,11 @@ defmodule ElixirOntologies.Hex.HttpClientTest do
       refute File.exists?(tmp_file)
     end
 
-    test "returns error for server errors", %{bypass: bypass, base_url: base_url, tmp_file: tmp_file} do
+    test "returns error for server errors", %{
+      bypass: bypass,
+      base_url: base_url,
+      tmp_file: tmp_file
+    } do
       Bypass.expect(bypass, "GET", "/error.txt", fn conn ->
         Plug.Conn.resp(conn, 500, "Error")
       end)
@@ -323,7 +334,9 @@ defmodule ElixirOntologies.Hex.HttpClientTest do
     test "creates parent directories", %{bypass: bypass, base_url: base_url} do
       content = "nested file"
       tmp_dir = System.tmp_dir!()
-      nested_path = Path.join([tmp_dir, "test_nested_#{:rand.uniform(100_000)}", "subdir", "file.txt"])
+
+      nested_path =
+        Path.join([tmp_dir, "test_nested_#{:rand.uniform(100_000)}", "subdir", "file.txt"])
 
       on_exit(fn ->
         File.rm_rf!(Path.dirname(Path.dirname(nested_path)))

@@ -493,25 +493,38 @@ defmodule ElixirOntologies.Extractors.Evolution.ActivityModel do
   # ===========================================================================
 
   defp get_activity_type(commit) do
-    # Try to infer activity type from commit message
     subject = commit.subject || ""
 
-    cond do
-      String.match?(subject, ~r/^(feat|feature)[\(:]/) -> :feature
-      String.match?(subject, ~r/^(fix|bugfix)[\(:]/) -> :bugfix
-      String.match?(subject, ~r/^refactor[\(:]/) -> :refactor
-      String.match?(subject, ~r/^docs[\(:]/) -> :docs
-      String.match?(subject, ~r/^test[\(:]/) -> :test
-      String.match?(subject, ~r/^(chore|build)[\(:]/) -> :chore
-      String.match?(subject, ~r/^style[\(:]/) -> :style
-      String.match?(subject, ~r/^perf[\(:]/) -> :perf
-      String.match?(subject, ~r/^ci[\(:]/) -> :ci
-      String.match?(subject, ~r/^revert[\(:]/) -> :revert
-      String.match?(subject, ~r/^(deps|dep)[\(:]/) -> :deps
-      String.match?(subject, ~r/^release[\(:]/) -> :release
-      commit.is_merge -> :merge
-      true -> :commit
+    case find_activity_type_by_pattern(subject) do
+      nil -> if commit.is_merge, do: :merge, else: :commit
+      type -> type
     end
+  end
+
+  # Activity type patterns for conventional commit detection
+  # Defined as a function instead of module attribute to avoid
+  # compile-time injection issues with regex references
+  defp activity_patterns do
+    [
+      {~r/^(feat|feature)[\(:]/, :feature},
+      {~r/^(fix|bugfix)[\(:]/, :bugfix},
+      {~r/^refactor[\(:]/, :refactor},
+      {~r/^docs[\(:]/, :docs},
+      {~r/^test[\(:]/, :test},
+      {~r/^(chore|build)[\(:]/, :chore},
+      {~r/^style[\(:]/, :style},
+      {~r/^perf[\(:]/, :perf},
+      {~r/^ci[\(:]/, :ci},
+      {~r/^revert[\(:]/, :revert},
+      {~r/^(deps|dep)[\(:]/, :deps},
+      {~r/^release[\(:]/, :release}
+    ]
+  end
+
+  defp find_activity_type_by_pattern(subject) do
+    Enum.find_value(activity_patterns(), fn {pattern, type} ->
+      if String.match?(subject, pattern), do: type
+    end)
   end
 
   # ===========================================================================

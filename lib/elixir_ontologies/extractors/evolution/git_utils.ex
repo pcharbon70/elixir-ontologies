@@ -42,16 +42,6 @@ defmodule ElixirOntologies.Extractors.Evolution.GitUtils do
   @short_sha_regex ~r/^[0-9a-f]{7,40}$/i
   @uncommitted_sha "0000000000000000000000000000000000000000"
 
-  # Safe ref patterns - HEAD, branch names, tags, commit SHAs
-  @safe_ref_patterns [
-    ~r/^HEAD$/,
-    ~r/^HEAD~\d+$/,
-    ~r/^HEAD\^\d*$/,
-    ~r/^[0-9a-f]{7,40}$/i,
-    ~r/^refs\/(heads|tags|remotes)\/[a-zA-Z0-9_\-\.\/]+$/,
-    ~r/^[a-zA-Z][a-zA-Z0-9_\-\.]*$/
-  ]
-
   # ===========================================================================
   # Git Command Execution
   # ===========================================================================
@@ -208,10 +198,23 @@ defmodule ElixirOntologies.Extractors.Evolution.GitUtils do
   """
   @spec valid_ref?(any()) :: boolean()
   def valid_ref?(ref) when is_binary(ref) do
-    Enum.any?(@safe_ref_patterns, &Regex.match?(&1, ref))
+    Enum.any?(safe_ref_patterns(), &Regex.match?(&1, ref))
   end
 
   def valid_ref?(_), do: false
+
+  # Safe ref patterns - HEAD, branch names, tags, commit SHAs
+  # Defined as a function to avoid compile-time escaping issues with Regex references
+  defp safe_ref_patterns do
+    [
+      ~r/^HEAD$/,
+      ~r/^HEAD~\d+$/,
+      ~r/^HEAD\^\d*$/,
+      ~r/^[0-9a-f]{7,40}$/i,
+      ~r/^refs\/(heads|tags|remotes)\/[a-zA-Z0-9_\-\.\/]+$/,
+      ~r/^[a-zA-Z][a-zA-Z0-9_\-\.]*$/
+    ]
+  end
 
   # ===========================================================================
   # Path Validation

@@ -120,6 +120,11 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
 
   alias ElixirOntologies.SHACL.Model.{SPARQLConstraint, ValidationResult}
 
+  # Dialyzer may not see SPARQL library types correctly
+  @dialyzer {:nowarn_function, validate_constraint: 3}
+  @dialyzer {:nowarn_function, results_to_violations: 3}
+  @dialyzer {:nowarn_function, build_details: 1}
+
   @doc """
   Validate a focus node against SPARQL constraints.
 
@@ -222,14 +227,13 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
   end
 
   # Execute SPARQL query against data graph
+  # SPARQL.execute_query returns the result directly or {:error, reason}
   @spec execute_query(RDF.Graph.t(), String.t()) ::
           {:ok, SPARQL.Query.Result.t()} | {:error, term()}
   defp execute_query(data_graph, query_string) do
     case SPARQL.execute_query(data_graph, query_string) do
-      {:ok, result} -> {:ok, result}
       {:error, reason} -> {:error, reason}
-      # SPARQL.ex sometimes returns result directly
-      result -> {:ok, result}
+      %SPARQL.Query.Result{} = result -> {:ok, result}
     end
   rescue
     e -> {:error, e}
@@ -246,14 +250,14 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
         path: nil,
         source_shape: constraint.source_shape_id,
         message: constraint.message,
-        details: solution_to_details(solution)
+        details: build_details(solution)
       }
     end)
   end
 
   # Convert SPARQL solution bindings to details map
-  @spec solution_to_details(map()) :: map()
-  defp solution_to_details(solution) when is_map(solution) do
+  @spec build_details(map()) :: map()
+  defp build_details(solution) when is_map(solution) do
     solution
     |> Enum.map(fn {var_name, value} ->
       # Convert variable names to atoms (e.g., "?arity" -> :arity)
