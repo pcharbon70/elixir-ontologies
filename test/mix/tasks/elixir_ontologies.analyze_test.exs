@@ -150,6 +150,7 @@ defmodule Mix.Tasks.ElixirOntologies.AnalyzeTest do
       assert output =~ "@prefix"
     end
 
+    @tag :slow
     test "analyzes current directory when no path given" do
       # This test analyzes the actual elixir_ontologies project
       output =
@@ -359,6 +360,7 @@ defmodule Mix.Tasks.ElixirOntologies.AnalyzeTest do
       assert {:ok, _graph} = RDF.Turtle.read_string(output)
     end
 
+    @tag :slow
     test "full project analysis produces valid Turtle" do
       output =
         capture_io(fn ->

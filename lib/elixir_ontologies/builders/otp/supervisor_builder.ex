@@ -261,9 +261,9 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilder do
   # ===========================================================================
 
   # Determine strategy IRI (predefined individuals from ontology)
-  defp determine_strategy_iri(:one_for_one), do: OTP.OneForOne
-  defp determine_strategy_iri(:one_for_all), do: OTP.OneForAll
-  defp determine_strategy_iri(:rest_for_one), do: OTP.RestForOne
+  defp determine_strategy_iri(:one_for_one), do: OTP.OneForOne |> RDF.iri()
+  defp determine_strategy_iri(:one_for_all), do: OTP.OneForAll |> RDF.iri()
+  defp determine_strategy_iri(:rest_for_one), do: OTP.RestForOne |> RDF.iri()
 
   # ===========================================================================
   # Public API - Child Spec Building
@@ -574,13 +574,8 @@ defmodule ElixirOntologies.Builders.OTP.SupervisorBuilder do
     # Build rdf:List structure
     {list_iri, list_triples} = build_rdf_list(child_spec_iris)
 
-    # Link supervisor to list
-    link_triple =
-      if list_iri do
-        [Helpers.object_property(supervisor_iri, OTP.hasChildren(), list_iri)]
-      else
-        []
-      end
+    # Link supervisor to list (list_iri is always valid - either RDF.nil() or a blank node)
+    link_triple = [Helpers.object_property(supervisor_iri, OTP.hasChildren(), list_iri)]
 
     {list_iri, link_triple ++ list_triples}
   end

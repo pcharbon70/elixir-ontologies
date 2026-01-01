@@ -141,19 +141,11 @@ defmodule ElixirOntologies.Hex.ProgressDisplay do
       (System.get_env("TERM") != "dumb" || System.get_env("COLORTERM") != nil)
   end
 
-  defp color(name, text) do
-    code =
-      case name do
-        :green -> "\e[32m"
-        :red -> "\e[31m"
-        :yellow -> "\e[33m"
-        :cyan -> "\e[36m"
-        :bold -> "\e[1m"
-        _ -> ""
-      end
-
-    "#{code}#{text}\e[0m"
-  end
+  @spec color(:green | :red | :yellow | :bold, String.t()) :: String.t()
+  defp color(:green, text), do: "\e[32m#{text}\e[0m"
+  defp color(:red, text), do: "\e[31m#{text}\e[0m"
+  defp color(:yellow, text), do: "\e[33m#{text}\e[0m"
+  defp color(:bold, text), do: "\e[1m#{text}\e[0m"
 
   @doc """
   Logs package processing start (verbose mode).

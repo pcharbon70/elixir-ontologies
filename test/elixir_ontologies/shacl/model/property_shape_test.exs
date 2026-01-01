@@ -124,7 +124,7 @@ defmodule ElixirOntologies.SHACL.Model.PropertyShapeTest do
         min_length: 2
       }
 
-      assert shape.pattern == ~r/^[a-z]+$/
+      assert shape.pattern.source == "^[a-z]+$"
       assert shape.min_length == 2
     end
   end

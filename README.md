@@ -81,7 +81,7 @@ SHACL constraints for data validation. Provides closed-world validation compleme
 
 ## Design Principles
 
-1. **Arity is identity**: `Enum.map/2` and `Enum.map/3` are distinct functions, not overloads
+1. **Arity is identity**: `String.split/2` and `String.split/3` are distinct functions, not overloads
 2. **Order matters**: function clauses are ordered collections (first match wins)
 3. **Protocols ≠ Behaviours**: protocols dispatch on data type; behaviours define module contracts
 4. **Separation of concerns**: static structure vs runtime patterns vs temporal evolution

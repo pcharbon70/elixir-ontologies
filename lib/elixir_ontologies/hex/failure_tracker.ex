@@ -150,8 +150,7 @@ defmodule ElixirOntologies.Hex.FailureTracker do
     stack_str =
       stacktrace
       |> Enum.take(5)
-      |> Enum.map(&Exception.format_stacktrace_entry/1)
-      |> Enum.join("\n  ")
+      |> Enum.map_join("\n  ", &Exception.format_stacktrace_entry/1)
 
     if stack_str != "" do
       "#{error_str}\n  #{stack_str}"
@@ -245,8 +244,7 @@ defmodule ElixirOntologies.Hex.FailureTracker do
       type_summary =
         counts
         |> Enum.sort_by(fn {_, count} -> -count end)
-        |> Enum.map(fn {type, count} -> "  #{type}: #{count}" end)
-        |> Enum.join("\n")
+        |> Enum.map_join("\n", fn {type, count} -> "  #{type}: #{count}" end)
 
       "Failures (#{total} total):\n#{type_summary}"
     end

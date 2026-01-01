@@ -481,45 +481,41 @@ defmodule ElixirOntologies.Extractors.Evolution.Deprecation do
     |> Enum.flat_map(fn {line, idx} ->
       case parse_deprecated_attribute(line) do
         {:ok, message} ->
-          # Check if next lines have function definition
           following_lines = Enum.drop(lines, idx + 1)
-
-          case find_element_in_lines(following_lines) do
-            {type, name, arity} ->
-              module_name = extract_module_from_file(file)
-
-              function =
-                if arity do
-                  {String.to_atom(name), arity}
-                else
-                  nil
-                end
-
-              [
-                %__MODULE__{
-                  element_type: type,
-                  element_name: name,
-                  module: module_name,
-                  function: function,
-                  deprecated_in: nil,
-                  removed_in: %RemovalEvent{
-                    commit: commit,
-                    file: file
-                  },
-                  replacement: parse_replacement(message),
-                  message: message,
-                  metadata: %{previously_deprecated: true}
-                }
-              ]
-
-            nil ->
-              []
-          end
+          build_removal_if_element_found(following_lines, file, commit, message)
 
         :error ->
           []
       end
     end)
+  end
+
+  defp build_removal_if_element_found(following_lines, file, commit, message) do
+    case find_element_in_lines(following_lines) do
+      {type, name, arity} ->
+        module_name = extract_module_from_file(file)
+        function = if arity, do: {String.to_atom(name), arity}, else: nil
+
+        [
+          %__MODULE__{
+            element_type: type,
+            element_name: name,
+            module: module_name,
+            function: function,
+            deprecated_in: nil,
+            removed_in: %RemovalEvent{
+              commit: commit,
+              file: file
+            },
+            replacement: parse_replacement(message),
+            message: message,
+            metadata: %{previously_deprecated: true}
+          }
+        ]
+
+      nil ->
+        []
+    end
   end
 
   defp find_element_in_lines(lines) do
@@ -767,7 +763,6 @@ defmodule ElixirOntologies.Extractors.Evolution.Deprecation do
     |> String.replace(~r/^(lib|test)\//, "")
     |> String.replace(~r/\.exs?$/, "")
     |> String.split("/")
-    |> Enum.map(&Macro.camelize/1)
-    |> Enum.join(".")
+    |> Enum.map_join(".", &Macro.camelize/1)
   end
 end

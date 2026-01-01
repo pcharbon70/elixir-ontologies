@@ -239,11 +239,11 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilder do
       true
   """
   @spec version_type_to_class(atom()) :: RDF.IRI.t()
-  def version_type_to_class(:module), do: Evolution.ModuleVersion
-  def version_type_to_class(:function), do: Evolution.FunctionVersion
-  def version_type_to_class(:type), do: Evolution.TypeVersion
+  def version_type_to_class(:module), do: Evolution.ModuleVersion |> RDF.iri()
+  def version_type_to_class(:function), do: Evolution.FunctionVersion |> RDF.iri()
+  def version_type_to_class(:type), do: Evolution.TypeVersion |> RDF.iri()
   # Catch-all with guard for unknown atom types
-  def version_type_to_class(type) when is_atom(type), do: Evolution.CodeVersion
+  def version_type_to_class(type) when is_atom(type), do: Evolution.CodeVersion |> RDF.iri()
 
   # ===========================================================================
   # Version String Triple Generation

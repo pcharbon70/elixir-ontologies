@@ -40,7 +40,7 @@ defmodule ElixirOntologies.Extractors.Evolution.CommitTest do
     end
 
     test "returns false for non-string" do
-      refute Commit.valid_sha?(12345)
+      refute Commit.valid_sha?(12_345)
     end
   end
 

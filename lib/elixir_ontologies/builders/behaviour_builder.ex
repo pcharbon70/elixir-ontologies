@@ -148,7 +148,7 @@ defmodule ElixirOntologies.Builders.BehaviourBuilder do
 
   ## Parameters
 
-  - `impl_info` - Implementation extraction result from `Behaviour.extract_implementations/1`
+  - `impl_info` - Implementation extraction result from Behaviour extractor
   - `module_iri` - The IRI of the implementing module
   - `context` - Builder context with base IRI and configuration
 

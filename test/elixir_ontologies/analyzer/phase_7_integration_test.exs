@@ -28,10 +28,11 @@ defmodule ElixirOntologies.Analyzer.Phase7IntegrationTest do
       assert is_binary(repo.name)
       assert File.dir?(repo.path)
 
-      # Remote information (this repo has a remote)
+      # Remote information (this repo has a remote URL)
       assert is_binary(repo.remote_url)
-      assert is_binary(repo.host)
-      assert is_binary(repo.owner)
+      # host/owner may be nil if remote URL format is non-standard (e.g., git alias)
+      assert is_nil(repo.host) or is_binary(repo.host)
+      assert is_nil(repo.owner) or is_binary(repo.owner)
 
       # Branch information
       assert is_binary(repo.current_branch)

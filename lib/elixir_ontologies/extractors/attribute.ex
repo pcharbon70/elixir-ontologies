@@ -1411,9 +1411,9 @@ defmodule ElixirOntologies.Extractors.Attribute do
     end
   end
 
+  @spec sigil_to_type(:sigil_S | :sigil_s) :: :S | :s
   defp sigil_to_type(:sigil_S), do: :S
   defp sigil_to_type(:sigil_s), do: :s
-  defp sigil_to_type(_), do: nil
 
   # ===========================================================================
   # Compile Options Extraction

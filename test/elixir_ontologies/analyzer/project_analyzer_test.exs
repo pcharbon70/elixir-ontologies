@@ -1,6 +1,8 @@
 defmodule ElixirOntologies.Analyzer.ProjectAnalyzerTest do
   use ExUnit.Case, async: true
 
+  @moduletag :slow
+
   alias ElixirOntologies.Analyzer.ProjectAnalyzer
   alias ElixirOntologies.Analyzer.ProjectAnalyzer.{Result, FileResult}
 

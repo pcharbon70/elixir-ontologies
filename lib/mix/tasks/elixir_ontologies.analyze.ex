@@ -55,6 +55,10 @@ defmodule Mix.Tasks.ElixirOntologies.Analyze do
   @shortdoc "Analyze Elixir code and generate RDF knowledge graph"
   @requirements ["compile"]
 
+  # Dialyzer may not have Mix.Task in PLT
+  @dialyzer :no_behaviours
+  @dialyzer :no_missing_calls
+
   @impl Mix.Task
   @spec run([String.t()]) :: :ok
   def run(args) do

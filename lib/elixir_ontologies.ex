@@ -443,14 +443,13 @@ defmodule ElixirOntologies do
       )
   """
   @spec analyze_to_kg(Path.t(), Path.t(), keyword()) ::
-          {:ok, %{graph: Graph.t(), metadata: map(), errors: list(), triple_count: non_neg_integer()}}
+          {:ok,
+           %{graph: Graph.t(), metadata: map(), errors: list(), triple_count: non_neg_integer()}}
           | {:error, term()}
   def analyze_to_kg(project_path, kg_path, opts \\ []) do
     alias ElixirOntologies.KnowledgeGraph
 
-    unless KnowledgeGraph.available?() do
-      {:error, :triple_store_not_available}
-    else
+    if KnowledgeGraph.available?() do
       kg_opts = Keyword.take(opts, [:create_if_missing])
 
       with {:ok, result} <- analyze_project(project_path, opts),
@@ -459,6 +458,8 @@ defmodule ElixirOntologies do
            :ok <- KnowledgeGraph.close(store) do
         {:ok, Map.put(result, :triple_count, count)}
       end
+    else
+      {:error, :triple_store_not_available}
     end
   end
 
@@ -496,9 +497,7 @@ defmodule ElixirOntologies do
   def store_graph(graph, kg_path, opts \\ []) do
     alias ElixirOntologies.KnowledgeGraph
 
-    unless KnowledgeGraph.available?() do
-      {:error, :triple_store_not_available}
-    else
+    if KnowledgeGraph.available?() do
       # Extract RDF.Graph from our Graph wrapper if needed
       rdf_graph =
         case graph do
@@ -511,6 +510,8 @@ defmodule ElixirOntologies do
            :ok <- KnowledgeGraph.close(store) do
         {:ok, count}
       end
+    else
+      {:error, :triple_store_not_available}
     end
   end
 

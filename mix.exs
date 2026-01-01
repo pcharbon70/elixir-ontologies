@@ -14,8 +14,15 @@ defmodule ElixirOntologies.MixProject do
       description: description(),
       package: package(),
       docs: docs(),
+      dialyzer: dialyzer(),
       name: "Elixir Ontologies",
       source_url: @source_url
+    ]
+  end
+
+  defp dialyzer do
+    [
+      plt_add_apps: [:mix]
     ]
   end
 
@@ -98,28 +105,71 @@ defmodule ElixirOntologies.MixProject do
     [
       "README.md",
       "CHANGELOG.md",
+      # Getting Started
+      "guides/getting-started.md",
+      # Ontology Concepts
       "guides/core.md",
       "guides/structure.md",
       "guides/otp.md",
       "guides/evolution.md",
       "guides/shapes.md",
+      # How It Works
+      "guides/architecture.md",
+      "guides/pipeline.md",
+      "guides/extractors.md",
+      "guides/builders.md",
+      "guides/iri-generation.md",
+      # API Reference
+      "guides/api/analysis.md",
+      "guides/api/configuration.md",
+      "guides/api/validation.md",
+      "guides/api/namespaces.md",
+      # Tools & Usage
       "guides/knowledge-graph.md",
-      "guides/users/triple-store-iex.md"
+      "guides/users/triple-store-iex.md",
+      "guides/users/analyzing-code.md",
+      "guides/users/evolution-tracking.md",
+      "guides/users/hex-batch-analyzer.md",
+      "guides/users/llm-code-generation.md",
+      "guides/users/querying.md",
+      "guides/users/shacl-validation.md"
     ]
   end
 
   defp groups_for_extras do
     [
-      "Ontology Guides": ~w(
+      "Getting Started": ~w(
+        guides/getting-started.md
+      ),
+      "Ontology Concepts": ~w(
         guides/core.md
         guides/structure.md
         guides/otp.md
         guides/evolution.md
         guides/shapes.md
       ),
-      "Tools": ~w(
+      "How It Works": ~w(
+        guides/architecture.md
+        guides/pipeline.md
+        guides/extractors.md
+        guides/builders.md
+        guides/iri-generation.md
+      ),
+      "API Reference": ~w(
+        guides/api/analysis.md
+        guides/api/configuration.md
+        guides/api/validation.md
+        guides/api/namespaces.md
+      ),
+      "Tools & Usage": ~w(
         guides/knowledge-graph.md
         guides/users/triple-store-iex.md
+        guides/users/analyzing-code.md
+        guides/users/evolution-tracking.md
+        guides/users/hex-batch-analyzer.md
+        guides/users/llm-code-generation.md
+        guides/users/querying.md
+        guides/users/shacl-validation.md
       )
     ]
   end

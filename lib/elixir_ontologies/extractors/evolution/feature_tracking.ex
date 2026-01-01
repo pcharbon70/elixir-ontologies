@@ -343,8 +343,8 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
   Checks if a feature has associated issue references.
   """
   @spec has_issues?(FeatureAddition.t() | BugFix.t()) :: boolean()
-  def has_issues?(%FeatureAddition{issue_refs: refs}), do: length(refs) > 0
-  def has_issues?(%BugFix{issue_refs: refs}), do: length(refs) > 0
+  def has_issues?(%FeatureAddition{issue_refs: refs}), do: not Enum.empty?(refs)
+  def has_issues?(%BugFix{issue_refs: refs}), do: not Enum.empty?(refs)
 
   @doc """
   Gets all closing issue references (fixes, closes, resolves).
@@ -428,37 +428,38 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
 
     patterns
     |> Enum.flat_map(fn {pattern, tracker} ->
-      Regex.scan(pattern, message)
-      |> Enum.map(fn match ->
-        case tracker do
-          :jira ->
-            project = Enum.at(match, 1)
-            num = Enum.at(match, 2)
-
-            # Skip if it looks like GH- or GL-
-            if project in ["GH", "GL"] do
-              nil
-            else
-              %IssueReference{
-                tracker: :jira,
-                number: String.to_integer(num),
-                project: project,
-                action: :mentions
-              }
-            end
-
-          _ ->
-            num = Enum.at(match, 1)
-
-            %IssueReference{
-              tracker: tracker,
-              number: String.to_integer(num),
-              action: :mentions
-            }
-        end
-      end)
+      pattern
+      |> Regex.scan(message)
+      |> Enum.map(&build_plain_reference(&1, tracker))
     end)
     |> Enum.reject(&is_nil/1)
+  end
+
+  defp build_plain_reference(match, :jira) do
+    project = Enum.at(match, 1)
+    num = Enum.at(match, 2)
+
+    # Skip if it looks like GH- or GL-
+    if project in ["GH", "GL"] do
+      nil
+    else
+      %IssueReference{
+        tracker: :jira,
+        number: String.to_integer(num),
+        project: project,
+        action: :mentions
+      }
+    end
+  end
+
+  defp build_plain_reference(match, tracker) do
+    num = Enum.at(match, 1)
+
+    %IssueReference{
+      tracker: tracker,
+      number: String.to_integer(num),
+      action: :mentions
+    }
   end
 
   defp parse_action(keyword) do
@@ -609,14 +610,12 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
   # Private - Scope Helpers
   # ===========================================================================
 
-  defp extract_affected_elements(nil), do: {[], []}
-
   defp extract_affected_elements(%Scope{} = scope) do
-    modules = scope.modules_affected || []
+    modules = scope.modules_affected
 
     # Extract function names from files if available
     functions =
-      (scope.files_changed || [])
+      scope.files_changed
       |> Enum.filter(&String.ends_with?(&1, ".ex"))
       |> Enum.flat_map(&extract_functions_from_path/1)
 

@@ -34,11 +34,12 @@ defmodule ElixirOntologies.Hex.ProgressTest do
 
   describe "PackageResult.success/3" do
     test "creates successful result" do
-      result = PackageResult.success("phoenix", "1.7.10",
-        output_path: "/tmp/phoenix.ttl",
-        duration_ms: 1500,
-        module_count: 42
-      )
+      result =
+        PackageResult.success("phoenix", "1.7.10",
+          output_path: "/tmp/phoenix.ttl",
+          duration_ms: 1500,
+          module_count: 42
+        )
 
       assert result.name == "phoenix"
       assert result.version == "1.7.10"
@@ -53,11 +54,12 @@ defmodule ElixirOntologies.Hex.ProgressTest do
 
   describe "PackageResult.failure/3" do
     test "creates failure result" do
-      result = PackageResult.failure("broken", "1.0.0",
-        error: "Connection refused",
-        error_type: :download_error,
-        duration_ms: 500
-      )
+      result =
+        PackageResult.failure("broken", "1.0.0",
+          error: "Connection refused",
+          error_type: :download_error,
+          duration_ms: 500
+        )
 
       assert result.name == "broken"
       assert result.version == "1.0.0"
@@ -70,10 +72,11 @@ defmodule ElixirOntologies.Hex.ProgressTest do
 
   describe "PackageResult.skipped/3" do
     test "creates skipped result" do
-      result = PackageResult.skipped("erlang_pkg", "2.0.0",
-        reason: "Erlang-only package",
-        error_type: :not_elixir
-      )
+      result =
+        PackageResult.skipped("erlang_pkg", "2.0.0",
+          reason: "Erlang-only package",
+          error_type: :not_elixir
+        )
 
       assert result.name == "erlang_pkg"
       assert result.version == "2.0.0"
@@ -104,7 +107,8 @@ defmodule ElixirOntologies.Hex.ProgressTest do
       result1 = PackageResult.success("first", "1.0.0")
       result2 = PackageResult.success("second", "1.0.0")
 
-      updated = progress
+      updated =
+        progress
         |> Progress.add_result(result1)
         |> Progress.add_result(result2)
 
@@ -135,9 +139,9 @@ defmodule ElixirOntologies.Hex.ProgressTest do
   describe "set_total/2" do
     test "sets total package count" do
       progress = Progress.new()
-      updated = Progress.set_total(progress, 18000)
+      updated = Progress.set_total(progress, 18_000)
 
-      assert updated.total_packages == 18000
+      assert updated.total_packages == 18_000
     end
   end
 
@@ -147,14 +151,16 @@ defmodule ElixirOntologies.Hex.ProgressTest do
 
   describe "is_processed?/2" do
     test "returns true for processed package" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.add_result(PackageResult.success("phoenix", "1.7.10"))
 
       assert Progress.is_processed?(progress, "phoenix")
     end
 
     test "returns false for unprocessed package" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.add_result(PackageResult.success("phoenix", "1.7.10"))
 
       refute Progress.is_processed?(progress, "ecto")
@@ -163,7 +169,8 @@ defmodule ElixirOntologies.Hex.ProgressTest do
 
   describe "count functions" do
     setup do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.add_result(PackageResult.success("p1", "1.0.0"))
         |> Progress.add_result(PackageResult.success("p2", "1.0.0"))
         |> Progress.add_result(PackageResult.failure("p3", "1.0.0"))
@@ -191,7 +198,8 @@ defmodule ElixirOntologies.Hex.ProgressTest do
 
   describe "processed_names/1" do
     test "returns set of processed names" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.add_result(PackageResult.success("p1", "1.0.0"))
         |> Progress.add_result(PackageResult.success("p2", "1.0.0"))
 
@@ -209,7 +217,8 @@ defmodule ElixirOntologies.Hex.ProgressTest do
 
   describe "summary/1" do
     test "returns correct statistics" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.add_result(PackageResult.success("p1", "1.0.0", duration_ms: 1000))
         |> Progress.add_result(PackageResult.success("p2", "1.0.0", duration_ms: 2000))
         |> Progress.add_result(PackageResult.failure("p3", "1.0.0", duration_ms: 500))
@@ -220,7 +229,8 @@ defmodule ElixirOntologies.Hex.ProgressTest do
       assert summary.succeeded == 2
       assert summary.failed == 1
       assert summary.skipped == 0
-      assert summary.avg_duration_ms == 1166  # (1000 + 2000 + 500) / 3
+      # (1000 + 2000 + 500) / 3
+      assert summary.avg_duration_ms == 1166
       assert_in_delta summary.success_rate, 66.67, 0.1
     end
 
@@ -235,7 +245,8 @@ defmodule ElixirOntologies.Hex.ProgressTest do
     end
 
     test "includes estimated remaining when total known" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.set_total(100)
         |> Progress.add_result(PackageResult.success("p1", "1.0.0", duration_ms: 1000))
 
@@ -247,7 +258,8 @@ defmodule ElixirOntologies.Hex.ProgressTest do
 
   describe "format_summary/1" do
     test "returns formatted string" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.add_result(PackageResult.success("p1", "1.0.0"))
 
       summary_str = Progress.format_summary(progress)

@@ -108,7 +108,7 @@ defmodule ElixirOntologies.Builders.Evolution.AgentBuilderTest do
 
       types = Enum.map(type_triples, fn {^agent_iri, _, o} -> o end)
       assert PROV.Agent in types
-      assert Evolution.Developer in types
+      assert RDF.iri(Evolution.Developer) in types
     end
 
     test "generates Bot type for bot agent" do
@@ -121,7 +121,7 @@ defmodule ElixirOntologies.Builders.Evolution.AgentBuilderTest do
       types = Enum.map(type_triples, fn {^agent_iri, _, o} -> o end)
 
       assert PROV.Agent in types
-      assert Evolution.Bot in types
+      assert RDF.iri(Evolution.Bot) in types
     end
 
     test "generates CISystem type for ci agent" do
@@ -134,7 +134,7 @@ defmodule ElixirOntologies.Builders.Evolution.AgentBuilderTest do
       types = Enum.map(type_triples, fn {^agent_iri, _, o} -> o end)
 
       assert PROV.Agent in types
-      assert Evolution.CISystem in types
+      assert RDF.iri(Evolution.CISystem) in types
     end
 
     test "generates LLMAgent type for llm agent" do
@@ -147,7 +147,7 @@ defmodule ElixirOntologies.Builders.Evolution.AgentBuilderTest do
       types = Enum.map(type_triples, fn {^agent_iri, _, o} -> o end)
 
       assert PROV.Agent in types
-      assert Evolution.LLMAgent in types
+      assert RDF.iri(Evolution.LLMAgent) in types
     end
 
     test "generates DevelopmentAgent for unknown type" do
@@ -160,7 +160,7 @@ defmodule ElixirOntologies.Builders.Evolution.AgentBuilderTest do
       types = Enum.map(type_triples, fn {^agent_iri, _, o} -> o end)
 
       assert PROV.Agent in types
-      assert Evolution.DevelopmentAgent in types
+      assert RDF.iri(Evolution.DevelopmentAgent) in types
     end
   end
 
@@ -170,24 +170,24 @@ defmodule ElixirOntologies.Builders.Evolution.AgentBuilderTest do
 
   describe "agent_type_to_class/1" do
     test "maps :developer to Evolution.Developer" do
-      assert AgentBuilder.agent_type_to_class(:developer) == Evolution.Developer
+      assert AgentBuilder.agent_type_to_class(:developer) == RDF.iri(Evolution.Developer)
     end
 
     test "maps :bot to Evolution.Bot" do
-      assert AgentBuilder.agent_type_to_class(:bot) == Evolution.Bot
+      assert AgentBuilder.agent_type_to_class(:bot) == RDF.iri(Evolution.Bot)
     end
 
     test "maps :ci to Evolution.CISystem" do
-      assert AgentBuilder.agent_type_to_class(:ci) == Evolution.CISystem
+      assert AgentBuilder.agent_type_to_class(:ci) == RDF.iri(Evolution.CISystem)
     end
 
     test "maps :llm to Evolution.LLMAgent" do
-      assert AgentBuilder.agent_type_to_class(:llm) == Evolution.LLMAgent
+      assert AgentBuilder.agent_type_to_class(:llm) == RDF.iri(Evolution.LLMAgent)
     end
 
     test "maps unknown types to Evolution.DevelopmentAgent" do
-      assert AgentBuilder.agent_type_to_class(:unknown) == Evolution.DevelopmentAgent
-      assert AgentBuilder.agent_type_to_class(:other) == Evolution.DevelopmentAgent
+      assert AgentBuilder.agent_type_to_class(:unknown) == RDF.iri(Evolution.DevelopmentAgent)
+      assert AgentBuilder.agent_type_to_class(:other) == RDF.iri(Evolution.DevelopmentAgent)
     end
   end
 

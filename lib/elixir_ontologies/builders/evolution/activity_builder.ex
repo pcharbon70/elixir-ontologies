@@ -228,22 +228,23 @@ defmodule ElixirOntologies.Builders.Evolution.ActivityBuilder do
       true
   """
   @spec activity_type_to_class(atom()) :: RDF.IRI.t()
-  def activity_type_to_class(:feature), do: Evolution.FeatureAddition
-  def activity_type_to_class(:bugfix), do: Evolution.BugFix
-  def activity_type_to_class(:refactor), do: Evolution.Refactoring
-  def activity_type_to_class(:deprecation), do: Evolution.Deprecation
-  def activity_type_to_class(:deletion), do: Evolution.Deletion
-  def activity_type_to_class(:docs), do: Evolution.DevelopmentActivity
-  def activity_type_to_class(:test), do: Evolution.DevelopmentActivity
-  def activity_type_to_class(:chore), do: Evolution.DevelopmentActivity
-  def activity_type_to_class(:perf), do: Evolution.DevelopmentActivity
-  def activity_type_to_class(:style), do: Evolution.DevelopmentActivity
-  def activity_type_to_class(:build), do: Evolution.DevelopmentActivity
-  def activity_type_to_class(:ci), do: Evolution.DevelopmentActivity
-  def activity_type_to_class(:revert), do: Evolution.DevelopmentActivity
-  def activity_type_to_class(:unknown), do: Evolution.DevelopmentActivity
+  def activity_type_to_class(:feature), do: Evolution.FeatureAddition |> RDF.iri()
+  def activity_type_to_class(:bugfix), do: Evolution.BugFix |> RDF.iri()
+  def activity_type_to_class(:refactor), do: Evolution.Refactoring |> RDF.iri()
+  def activity_type_to_class(:deprecation), do: Evolution.Deprecation |> RDF.iri()
+  def activity_type_to_class(:deletion), do: Evolution.Deletion |> RDF.iri()
+  def activity_type_to_class(:docs), do: Evolution.DevelopmentActivity |> RDF.iri()
+  def activity_type_to_class(:test), do: Evolution.DevelopmentActivity |> RDF.iri()
+  def activity_type_to_class(:chore), do: Evolution.DevelopmentActivity |> RDF.iri()
+  def activity_type_to_class(:perf), do: Evolution.DevelopmentActivity |> RDF.iri()
+  def activity_type_to_class(:style), do: Evolution.DevelopmentActivity |> RDF.iri()
+  def activity_type_to_class(:build), do: Evolution.DevelopmentActivity |> RDF.iri()
+  def activity_type_to_class(:ci), do: Evolution.DevelopmentActivity |> RDF.iri()
+  def activity_type_to_class(:revert), do: Evolution.DevelopmentActivity |> RDF.iri()
+  def activity_type_to_class(:unknown), do: Evolution.DevelopmentActivity |> RDF.iri()
   # Catch-all with guard for unknown atom types
-  def activity_type_to_class(type) when is_atom(type), do: Evolution.DevelopmentActivity
+  def activity_type_to_class(type) when is_atom(type),
+    do: Evolution.DevelopmentActivity |> RDF.iri()
 
   # ===========================================================================
   # Timestamp Triple Generation

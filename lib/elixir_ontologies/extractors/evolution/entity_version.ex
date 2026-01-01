@@ -216,9 +216,7 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
   def extract_module_version(repo_path, module_name, commit_ref, opts \\ []) do
     include_functions = Keyword.get(opts, :include_functions, false)
 
-    if not GitUtils.valid_ref?(commit_ref) do
-      {:error, :invalid_ref}
-    else
+    if GitUtils.valid_ref?(commit_ref) do
       with {:ok, repo_root} <- Git.detect_repo(repo_path),
            {:ok, file_path} <- find_module_file(repo_root, module_name, commit_ref),
            {:ok, content} <- extract_file_at_commit(repo_root, file_path, commit_ref),
@@ -249,6 +247,8 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
            metadata: %{}
          }}
       end
+    else
+      {:error, :invalid_ref}
     end
   end
 
@@ -335,9 +335,7 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
   @spec extract_function_version(String.t(), String.t(), atom(), non_neg_integer(), String.t()) ::
           {:ok, FunctionVersion.t()} | {:error, atom()}
   def extract_function_version(repo_path, module_name, function_name, arity, commit_ref) do
-    if not GitUtils.valid_ref?(commit_ref) do
-      {:error, :invalid_ref}
-    else
+    if GitUtils.valid_ref?(commit_ref) do
       with {:ok, repo_root} <- Git.detect_repo(repo_path),
            {:ok, file_path} <- find_module_file(repo_root, module_name, commit_ref),
            {:ok, content} <- extract_file_at_commit(repo_root, file_path, commit_ref),
@@ -363,6 +361,8 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
            metadata: %{}
          }}
       end
+    else
+      {:error, :invalid_ref}
     end
   end
 
@@ -666,10 +666,11 @@ defmodule ElixirOntologies.Extractors.Evolution.EntityVersion do
 
     # Count block closers
     closers =
-      cond do
+      if trimmed == "end" do
         # Standalone "end" (the only case we care about for module end)
-        trimmed == "end" -> 1
-        true -> 0
+        1
+      else
+        0
       end
 
     depth + openers - closers

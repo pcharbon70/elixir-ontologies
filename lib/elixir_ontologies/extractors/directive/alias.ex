@@ -17,7 +17,7 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
 
   To extract directives during module analysis, either:
   1. Call this extractor directly on directive AST nodes
-  2. Use `Module.extract/2` with the `:extract_directives` option (when available)
+  2. Use Module.extract/2 with the :extract_directives option (when available)
 
   ## Alias Forms
 
@@ -479,7 +479,7 @@ defmodule ElixirOntologies.Extractors.Directive.Alias do
         Atom.to_string(single)
 
       parts when is_list(parts) ->
-        parts |> Enum.map(&Atom.to_string/1) |> Enum.join(".")
+        Enum.map_join(parts, ".", &Atom.to_string/1)
     end
   end
 

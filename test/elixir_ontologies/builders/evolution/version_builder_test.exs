@@ -157,7 +157,7 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilderTest do
 
       types = Enum.map(type_triples, fn {^version_iri, _, o} -> o end)
       assert PROV.Entity in types
-      assert Evolution.ModuleVersion in types
+      assert RDF.iri(Evolution.ModuleVersion) in types
     end
 
     test "generates prov:Entity type for FunctionVersion" do
@@ -171,7 +171,7 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilderTest do
 
       types = Enum.map(type_triples, fn {^version_iri, _, o} -> o end)
       assert PROV.Entity in types
-      assert Evolution.FunctionVersion in types
+      assert RDF.iri(Evolution.FunctionVersion) in types
     end
   end
 
@@ -181,20 +181,20 @@ defmodule ElixirOntologies.Builders.Evolution.VersionBuilderTest do
 
   describe "version_type_to_class/1" do
     test "maps :module to Evolution.ModuleVersion" do
-      assert VersionBuilder.version_type_to_class(:module) == Evolution.ModuleVersion
+      assert VersionBuilder.version_type_to_class(:module) == RDF.iri(Evolution.ModuleVersion)
     end
 
     test "maps :function to Evolution.FunctionVersion" do
-      assert VersionBuilder.version_type_to_class(:function) == Evolution.FunctionVersion
+      assert VersionBuilder.version_type_to_class(:function) == RDF.iri(Evolution.FunctionVersion)
     end
 
     test "maps :type to Evolution.TypeVersion" do
-      assert VersionBuilder.version_type_to_class(:type) == Evolution.TypeVersion
+      assert VersionBuilder.version_type_to_class(:type) == RDF.iri(Evolution.TypeVersion)
     end
 
     test "maps unknown types to Evolution.CodeVersion" do
-      assert VersionBuilder.version_type_to_class(:unknown) == Evolution.CodeVersion
-      assert VersionBuilder.version_type_to_class(:other) == Evolution.CodeVersion
+      assert VersionBuilder.version_type_to_class(:unknown) == RDF.iri(Evolution.CodeVersion)
+      assert VersionBuilder.version_type_to_class(:other) == RDF.iri(Evolution.CodeVersion)
     end
   end
 

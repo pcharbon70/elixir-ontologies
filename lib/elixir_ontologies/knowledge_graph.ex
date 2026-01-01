@@ -194,7 +194,15 @@ defmodule ElixirOntologies.KnowledgeGraph do
     paths = Path.wildcard(pattern)
 
     if Enum.empty?(paths) do
-      {:ok, %{loaded: 0, failed: 0, triples: 0, errors: [], pattern: pattern, message: "No files matched"}}
+      {:ok,
+       %{
+         loaded: 0,
+         failed: 0,
+         triples: 0,
+         errors: [],
+         pattern: pattern,
+         message: "No files matched"
+       }}
     else
       load_files(store, paths, opts)
     end
@@ -314,7 +322,8 @@ defmodule ElixirOntologies.KnowledgeGraph do
     ensure_available!()
 
     # Get triple count via ASK or count query
-    with {:ok, count_result} <- TripleStore.query(store, "SELECT (COUNT(*) AS ?count) WHERE { ?s ?p ?o }") do
+    with {:ok, count_result} <-
+           TripleStore.query(store, "SELECT (COUNT(*) AS ?count) WHERE { ?s ?p ?o }") do
       count =
         case count_result do
           [%{"count" => c}] when is_integer(c) -> c
@@ -351,13 +360,31 @@ defmodule ElixirOntologies.KnowledgeGraph do
 
   ## Examples
 
-      :ok = KnowledgeGraph.export_file(kg, "export.ttl")
-      :ok = KnowledgeGraph.export_file(kg, "export.nt")
+      {:ok, _bytes} = KnowledgeGraph.export_file(kg, "export.ttl")
+      {:ok, _bytes} = KnowledgeGraph.export_file(kg, "export.nt")
   """
-  @spec export_file(store(), Path.t(), keyword()) :: :ok | {:error, term()}
+  @spec export_file(store(), Path.t(), keyword()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
   def export_file(store, path, opts \\ []) do
     ensure_available!()
-    TripleStore.export(store, path, opts)
+    format = detect_format(path)
+    TripleStore.export(store, {:file, path, format}, opts)
+  end
+
+  # Detect RDF format from file extension
+  @spec detect_format(Path.t()) :: atom()
+  defp detect_format(path) do
+    case Path.extname(path) do
+      ".ttl" -> :turtle
+      ".nt" -> :ntriples
+      ".nq" -> :nquads
+      ".trig" -> :trig
+      ".rdf" -> :rdfxml
+      ".xml" -> :rdfxml
+      ".jsonld" -> :jsonld
+      ".json" -> :jsonld
+      _ -> :turtle
+    end
   end
 
   # ===========================================================================
