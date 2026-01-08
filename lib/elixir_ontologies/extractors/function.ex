@@ -35,7 +35,7 @@ defmodule ElixirOntologies.Extractors.Function do
       0
   """
 
-  alias ElixirOntologies.Extractors.Helpers
+  alias ElixirOntologies.Extractors.{Clause, Helpers}
 
   # ===========================================================================
   # Result Struct
@@ -50,6 +50,7 @@ defmodule ElixirOntologies.Extractors.Function do
   - `:min_arity` - Minimum arity (considering default args)
   - `:visibility` - :public or :private
   - `:docstring` - Documentation from @doc (string, false, or nil)
+  - `:clauses` - List of clause extraction results (default: [])
   - `:location` - Source location if available
   - `:metadata` - Additional information
   """
@@ -60,6 +61,7 @@ defmodule ElixirOntologies.Extractors.Function do
           min_arity: non_neg_integer(),
           visibility: :public | :private,
           docstring: String.t() | false | nil,
+          clauses: [Clause.t()],
           location: ElixirOntologies.Analyzer.Location.SourceLocation.t() | nil,
           metadata: map()
         }
@@ -71,6 +73,7 @@ defmodule ElixirOntologies.Extractors.Function do
     :min_arity,
     :visibility,
     :docstring,
+    clauses: [],
     location: nil,
     metadata: %{}
   ]
@@ -387,6 +390,9 @@ defmodule ElixirOntologies.Extractors.Function do
     spec = Keyword.get(opts, :spec)
     module = Keyword.get(opts, :module)
 
+    # Extract clause information
+    clauses = extract_clauses_from_node(node, name, arity, visibility, opts)
+
     {:ok,
      %__MODULE__{
        type: :function,
@@ -395,6 +401,7 @@ defmodule ElixirOntologies.Extractors.Function do
        min_arity: min_arity,
        visibility: visibility,
        docstring: extract_docstring(doc),
+       clauses: clauses,
        location: location,
        metadata: %{
          module: module,
@@ -497,6 +504,24 @@ defmodule ElixirOntologies.Extractors.Function do
       {:\\, _, _} -> true
       _ -> false
     end)
+  end
+
+  # ===========================================================================
+  # Private Helpers - Clause Extraction
+  # ===========================================================================
+
+  # Extract clause information from a function definition node
+  defp extract_clauses_from_node(node, _name, _arity, _visibility, opts) do
+    clause_order = Keyword.get(opts, :clause_order, 1)
+
+    case Clause.extract(node, order: clause_order) do
+      {:ok, clause} ->
+        [clause]
+
+      {:error, _reason} ->
+        # If clause extraction fails, return empty list
+        []
+    end
   end
 
   # ===========================================================================
