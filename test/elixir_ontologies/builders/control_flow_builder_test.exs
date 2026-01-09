@@ -1175,6 +1175,172 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # ExpressionBuilder Integration Tests
+  # ===========================================================================
+
+  describe "ExpressionBuilder integration" do
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "build_conditional/3 with expression_builder in full mode builds condition expression" do
+      conditional = %Conditional{
+        type: :if,
+        condition: {:>, [], [{:x, [], nil}, 5]},
+        branches: [%Branch{type: :then, body: :ok}, %Branch{type: :else, body: :err}],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have an expression IRI for the condition (not just boolean)
+      cond_triple = find_triple(triples, expr_iri, Core.hasCondition())
+
+      # In full mode, hasCondition should link to an expression IRI, not a boolean
+      assert %RDF.IRI{} = elem(cond_triple, 2)
+
+      # Should have triples for the comparison operator
+      condition_iri = elem(cond_triple, 2)
+      type_triple = find_triple(triples, condition_iri, RDF.type())
+
+      # The condition should be a ComparisonOperator
+      assert elem(type_triple, 2) == Core.ComparisonOperator
+    end
+
+    test "build_conditional/3 without expression_builder uses boolean flags" do
+      conditional = %Conditional{
+        type: :if,
+        condition: {:>, [], [{:x, [], nil}, 5]},
+        branches: [%Branch{type: :then, body: :ok}, %Branch{type: :else, body: :err}],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+          # No expression_builder
+        )
+
+      # Should have boolean flag for condition
+      cond_triple = find_triple(triples, expr_iri, Core.hasCondition())
+
+      # In light mode, hasCondition should be a boolean literal
+      assert %RDF.Literal{} = elem(cond_triple, 2)
+      assert RDF.Literal.value(elem(cond_triple, 2)) == true
+    end
+
+    test "build_conditional/3 in light mode uses boolean flags even with expression_builder" do
+      conditional = %Conditional{
+        type: :if,
+        condition: {:>, [], [{:x, [], nil}, 5]},
+        branches: [%Branch{type: :then, body: :ok}],
+        metadata: %{}
+      }
+
+      # Light mode: include_expressions is false
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: false},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should use boolean flag in light mode
+      cond_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert %RDF.Literal{} = elem(cond_triple, 2)
+      assert RDF.Literal.value(elem(cond_triple, 2)) == true
+    end
+
+    test "build_conditional/3 with dependency file uses boolean flags even in full mode" do
+      conditional = %Conditional{
+        type: :if,
+        condition: {:>, [], [{:x, [], nil}, 5]},
+        branches: [%Branch{type: :then, body: :ok}],
+        metadata: %{}
+      }
+
+      # Dependency file path
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "deps/decimal/lib/decimal.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should use boolean flag for dependency files
+      cond_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert %RDF.Literal{} = elem(cond_triple, 2)
+      assert RDF.Literal.value(elem(cond_triple, 2)) == true
+    end
+
+    test "build_conditional/3 builds branch body expressions in full mode" do
+      conditional = %Conditional{
+        type: :if,
+        condition: {:x, [], nil},
+        branches: [
+          %Branch{type: :then, body: {:+, [], [{:y, [], nil}, 1]}},
+          %Branch{type: :else, body: {:*, [], [{:z, [], nil}, 2]}}
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have expression IRIs for branch bodies
+      then_triple = find_triple(triples, expr_iri, Core.hasThenBranch())
+      else_triple = find_triple(triples, expr_iri, Core.hasElseBranch())
+
+      # Both should link to expression IRIs
+      assert %RDF.IRI{} = elem(then_triple, 2)
+      assert %RDF.IRI{} = elem(else_triple, 2)
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 
