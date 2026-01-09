@@ -364,6 +364,115 @@ defmodule ElixirOntologies.Builders.Context do
   def cross_module_linking_enabled?(%__MODULE__{known_modules: _}), do: true
 
   # ===========================================================================
+  # Expression Mode Helpers
+  # ===========================================================================
+
+  @doc """
+  Checks if full expression extraction mode is enabled in the context.
+
+  Returns `true` when `include_expressions` in the config is `true`. This is a
+  convenience helper for checking the expression extraction mode without needing
+  to access the config map directly.
+
+  Note: This only checks the config setting. To determine if full expression
+  extraction should actually be used for a specific file (considering project
+  vs dependency distinction), use `full_mode_for_file?/2`.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: true}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.full_mode?(context)
+      true
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: false}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.full_mode?(context)
+      false
+
+  """
+  @spec full_mode?(t()) :: boolean()
+  def full_mode?(%__MODULE__{} = context) do
+    get_config(context, :include_expressions, false) == true
+  end
+
+  @doc """
+  Checks if full expression extraction mode should be used for a specific file.
+
+  Returns `true` only when BOTH:
+  1. `include_expressions` in the config is `true`
+  2. The file is project code (not in `/deps/`)
+
+  This helper combines the config check with the project file detection to ensure
+  that dependencies are always extracted in light mode, keeping storage manageable.
+
+  ## Parameters
+
+  - `context` - The builder context
+  - `file_path` - The file path to check
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: true}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.full_mode_for_file?(context, "lib/my_app/users.ex")
+      true
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: true}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.full_mode_for_file?(context, "deps/decimal/lib/decimal.ex")
+      false
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: false}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.full_mode_for_file?(context, "lib/my_app/users.ex")
+      false
+
+  """
+  @spec full_mode_for_file?(t(), String.t() | nil) :: boolean()
+  def full_mode_for_file?(%__MODULE__{} = context, file_path) do
+    full_mode?(context) and ElixirOntologies.Config.project_file?(file_path)
+  end
+
+  @doc """
+  Checks if light expression extraction mode is enabled in the context.
+
+  Returns `true` when `include_expressions` in the config is `false` (the default).
+  Light mode extracts only structural metadata without full expression trees.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: false}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.light_mode?(context)
+      true
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: true}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.light_mode?(context)
+      false
+
+  """
+  @spec light_mode?(t()) :: boolean()
+  def light_mode?(%__MODULE__{} = context) do
+    not full_mode?(context)
+  end
+
+  # ===========================================================================
   # Context IRI Resolution
   # ===========================================================================
 

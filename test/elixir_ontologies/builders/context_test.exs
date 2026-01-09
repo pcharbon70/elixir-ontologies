@@ -228,4 +228,122 @@ defmodule ElixirOntologies.Builders.ContextTest do
       refute original == modified
     end
   end
+
+  describe "full_mode?/1" do
+    test "returns true when include_expressions is true in config" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true}
+        )
+
+      assert Context.full_mode?(context) == true
+    end
+
+    test "returns false when include_expressions is false in config" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: false}
+        )
+
+      assert Context.full_mode?(context) == false
+    end
+
+    test "returns false when config is empty" do
+      context = Context.new(base_iri: "https://example.org/code#")
+
+      assert Context.full_mode?(context) == false
+    end
+
+    test "returns false when config does not have include_expressions key" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{other_key: true}
+        )
+
+      assert Context.full_mode?(context) == false
+    end
+  end
+
+  describe "full_mode_for_file?/2" do
+    test "returns true when full mode enabled and project file" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true}
+        )
+
+      assert Context.full_mode_for_file?(context, "lib/my_app/users.ex") == true
+    end
+
+    test "returns false when full mode enabled but dependency file" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true}
+        )
+
+      assert Context.full_mode_for_file?(context, "deps/decimal/lib/decimal.ex") == false
+    end
+
+    test "returns false when full mode disabled and project file" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: false}
+        )
+
+      assert Context.full_mode_for_file?(context, "lib/my_app/users.ex") == false
+    end
+
+    test "returns false for nil file path" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true}
+        )
+
+      assert Context.full_mode_for_file?(context, nil) == false
+    end
+
+    test "returns true for src/ files when full mode enabled" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true}
+        )
+
+      assert Context.full_mode_for_file?(context, "src/my_app/users.ex") == true
+    end
+  end
+
+  describe "light_mode?/1" do
+    test "returns true when include_expressions is false" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: false}
+        )
+
+      assert Context.light_mode?(context) == true
+    end
+
+    test "returns false when include_expressions is true" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true}
+        )
+
+      assert Context.light_mode?(context) == false
+    end
+
+    test "returns true when config is empty" do
+      context = Context.new(base_iri: "https://example.org/code#")
+
+      assert Context.light_mode?(context) == true
+    end
+  end
 end
