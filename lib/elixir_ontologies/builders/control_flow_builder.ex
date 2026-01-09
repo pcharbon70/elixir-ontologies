@@ -11,9 +11,27 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   - **Receive expressions**: Process message handling with optional timeout
   - **Comprehensions**: For comprehensions with generators and filters
 
+  ## Expression Building
+
+  By default, this builder creates lightweight RDF triples with boolean flags
+  for control flow structures (e.g., `hasCondition: true`). For full expression
+  extraction including AST details, pass the `:expression_builder` option with
+  `ElixirOntologies.Builders.ExpressionBuilder`.
+
+  Full expression extraction requires:
+  - `expression_builder: ExpressionBuilder` option passed to build functions
+  - `include_expressions: true` in the context configuration
+  - The file being processed is project code (not a dependency)
+
+  When these conditions are met, the builder creates full expression triples for:
+  - Conditional conditions (e.g., `x > 5`)
+  - Branch bodies (e.g., then/else expressions)
+  - Cond clause conditions and bodies
+  - Guard expressions in function clauses
+
   ## Usage
 
-      alias ElixirOntologies.Builders.{ControlFlowBuilder, Context}
+      alias ElixirOntologies.Builders.{ControlFlowBuilder, Context, ExpressionBuilder}
       alias ElixirOntologies.Extractors.Conditional.Conditional
 
       conditional = %Conditional{
@@ -23,8 +41,21 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
         metadata: %{}
       }
 
+      # Light mode (default) - boolean flags only
       context = Context.new(base_iri: "https://example.org/code#")
       {expr_iri, triples} = ControlFlowBuilder.build_conditional(conditional, context)
+
+      # Full mode - complete expression triples
+      context = Context.new(
+        base_iri: "https://example.org/code#",
+        config: %{include_expressions: true},
+        file_path: "lib/my_app.ex"
+      )
+      {expr_iri, triples} = ControlFlowBuilder.build_conditional(
+        conditional,
+        context,
+        expression_builder: ExpressionBuilder
+      )
 
   ## IRI Patterns
 
@@ -65,12 +96,24 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   - `opts` - Options:
     - `:containing_function` - IRI fragment of containing function
     - `:index` - Expression index within the function (default: 0)
+    - `:expression_builder` - Optional module for building expression triples
+      (e.g., `ElixirOntologies.Builders.ExpressionBuilder`)
 
   ## Returns
 
   A tuple `{expr_iri, triples}` where:
   - `expr_iri` - The IRI of the conditional expression
   - `triples` - List of RDF triples
+
+  ## Expression Building
+
+  When `:expression_builder` is provided and `Context.full_mode_for_file?/2`
+  returns `true`, this function builds full expression triples for:
+  - Condition expressions (linked via `core:hasCondition`)
+  - Branch body expressions (linked via `core:hasThenBranch`/`core:hasElseBranch`)
+  - Cond clause conditions and bodies
+
+  Otherwise, creates lightweight boolean flag triples only.
 
   ## Examples
 
@@ -87,15 +130,41 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   def build_conditional(%Conditional{} = conditional, %Context{} = context, opts \\ []) do
     containing_function = Keyword.get(opts, :containing_function, "unknown/0")
     index = Keyword.get(opts, :index, 0)
+    expression_builder = Keyword.get(opts, :expression_builder)
 
     expr_iri = conditional_iri(context.base_iri, containing_function, index)
+
+    # Check if we should build full expressions
+    build_expressions? =
+      expression_builder != nil and Context.full_mode_for_file?(context, context.file_path)
 
     triples =
       []
       |> add_conditional_type_triple(expr_iri, conditional.type)
-      |> add_condition_triple(expr_iri, conditional.condition, conditional.type)
-      |> add_branch_triples(expr_iri, conditional.branches, conditional.type)
-      |> add_cond_clause_triples(expr_iri, conditional.clauses, conditional.type)
+      |> add_condition_triple(
+        expr_iri,
+        conditional.condition,
+        conditional.type,
+        expression_builder,
+        build_expressions?,
+        context
+      )
+      |> add_branch_triples(
+        expr_iri,
+        conditional.branches,
+        conditional.type,
+        expression_builder,
+        build_expressions?,
+        context
+      )
+      |> add_cond_clause_triples(
+        expr_iri,
+        conditional.clauses,
+        conditional.type,
+        expression_builder,
+        build_expressions?,
+        context
+      )
       |> add_location_triple(expr_iri, conditional.location)
 
     {expr_iri, triples}
@@ -399,50 +468,130 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # Add condition triple for if/unless (cond has conditions per clause)
-  defp add_condition_triple(triples, expr_iri, condition, type)
+  # When build_expressions? is true, builds full expression triples
+  # Otherwise, stores a boolean flag indicating condition presence
+  defp add_condition_triple(triples, expr_iri, condition, type, expression_builder, build_expressions?, context)
        when type in [:if, :unless] and not is_nil(condition) do
-    # Store condition as a boolean expression indicator
-    # The actual AST isn't stored directly, but we note the presence
-    triple = Helpers.datatype_property(expr_iri, Core.hasCondition(), true, RDF.XSD.Boolean)
-    [triple | triples]
+    if build_expressions? do
+      # Build full expression triples for the condition
+      case expression_builder.build(condition, context, suffix: "condition") do
+        {:ok, {condition_iri, condition_triples}} ->
+          # Link to the condition expression
+          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), condition_iri)
+          condition_triples ++ [link_triple | triples]
+
+        :skip ->
+          # ExpressionBuilder returned skip (e.g., nil condition), fall back to boolean
+          triple = Helpers.datatype_property(expr_iri, Core.hasCondition(), true, RDF.XSD.Boolean)
+          [triple | triples]
+      end
+    else
+      # Light mode: store boolean flag only
+      triple = Helpers.datatype_property(expr_iri, Core.hasCondition(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
   end
 
-  defp add_condition_triple(triples, _expr_iri, _condition, _type), do: triples
+  defp add_condition_triple(triples, _expr_iri, _condition, _type, _expression_builder, _build_expressions?, _context),
+    do: triples
 
   # Add branch triples for if/unless
-  defp add_branch_triples(triples, expr_iri, branches, type) when type in [:if, :unless] do
+  defp add_branch_triples(triples, expr_iri, branches, type, expression_builder, build_expressions?, context)
+       when type in [:if, :unless] do
     Enum.reduce(branches, triples, fn branch, acc ->
-      add_single_branch_triple(acc, expr_iri, branch)
+      add_single_branch_triple(acc, expr_iri, branch, expression_builder, build_expressions?, context)
     end)
   end
 
-  defp add_branch_triples(triples, _expr_iri, _branches, _type), do: triples
+  defp add_branch_triples(triples, _expr_iri, _branches, _type, _expression_builder, _build_expressions?, _context),
+    do: triples
 
-  defp add_single_branch_triple(triples, expr_iri, %Branch{type: :then}) do
-    triple = Helpers.datatype_property(expr_iri, Core.hasThenBranch(), true, RDF.XSD.Boolean)
-    [triple | triples]
+  # Add triples for a single branch (then or else)
+  defp add_single_branch_triple(triples, expr_iri, %Branch{type: :then, body: body}, expression_builder, build_expressions?, context) do
+    if build_expressions? and body != nil do
+      case expression_builder.build(body, context, suffix: "then") do
+        {:ok, {body_iri, body_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasThenBranch(), body_iri)
+          body_triples ++ [link_triple | triples]
+
+        :skip ->
+          triple = Helpers.datatype_property(expr_iri, Core.hasThenBranch(), true, RDF.XSD.Boolean)
+          [triple | triples]
+      end
+    else
+      triple = Helpers.datatype_property(expr_iri, Core.hasThenBranch(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
   end
 
-  defp add_single_branch_triple(triples, expr_iri, %Branch{type: :else}) do
-    triple = Helpers.datatype_property(expr_iri, Core.hasElseBranch(), true, RDF.XSD.Boolean)
-    [triple | triples]
+  defp add_single_branch_triple(triples, expr_iri, %Branch{type: :else, body: body}, expression_builder, build_expressions?, context) do
+    if build_expressions? and body != nil do
+      case expression_builder.build(body, context, suffix: "else") do
+        {:ok, {body_iri, body_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasElseBranch(), body_iri)
+          body_triples ++ [link_triple | triples]
+
+        :skip ->
+          triple = Helpers.datatype_property(expr_iri, Core.hasElseBranch(), true, RDF.XSD.Boolean)
+          [triple | triples]
+      end
+    else
+      triple = Helpers.datatype_property(expr_iri, Core.hasElseBranch(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
   end
 
-  defp add_single_branch_triple(triples, _expr_iri, _branch), do: triples
+  defp add_single_branch_triple(triples, _expr_iri, _branch, _expression_builder, _build_expressions?, _context),
+    do: triples
 
   # ===========================================================================
   # Private - Cond Clause Triples
   # ===========================================================================
 
-  # For cond expressions, we track that clauses exist via hasClause boolean property
-  defp add_cond_clause_triples(triples, expr_iri, clauses, :cond)
+  # For cond expressions, build expression triples for each clause
+  defp add_cond_clause_triples(triples, expr_iri, clauses, :cond, expression_builder, build_expressions?, context)
        when is_list(clauses) and clauses != [] do
-    # Add hasClause as boolean to indicate clauses are present
-    triple = Helpers.datatype_property(expr_iri, Core.hasClause(), true, RDF.XSD.Boolean)
-    [triple | triples]
+    if build_expressions? do
+      # Build full expression triples for each clause
+      clauses
+      |> Enum.reduce(triples, fn clause, acc ->
+        add_cond_clause_expression_triples(acc, expr_iri, clause, expression_builder, context)
+      end)
+    else
+      # Light mode: store boolean flag only
+      triple = Helpers.datatype_property(expr_iri, Core.hasClause(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
   end
 
-  defp add_cond_clause_triples(triples, _expr_iri, _clauses, _type), do: triples
+  defp add_cond_clause_triples(triples, _expr_iri, _clauses, _type, _expression_builder, _build_expressions?, _context),
+    do: triples
+
+  # Build expression triples for a single cond clause
+  defp add_cond_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
+    # Build condition expression
+    cond_triples =
+      case expression_builder.build(clause.condition, context, suffix: "cond_#{clause.index}_condition") do
+        {:ok, {condition_iri, condition_expr_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), condition_iri)
+          condition_expr_triples ++ [link_triple]
+
+        :skip ->
+          []
+      end
+
+    # Build body expression
+    body_triples =
+      case expression_builder.build(clause.body, context, suffix: "cond_#{clause.index}_body") do
+        {:ok, {_body_iri, body_expr_triples}} ->
+          body_expr_triples
+
+        :skip ->
+          []
+      end
+
+    cond_triples ++ body_triples ++ triples
+  end
 
   # ===========================================================================
   # Private - Case Clause Triples
