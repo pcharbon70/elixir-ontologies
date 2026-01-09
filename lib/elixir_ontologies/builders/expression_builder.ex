@@ -321,25 +321,23 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Integer literals
-  def build_expression_triples(int, _expr_iri, _context) when is_integer(int) do
-    # Literals are handled inline in parent expressions
-    # This is a fallback for standalone literals
-    []
+  def build_expression_triples(int, expr_iri, _context) when is_integer(int) do
+    build_literal(int, expr_iri, Core.IntegerLiteral, Core.integerValue(), RDF.XSD.Integer)
   end
 
   # Float literals
-  def build_expression_triples(float, _expr_iri, _context) when is_float(float) do
-    []
+  def build_expression_triples(float, expr_iri, _context) when is_float(float) do
+    build_literal(float, expr_iri, Core.FloatLiteral, Core.floatValue(), RDF.XSD.Double)
   end
 
   # String literals (binaries)
-  def build_expression_triples(str, _expr_iri, _context) when is_binary(str) do
-    []
+  def build_expression_triples(str, expr_iri, _context) when is_binary(str) do
+    build_literal(str, expr_iri, Core.StringLiteral, Core.stringValue(), RDF.XSD.String)
   end
 
   # Atom literals (including true, false, nil)
-  def build_expression_triples(atom, _expr_iri, _context) when is_atom(atom) do
-    []
+  def build_expression_triples(atom, expr_iri, _context) when is_atom(atom) do
+    build_atom_literal(atom, expr_iri)
   end
 
   # Local call: function(args) - must come before variable pattern
@@ -379,69 +377,90 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # ===========================================================================
 
   # Comparison operators (==, !=, ===, !==, <, >, <=, >=)
-  defp build_comparison(op, _left, _right, expr_iri, _context) do
-    # For Phase 21.2, create a stub with operator symbol
-    # Full implementation with nested expressions in Phase 21.4
-    [
-      Helpers.type_triple(expr_iri, Core.ComparisonOperator),
-      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), to_string(op), RDF.XSD.String)
-    ]
+  defp build_comparison(op, left, right, expr_iri, context) do
+    build_binary_operator(op, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
   # Logical operators (and, or, &&, ||)
-  defp build_logical(op, _left, _right, expr_iri, _context) do
-    [
-      Helpers.type_triple(expr_iri, Core.LogicalOperator),
-      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), to_string(op), RDF.XSD.String)
-    ]
+  defp build_logical(op, left, right, expr_iri, context) do
+    build_binary_operator(op, left, right, expr_iri, context, Core.LogicalOperator)
   end
 
   # Arithmetic operators (+, -, *, /, div, rem)
-  defp build_arithmetic(op, _left, _right, expr_iri, _context) do
-    [
-      Helpers.type_triple(expr_iri, Core.ArithmeticOperator),
-      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), to_string(op), RDF.XSD.String)
-    ]
+  defp build_arithmetic(op, left, right, expr_iri, context) do
+    build_binary_operator(op, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
   # Unary operators (not, !)
-  defp build_unary(op, _arg, expr_iri, _context) do
-    [
-      Helpers.type_triple(expr_iri, Core.LogicalOperator),
-      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), to_string(op), RDF.XSD.String)
-    ]
+  defp build_unary(op, arg, expr_iri, context) do
+    build_unary_operator(op, arg, expr_iri, context, Core.LogicalOperator)
   end
 
   # Pipe operator (|>)
-  defp build_pipe(_left, _right, expr_iri, _context) do
-    [
-      Helpers.type_triple(expr_iri, Core.PipeOperator),
-      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), "|>", RDF.XSD.String)
-    ]
+  defp build_pipe(left, right, expr_iri, context) do
+    # Pipe operator is binary but with special semantics
+    # For now, treat as binary operator
+    build_binary_operator(:|>, left, right, expr_iri, context, Core.PipeOperator)
   end
 
   # String concatenation (<>)
-  defp build_string_concat(_left, _right, expr_iri, _context) do
-    [
-      Helpers.type_triple(expr_iri, Core.StringConcatOperator),
-      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), "<>", RDF.XSD.String)
-    ]
+  defp build_string_concat(left, right, expr_iri, context) do
+    build_binary_operator(:<>, left, right, expr_iri, context, Core.StringConcatOperator)
   end
 
   # List operators (++, --)
-  defp build_list_op(op, _left, _right, expr_iri, _context) do
-    [
-      Helpers.type_triple(expr_iri, Core.ListOperator),
-      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), to_string(op), RDF.XSD.String)
-    ]
+  defp build_list_op(op, left, right, expr_iri, context) do
+    build_binary_operator(op, left, right, expr_iri, context, Core.ListOperator)
   end
 
   # Match operator (=)
-  defp build_match(_left, _right, expr_iri, _context) do
-    [
-      Helpers.type_triple(expr_iri, Core.MatchOperator),
-      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), "=", RDF.XSD.String)
+  defp build_match(left, right, expr_iri, context) do
+    build_binary_operator(:=, left, right, expr_iri, context, Core.MatchOperator)
+  end
+
+  # ===========================================================================
+  # Core Expression Builders
+  # ===========================================================================
+
+  # Builds a binary operator with left and right operands
+  defp build_binary_operator(op, left_ast, right_ast, expr_iri, context, type_class) do
+    # Generate relative IRIs for child expressions
+    left_iri = fresh_iri(expr_iri, "left")
+    right_iri = fresh_iri(expr_iri, "right")
+
+    # Recursively build operand triples
+    left_triples = build_expression_triples(left_ast, left_iri, context)
+    right_triples = build_expression_triples(right_ast, right_iri, context)
+
+    # Build operator triples
+    operator_triples = [
+      Helpers.type_triple(expr_iri, type_class),
+      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), to_string(op), RDF.XSD.String),
+      Helpers.object_property(expr_iri, Core.hasLeftOperand(), left_iri),
+      Helpers.object_property(expr_iri, Core.hasRightOperand(), right_iri)
     ]
+
+    # Combine all triples
+    operator_triples ++ left_triples ++ right_triples
+  end
+
+  # Builds a unary operator with a single operand
+  defp build_unary_operator(op, operand_ast, expr_iri, context, type_class) do
+    # Generate relative IRI for child expression
+    operand_iri = fresh_iri(expr_iri, "operand")
+
+    # Recursively build operand triples
+    operand_triples = build_expression_triples(operand_ast, operand_iri, context)
+
+    # Build operator triples
+    operator_triples = [
+      Helpers.type_triple(expr_iri, type_class),
+      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), to_string(op), RDF.XSD.String),
+      Helpers.object_property(expr_iri, Core.hasOperand(), operand_iri)
+    ]
+
+    # Combine all triples
+    operator_triples ++ operand_triples
   end
 
   # Remote call: Module.function(args)
@@ -487,6 +506,33 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   defp build_wildcard(expr_iri) do
     [Helpers.type_triple(expr_iri, Core.WildcardPattern)]
   end
+
+  # ===========================================================================
+  # Literal Builders
+  # ===========================================================================
+
+  # Builds a typed literal (integer, float, string)
+  defp build_literal(value, expr_iri, literal_type, value_property, xsd_type) do
+    [
+      Helpers.type_triple(expr_iri, literal_type),
+      Helpers.datatype_property(expr_iri, value_property, value, xsd_type)
+    ]
+  end
+
+  # Builds an atom literal (including :true, :false, :nil)
+  defp build_atom_literal(atom_value, expr_iri) do
+    [
+      Helpers.type_triple(expr_iri, Core.AtomLiteral),
+      Helpers.datatype_property(expr_iri, Core.atomValue(), atom_to_string(atom_value), RDF.XSD.String)
+    ]
+  end
+
+  # Converts atom to string representation
+  # Handles special atoms (true, false, nil) and custom atoms
+  defp atom_to_string(true), do: "true"
+  defp atom_to_string(false), do: "false"
+  defp atom_to_string(nil), do: "nil"
+  defp atom_to_string(atom) when is_atom(atom), do: ":" <> Atom.to_string(atom)
 
   # Generic expression for unknown AST nodes
   defp build_generic_expression(expr_iri) do

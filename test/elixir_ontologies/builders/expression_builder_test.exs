@@ -382,47 +382,52 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   end
 
   describe "literals" do
-    test "returns empty triples for standalone integer literals" do
+    test "builds IntegerLiteral triples for integer literals" do
       context = full_mode_context()
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(42, context, [])
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(42, context, [])
 
-      # Literals are handled inline in parent expressions
-      assert triples == []
+      assert has_type?(triples, Core.IntegerLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.integerValue(), 42)
     end
 
-    test "returns empty triples for standalone float literals" do
+    test "builds FloatLiteral triples for float literals" do
       context = full_mode_context()
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(3.14, context, [])
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(3.14, context, [])
 
-      assert triples == []
+      assert has_type?(triples, Core.FloatLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.floatValue(), 3.14)
     end
 
-    test "returns empty triples for standalone string literals" do
+    test "builds StringLiteral triples for string literals" do
       context = full_mode_context()
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build("hello", context, [])
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build("hello", context, [])
 
-      assert triples == []
+      assert has_type?(triples, Core.StringLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.stringValue(), "hello")
     end
 
-    test "returns empty triples for standalone atom literals" do
+    test "builds AtomLiteral triples for atom literals" do
       context = full_mode_context()
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(:ok, context, [])
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(:ok, context, [])
 
-      assert triples == []
+      assert has_type?(triples, Core.AtomLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.atomValue(), ":ok")
     end
 
-    test "returns empty triples for true" do
+    test "builds AtomLiteral triples for true" do
       context = full_mode_context()
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(true, context, [])
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(true, context, [])
 
-      assert triples == []
+      assert has_type?(triples, Core.AtomLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.atomValue(), "true")
     end
 
-    test "returns empty triples for false" do
+    test "builds AtomLiteral triples for false" do
       context = full_mode_context()
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(false, context, [])
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(false, context, [])
 
-      assert triples == []
+      assert has_type?(triples, Core.AtomLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.atomValue(), "false")
     end
 
     test "returns :skip for nil literals" do
@@ -831,6 +836,158 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "nested expression tests (Phase 21.4)" do
+    setup do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+      :ok
+    end
+
+    test "binary operator creates left and right operand triples" do
+      context = full_mode_context()
+      # x > 5
+      ast = {:>, [], [{:x, [], nil}, 5]}
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have operator type and symbol
+      assert has_type?(triples, Core.ComparisonOperator)
+      assert has_operator_symbol?(triples, ">")
+
+      # Should link to left and right operands
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
+
+      # Left operand should be a Variable
+      assert has_type?(triples, Core.Variable)
+      assert has_literal_value?(triples, left_iri, Core.name(), "x")
+
+      # Right operand should be an IntegerLiteral
+      assert has_type?(triples, Core.IntegerLiteral)
+      assert has_literal_value?(triples, right_iri, Core.integerValue(), 5)
+    end
+
+    test "nested binary operators create correct IRI hierarchy" do
+      context = full_mode_context()
+      # x > 5 and y < 10
+      ast = {:and, [], [{:>, [], [{:x, [], nil}, 5]}, {:<, [], [{:y, [], nil}, 10]}]}
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+
+      # Top-level is LogicalOperator (and)
+      assert has_type?(triples, Core.LogicalOperator)
+      assert has_operator_symbol?(triples, "and")
+
+      # Left child is a comparison operator
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} ->
+        s == left_iri and o == Core.ComparisonOperator
+      end)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == left_iri and p == Core.operatorSymbol() and
+          RDF.Literal.value(o) == ">"
+      end)
+
+      # Left-left is Variable "x"
+      left_left_iri = ExpressionBuilder.fresh_iri(left_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} ->
+        s == left_left_iri and o == Core.Variable
+      end)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == left_left_iri and p == Core.name() and
+          RDF.Literal.value(o) == "x"
+      end)
+
+      # Left-right is IntegerLiteral 5
+      left_right_iri = ExpressionBuilder.fresh_iri(left_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} ->
+        s == left_right_iri and o == Core.IntegerLiteral
+      end)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == left_right_iri and p == Core.integerValue() and
+          RDF.Literal.value(o) == 5
+      end)
+    end
+
+    test "unary operator creates operand triples" do
+      context = full_mode_context()
+      # not x
+      ast = {:not, [], [{:x, [], nil}]}
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have operator type and symbol
+      assert has_type?(triples, Core.LogicalOperator)
+      assert has_operator_symbol?(triples, "not")
+
+      # Should link to operand
+      operand_iri = ExpressionBuilder.fresh_iri(expr_iri, "operand")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasOperand() and o == operand_iri
+      end)
+
+      # Operand should be a Variable
+      assert has_type?(triples, Core.Variable)
+      assert has_literal_value?(triples, operand_iri, Core.name(), "x")
+    end
+
+    test "arithmetic operators create nested expressions" do
+      context = full_mode_context()
+      # x + y * 2
+      ast = {:+, [], [{:x, [], nil}, {:*, [], [{:y, [], nil}, 2]}]}
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+
+      # Top-level is ArithmeticOperator (+)
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "+")
+
+      # Right operand is another ArithmeticOperator (*)
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} ->
+        s == right_iri and o == Core.ArithmeticOperator
+      end)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == right_iri and p == Core.operatorSymbol() and
+          RDF.Literal.value(o) == "*"
+      end)
+    end
+
+    test "match operator creates left and right expressions" do
+      context = full_mode_context()
+      # x = 42
+      ast = {:=, [], [{:x, [], nil}, 42]}
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have MatchOperator type
+      assert has_type?(triples, Core.MatchOperator)
+      assert has_operator_symbol?(triples, "=")
+
+      # Should have left and right operands
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
+
+      # Left is Variable "x"
+      assert has_type?(triples, Core.Variable)
+      assert has_literal_value?(triples, left_iri, Core.name(), "x")
+
+      # Right is IntegerLiteral 42
+      assert has_type?(triples, Core.IntegerLiteral)
+      assert has_literal_value?(triples, right_iri, Core.integerValue(), 42)
+    end
+  end
+
   # ===========================================================================
   # Helpers
   # ===========================================================================
@@ -850,6 +1007,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   defp has_operator_symbol?(triples, symbol) do
     Enum.any?(triples, fn {_s, p, o} ->
       p == Core.operatorSymbol() and RDF.Literal.value(o) == symbol
+    end)
+  end
+
+  defp has_literal_value?(triples, subject, predicate, expected_value) do
+    Enum.any?(triples, fn {s, p, o} ->
+      s == subject and p == predicate and RDF.Literal.value(o) == expected_value
     end)
   end
 end
