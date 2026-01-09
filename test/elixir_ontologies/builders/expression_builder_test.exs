@@ -989,6 +989,198 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   end
 
   # ===========================================================================
+  # Helper Functions Tests (21.6)
+  # ===========================================================================
+
+  describe "build_child_expressions/3" do
+    setup do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+      :ok
+    end
+
+    test "builds expressions for a list of literals" do
+      context = full_mode_context()
+      asts = [1, 2, 3]
+
+      {children, triples} = ExpressionBuilder.build_child_expressions(asts, context)
+
+      # Should have 3 children
+      assert length(children) == 3
+
+      # Each child should have an IRI and triples
+      Enum.each(children, fn {iri, child_triples} ->
+        assert %RDF.IRI{} = iri
+        assert is_list(child_triples)
+        assert length(child_triples) > 0
+      end)
+
+      # Combined triples should include all child triples
+      assert length(triples) > 0
+    end
+
+    test "filters out nil ASTs" do
+      context = full_mode_context()
+      asts = [1, nil, 3]
+
+      {children, _triples} = ExpressionBuilder.build_child_expressions(asts, context)
+
+      # Should only have 2 children (nil filtered out)
+      assert length(children) == 2
+    end
+
+    test "returns empty list for empty input" do
+      context = full_mode_context()
+
+      {children, triples} = ExpressionBuilder.build_child_expressions([], context)
+
+      assert children == []
+      assert triples == []
+    end
+
+    test "returns empty list when all ASTs are nil" do
+      context = full_mode_context()
+
+      {children, triples} = ExpressionBuilder.build_child_expressions([nil, nil], context)
+
+      assert children == []
+      assert triples == []
+    end
+
+    test "handles mixed expression types" do
+      context = full_mode_context()
+      asts = [1, :atom, "string"]
+
+      {children, triples} = ExpressionBuilder.build_child_expressions(asts, context)
+
+      assert length(children) == 3
+
+      # Should have IntegerLiteral, AtomLiteral, and StringLiteral
+      assert has_type?(triples, Core.IntegerLiteral)
+      assert has_type?(triples, Core.AtomLiteral)
+      assert has_type?(triples, Core.StringLiteral)
+    end
+  end
+
+  describe "combine_triples/1" do
+    test "flattens nested lists of triples" do
+      triple1 = {RDF.IRI.new("http://example.org/s1"), RDF.IRI.new("http://example.org/p1"), RDF.IRI.new("http://example.org/o1")}
+      triple2 = {RDF.IRI.new("http://example.org/s2"), RDF.IRI.new("http://example.org/p2"), RDF.IRI.new("http://example.org/o2")}
+      triple3 = {RDF.IRI.new("http://example.org/s3"), RDF.IRI.new("http://example.org/p3"), RDF.IRI.new("http://example.org/o3")}
+
+      result =
+        ExpressionBuilder.combine_triples([
+          [triple1],
+          [[triple2], [triple3]]
+        ])
+
+      # Should flatten to single list
+      assert length(result) == 3
+      assert triple1 in result
+      assert triple2 in result
+      assert triple3 in result
+    end
+
+    test "removes duplicate triples" do
+      triple1 = {RDF.IRI.new("http://example.org/s"), RDF.IRI.new("http://example.org/p"), RDF.IRI.new("http://example.org/o")}
+      triple2 = {RDF.IRI.new("http://example.org/s"), RDF.IRI.new("http://example.org/p"), RDF.IRI.new("http://example.org/o")}
+      triple3 = {RDF.IRI.new("http://example.org/s2"), RDF.IRI.new("http://example.org/p2"), RDF.IRI.new("http://example.org/o2")}
+
+      result = ExpressionBuilder.combine_triples([[triple1], [triple2], [triple3]])
+
+      # triple1 and triple2 are the same - should only appear once
+      assert length(result) == 2
+      assert triple1 in result
+      assert triple3 in result
+    end
+
+    test "handles empty list" do
+      result = ExpressionBuilder.combine_triples([])
+      assert result == []
+    end
+
+    test "handles already flat list" do
+      triple1 = {RDF.IRI.new("http://example.org/s1"), RDF.IRI.new("http://example.org/p1"), RDF.IRI.new("http://example.org/o1")}
+      triple2 = {RDF.IRI.new("http://example.org/s2"), RDF.IRI.new("http://example.org/p2"), RDF.IRI.new("http://example.org/o2")}
+
+      result = ExpressionBuilder.combine_triples([triple1, triple2])
+
+      assert length(result) == 2
+      assert triple1 in result
+      assert triple2 in result
+    end
+  end
+
+  describe "maybe_build/3" do
+    setup do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+      :ok
+    end
+
+    test "returns nil for nil AST" do
+      context = full_mode_context()
+
+      result = ExpressionBuilder.maybe_build(nil, context, [])
+
+      assert result == nil
+    end
+
+    test "returns :skip in light mode" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: false},
+          file_path: "lib/my_app.ex"
+        )
+
+      result = ExpressionBuilder.maybe_build({:x, [], nil}, context, [])
+
+      assert result == :skip
+    end
+
+    test "builds expression in full mode" do
+      context = full_mode_context()
+
+      result = ExpressionBuilder.maybe_build(42, context, [])
+
+      assert {:ok, {_iri, triples}} = result
+      assert is_list(triples)
+      assert length(triples) > 0
+    end
+
+    test "returns :skip for dependency file in full mode" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "deps/decimal/lib/decimal.ex"
+        )
+
+      result = ExpressionBuilder.maybe_build({:x, [], nil}, context, [])
+
+      assert result == :skip
+    end
+
+    test "distinguishes between nil AST and :skip" do
+      full_context = full_mode_context()
+      light_context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: false},
+          file_path: "lib/my_app.ex"
+        )
+
+      # Nil AST returns nil (expression absent)
+      assert ExpressionBuilder.maybe_build(nil, full_context, []) == nil
+
+      # Light mode returns :skip (expression not extracted)
+      assert ExpressionBuilder.maybe_build({:x, [], nil}, light_context, []) == :skip
+
+      # Full mode builds expression
+      assert {:ok, _} = ExpressionBuilder.maybe_build(42, full_context, [])
+    end
+  end
+
+  # ===========================================================================
   # Helpers
   # ===========================================================================
 

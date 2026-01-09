@@ -669,4 +669,154 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
         {cached_iri, cache}
     end
   end
+
+  # ===========================================================================
+  # Helper Functions (21.6)
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for a list of child AST expressions.
+
+  Iterates through a list of AST nodes, calling `build/3` for each.
+  Returns a list of `{iri, triples}` tuples for successfully built expressions,
+  along with all combined triples.
+
+  Nil ASTs and :skip results are filtered out.
+
+  ## Parameters
+
+  - `asts` - List of Elixir AST nodes (3-tuple format or literals)
+  - `context` - The builder context containing configuration
+  - `opts` - Optional keyword list passed to each `build/3` call
+
+  ## Returns
+
+  `{child_results, all_triples}` where:
+  - `child_results` is a list of `{iri, triples}` tuples for each successfully built expression
+  - `all_triples` is a flattened list of all triples from all child expressions
+
+  ## Examples
+
+      context = Context.new(
+        base_iri: "https://example.org/code#",
+        config: %{include_expressions: true},
+        file_path: "lib/my_app.ex"
+      )
+
+      asts = [1, 2, 3]
+      {children, triples} = build_child_expressions(asts, context)
+      length(children)  # => 3
+
+      # With nil ASTs - they are skipped
+      asts = [1, nil, 3]
+      {children, triples} = build_child_expressions(asts, context)
+      length(children)  # => 2
+  """
+  @spec build_child_expressions([Macro.t()], Context.t(), keyword()) ::
+          {[{RDF.IRI.t(), [RDF.Triple.t()]}], [RDF.Triple.t()]}
+  def build_child_expressions(asts, context, opts \\ []) when is_list(asts) do
+    asts
+    |> Enum.map(fn ast -> build(ast, context, opts) end)
+    |> Enum.filter(fn
+      :skip -> false
+      _ -> true
+    end)
+    |> Enum.map(fn
+      {:ok, result} -> result
+    end)
+    |> Enum.reduce({[], []}, fn {iri, triples}, {results, all_triples} ->
+      {[{iri, triples} | results], triples ++ all_triples}
+    end)
+    |> then(fn {results, all_triples} ->
+      {Enum.reverse(results), all_triples}
+    end)
+  end
+
+  @doc """
+  Combines and deduplicates a list of triples or triple lists.
+
+  Handles arbitrarily nested lists of triples, flattening to a single list
+  and removing duplicates. Useful after building nested expressions.
+
+  ## Parameters
+
+  - `triple_lists` - A list of triples or nested lists of triples
+
+  ## Returns
+
+  A flattened, deduplicated list of triples
+
+  ## Examples
+
+      triple1 = {~I<http://example.org/s>, ~I<http://example.org/p>, ~I<http://example.org/o>}
+      triple2 = {~I<http://example.org/s>, ~I<http://example.org/p>, ~I<http://example.org/o>}
+      triple3 = {~I<http://example.org/s2>, ~I<http://example.org/p2>, ~I<http://example.org/o2>}
+
+      # Removes duplicates
+      combine_triples([[triple1], [triple2], triple3])
+      # => [triple1, triple3]  # only one copy of triple1/triple2 (they're the same)
+
+      # Handles nested lists
+      combine_triples([[[triple1]], [[triple2, triple3]]])
+      # => [triple1, triple3]
+  """
+  @spec combine_triples([[RDF.Triple.t()]] | [RDF.Triple.t()]) :: [RDF.Triple.t()]
+  def combine_triples(triple_lists) when is_list(triple_lists) do
+    triple_lists
+    |> List.flatten()
+    |> Enum.uniq()
+  end
+
+  @doc """
+  Conditionally builds an expression based on the AST value.
+
+  Returns `nil` for nil AST (different from `:skip`).
+  Returns `:skip` when `build/3` returns `:skip`.
+  Otherwise returns `{:ok, {iri, triples}}`.
+
+  Useful for optional expressions like else clauses, guards, etc.
+
+  ## Parameters
+
+  - `ast` - The Elixir AST node (3-tuple format, literal, or nil)
+  - `context` - The builder context containing configuration
+  - `opts` - Optional keyword list passed to `build/3`
+
+  ## Returns
+
+  - `{:ok, {iri, triples}}` - Expression successfully built
+  - `:skip` - Expression should not be extracted (light mode)
+  - `nil` - AST was nil (expression absent)
+
+  ## Examples
+
+      context = Context.new(
+        base_iri: "https://example.org/code#",
+        config: %{include_expressions: true},
+        file_path: "lib/my_app.ex"
+      )
+
+      # Present AST - builds expression
+      maybe_build({:x, [], nil}, context)
+      # => {:ok, {~I<https://example.org/code#expr/0>, [...]}
+
+      # Nil AST - returns nil (not :skip)
+      maybe_build(nil, context)
+      # => nil
+
+      # Light mode - returns :skip
+      light_context = Context.new(base_iri: "https://example.org/code#")
+      maybe_build({:x, [], nil}, light_context)
+      # => :skip
+  """
+  @spec maybe_build(Macro.t() | nil, Context.t(), keyword()) ::
+          {:ok, {RDF.IRI.t(), [RDF.Triple.t()]}} | :skip | nil
+  def maybe_build(nil, _context, _opts), do: nil
+
+  def maybe_build(ast, context, opts) do
+    case build(ast, context, opts) do
+      {:ok, result} -> {:ok, result}
+      :skip -> :skip
+    end
+  end
 end
