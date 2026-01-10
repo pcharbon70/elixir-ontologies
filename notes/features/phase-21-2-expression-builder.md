@@ -1,169 +1,201 @@
-# Feature: Phase 21.2 - ExpressionBuilder Module
+# Phase 21.2: ExpressionBuilder Module
 
-## Status: In Progress
-
-**Started:** 2025-01-09
+**Status:** ✅ Complete
 **Branch:** `feature/phase-21-2-expression-builder`
-**Target:** `expressions` branch
+**Created:** 2025-01-10
+**Completed:** 2025-01-10
+**Target:** Implement core ExpressionBuilder module for AST-to-RDF conversion
 
 ## Problem Statement
 
-The elixir-ontologies project needs to convert Elixir AST nodes to their RDF representation according to the elixir-core.ttl ontology. Currently, there is no module to handle expression extraction, which is essential for capturing:
-- Function guards
-- Condition expressions
-- Function bodies
-- Other code constructs
+The expression extraction infrastructure requires a central module that converts Elixir AST nodes into their RDF representation according to the elixir-core.ttl ontology. Currently, no such module exists, and each builder would need to implement its own ad-hoc expression handling.
+
+The ExpressionBuilder module needs to:
+1. Accept any Elixir AST node as input
+2. Check configuration to determine if expressions should be extracted
+3. Generate appropriate IRIs for expression resources
+4. Dispatch to specific builder functions based on AST pattern
+5. Return either `{:ok, {iri, triples}}` or `:skip`
 
 ## Solution Overview
 
-Create an `ExpressionBuilder` module that:
-1. Checks if expression extraction is enabled (via `Context.full_mode_for_file?/2`)
-2. Pattern matches on Elixir AST nodes to dispatch to appropriate builder functions
-3. Returns either `{:ok, {expr_iri, triples}}` or `:skip` for light mode
-4. Uses the Core ontology classes for expression types
+Implement the ExpressionBuilder module with three main components:
+
+1. **Module Structure (21.2.1)**: Basic module setup with imports, types, and documentation
+2. **Main build/3 Function (21.2.2)**: Entry point that checks mode and delegates to dispatch
+3. **Expression Dispatch (21.2.3)**: Pattern matching on AST to route to specific builders
+
+The module will initially return `:skip` for all expressions since the specific builder functions (21.4) will be implemented in a later phase. This phase focuses on establishing the architecture and dispatch logic.
 
 ## Technical Details
 
-### Files to Create/Modify
+### File to Create
 
-**Primary:**
-- `lib/elixir_ontologies/builders/expression_builder.ex` - NEW module
+- `lib/elixir_ontologies/builders/expression_builder.ex` - New module
 
-**Tests:**
-- `test/elixir_ontologies/builders/expression_builder_test.exs` - NEW test file
-
-### Dependencies
-
-- `ElixirOntologies.Builders.Context` - For checking expression mode
-- `ElixirOntologies.Builders.Helpers` - For triple generation utilities
-- `ElixirOntologies.NS.Core` - For ontology classes (Expression, Literal, OperatorExpression, etc.)
-- `RDF` - For RDF data structures
-
-### Module Structure
+### Module Dependencies
 
 ```elixir
-defmodule ElixirOntologies.Builders.ExpressionBuilder do
-  @moduledoc """
-  Builds RDF triples for Elixir AST expression nodes.
-
-  This module converts Elixir AST nodes to their RDF representation
-  according to the elixir-core.ttl ontology. Expression extraction is
-  opt-in via the `include_expressions` configuration option.
-  """
-
-  alias ElixirOntologies.Builders.{Context, Helpers}
-  alias ElixirOntologies.NS.Core
-
-  # Main entry point
-  def build(ast, context, opts \\ [])
-
-  # Expression dispatch via pattern matching
-  defp build_expression_triples(ast, expr_iri, context)
-
-  # Specific expression builders (implemented incrementally)
-  defp build_comparison(op, left, right, expr_iri, context)
-  defp build_logical(op, left, right, expr_iri, context)
-  defp build_arithmetic(op, left, right, expr_iri, context)
-  # ... etc
-end
+# Required imports
+alias ElixirOntologies.Builders.Context
+alias ElixirOntologies.Builders.Helpers
+alias ElixirOntologies.NS.Core
+use RDF.Turtle
 ```
 
-### Elixir AST Format
+### Return Type Convention
 
-Elixir AST uses 3-tuple format: `{atom | tuple, metadata, children}`
+```elixir
+@spec build(Macro.t(), Context.t(), keyword()) ::
+        {:ok, {RDF.IRI.t(), [RDF.Triple.t()]}} | :skip
+```
 
-Examples:
-- `{:==, [], [{:x, [], nil}, 1]}` - comparison `x == 1`
-- `{:and, [], [true, false]}` - logical `and`
-- `{:+, [], [1, 2]}` - arithmetic `1 + 2`
-- `{:"::", _, [{:x, [], nil}, {:integer, [], []}]}` - type spec `x :: integer()`
-- `{{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [], ["123"]}` - remote call `String.to_integer("123")`
-
-## Success Criteria
-
-- [ ] ExpressionBuilder module created with proper moduledoc
-- [ ] `build/3` function returns `:skip` in light mode
-- [ ] `build/3` function returns `:skip` for nil AST
-- [ ] Expression dispatch correctly routes comparison operators
-- [ ] Expression dispatch correctly routes logical operators
-- [ ] Expression dispatch correctly routes arithmetic operators
-- [ ] Expression dispatch correctly routes literals
-- [ ] Expression dispatch correctly routes variables
-- [ ] Unknown expressions get generic `Expression` type
-- [ ] All functions have @spec annotations
-- [ ] Unit tests for all public functions
-- [ ] Unit tests for expression dispatch routing
-- [ ] 100% test coverage
+- `{:ok, {iri, triples}}` - Expression was successfully built
+- `:skip` - Expression should not be extracted (light mode or unsupported)
 
 ## Implementation Plan
 
-### Step 1: Create Module Structure
-- [ ] Create `lib/elixir_ontologies/builders/expression_builder.ex`
-- [ ] Add module documentation with usage examples
-- [ ] Define @spec for main `build/3` function
-- [ ] Import required modules (Context, Helpers, NS.Core)
+### 21.2.1 Create ExpressionBuilder Module Structure
 
-### Step 2: Implement Main build/3 Function
-- [ ] Check `Context.full_mode_for_file?/2` for mode
-- [ ] Return `:skip` when light mode or nil AST
-- [ ] Generate expression IRI (simple counter-based for now, refined in 21.3)
-- [ ] Call `build_expression_triples/3`
-- [ ] Return `{:ok, {expr_iri, triples}}` tuple
+- [x] 21.2.1.1 Create `lib/elixir_ontologies/builders/expression_builder.ex`
+- [x] 21.2.1.2 Add `@moduledoc` describing the module's purpose and API
+- [x] 21.2.1.3 Import required modules: `Context`, `Helpers`, `NS.Core`
+- [x] 21.2.1.4 Add `use RDF.Turtle` for convenient triple generation (NOT USED - removed)
+- [x] 21.2.1.5 Define `@spec build/3` return type
+- [x] 21.2.1.6 Add `@type ast :: Macro.t()` for clarity
 
-### Step 3: Implement Expression Dispatch
-- [ ] Add `build_expression_triples/3` with pattern matching
-- [ ] Match comparison operators (`==`, `!=`, `===`, `!==`, `<`, `>`, `<=`, `>=`)
-- [ ] Match logical operators (`and`, `or`, `not`, `&&`, `||`, `!`)
-- [ ] Match arithmetic operators (`+`, `-`, `*`, `/`, `div`, `rem`)
-- [ ] Match literals (integers, floats, strings, atoms)
-- [ ] Match variables `{name, [], context}`
-- [ ] Match wildcard `{:_}`
-- [ ] Add fallback for unknown expressions
+### 21.2.2 Implement Main build/3 Function
 
-### Step 4: Implement Builder Functions (stubs for now, detailed in 21.4)
-- [ ] `build_comparison/5` - stub returning generic BinaryOperator
-- [ ] `build_logical/5` - stub returning generic LogicalOperator
-- [ ] `build_arithmetic/5` - stub returning generic ArithmeticOperator
-- [ ] `build_literal/5` - for integers, floats, strings
-- [ ] `build_atom_literal/3` - for atoms
-- [ ] `build_variable/3` - for variables
-- [ ] `build_wildcard/3` - for `_` pattern
+- [x] 21.2.2.1 Implement `build(ast, context, opts)` that checks `context.config.include_expressions`
+- [x] 21.2.2.2 Return `:skip` immediately when `include_expressions` is `false`
+- [x] 21.2.2.3 Return `:skip` for `nil` AST nodes
+- [x] 21.2.2.4 Check `Context.full_mode_for_file?/2` for project vs dependency
+- [x] 21.2.2.5 Call `build_expression_triples/3` to generate triples
+- [x] 21.2.2.6 Return `{:ok, {expr_iri, triples}}` tuple
 
-### Step 5: Write Tests
-- [ ] Create test file
-- [ ] Test light mode returns `:skip`
-- [ ] Test nil AST returns `:skip`
-- [ ] Test comparison operators generate correct types
-- [ ] Test logical operators generate correct types
-- [ ] Test literals generate correct types
-- [ ] Test variables generate correct triples
-- [ ] Test unknown expressions get generic Expression type
+### 21.2.3 Implement Expression Dispatch
+
+- [x] 21.2.3.1 Add `build_expression_triples/3` with pattern matching on AST nodes
+- [x] 21.2.3.2 Match comparison operators (`==`, `!=`, `===`, `!==`, `<`, `>`, `<=`, `>=`) - STUB
+- [x] 21.2.3.3 Match logical operators (`and`, `or`, `not`, `&&`, `||`, `!`) - STUB
+- [x] 21.2.3.4 Match arithmetic operators (`+`, `-`, `*`, `/`, `div`, `rem`) - STUB
+- [x] 21.2.3.5 Match pipe operator (`|>`) - STUB
+- [x] 21.2.3.6 Match remote call (`{:., _, [module, function]}`) - STUB
+- [x] 21.2.3.7 Match local call (atom call with args) - STUB
+- [x] 21.2.3.8 Match integer literals - STUB
+- [x] 21.2.3.9 Match string literals - STUB
+- [x] 21.2.3.10 Match atom literals (`:foo`, `true`, `false`, `nil`) - STUB
+- [x] 21.2.3.11 Match wildcard pattern `{:_}` - STUB
+- [x] 21.2.3.12 Match variables `{name, _, context}` - STUB
+- [x] 21.2.3.13 Add fallback for unknown expressions - STUB
+
+**Note**: STUB functions will initially return `{:ok, {generic_iri, []}}` or similar placeholder behavior. Full implementation will be in section 21.4.
+
+### Unit Tests
+
+- [x] Test ExpressionBuilder.build/3 returns `:skip` when `include_expressions` is `false`
+- [x] Test ExpressionBuilder.build/3 returns `:skip` for `nil` AST
+- [x] Test ExpressionBuilder.build/3 returns `:skip` for dependency files
+- [x] Test ExpressionBuilder.dispatch routes comparison operators
+- [x] Test ExpressionBuilder.dispatch routes logical operators
+- [x] Test ExpressionBuilder.dispatch routes literals
+- [x] Test ExpressionBuilder.dispatch routes variables
+- [x] Test ExpressionBuilder.dispatch routes unknown expressions to generic type
+
+## Success Criteria
+
+1. ExpressionBuilder module created with proper structure ✅
+2. Main build/3 function checks mode and returns `:skip` appropriately ✅
+3. Expression dispatch routes all AST patterns to stub functions ✅
+4. All unit tests pass (55 tests) ✅
+5. Module is well-documented with @moduledoc and @spec annotations ✅
+
+## Status Log
+
+### 2025-01-10 - Implementation Complete ✅
+- **Created**: `lib/elixir_ontologies/builders/expression_builder.ex` (550+ lines)
+- **Created**: `test/elixir_ontologies/builders/expression_builder_test.exs` (550+ lines, 55 tests)
+- **All tests passing**: 55/55 tests pass
+
+### Technical Implementation Details
+
+**Module Structure**:
+- Imports: `Context`, `Helpers`, `NS.Core`
+- Types: `ast()`, `result()`
+- Counter management: ETS-based counter for unique IRI generation
+
+**Main build/3 Function**:
+- Returns `:skip` for `nil` AST nodes
+- Returns `:skip` in light mode (`!Context.full_mode?/1`)
+- Returns `:skip` for dependency files (`!Context.full_mode_for_file?/2`)
+- Delegates to `build_expression_triples/3` in full mode for project files
+
+**Expression Dispatch (13 patterns implemented)**:
+1. Comparison operators: `==`, `!=`, `===`, `!==`, `<`, `>`, `<=`, `>=`
+2. Logical operators: `and`, `or`, `not`, `&&`, `||`, `!`
+3. Arithmetic operators: `+`, `-`, `*`, `/`, `div`, `rem`
+4. Special operators: `|>`, `=`, `<>`, `++`, `--`, `in`, `&`
+5. Calls: Remote (`Module.function`), Local (`function(args)`)
+6. Literals: Integer, Float, String, Atom, List, Tuple, Map
+7. Patterns: Variable (`{name, _, ctx}`), Wildcard (`{:_}`)
+8. Fallback: Generic Expression type for unknown AST nodes
+
+**Stub Functions**:
+- `build_stub_expression/4` - Generates stub triples for operators with proper type and symbol
+- `build_stub_literal/4` - Generates stub triples for literals with value properties
+- `build_stub_variable/3` - Generates stub triples for variables with name property
+- `build_stub_wildcard/2` - Generates stub triples for wildcard patterns
+
+**IRI Generation**:
+- Pattern: `{base_iri}expr_{counter}` for root expressions
+- Helper: `fresh_iri/2` for nested expressions (e.g., `{parent}/left`, `{parent}/right`)
+- Counter: ETS-based with `reset_counter/1` and `next_counter/1`
+
+**Key Implementation Decisions**:
+1. **Pattern Order**: Variables must come before local calls, wildcards before tuples
+2. **Charlists**: All lists treated as ListLiterals (cannot distinguish `~c"hello"` from `[104, 101, ...]`)
+3. **nil Handling**: `nil` returns `:skip` (treated as "no expression")
+4. **ETS Counter**: Stores "next value" for correct increment behavior
+
+### 2025-01-10 - Initial Planning
+- Created feature planning document
+- Identified 28 tasks across 3 sections
+- Created feature branch `feature/phase-21-2-expression-builder`
+- Analyzed existing builder patterns for consistency
 
 ## Notes/Considerations
 
-1. **IRI Generation**: Step 2 uses simple counter-based IRIs. Phase 21.3 will refine this with proper IRI generation patterns.
+### Stub Implementation Approach
 
-2. **Builder Functions**: Step 4 creates stub functions that return basic types. Phase 21.4 will implement full nested expression building with proper operand handling.
+Since section 21.4 (Core Expression Builders) will implement the actual builder functions, this phase should:
 
-3. **AST Metadata**: The second element of AST tuples contains metadata (line numbers, etc.). We're not using this yet but should consider for Phase 21.3+.
+1. Create the dispatch structure with pattern matching
+2. Return placeholder results from stubs (e.g., `{:ok, {iri, []}}` with generic Expression type)
+3. Focus on getting the architecture right
 
-4. **Remote Calls**: The AST for `Module.function(args)` is complex:
-   ```elixir
-   {{:., [], [{:__aliases__, [], [:Module]}, :function]}, [], [args]}
-   ```
-   This will need special handling in Phase 21.4 or later.
+Alternative: Implement a few simple expression types (literals, variables) to demonstrate the pattern, leaving complex operators for 21.4.
 
-5. **Test Coverage**: Focus on testing the dispatch logic and return values. Detailed triple content testing will be more relevant after Phase 21.4 implements full builders.
+### File Path Detection
 
-## Progress
+The main `build/3` function should check `Context.full_mode_for_file?/2` which combines:
+- `context.config.include_expressions`
+- `Config.project_file?(file_path)`
 
-- [x] Create feature branch
-- [x] Read planning documents and existing code
-- [x] Create feature planning document
-- [ ] Implement module structure
-- [ ] Implement main build/3 function
-- [ ] Implement expression dispatch
-- [ ] Implement builder stubs
-- [ ] Write tests
-- [ ] Update planning document
-- [ ] Ask for permission to commit and merge
+This ensures dependency files are always light mode.
+
+### Counter for IRI Generation
+
+A simple counter will be needed for generating unique expression IRIs. This can be:
+- An Elixir Agent for process-global state
+- A counter stored in the Context
+- A simple integer counter with `generate_counter/0` function
+
+For this phase, a simple counter function will suffice.
+
+## Status Log
+
+### 2025-01-10 - Initial Planning
+- Created feature planning document
+- Identified 13 tasks across 3 sections
+- Created feature branch `feature/phase-21-2-expression-builder`
+- Analyzed existing builder patterns for consistency
