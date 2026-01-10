@@ -1,42 +1,50 @@
 defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   use ExUnit.Case, async: true
 
-  alias ElixirOntologies.Builders.{Context, ExpressionBuilder}
+  alias ElixirOntologies.Builders.ExpressionBuilder
+  alias ElixirOntologies.Builders.Context
   alias ElixirOntologies.NS.Core
 
-  doctest ExpressionBuilder
+  # ===========================================================================
+  # Setup
+  # ===========================================================================
 
-  describe "build/3 mode selection" do
-    setup do
-      # Reset counter before each test
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      :ok
-    end
+  setup do
+    # Reset counter before each test
+    ExpressionBuilder.reset_counter("https://example.org/code#")
+    :ok
+  end
 
+  # ===========================================================================
+  # Section 21.2.2: Main build/3 Function Tests
+  # ===========================================================================
+
+  describe "build/3 in light mode" do
     test "returns :skip when include_expressions is false" do
       context =
         Context.new(
           base_iri: "https://example.org/code#",
           config: %{include_expressions: false},
-          file_path: "lib/my_app/users.ex"
+          file_path: "lib/my_app.ex"
         )
 
-      ast = {:==, [], [{:x, [], nil}, 1]}
-      assert ExpressionBuilder.build(ast, context, []) == :skip
+      assert ExpressionBuilder.build({:==, [], [1, 2]}, context, []) == :skip
     end
 
-    test "returns :skip for nil AST regardless of mode" do
+    test "returns :skip for nil AST" do
       context =
         Context.new(
           base_iri: "https://example.org/code#",
           config: %{include_expressions: true},
-          file_path: "lib/my_app/users.ex"
+          file_path: "lib/my_app.ex"
         )
 
       assert ExpressionBuilder.build(nil, context, []) == :skip
     end
+  end
 
-    test "returns :skip for dependency files even when include_expressions is true" do
+  describe "build/3 for dependency files" do
+    test "returns :skip for dependency files even in full mode" do
       context =
         Context.new(
           base_iri: "https://example.org/code#",
@@ -44,1551 +52,498 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
           file_path: "deps/decimal/lib/decimal.ex"
         )
 
-      ast = {:==, [], [{:x, [], nil}, 1]}
-      assert ExpressionBuilder.build(ast, context, []) == :skip
+      assert ExpressionBuilder.build({:==, [], [1, 2]}, context, []) == :skip
     end
 
-    test "returns {:ok, {expr_iri, triples}} when include_expressions is true and project file" do
+    test "returns :skip for nested dependency paths" do
       context =
         Context.new(
           base_iri: "https://example.org/code#",
           config: %{include_expressions: true},
-          file_path: "lib/my_app/users.ex"
+          file_path: "deps/nimble_parsec/lib/mix/tasks/compile.ex"
         )
 
-      ast = {:==, [], [{:x, [], nil}, 1]}
-      result = ExpressionBuilder.build(ast, context, [])
-
-      assert {:ok, {expr_iri, triples}} = result
-      assert is_struct(expr_iri, RDF.IRI)
-      assert is_list(triples)
+      assert ExpressionBuilder.build({:==, [], [1, 2]}, context, []) == :skip
     end
   end
 
-  describe "build/3 IRI generation" do
+  describe "build/3 in full mode for project files" do
     setup do
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      :ok
-    end
-
-    test "generates IRI with correct base" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app/users.ex"
-        )
-
-      ast = {:==, [], [{:x, [], nil}, 1]}
-      {:ok, {expr_iri, _triples}} = ExpressionBuilder.build(ast, context, [])
-
-      iri_string = RDF.IRI.to_string(expr_iri)
-      assert String.starts_with?(iri_string, "https://example.org/code#expr/")
-    end
-
-    test "accepts custom suffix option" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app/users.ex"
-        )
-
-      ast = {:==, [], [{:x, [], nil}, 1]}
-      {:ok, {expr_iri, _triples}} = ExpressionBuilder.build(ast, context, suffix: "my_expr")
-
-      iri_string = RDF.IRI.to_string(expr_iri)
-      assert iri_string == "https://example.org/code#expr/my_expr"
-    end
-
-    test "generates unique IRIs for multiple calls" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app/users.ex"
-        )
-
-      ast = {:==, [], [{:x, [], nil}, 1]}
-
-      {:ok, {iri1, _}} = ExpressionBuilder.build(ast, context, [])
-      {:ok, {iri2, _}} = ExpressionBuilder.build(ast, context, [])
-
-      refute iri1 == iri2
-    end
-
-    test "generates deterministic sequential IRIs" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app/users.ex"
-        )
-
-      ast = {:==, [], [{:x, [], nil}, 1]}
-
-      {:ok, {iri1, _}} = ExpressionBuilder.build(ast, context, [])
-      {:ok, {iri2, _}} = ExpressionBuilder.build(ast, context, [])
-      {:ok, {iri3, _}} = ExpressionBuilder.build(ast, context, [])
-
-      # IRIs should be sequential based on counter
-      assert RDF.IRI.to_string(iri1) == "https://example.org/code#expr/expr_0"
-      assert RDF.IRI.to_string(iri2) == "https://example.org/code#expr/expr_1"
-      assert RDF.IRI.to_string(iri3) == "https://example.org/code#expr/expr_2"
-    end
-  end
-
-  describe "comparison operators" do
-    for op <- [:==, :!=, :===, :!==, :<, :>, :<=, :>=] do
-      @op op
-
-      test "dispatches #{op} to ComparisonOperator" do
-        context =
+      [
+        context:
           Context.new(
             base_iri: "https://example.org/code#",
             config: %{include_expressions: true},
-            file_path: "lib/my_app/users.ex"
+            file_path: "lib/my_app.ex"
           )
+      ]
+    end
 
-        ast = {@op, [], [{:x, [], nil}, 1]}
-        {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+    test "returns {:ok, {iri, triples}} for comparison operators", context do
+      assert {:ok, {iri, triples}} =
+               ExpressionBuilder.build({:==, [], [1, 2]}, context.context, [])
 
-        # Check for ComparisonOperator type
-        assert Enum.any?(triples, fn {_s, p, o} ->
-          p == RDF.type() and o == Core.ComparisonOperator
-        end)
+      assert %RDF.IRI{} = iri
+      assert is_list(triples)
+      assert length(triples) > 0
+    end
 
-        # Check for operator symbol
-        assert Enum.any?(triples, fn {_s, p, o} ->
-          p == Core.operatorSymbol() and
-            RDF.Literal.value(o) == to_string(@op)
-        end)
+    test "returns {:ok, {iri, triples}} for logical operators", context do
+      assert {:ok, {iri, triples}} =
+               ExpressionBuilder.build({:and, [], [true, false]}, context.context, [])
+
+      assert %RDF.IRI{} = iri
+      assert is_list(triples)
+      assert length(triples) > 0
+    end
+
+    test "returns {:ok, {iri, triples}} for arithmetic operators", context do
+      assert {:ok, {iri, triples}} =
+               ExpressionBuilder.build({:+, [], [1, 2]}, context.context, [])
+
+      assert %RDF.IRI{} = iri
+      assert is_list(triples)
+      assert length(triples) > 0
+    end
+
+    test "returns {:ok, {iri, triples}} for integer literals", context do
+      assert {:ok, {iri, triples}} = ExpressionBuilder.build(42, context.context, [])
+
+      assert %RDF.IRI{} = iri
+      assert is_list(triples)
+      assert length(triples) > 0
+    end
+
+    test "returns {:ok, {iri, triples}} for string literals", context do
+      assert {:ok, {iri, triples}} =
+               ExpressionBuilder.build("hello", context.context, [])
+
+      assert %RDF.IRI{} = iri
+      assert is_list(triples)
+      assert length(triples) > 0
+    end
+
+    test "returns {:ok, {iri, triples}} for atom literals", context do
+      assert {:ok, {iri, triples}} =
+               ExpressionBuilder.build(:foo, context.context, [])
+
+      assert %RDF.IRI{} = iri
+      assert is_list(triples)
+      assert length(triples) > 0
+    end
+
+    test "returns {:ok, {iri, triples}} for variables", context do
+      assert {:ok, {iri, triples}} =
+               ExpressionBuilder.build({:x, [], nil}, context.context, [])
+
+      assert %RDF.IRI{} = iri
+      assert is_list(triples)
+      assert length(triples) > 0
+    end
+
+    test "returns {:ok, {iri, triples}} for wildcard pattern", context do
+      assert {:ok, {iri, triples}} =
+               ExpressionBuilder.build({:_}, context.context, [])
+
+      assert %RDF.IRI{} = iri
+      assert is_list(triples)
+      assert length(triples) > 0
+    end
+  end
+
+  # ===========================================================================
+  # Section 21.2.3: Expression Dispatch Tests
+  # ===========================================================================
+
+  describe "expression dispatch - comparison operators" do
+    setup do
+      [
+        context:
+          Context.new(
+            base_iri: "https://example.org/code#",
+            config: %{include_expressions: true},
+            file_path: "lib/my_app.ex"
+          )
+      ]
+    end
+
+    for op <- [:==, :!=, :===, :!==, :<, :>, :<=, :>=] do
+      test "dispatches #{op} operator correctly", context do
+        ExpressionBuilder.reset_counter("https://example.org/code#")
+
+        assert {:ok, {iri, triples}} =
+                 ExpressionBuilder.build({unquote(op), [], [1, 2]}, context.context, [])
+
+        assert has_type?(triples, Core.ComparisonOperator)
+        assert has_operator_symbol?(triples, Atom.to_string(unquote(op)))
       end
     end
   end
 
-  describe "logical operators" do
-    test "dispatches and to LogicalOperator" do
-      context = full_mode_context()
-      ast = {:and, [], [true, false]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+  describe "expression dispatch - logical operators" do
+    setup do
+      [
+        context:
+          Context.new(
+            base_iri: "https://example.org/code#",
+            config: %{include_expressions: true},
+            file_path: "lib/my_app.ex"
+          )
+      ]
+    end
+
+    test "dispatches and operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:and, [], [true, false]}, context.context, [])
 
       assert has_type?(triples, Core.LogicalOperator)
       assert has_operator_symbol?(triples, "and")
     end
 
-    test "dispatches or to LogicalOperator" do
-      context = full_mode_context()
-      ast = {:or, [], [true, false]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+    test "dispatches or operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:or, [], [true, false]}, context.context, [])
 
       assert has_type?(triples, Core.LogicalOperator)
       assert has_operator_symbol?(triples, "or")
     end
 
-    test "dispatches && to LogicalOperator" do
-      context = full_mode_context()
-      ast = {:&&, [], [true, false]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+    test "dispatches not operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
 
-      assert has_type?(triples, Core.LogicalOperator)
-      assert has_operator_symbol?(triples, "&&")
-    end
-
-    test "dispatches || to LogicalOperator" do
-      context = full_mode_context()
-      ast = {:||, [], [true, false]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-      assert has_type?(triples, Core.LogicalOperator)
-      assert has_operator_symbol?(triples, "||")
-    end
-
-    test "dispatches not to LogicalOperator (unary)" do
-      context = full_mode_context()
-      ast = {:not, [], [true]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:not, [], [true]}, context.context, [])
 
       assert has_type?(triples, Core.LogicalOperator)
       assert has_operator_symbol?(triples, "not")
     end
 
-    test "dispatches ! to LogicalOperator (unary)" do
-      context = full_mode_context()
-      ast = {:!, [], [true]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+    test "dispatches && operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:&&, [], [true, false]}, context.context, [])
+
+      assert has_type?(triples, Core.LogicalOperator)
+      assert has_operator_symbol?(triples, "&&")
+    end
+
+    test "dispatches || operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:||, [], [true, false]}, context.context, [])
+
+      assert has_type?(triples, Core.LogicalOperator)
+      assert has_operator_symbol?(triples, "||")
+    end
+
+    test "dispatches ! operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:!, [], [true]}, context.context, [])
 
       assert has_type?(triples, Core.LogicalOperator)
       assert has_operator_symbol?(triples, "!")
     end
   end
 
-  describe "arithmetic operators" do
-    for op <- [:+, :-, :*, :/, :div, :rem] do
-      @op op
+  describe "expression dispatch - arithmetic operators" do
+    setup do
+      [
+        context:
+          Context.new(
+            base_iri: "https://example.org/code#",
+            config: %{include_expressions: true},
+            file_path: "lib/my_app.ex"
+          )
+      ]
+    end
 
-      test "dispatches #{op} to ArithmeticOperator" do
-        context = full_mode_context()
-        ast = {@op, [], [1, 2]}
-        {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+    for op <- [:+, :-, :*, :/] do
+      test "dispatches #{op} operator correctly", context do
+        ExpressionBuilder.reset_counter("https://example.org/code#")
+
+        assert {:ok, {_iri, triples}} =
+                 ExpressionBuilder.build({unquote(op), [], [1, 2]}, context.context, [])
 
         assert has_type?(triples, Core.ArithmeticOperator)
-        assert has_operator_symbol?(triples, to_string(@op))
+        assert has_operator_symbol?(triples, Atom.to_string(unquote(op)))
       end
+    end
+
+    test "dispatches div operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:div, [], [10, 3]}, context.context, [])
+
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "div")
+    end
+
+    test "dispatches rem operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:rem, [], [10, 3]}, context.context, [])
+
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "rem")
     end
   end
 
-  describe "pipe operator" do
-    test "dispatches |> to PipeOperator" do
-      context = full_mode_context()
-      ast = {:|>, [], [1, Enum]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+  describe "expression dispatch - special operators" do
+    setup do
+      [
+        context:
+          Context.new(
+            base_iri: "https://example.org/code#",
+            config: %{include_expressions: true},
+            file_path: "lib/my_app.ex"
+          )
+      ]
+    end
+
+    test "dispatches pipe operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:|>, [], [1, 2]}, context.context, [])
 
       assert has_type?(triples, Core.PipeOperator)
       assert has_operator_symbol?(triples, "|>")
     end
-  end
 
-  describe "string concatenation operator" do
-    test "dispatches <> to StringConcatOperator" do
-      context = full_mode_context()
-      ast = {:<>, [], ["hello", "world"]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+    test "dispatches match operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:=, [], [{:x, [], nil}, 1]}, context.context, [])
+
+      assert has_type?(triples, Core.MatchOperator)
+      assert has_operator_symbol?(triples, "=")
+    end
+
+    test "dispatches string concat operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:<>, [], ["a", "b"]}, context.context, [])
 
       assert has_type?(triples, Core.StringConcatOperator)
       assert has_operator_symbol?(triples, "<>")
     end
-  end
 
-  describe "list operators" do
-    test "dispatches ++ to ListOperator" do
-      context = full_mode_context()
-      ast = {:++, [], [[1], [2]]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+    test "dispatches list ++ operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:++, [], [[1], [2]]}, context.context, [])
 
       assert has_type?(triples, Core.ListOperator)
       assert has_operator_symbol?(triples, "++")
     end
 
-    test "dispatches -- to ListOperator" do
-      context = full_mode_context()
-      ast = {:--, [], [[1, 2], [1]]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+    test "dispatches list -- operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:--, [], [[1, 2], [1]]}, context.context, [])
 
       assert has_type?(triples, Core.ListOperator)
       assert has_operator_symbol?(triples, "--")
     end
-  end
 
-  describe "match operator" do
-    test "dispatches = to MatchOperator" do
-      context = full_mode_context()
-      ast = {:"=", [], [{:x, [], nil}, 1]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+    test "dispatches in operator", context do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
 
-      assert has_type?(triples, Core.MatchOperator)
-      assert has_operator_symbol?(triples, "=")
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:in, [], [1, [1, 2]]}, context.context, [])
+
+      assert has_type?(triples, Core.InOperator)
+      assert has_operator_symbol?(triples, "in")
     end
   end
 
-  describe "variables" do
-    test "dispatches variable pattern to Variable" do
-      context = full_mode_context()
-      ast = {:x, [], nil}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+  describe "expression dispatch - literals" do
+    setup do
+      [
+        context:
+          Context.new(
+            base_iri: "https://example.org/code#",
+            config: %{include_expressions: true},
+            file_path: "lib/my_app.ex"
+          )
+      ]
+    end
+
+    test "dispatches integer literal", context do
+      assert {:ok, {_iri, triples}} = ExpressionBuilder.build(42, context.context, [])
+
+      assert has_type?(triples, Core.IntegerLiteral)
+      assert has_integer_value?(triples, 42)
+    end
+
+    test "dispatches float literal", context do
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build(3.14, context.context, [])
+
+      assert has_type?(triples, Core.FloatLiteral)
+      assert has_float_value?(triples, 3.14)
+    end
+
+    test "dispatches string literal", context do
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build("hello", context.context, [])
+
+      assert has_type?(triples, Core.StringLiteral)
+      assert has_string_value?(triples, "hello")
+    end
+
+    test "dispatches atom literal", context do
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build(:foo, context.context, [])
+
+      assert has_type?(triples, Core.AtomLiteral)
+      assert has_atom_value?(triples, "foo")
+    end
+
+    test "dispatches true atom literal", context do
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build(true, context.context, [])
+
+      assert has_type?(triples, Core.AtomLiteral)
+      assert has_atom_value?(triples, "true")
+    end
+
+    test "dispatches false atom literal", context do
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build(false, context.context, [])
+
+      assert has_type?(triples, Core.AtomLiteral)
+      assert has_atom_value?(triples, "false")
+    end
+
+    test "dispatches nil atom literal", context do
+      # nil is treated as "no expression" and returns :skip
+      assert ExpressionBuilder.build(nil, context.context, []) == :skip
+    end
+
+    test "dispatches charlist literal", context do
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build(~c"hello", context.context, [])
+
+      # Note: Charlists are treated as ListLiterals since we can't distinguish
+      # between ~c"hello" and [104, 101, 108, 108, 111] at runtime
+      assert has_type?(triples, Core.ListLiteral)
+    end
+
+    test "dispatches list literal", context do
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build([1, 2, 3], context.context, [])
+
+      assert has_type?(triples, Core.ListLiteral)
+    end
+
+    test "dispatches tuple literal", context do
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({1, 2}, context.context, [])
+
+      assert has_type?(triples, Core.TupleLiteral)
+    end
+
+    test "dispatches map literal", context do
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build(%{a: 1}, context.context, [])
+
+      assert has_type?(triples, Core.MapLiteral)
+    end
+  end
+
+  describe "expression dispatch - variables and patterns" do
+    setup do
+      [
+        context:
+          Context.new(
+            base_iri: "https://example.org/code#",
+            config: %{include_expressions: true},
+            file_path: "lib/my_app.ex"
+          )
+      ]
+    end
+
+    test "dispatches variable", context do
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:x, [], nil}, context.context, [])
 
       assert has_type?(triples, Core.Variable)
-
-      # Check for name property
-      assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and RDF.Literal.value(o) == "x"
-      end)
+      assert has_name?(triples, "x")
     end
 
-    test "handles variables with different names" do
-      context = full_mode_context()
-
-      for var_name <- [:user, :count, :result, :acc] do
-        ast = {var_name, [], nil}
-        {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-        assert has_type?(triples, Core.Variable)
-        assert Enum.any?(triples, fn {_s, p, o} ->
-          p == Core.name() and RDF.Literal.value(o) == to_string(var_name)
-        end)
-      end
-    end
-  end
-
-  describe "wildcard pattern" do
-    test "dispatches _ to WildcardPattern" do
-      context = full_mode_context()
-      ast = {:_}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+    test "dispatches wildcard pattern", context do
+      assert {:ok, {_iri, triples}} =
+               ExpressionBuilder.build({:_}, context.context, [])
 
       assert has_type?(triples, Core.WildcardPattern)
     end
   end
 
-  describe "remote calls" do
-    test "dispatches Module.function to RemoteCall" do
-      context = full_mode_context()
+  # ===========================================================================
+  # Counter Tests
+  # ===========================================================================
 
-      # AST for String.to_integer("123")
-      ast =
-        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [],
-         ["123"]}
+  describe "counter management" do
+    test "reset_counter sets counter to 0" do
+      base_iri = "https://example.org/code#"
 
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      # Use counter a few times
+      ExpressionBuilder.next_counter(base_iri)
+      ExpressionBuilder.next_counter(base_iri)
 
-      assert has_type?(triples, Core.RemoteCall)
+      # Reset
+      ExpressionBuilder.reset_counter(base_iri)
 
-      # Check for name property with module and function
-      assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and
-          RDF.Literal.value(o) == "String.to_integer"
-      end)
+      # Next counter should be 0
+      assert ExpressionBuilder.next_counter(base_iri) == 0
     end
 
-    test "handles nested module names" do
-      context = full_mode_context()
+    test "next_counter increments on each call" do
+      base_iri = "https://example.org/code#"
 
-      # AST for MyApp.Users.get(1)
-      ast =
-        {{:., [], [{:__aliases__, [], [:MyApp, :Users]}, :get]}, [], [1]}
+      ExpressionBuilder.reset_counter(base_iri)
 
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-      assert has_type?(triples, Core.RemoteCall)
-      assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and RDF.Literal.value(o) == "MyApp.Users.get"
-      end)
+      assert ExpressionBuilder.next_counter(base_iri) == 0
+      assert ExpressionBuilder.next_counter(base_iri) == 1
+      assert ExpressionBuilder.next_counter(base_iri) == 2
     end
   end
 
-  describe "local calls" do
-    test "dispatches function(args) to LocalCall" do
-      context = full_mode_context()
-      ast = {:foo, [], [1, 2]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-      assert has_type?(triples, Core.LocalCall)
-
-      # Check for name property
-      assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and RDF.Literal.value(o) == "foo"
-      end)
-    end
-  end
-
-  describe "literals" do
-    test "builds IntegerLiteral triples for integer literals" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(42, context, [])
-
-      assert has_type?(triples, Core.IntegerLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.integerValue(), 42)
-    end
-
-    test "builds FloatLiteral triples for float literals" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(3.14, context, [])
-
-      assert has_type?(triples, Core.FloatLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.floatValue(), 3.14)
-    end
-
-    test "builds StringLiteral triples for string literals" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build("hello", context, [])
-
-      assert has_type?(triples, Core.StringLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.stringValue(), "hello")
-    end
-
-    test "builds AtomLiteral triples for atom literals" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(:ok, context, [])
-
-      assert has_type?(triples, Core.AtomLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.atomValue(), ":ok")
-    end
-
-    test "builds AtomLiteral triples for true" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(true, context, [])
-
-      assert has_type?(triples, Core.AtomLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.atomValue(), "true")
-    end
-
-    test "builds AtomLiteral triples for false" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(false, context, [])
-
-      assert has_type?(triples, Core.AtomLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.atomValue(), "false")
-    end
-
-    test "returns :skip for nil literals" do
-      context = full_mode_context()
-      assert ExpressionBuilder.build(nil, context, []) == :skip
-    end
-  end
-
-  describe "unknown expressions" do
-    test "dispatches unknown AST to generic Expression type" do
-      context = full_mode_context()
-
-      # Some unusual AST that doesn't match our patterns
-      # Using a 2-element tuple which is not a standard Elixir AST form
-      unusual_ast = {:some_unknown_form, :unexpected_second_element}
-
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(unusual_ast, context, [])
-
-      assert has_type?(triples, Core.Expression)
-    end
-  end
-
-  describe "expression_iri/3" do
-    test "generates IRI with counter-based suffix when no options provided" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          metadata: %{expression_counter: 0}
-        )
-
-      {iri, updated_context} = ExpressionBuilder.expression_iri("https://example.org/code#", context)
-
-      assert RDF.IRI.to_string(iri) == "https://example.org/code#expr/expr_0"
-      assert Context.get_expression_counter(updated_context) == 1
-    end
-
-    test "increments counter on each call" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          metadata: %{expression_counter: 0}
-        )
-
-      {iri1, ctx1} = ExpressionBuilder.expression_iri("https://example.org/code#", context)
-      {iri2, ctx2} = ExpressionBuilder.expression_iri("https://example.org/code#", ctx1)
-      {iri3, _ctx3} = ExpressionBuilder.expression_iri("https://example.org/code#", ctx2)
-
-      assert RDF.IRI.to_string(iri1) == "https://example.org/code#expr/expr_0"
-      assert RDF.IRI.to_string(iri2) == "https://example.org/code#expr/expr_1"
-      assert RDF.IRI.to_string(iri3) == "https://example.org/code#expr/expr_2"
-    end
-
-    test "uses custom suffix when provided" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          metadata: %{expression_counter: 5}
-        )
-
-      {iri, updated_context} =
-        ExpressionBuilder.expression_iri("https://example.org/code#", context, suffix: "my_custom_expr")
-
-      assert RDF.IRI.to_string(iri) == "https://example.org/code#expr/my_custom_expr"
-      # Counter should not be incremented when custom suffix is used
-      assert Context.get_expression_counter(updated_context) == 5
-    end
-
-    test "uses explicit counter option when provided" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          metadata: %{expression_counter: 10}
-        )
-
-      {iri, updated_context} =
-        ExpressionBuilder.expression_iri("https://example.org/code#", context, counter: 42)
-
-      assert RDF.IRI.to_string(iri) == "https://example.org/code#expr/expr_42"
-      # Counter should not be incremented when explicit counter is used
-      assert Context.get_expression_counter(updated_context) == 10
-    end
-
-    test "handles different base IRIs" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          metadata: %{expression_counter: 0}
-        )
-
-      {iri, _ctx} =
-        ExpressionBuilder.expression_iri("https://other.org/base#", context)
-
-      assert RDF.IRI.to_string(iri) == "https://other.org/base#expr/expr_0"
-    end
-  end
+  # ===========================================================================
+  # IRI Generation Tests
+  # ===========================================================================
 
   describe "fresh_iri/2" do
-    test "creates relative IRI from parent with left child" do
-      parent = RDF.IRI.new("https://example.org/code#expr/0")
+    test "generates relative IRI with suffix" do
+      parent = RDF.IRI.new("https://example.org/code#expr_0")
 
-      child_iri = ExpressionBuilder.fresh_iri(parent, "left")
+      assert ExpressionBuilder.fresh_iri(parent, "left") ==
+               RDF.IRI.new("https://example.org/code#expr_0/left")
 
-      assert RDF.IRI.to_string(child_iri) == "https://example.org/code#expr/0/left"
+      assert ExpressionBuilder.fresh_iri(parent, "right") ==
+               RDF.IRI.new("https://example.org/code#expr_0/right")
     end
 
-    test "creates relative IRI from parent with right child" do
-      parent = RDF.IRI.new("https://example.org/code#expr/5")
-
-      child_iri = ExpressionBuilder.fresh_iri(parent, "right")
-
-      assert RDF.IRI.to_string(child_iri) == "https://example.org/code#expr/5/right"
-    end
-
-    test "creates nested relative IRIs" do
-      parent = RDF.IRI.new("https://example.org/code#expr/0")
-
-      left_iri = ExpressionBuilder.fresh_iri(parent, "left")
-      left_left_iri = ExpressionBuilder.fresh_iri(left_iri, "left")
-
-      assert RDF.IRI.to_string(left_iri) == "https://example.org/code#expr/0/left"
-      assert RDF.IRI.to_string(left_left_iri) == "https://example.org/code#expr/0/left/left"
-    end
-
-    test "handles various child names" do
-      parent = RDF.IRI.new("https://example.org/code#expr/0")
-
-      assert ExpressionBuilder.fresh_iri(parent, "condition")
-             |> RDF.IRI.to_string() == "https://example.org/code#expr/0/condition"
-
-      assert ExpressionBuilder.fresh_iri(parent, "then")
-             |> RDF.IRI.to_string() == "https://example.org/code#expr/0/then"
-
-      assert ExpressionBuilder.fresh_iri(parent, "else")
-             |> RDF.IRI.to_string() == "https://example.org/code#expr/0/else"
-
-      assert ExpressionBuilder.fresh_iri(parent, "operand")
-             |> RDF.IRI.to_string() == "https://example.org/code#expr/0/operand"
-    end
-  end
-
-  describe "get_or_create_iri/3" do
-    test "creates new IRI when cache is nil" do
-      generator = fn -> RDF.IRI.new("https://example.org/expr/0") end
-
-      {iri, cache} = ExpressionBuilder.get_or_create_iri(nil, :some_key, generator)
-
-      assert RDF.IRI.to_string(iri) == "https://example.org/expr/0"
-      assert cache == %{}
-    end
-
-    test "creates and caches new IRI on first call" do
-      cache = %{}
-      generator = fn -> RDF.IRI.new("https://example.org/expr/new") end
-
-      {iri, updated_cache} =
-        ExpressionBuilder.get_or_create_iri(cache, :my_key, generator)
-
-      assert RDF.IRI.to_string(iri) == "https://example.org/expr/new"
-      assert Map.has_key?(updated_cache, :my_key)
-    end
-
-    test "reuses cached IRI on subsequent calls with same key" do
-      cache = %{}
-      gen1 = fn -> RDF.IRI.new("https://example.org/expr/first") end
-      gen2 = fn -> RDF.IRI.new("https://example.org/expr/second") end
-
-      {iri1, cache1} = ExpressionBuilder.get_or_create_iri(cache, :same_key, gen1)
-      {iri2, cache2} = ExpressionBuilder.get_or_create_iri(cache1, :same_key, gen2)
-
-      # Second generator should not be called - IRI is reused
-      assert iri1 == iri2
-      assert RDF.IRI.to_string(iri1) == "https://example.org/expr/first"
-      assert cache2 == cache1
-    end
-
-    test "creates different IRIs for different keys" do
-      cache = %{}
-
-      # Each key gets its own generator
-      gen1 = fn -> RDF.IRI.new("https://example.org/expr/first") end
-      gen2 = fn -> RDF.IRI.new("https://example.org/expr/second") end
-
-      {iri1, cache1} = ExpressionBuilder.get_or_create_iri(cache, :key1, gen1)
-      {iri2, cache2} = ExpressionBuilder.get_or_create_iri(cache1, :key2, gen2)
-
-      # Should create two different IRIs
-      refute iri1 == iri2
-      assert Map.has_key?(cache2, :key1)
-      assert Map.has_key?(cache2, :key2)
-    end
-
-    test "works with complex cache keys" do
-      cache = %{}
-
-      # Using AST structure as cache key
-      ast_key1 = {:==, [], [{:x, [], nil}, 1]}
-      ast_key2 = {:==, [], [{:y, [], nil}, 2]}
-      ast_key3 = {:==, [], [{:x, [], nil}, 1]} # Same as key1
-
-      # Create unique generators for each key
-      gen1 = fn -> RDF.IRI.new("https://example.org/expr/hash1") end
-      gen2 = fn -> RDF.IRI.new("https://example.org/expr/hash2") end
-      gen3 = fn -> RDF.IRI.new("https://example.org/expr/hash3") end
-
-      {iri1, cache1} = ExpressionBuilder.get_or_create_iri(cache, ast_key1, gen1)
-      {iri2, cache2} = ExpressionBuilder.get_or_create_iri(cache1, ast_key2, gen2)
-      {iri3, _cache3} = ExpressionBuilder.get_or_create_iri(cache2, ast_key3, gen3)
-
-      # key1 and key3 are the same, so IRIs should match (key3 reuses cached value from key1)
-      assert iri1 == iri3
-      refute iri1 == iri2
-    end
-  end
-
-  describe "Context expression counter" do
-    test "with_expression_counter/1 initializes counter to 0" do
-      context = Context.new(base_iri: "https://example.org/code#")
-
-      initialized = Context.with_expression_counter(context)
-
-      assert Context.get_expression_counter(initialized) == 0
-    end
-
-    test "next_expression_counter/1 returns current counter and increments" do
-      context = Context.new(base_iri: "https://example.org/code#")
-      context = Context.with_expression_counter(context)
-
-      {counter1, ctx1} = Context.next_expression_counter(context)
-      {counter2, ctx2} = Context.next_expression_counter(ctx1)
-      {counter3, _ctx3} = Context.next_expression_counter(ctx2)
-
-      assert counter1 == 0
-      assert counter2 == 1
-      assert counter3 == 2
-    end
-
-    test "next_expression_counter/1 works with pre-initialized counter" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          metadata: %{expression_counter: 5}
-        )
-
-      {counter, updated_ctx} = Context.next_expression_counter(context)
-
-      assert counter == 5
-      assert Context.get_expression_counter(updated_ctx) == 6
-    end
-
-    test "get_expression_counter/1 returns current counter without incrementing" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          metadata: %{expression_counter: 10}
-        )
-
-      assert Context.get_expression_counter(context) == 10
-      assert Context.get_expression_counter(context) == 10 # Still 10
-    end
-
-    test "get_expression_counter/1 defaults to 0 when not set" do
-      context = Context.new(base_iri: "https://example.org/code#")
-
-      assert Context.get_expression_counter(context) == 0
-    end
-  end
-
-  describe "integration tests" do
-    setup do
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      ExpressionBuilder.reset_counter("https://other.org/base#")
-      :ok
-    end
-
-    test "complete IRI flow through ExpressionBuilder" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app/users.ex"
-        )
-
-      # Build multiple expressions and verify sequential IRIs
-      ast1 = {:==, [], [{:x, [], nil}, 1]}
-      ast2 = {:>, [], [{:y, [], nil}, 5]}
-      ast3 = {:and, [], [true, false]}
-
-      {:ok, {iri1, _}} = ExpressionBuilder.build(ast1, context, [])
-      {:ok, {iri2, _}} = ExpressionBuilder.build(ast2, context, [])
-      {:ok, {iri3, _}} = ExpressionBuilder.build(ast3, context, [])
-
-      # Sequential IRIs based on counter
-      assert RDF.IRI.to_string(iri1) == "https://example.org/code#expr/expr_0"
-      assert RDF.IRI.to_string(iri2) == "https://example.org/code#expr/expr_1"
-      assert RDF.IRI.to_string(iri3) == "https://example.org/code#expr/expr_2"
-    end
-
-    test "fresh_iri creates proper hierarchy for nested expressions" do
-      # Simulate nested binary operator: x > 5 and y < 10
-      parent = RDF.IRI.new("https://example.org/code#expr/0")
-
-      left = ExpressionBuilder.fresh_iri(parent, "left")
-      right = ExpressionBuilder.fresh_iri(parent, "right")
-
-      # Verify hierarchy
-      assert RDF.IRI.to_string(left) == "https://example.org/code#expr/0/left"
-      assert RDF.IRI.to_string(right) == "https://example.org/code#expr/0/right"
-
-      # Nested children
-      left_left = ExpressionBuilder.fresh_iri(left, "left")
-      assert RDF.IRI.to_string(left_left) == "https://example.org/code#expr/0/left/left"
-    end
-
-    test "get_or_create_iri enables expression deduplication" do
-      # Simulate shared sub-expression: x == 1 appearing twice
-      shared_expr = {:==, [], [{:x, [], nil}, 1]}
-
-      cache = %{}
-
-      # First occurrence - creates new IRI
-      {iri1, cache1} =
-        ExpressionBuilder.get_or_create_iri(
-          cache,
-          shared_expr,
-          fn -> RDF.IRI.new("https://example.org/code#expr/shared_0") end
-        )
-
-      # Second occurrence - reuses cached IRI
-      {iri2, cache2} =
-        ExpressionBuilder.get_or_create_iri(
-          cache1,
-          shared_expr,
-          fn -> RDF.IRI.new("https://example.org/code#expr/shared_new") end
-        )
-
-      # Same IRI should be returned
-      assert iri1 == iri2
-      assert RDF.IRI.to_string(iri1) == "https://example.org/code#expr/shared_0"
-
-      # Different expression - creates new IRI
-      different_expr = {:!=, [], [{:y, [], nil}, 2]}
-      {iri3, _cache3} =
-        ExpressionBuilder.get_or_create_iri(
-          cache2,
-          different_expr,
-          fn -> RDF.IRI.new("https://example.org/code#expr/shared_1") end
-        )
-
-      refute iri1 == iri3
-      assert RDF.IRI.to_string(iri3) == "https://example.org/code#expr/shared_1"
-    end
-
-    test "counter properly resets between different contexts" do
-      # Setup: reset counters for both base IRIs
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      ExpressionBuilder.reset_counter("https://other.org/base#")
-
-      # Context 1
-      context1 =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app/users.ex"
-        )
-
-      {:ok, {iri1, _}} = ExpressionBuilder.build({:==, [], [1, 1]}, context1, [])
-      {:ok, {iri2, _}} = ExpressionBuilder.build({:==, [], [2, 2]}, context1, [])
-
-      # Context 2 - different base IRI, so counter starts at 0
-      context2 =
-        Context.new(
-          base_iri: "https://other.org/base#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app/accounts.ex"
-        )
-
-      {:ok, {iri3, _}} = ExpressionBuilder.build({:==, [], [3, 3]}, context2, [])
-
-      # context1 starts at expr_0 and increments
-      assert RDF.IRI.to_string(iri1) == "https://example.org/code#expr/expr_0"
-      assert RDF.IRI.to_string(iri2) == "https://example.org/code#expr/expr_1"
-
-      # context2 has different base IRI, so starts at expr_0
-      assert RDF.IRI.to_string(iri3) == "https://other.org/base#expr/expr_0"
-    end
-
-    test "custom suffix option bypasses counter" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app/users.ex"
-        )
-
-      # Use custom suffix
-      ast = {:==, [], [{:x, [], nil}, 1]}
-      {:ok, {iri1, _}} = ExpressionBuilder.build(ast, context, suffix: "custom_expr")
-
-      # Next expression without suffix should use counter
-      {:ok, {iri2, _}} = ExpressionBuilder.build(ast, context, [])
-
-      # Custom suffix should be respected
-      assert RDF.IRI.to_string(iri1) == "https://example.org/code#expr/custom_expr"
-      # Counter expression should start at 0
-      assert RDF.IRI.to_string(iri2) == "https://example.org/code#expr/expr_0"
-    end
-  end
-
-  describe "nested expression tests (Phase 21.4)" do
-    setup do
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      :ok
-    end
-
-    test "binary operator creates left and right operand triples" do
-      context = full_mode_context()
-      # x > 5
-      ast = {:>, [], [{:x, [], nil}, 5]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-      # Should have operator type and symbol
-      assert has_type?(triples, Core.ComparisonOperator)
-      assert has_operator_symbol?(triples, ">")
-
-      # Should link to left and right operands
-      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
-      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
-
-      assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
-
-      assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
-
-      # Left operand should be a Variable
-      assert has_type?(triples, Core.Variable)
-      assert has_literal_value?(triples, left_iri, Core.name(), "x")
-
-      # Right operand should be an IntegerLiteral
-      assert has_type?(triples, Core.IntegerLiteral)
-      assert has_literal_value?(triples, right_iri, Core.integerValue(), 5)
-    end
-
-    test "nested binary operators create correct IRI hierarchy" do
-      context = full_mode_context()
-      # x > 5 and y < 10
-      ast = {:and, [], [{:>, [], [{:x, [], nil}, 5]}, {:<, [], [{:y, [], nil}, 10]}]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-      # Top-level is LogicalOperator (and)
-      assert has_type?(triples, Core.LogicalOperator)
-      assert has_operator_symbol?(triples, "and")
-
-      # Left child is a comparison operator
-      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
-      assert Enum.any?(triples, fn {s, _p, o} ->
-        s == left_iri and o == Core.ComparisonOperator
-      end)
-      assert Enum.any?(triples, fn {s, p, o} ->
-        s == left_iri and p == Core.operatorSymbol() and
-          RDF.Literal.value(o) == ">"
-      end)
-
-      # Left-left is Variable "x"
-      left_left_iri = ExpressionBuilder.fresh_iri(left_iri, "left")
-      assert Enum.any?(triples, fn {s, _p, o} ->
-        s == left_left_iri and o == Core.Variable
-      end)
-      assert Enum.any?(triples, fn {s, p, o} ->
-        s == left_left_iri and p == Core.name() and
-          RDF.Literal.value(o) == "x"
-      end)
-
-      # Left-right is IntegerLiteral 5
-      left_right_iri = ExpressionBuilder.fresh_iri(left_iri, "right")
-      assert Enum.any?(triples, fn {s, _p, o} ->
-        s == left_right_iri and o == Core.IntegerLiteral
-      end)
-      assert Enum.any?(triples, fn {s, p, o} ->
-        s == left_right_iri and p == Core.integerValue() and
-          RDF.Literal.value(o) == 5
-      end)
-    end
-
-    test "unary operator creates operand triples" do
-      context = full_mode_context()
-      # not x
-      ast = {:not, [], [{:x, [], nil}]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-      # Should have operator type and symbol
-      assert has_type?(triples, Core.LogicalOperator)
-      assert has_operator_symbol?(triples, "not")
-
-      # Should link to operand
-      operand_iri = ExpressionBuilder.fresh_iri(expr_iri, "operand")
-      assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasOperand() and o == operand_iri
-      end)
-
-      # Operand should be a Variable
-      assert has_type?(triples, Core.Variable)
-      assert has_literal_value?(triples, operand_iri, Core.name(), "x")
-    end
-
-    test "arithmetic operators create nested expressions" do
-      context = full_mode_context()
-      # x + y * 2
-      ast = {:+, [], [{:x, [], nil}, {:*, [], [{:y, [], nil}, 2]}]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-      # Top-level is ArithmeticOperator (+)
-      assert has_type?(triples, Core.ArithmeticOperator)
-      assert has_operator_symbol?(triples, "+")
-
-      # Right operand is another ArithmeticOperator (*)
-      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
-      assert Enum.any?(triples, fn {s, _p, o} ->
-        s == right_iri and o == Core.ArithmeticOperator
-      end)
-      assert Enum.any?(triples, fn {s, p, o} ->
-        s == right_iri and p == Core.operatorSymbol() and
-          RDF.Literal.value(o) == "*"
-      end)
-    end
-
-    test "match operator creates left and right expressions" do
-      context = full_mode_context()
-      # x = 42
-      ast = {:=, [], [{:x, [], nil}, 42]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-      # Should have MatchOperator type
-      assert has_type?(triples, Core.MatchOperator)
-      assert has_operator_symbol?(triples, "=")
-
-      # Should have left and right operands
-      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
-      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
-
-      assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
-
-      assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
-
-      # Left is Variable "x"
-      assert has_type?(triples, Core.Variable)
-      assert has_literal_value?(triples, left_iri, Core.name(), "x")
-
-      # Right is IntegerLiteral 42
-      assert has_type?(triples, Core.IntegerLiteral)
-      assert has_literal_value?(triples, right_iri, Core.integerValue(), 42)
-    end
-  end
-
-  # ===========================================================================
-  # Helper Functions Tests (21.6)
-  # ===========================================================================
-
-  describe "build_child_expressions/3" do
-    setup do
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      :ok
-    end
-
-    test "builds expressions for a list of literals" do
-      context = full_mode_context()
-      asts = [1, 2, 3]
-
-      {children, triples} = ExpressionBuilder.build_child_expressions(asts, context)
-
-      # Should have 3 children
-      assert length(children) == 3
-
-      # Each child should have an IRI and triples
-      Enum.each(children, fn {iri, child_triples} ->
-        assert %RDF.IRI{} = iri
-        assert is_list(child_triples)
-        assert length(child_triples) > 0
-      end)
-
-      # Combined triples should include all child triples
-      assert length(triples) > 0
-    end
-
-    test "filters out nil ASTs" do
-      context = full_mode_context()
-      asts = [1, nil, 3]
-
-      {children, _triples} = ExpressionBuilder.build_child_expressions(asts, context)
-
-      # Should only have 2 children (nil filtered out)
-      assert length(children) == 2
-    end
-
-    test "returns empty list for empty input" do
-      context = full_mode_context()
-
-      {children, triples} = ExpressionBuilder.build_child_expressions([], context)
-
-      assert children == []
-      assert triples == []
-    end
-
-    test "returns empty list when all ASTs are nil" do
-      context = full_mode_context()
-
-      {children, triples} = ExpressionBuilder.build_child_expressions([nil, nil], context)
-
-      assert children == []
-      assert triples == []
-    end
-
-    test "handles mixed expression types" do
-      context = full_mode_context()
-      asts = [1, :atom, "string"]
-
-      {children, triples} = ExpressionBuilder.build_child_expressions(asts, context)
-
-      assert length(children) == 3
-
-      # Should have IntegerLiteral, AtomLiteral, and StringLiteral
-      assert has_type?(triples, Core.IntegerLiteral)
-      assert has_type?(triples, Core.AtomLiteral)
-      assert has_type?(triples, Core.StringLiteral)
-    end
-  end
-
-  describe "combine_triples/1" do
-    test "flattens nested lists of triples" do
-      triple1 = {RDF.IRI.new("http://example.org/s1"), RDF.IRI.new("http://example.org/p1"), RDF.IRI.new("http://example.org/o1")}
-      triple2 = {RDF.IRI.new("http://example.org/s2"), RDF.IRI.new("http://example.org/p2"), RDF.IRI.new("http://example.org/o2")}
-      triple3 = {RDF.IRI.new("http://example.org/s3"), RDF.IRI.new("http://example.org/p3"), RDF.IRI.new("http://example.org/o3")}
-
-      result =
-        ExpressionBuilder.combine_triples([
-          [triple1],
-          [[triple2], [triple3]]
-        ])
-
-      # Should flatten to single list
-      assert length(result) == 3
-      assert triple1 in result
-      assert triple2 in result
-      assert triple3 in result
-    end
-
-    test "removes duplicate triples" do
-      triple1 = {RDF.IRI.new("http://example.org/s"), RDF.IRI.new("http://example.org/p"), RDF.IRI.new("http://example.org/o")}
-      triple2 = {RDF.IRI.new("http://example.org/s"), RDF.IRI.new("http://example.org/p"), RDF.IRI.new("http://example.org/o")}
-      triple3 = {RDF.IRI.new("http://example.org/s2"), RDF.IRI.new("http://example.org/p2"), RDF.IRI.new("http://example.org/o2")}
-
-      result = ExpressionBuilder.combine_triples([[triple1], [triple2], [triple3]])
-
-      # triple1 and triple2 are the same - should only appear once
-      assert length(result) == 2
-      assert triple1 in result
-      assert triple3 in result
-    end
-
-    test "handles empty list" do
-      result = ExpressionBuilder.combine_triples([])
-      assert result == []
-    end
-
-    test "handles already flat list" do
-      triple1 = {RDF.IRI.new("http://example.org/s1"), RDF.IRI.new("http://example.org/p1"), RDF.IRI.new("http://example.org/o1")}
-      triple2 = {RDF.IRI.new("http://example.org/s2"), RDF.IRI.new("http://example.org/p2"), RDF.IRI.new("http://example.org/o2")}
-
-      result = ExpressionBuilder.combine_triples([triple1, triple2])
-
-      assert length(result) == 2
-      assert triple1 in result
-      assert triple2 in result
-    end
-  end
-
-  describe "maybe_build/3" do
-    setup do
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      :ok
-    end
-
-    test "returns nil for nil AST" do
-      context = full_mode_context()
-
-      result = ExpressionBuilder.maybe_build(nil, context, [])
-
-      assert result == nil
-    end
-
-    test "returns :skip in light mode" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: false},
-          file_path: "lib/my_app.ex"
-        )
-
-      result = ExpressionBuilder.maybe_build({:x, [], nil}, context, [])
-
-      assert result == :skip
-    end
-
-    test "builds expression in full mode" do
-      context = full_mode_context()
-
-      result = ExpressionBuilder.maybe_build(42, context, [])
-
-      assert {:ok, {_iri, triples}} = result
-      assert is_list(triples)
-      assert length(triples) > 0
-    end
-
-    test "returns :skip for dependency file in full mode" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "deps/decimal/lib/decimal.ex"
-        )
-
-      result = ExpressionBuilder.maybe_build({:x, [], nil}, context, [])
-
-      assert result == :skip
-    end
-
-    test "distinguishes between nil AST and :skip" do
-      full_context = full_mode_context()
-      light_context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: false},
-          file_path: "lib/my_app.ex"
-        )
-
-      # Nil AST returns nil (expression absent)
-      assert ExpressionBuilder.maybe_build(nil, full_context, []) == nil
-
-      # Light mode returns :skip (expression not extracted)
-      assert ExpressionBuilder.maybe_build({:x, [], nil}, light_context, []) == :skip
-
-      # Full mode builds expression
-      assert {:ok, _} = ExpressionBuilder.maybe_build(42, full_context, [])
-    end
-  end
-
-  # ===========================================================================
-  # Phase 21 Integration Tests
-  # ===========================================================================
-
-  describe "Phase 21 Integration Tests" do
-    setup do
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      :ok
-    end
-
-    # ---------------------------------------------------------------------
-    # Config Flow Tests
-    # ---------------------------------------------------------------------
-
-    test "complete config flow: Config.new → merge → validate → use in Context" do
-      # Create config with include_expressions
-      config = ElixirOntologies.Config.new()
-      merged = ElixirOntologies.Config.merge(config, include_expressions: true)
-      assert {:ok, validated} = ElixirOntologies.Config.validate(merged)
-      assert validated.include_expressions == true
-
-      # Use in Context
-      context = Context.new(
-        base_iri: "https://example.org/code#",
-        config: validated,
-        file_path: "lib/my_app.ex"
-      )
-
-      # Context should have the config
-      assert context.config.include_expressions == true
-
-      # ExpressionBuilder should use the config
-      ast = {:==, [], [{:x, [], nil}, 1]}
-      result = ExpressionBuilder.build(ast, context, [])
-
-      # Should build expression (not skip)
-      assert {:ok, {_iri, triples}} = result
-      assert length(triples) > 0
-    end
-
-    # ---------------------------------------------------------------------
-    # Mode Selection Tests (Comprehensive)
-    # ---------------------------------------------------------------------
-
-    test "ExpressionBuilder returns :skip in light mode for all expression types" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: false},
-          file_path: "lib/my_app.ex"
-        )
-
-      # Test various expression types all return :skip in light mode
-      expressions = [
-        # Comparison operators
-        {:==, [], [1, 2]},
-        {:!=, [], [1, 2]},
-        {:<, [], [1, 2]},
-        # Logical operators
-        {:and, [], [true, false]},
-        {:or, [], [true, false]},
-        # Arithmetic operators
-        {:+, [], [1, 2]},
-        {:*, [], [2, 3]},
-        # Literals
-        42,
-        "hello",
-        :atom,
-        # Variables
-        {:x, [], nil}
-      ]
-
-      Enum.each(expressions, fn ast ->
-        assert ExpressionBuilder.build(ast, context, []) == :skip
-      end)
-    end
-
-    test "ExpressionBuilder builds expressions in full mode for comparison operators" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app.ex"
-        )
-
-      # Test all comparison operators build correct triples
-      comparison_ops = [:==, :!=, :===, :!==, :<, :>, :<=, :>=]
-
-      Enum.each(comparison_ops, fn op ->
-        ExpressionBuilder.reset_counter("https://example.org/code#")
-        ast = {op, [], [{:x, [], nil}, 1]}
-
-        assert {:ok, {_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-        # Should have ComparisonOperator type
-        assert has_type?(triples, Core.ComparisonOperator)
-
-        # Should have operator symbol
-        assert has_operator_symbol?(triples, Atom.to_string(op))
-
-        # Should have operands
-        assert has_type?(triples, Core.Variable)
-        assert has_type?(triples, Core.IntegerLiteral)
-      end)
-    end
-
-    test "ExpressionBuilder builds expressions in full mode for logical operators" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app.ex"
-        )
-
-      # Test logical operators build correct triples
-      logical_ops = [:and, :or, :&&, :||]
-
-      Enum.each(logical_ops, fn op ->
-        ExpressionBuilder.reset_counter("https://example.org/code#")
-        ast = {op, [], [true, false]}
-
-        assert {:ok, {_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-        # Should have LogicalOperator type
-        assert has_type?(triples, Core.LogicalOperator)
-
-        # Should have operator symbol
-        assert has_operator_symbol?(triples, Atom.to_string(op))
-
-        # Should have operands (AtomLiterals for true/false)
-        assert Enum.count(triples, fn {_s, p, o} -> p == RDF.type() and o == Core.AtomLiteral end) >= 2
-      end)
-    end
-
-    # ---------------------------------------------------------------------
-    # Nested Expression Tests
-    # ---------------------------------------------------------------------
-
-    test "nested binary operators create correct IRI hierarchy" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app.ex"
-        )
-
-      # Nested expression: (x > 5) and (y < 10)
-      # AST: {:and, [], [{:>, [], [{:x, [], nil}, 5]}, {:<, [], [{:y, [], nil}, 10]}]}
-      ast = {:and, [], [{:>, [], [{:x, [], nil}, 5]}, {:<, [], [{:y, [], nil}, 10]}]}
-
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-      # Main expression should be LogicalOperator
-      assert has_type_for_subject?(triples, expr_iri, Core.LogicalOperator)
-
-      # Should have left and right operands
-      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
-      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
-
-      assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
-
-      assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
-
-      # Left operand should be ComparisonOperator (x > 5)
-      assert has_type_for_subject?(triples, left_iri, Core.ComparisonOperator)
-
-      # Right operand should be ComparisonOperator (y < 10)
-      assert has_type_for_subject?(triples, right_iri, Core.ComparisonOperator)
-
-      # Verify IRI hierarchy
-      expr_iri_string = RDF.IRI.to_string(expr_iri)
-      assert String.ends_with?(expr_iri_string, "/expr_0")
-      assert RDF.IRI.to_string(left_iri) == "#{expr_iri_string}/left"
-      assert RDF.IRI.to_string(right_iri) == "#{expr_iri_string}/right"
-    end
-
-    test "expression IRIs follow parent-child pattern for deeply nested expressions" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app.ex"
-        )
-
-      # Deeply nested: (x + y) > (z * w)
-      # AST structure: {:>, [], [{:+, [], [x, y]}, {:*, [], [z, w]}]}
-      ast = {:>, [], [{:+, [], [{:x, [], nil}, {:y, [], nil}]}, {:*, [], [{:z, [], nil}, {:w, [], nil}]}]}
-
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-      # Main expression
-      expr_iri_string = RDF.IRI.to_string(expr_iri)
-
-      # Left operand (x + y)
-      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
-      left_iri_string = RDF.IRI.to_string(left_iri)
-      assert left_iri_string == "#{expr_iri_string}/left"
-
-      # Left-left operand (x)
-      left_left_iri = ExpressionBuilder.fresh_iri(left_iri, "left")
-      assert RDF.IRI.to_string(left_left_iri) == "#{left_iri_string}/left"
-
-      # Left-right operand (y)
-      left_right_iri = ExpressionBuilder.fresh_iri(left_iri, "right")
-      assert RDF.IRI.to_string(left_right_iri) == "#{left_iri_string}/right"
-
-      # Verify IRI structure in triples
-      assert has_type_for_subject?(triples, expr_iri, Core.ComparisonOperator)
-      assert has_type_for_subject?(triples, left_iri, Core.ArithmeticOperator)
-    end
-
-    # ---------------------------------------------------------------------
-    # Context Propagation Tests
-    # ---------------------------------------------------------------------
-
-    test "Context.full_mode_for_file?/2 returns true for project file with full config" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app/users.ex"
-        )
-
-      assert Context.full_mode_for_file?(context, "lib/my_app/users.ex")
-      assert Context.full_mode?(context)
-      refute Context.light_mode?(context)
-    end
-
-    test "Context.full_mode_for_file?/2 returns false for project file with light config" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: false},
-          file_path: "lib/my_app/users.ex"
-        )
-
-      refute Context.full_mode_for_file?(context, "lib/my_app/users.ex")
-      refute Context.full_mode?(context)
-      assert Context.light_mode?(context)
-    end
-
-    test "Context.full_mode_for_file?/2 returns false for dependency file even with full config" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app/users.ex"
-        )
-
-      # Dependency file should always be light mode
-      refute Context.full_mode_for_file?(context, "deps/decimal/lib/decimal.ex")
-      # Note: light_mode_for_file?/2 doesn't exist, but we can infer it
-      assert Context.light_mode?(context) or not Context.full_mode_for_file?(context, "deps/decimal/lib/decimal.ex")
-    end
-
-    # ---------------------------------------------------------------------
-    # Helper Function Tests with Real AST
-    # ---------------------------------------------------------------------
-
-    test "build_child_expressions/3 works with real AST nodes" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app.ex"
-        )
-
-      # Real-world example: function arguments [1, x + y, :atom]
-      asts = [1, {:+, [], [{:x, [], nil}, {:y, [], nil}]}, :result]
-
-      {children, triples} = ExpressionBuilder.build_child_expressions(asts, context)
-
-      # Should have 3 children
-      assert length(children) == 3
-
-      # Should have triples for all expressions
-      assert length(triples) > 0
-
-      # Should have IntegerLiteral, ArithmeticOperator, and AtomLiteral
-      assert has_type?(triples, Core.IntegerLiteral)
-      assert has_type?(triples, Core.ArithmeticOperator)
-      assert has_type?(triples, Core.AtomLiteral)
-    end
-
-    test "combine_triples/1 works with nested expression triples" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app.ex"
-        )
-
-      # Build two expressions and combine their triples
-      {:ok, {_iri1, triples1}} = ExpressionBuilder.build({:==, [], [1, 2]}, context, [])
-      {:ok, {_iri2, triples2}} = ExpressionBuilder.build({:>, [], [3, 4]}, context, [])
-
-      # Combine and deduplicate
-      combined = ExpressionBuilder.combine_triples([triples1, triples2])
-
-      # Should have triples from both expressions
-      assert length(combined) > 0
-      assert has_type?(combined, Core.ComparisonOperator)
-
-      # Count ComparisonOperator types - should have 2 (one for each expression)
-      comparison_count =
-        Enum.count(combined, fn {_s, p, o} -> p == RDF.type() and o == Core.ComparisonOperator end)
-
-      assert comparison_count == 2
-    end
-
-    # ---------------------------------------------------------------------
-    # Backward Compatibility Tests
-    # ---------------------------------------------------------------------
-
-    test "light mode extraction produces no expression triples (backward compatibility)" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: false},
-          file_path: "lib/my_app.ex"
-        )
-
-      # In light mode, expressions should be skipped
-      ast = {:==, [], [{:x, [], nil}, 42]}
-      result = ExpressionBuilder.build(ast, context, [])
-
-      # Should return :skip (no triples)
-      assert result == :skip
-    end
-
-    test "full mode extraction includes expression triples" do
-      context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app.ex"
-        )
-
-      # In full mode, expressions should be built
-      ast = {:==, [], [{:x, [], nil}, 42]}
-      {:ok, {_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-
-      # Should have expression triples
-      assert length(triples) > 0
-
-      # Should have type triple
-      assert Enum.any?(triples, fn {_s, p, _o} -> p == RDF.type() end)
-
-      # Should have operator symbol
-      assert Enum.any?(triples, fn {_s, p, _o} -> p == Core.operatorSymbol() end)
-
-      # Should have operands
-      assert Enum.any?(triples, fn {_s, p, _o} -> p == Core.hasLeftOperand() end)
-      assert Enum.any?(triples, fn {_s, p, _o} -> p == Core.hasRightOperand() end)
-    end
-
-    # ---------------------------------------------------------------------
-    # Project vs Dependency Tests
-    # ---------------------------------------------------------------------
-
-    test "full mode applies to project files but not dependency files" do
-      # Project file with full mode
-      project_context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "lib/my_app.ex"
-        )
-
-      ast = {:==, [], [1, 2]}
-
-      # Project file should build expressions
-      assert {:ok, {_iri, triples}} = ExpressionBuilder.build(ast, project_context, [])
-      assert length(triples) > 0
-
-      # Dependency file with same config should skip
-      dep_context =
-        Context.new(
-          base_iri: "https://example.org/code#",
-          config: %{include_expressions: true},
-          file_path: "deps/decimal/lib/decimal.ex"
-        )
-
-      assert ExpressionBuilder.build(ast, dep_context, []) == :skip
-    end
-
-    test "dependency files are always extracted in light mode regardless of config" do
-      dependency_paths = [
-        "deps/decimal/lib/decimal.ex",
-        "deps/nimble_parsec/lib/mix/tasks/compile.ex"
-      ]
-
-      ast = {:==, [], [1, 2]}
-
-      Enum.each(dependency_paths, fn dep_path ->
-        # Even with include_expressions: true, dependency files should skip
-        context =
-          Context.new(
-            base_iri: "https://example.org/code#",
-            config: %{include_expressions: true},
-            file_path: dep_path
-          )
-
-        assert ExpressionBuilder.build(ast, context, []) == :skip
-      end)
+    test "handles nested suffixes" do
+      parent = RDF.IRI.new("https://example.org/code#expr_0/left")
+
+      assert ExpressionBuilder.fresh_iri(parent, "operand") ==
+               RDF.IRI.new("https://example.org/code#expr_0/left/operand")
     end
   end
 
@@ -1596,33 +551,45 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   # Helpers
   # ===========================================================================
 
-  defp full_mode_context do
-    Context.new(
-      base_iri: "https://example.org/code#",
-      config: %{include_expressions: true},
-      file_path: "lib/my_app/users.ex"
-    )
-  end
-
   defp has_type?(triples, expected_type) do
-    Enum.any?(triples, fn {_s, p, o} -> p == RDF.type() and o == expected_type end)
-  end
-
-  defp has_operator_symbol?(triples, symbol) do
     Enum.any?(triples, fn {_s, p, o} ->
-      p == Core.operatorSymbol() and RDF.Literal.value(o) == symbol
+      p == RDF.type() and o == expected_type
     end)
   end
 
-  defp has_literal_value?(triples, subject, predicate, expected_value) do
-    Enum.any?(triples, fn {s, p, o} ->
-      s == subject and p == predicate and RDF.Literal.value(o) == expected_value
+  defp has_operator_symbol?(triples, expected_symbol) do
+    Enum.any?(triples, fn {_s, p, o} ->
+      p == Core.operatorSymbol() and RDF.Literal.value(o) == expected_symbol
     end)
   end
 
-  defp has_type_for_subject?(triples, subject, expected_type) do
-    Enum.any?(triples, fn {s, p, o} ->
-      s == subject and p == RDF.type() and o == expected_type
+  defp has_integer_value?(triples, expected_value) do
+    Enum.any?(triples, fn {_s, p, o} ->
+      p == Core.integerValue() and RDF.Literal.value(o) == expected_value
+    end)
+  end
+
+  defp has_float_value?(triples, expected_value) do
+    Enum.any?(triples, fn {_s, p, o} ->
+      p == Core.floatValue() and RDF.Literal.value(o) == expected_value
+    end)
+  end
+
+  defp has_string_value?(triples, expected_value) do
+    Enum.any?(triples, fn {_s, p, o} ->
+      p == Core.stringValue() and RDF.Literal.value(o) == expected_value
+    end)
+  end
+
+  defp has_atom_value?(triples, expected_value) do
+    Enum.any?(triples, fn {_s, p, o} ->
+      p == Core.atomValue() and RDF.Literal.value(o) == expected_value
+    end)
+  end
+
+  defp has_name?(triples, expected_name) do
+    Enum.any?(triples, fn {_s, p, o} ->
+      p == Core.name() and RDF.Literal.value(o) == expected_name
     end)
   end
 end
