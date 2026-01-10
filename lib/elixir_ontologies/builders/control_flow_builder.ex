@@ -480,6 +480,11 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
           link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), condition_iri)
           condition_triples ++ [link_triple | triples]
 
+        {:ok, {condition_iri, condition_triples, _updated_context}} ->
+          # Link to the condition expression (context-based counter version)
+          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), condition_iri)
+          condition_triples ++ [link_triple | triples]
+
         :skip ->
           # ExpressionBuilder returned skip (e.g., nil condition), fall back to boolean
           triple = Helpers.datatype_property(expr_iri, Core.hasCondition(), true, RDF.XSD.Boolean)
@@ -514,6 +519,10 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
           link_triple = Helpers.object_property(expr_iri, Core.hasThenBranch(), body_iri)
           body_triples ++ [link_triple | triples]
 
+        {:ok, {body_iri, body_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasThenBranch(), body_iri)
+          body_triples ++ [link_triple | triples]
+
         :skip ->
           triple = Helpers.datatype_property(expr_iri, Core.hasThenBranch(), true, RDF.XSD.Boolean)
           [triple | triples]
@@ -528,6 +537,10 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     if build_expressions? and body != nil do
       case expression_builder.build(body, context, suffix: "else") do
         {:ok, {body_iri, body_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasElseBranch(), body_iri)
+          body_triples ++ [link_triple | triples]
+
+        {:ok, {body_iri, body_triples, _updated_context}} ->
           link_triple = Helpers.object_property(expr_iri, Core.hasElseBranch(), body_iri)
           body_triples ++ [link_triple | triples]
 
@@ -576,6 +589,10 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
           link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), condition_iri)
           condition_expr_triples ++ [link_triple]
 
+        {:ok, {condition_iri, condition_expr_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), condition_iri)
+          condition_expr_triples ++ [link_triple]
+
         :skip ->
           []
       end
@@ -584,6 +601,9 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     body_triples =
       case expression_builder.build(clause.body, context, suffix: "cond_#{clause.index}_body") do
         {:ok, {_body_iri, body_expr_triples}} ->
+          body_expr_triples
+
+        {:ok, {_body_iri, body_expr_triples, _updated_context}} ->
           body_expr_triples
 
         :skip ->
