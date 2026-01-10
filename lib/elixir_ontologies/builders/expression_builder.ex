@@ -21,10 +21,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
         config: %{include_expressions: true},
         file_path: "lib/my_app/users.ex"
       )
+      |> Context.with_expression_counter()
 
       # Build expression from AST
       ast = {:==, [], [{:x, [], nil}, 1]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context)
+      {:ok, {expr_iri, triples, updated_context}} = ExpressionBuilder.build(ast, context)
 
       # In light mode or for dependencies
       ExpressionBuilder.build(ast, light_mode_context)
@@ -45,7 +46,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   ## Return Values
 
-  - `{:ok, {expr_iri, triples}}` - Expression successfully built
+  - `{:ok, {expr_iri, triples, updated_context}}` - Expression successfully built
   - `:skip` - Expression should not be extracted (light mode or nil AST)
 
   ## IRI Generation
@@ -64,6 +65,16 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   The `expression_iri/3`, `fresh_iri/2`, and `get_or_create_iri/3` functions
   provide flexible IRI generation patterns for different use cases.
+
+  ## Limitations
+
+  The following builder functions currently only record the call signature:
+  - `build_remote_call/5` - Records `Module.function` but doesn't build argument expressions
+  - `build_local_call/4` - Records `function` but doesn't build argument expressions
+
+  Full argument expression building is planned for a future phase. The current
+  implementation captures the function call identity but does not recursively
+  build the argument ASTs into expression triples.
   """
 
   alias ElixirOntologies.Builders.{Context, Helpers}
@@ -77,7 +88,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   Builds RDF triples for an Elixir AST expression node.
 
   Returns `:skip` when expression extraction is disabled or the AST is nil.
-  Returns `{:ok, {expr_iri, triples}}` with the expression IRI and all triples.
+  Returns `{:ok, {expr_iri, triples, updated_context}}` with the expression IRI,
+  all triples, and updated context with incremented counter.
 
   ## Parameters
 
@@ -99,9 +111,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
         config: %{include_expressions: true},
         file_path: "lib/my_app/users.ex"
       )
+      |> Context.with_expression_counter()
 
       ast = {:==, [], [{:x, [], nil}, 1]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context)
+      {:ok, {expr_iri, triples, updated_context}} = ExpressionBuilder.build(ast, context)
 
       # Light mode - expression skipped
       light_context = Context.new(
@@ -125,7 +138,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   """
   @spec build(Macro.t() | nil, Context.t(), keyword()) ::
-          {:ok, {RDF.IRI.t(), [RDF.Triple.t()]}} | :skip
+          {:ok, {RDF.IRI.t(), [RDF.Triple.t()], Context.t()}} | :skip
   def build(nil, _context, _opts), do: :skip
 
   def build(ast, %Context{} = context, opts) do
@@ -145,63 +158,37 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Get base IRI from options or context
     base_iri = Keyword.get(opts, :base_iri, context.base_iri)
 
-    # Generate expression IRI
-    # Uses a process-keyed counter to maintain state across build calls
-    # within the same extraction process
-    expr_iri = expression_iri_for_build(base_iri, opts)
+    # Generate expression IRI using context-based counter
+    {expr_iri, updated_context} = expression_iri_for_build(base_iri, context, opts)
 
     # Build expression triples
-    triples = build_expression_triples(ast, expr_iri, context)
+    triples = build_expression_triples(ast, expr_iri, updated_context)
 
-    {:ok, {expr_iri, triples}}
+    {:ok, {expr_iri, triples, updated_context}}
   end
 
-  # Gets or creates a counter key for this base IRI
-  defp counter_key(base_iri), do: {:expression_builder_counter, base_iri}
-
-  # Gets the next counter value for this base IRI
-  defp get_next_counter(base_iri) do
-    key = counter_key(base_iri)
-
-    case Process.get(key) do
-      nil ->
-        Process.put(key, 1)
-        0
-
-      counter ->
-        Process.put(key, counter + 1)
-        counter
-    end
-  end
-
-  # Resets the counter for this base IRI (useful for testing)
-  @doc false
-  def reset_counter(base_iri) do
-    Process.delete(counter_key(base_iri))
-    :ok
-  end
-
-  # Generates an expression IRI for the build/3 flow
-  # Uses process dictionary to maintain counter across calls
-  defp expression_iri_for_build(base_iri, opts) do
-    suffix =
+  # Generates an expression IRI for the build/3 flow using context-based counter
+  # This replaces the old process dictionary approach with thread-safe context counters
+  defp expression_iri_for_build(base_iri, context, opts) do
+    {suffix_string, updated_context} =
       cond do
         # Explicit suffix provided (doesn't use counter)
         custom_suffix = Keyword.get(opts, :suffix) ->
-          custom_suffix
+          {custom_suffix, context}
 
         # Explicit counter provided (advanced use)
         counter = Keyword.get(opts, :counter) ->
-          "expr_#{counter}"
+          {"expr_#{counter}", context}
 
-        # Use process-local counter for deterministic IRIs
+        # Use context counter for deterministic IRIs (thread-safe)
         true ->
-          counter = get_next_counter(base_iri)
-          "expr_#{counter}"
+          {counter, new_context} = Context.next_expression_counter(context)
+          {"expr_#{counter}", new_context}
       end
 
-    iri_string = "#{base_iri}expr/#{suffix}"
-    RDF.IRI.new(iri_string)
+    iri_string = "#{base_iri}expr/#{suffix_string}"
+    iri = RDF.IRI.new(iri_string)
+    {iri, updated_context}
   end
 
   # ===========================================================================

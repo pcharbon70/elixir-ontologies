@@ -45,7 +45,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
       "https://example.org/code#cond/MyApp/test/0/0"
   """
 
-  alias ElixirOntologies.Builders.{Context, Helpers}
+  alias ElixirOntologies.Builders.{Context, ExpressionBuilder, Helpers}
   alias ElixirOntologies.NS.Core
   alias ElixirOntologies.Extractors.Conditional.{Conditional, Branch}
   alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, WithExpression, ReceiveExpression}
@@ -93,7 +93,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     triples =
       []
       |> add_conditional_type_triple(expr_iri, conditional.type)
-      |> add_condition_triple(expr_iri, conditional.condition, conditional.type)
+      |> add_condition_triple(expr_iri, conditional.condition, conditional.type, context)
       |> add_branch_triples(expr_iri, conditional.branches, conditional.type)
       |> add_cond_clause_triples(expr_iri, conditional.clauses, conditional.type)
       |> add_location_triple(expr_iri, conditional.location)
@@ -399,15 +399,34 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # Add condition triple for if/unless (cond has conditions per clause)
-  defp add_condition_triple(triples, expr_iri, condition, type)
+  # Add condition triple for if/unless
+  # If full mode is enabled and condition AST exists, builds expression triples
+  defp add_condition_triple(triples, expr_iri, condition, type, context)
        when type in [:if, :unless] and not is_nil(condition) do
-    # Store condition as a boolean expression indicator
-    # The actual AST isn't stored directly, but we note the presence
-    triple = Helpers.datatype_property(expr_iri, Core.hasCondition(), true, RDF.XSD.Boolean)
-    [triple | triples]
+    # Base condition triple - indicates condition is present
+    base_triple = Helpers.datatype_property(expr_iri, Core.hasCondition(), true, RDF.XSD.Boolean)
+
+    # Build expression triples if in full mode for this file
+    expression_triples =
+      if Context.full_mode_for_file?(context, context.file_path) do
+        case ExpressionBuilder.build(condition, context, base_iri: context.base_iri) do
+          {:ok, {_cond_iri, cond_triples, _updated_context}} ->
+            # Note: The ontology has hasCondition property but it's currently
+            # used as a boolean marker. Expression triples are added but not
+            # explicitly linked via the property.
+            cond_triples
+
+          :skip ->
+            []
+        end
+      else
+        []
+      end
+
+    [base_triple | triples] ++ expression_triples
   end
 
-  defp add_condition_triple(triples, _expr_iri, _condition, _type), do: triples
+  defp add_condition_triple(triples, _expr_iri, _condition, _type, _context), do: triples
 
   # Add branch triples for if/unless
   defp add_branch_triples(triples, expr_iri, branches, type) when type in [:if, :unless] do

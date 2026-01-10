@@ -76,8 +76,8 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
 
   require Logger
 
-  alias ElixirOntologies.Builders.{Context, Helpers}
   alias ElixirOntologies.{IRI, NS}
+  alias ElixirOntologies.Builders.{Context, ExpressionBuilder, Helpers}
   alias ElixirOntologies.Extractors.{Clause, Parameter}
   alias NS.{Structure, Core}
 
@@ -208,7 +208,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
         # struct:hasParameters <list_head>
         Helpers.object_property(head_bnode, Structure.hasParameters(), list_head)
       ] ++
-        build_guard_triples(head_bnode, clause_info)
+        build_guard_triples(head_bnode, clause_info, context)
 
     # Combine all triples
     all_triples = head_triples ++ parameter_triples ++ list_triples
@@ -217,20 +217,40 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
   end
 
   # Build guard triples if guard is present
-  defp build_guard_triples(head_bnode, clause_info) do
+  # If full mode is enabled and guard AST exists, builds expression triples
+  defp build_guard_triples(head_bnode, clause_info, context) do
     case clause_info.head[:guard] do
       nil ->
         []
 
-      _guard_ast ->
+      guard_ast ->
         guard_bnode = Helpers.blank_node("guard")
 
-        [
+        # Base guard triples
+        base_triples = [
           # rdf:type core:GuardClause
           Helpers.type_triple(guard_bnode, Core.GuardClause),
           # head core:hasGuard guard
           Helpers.object_property(head_bnode, Core.hasGuard(), guard_bnode)
         ]
+
+        # Build expression triples if in full mode for this file
+        # Note: The ontology doesn't yet have a property to link GuardClause to Expression,
+        # so the expression triples are added but not explicitly linked via a property
+        expression_triples =
+          if Context.full_mode_for_file?(context, context.file_path) do
+            case ExpressionBuilder.build(guard_ast, context, base_iri: context.base_iri) do
+              {:ok, {_expr_iri, expr_triples, _updated_context}} ->
+                expr_triples
+
+              :skip ->
+                []
+            end
+          else
+            []
+          end
+
+        base_triples ++ expression_triples
     end
   end
 

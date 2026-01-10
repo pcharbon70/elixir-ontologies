@@ -7,12 +7,6 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   doctest ExpressionBuilder
 
   describe "build/3 mode selection" do
-    setup do
-      # Reset counter before each test
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      :ok
-    end
-
     test "returns :skip when include_expressions is false" do
       context =
         Context.new(
@@ -48,29 +42,25 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert ExpressionBuilder.build(ast, context, []) == :skip
     end
 
-    test "returns {:ok, {expr_iri, triples}} when include_expressions is true and project file" do
+    test "returns {:ok, {expr_iri, triples, context}} when include_expressions is true and project file" do
       context =
         Context.new(
           base_iri: "https://example.org/code#",
           config: %{include_expressions: true},
           file_path: "lib/my_app/users.ex"
         )
+        |> Context.with_expression_counter()
 
       ast = {:==, [], [{:x, [], nil}, 1]}
       result = ExpressionBuilder.build(ast, context, [])
 
-      assert {:ok, {expr_iri, triples}} = result
+      assert {:ok, {expr_iri, triples, _updated_context}} = result
       assert is_struct(expr_iri, RDF.IRI)
       assert is_list(triples)
     end
   end
 
   describe "build/3 IRI generation" do
-    setup do
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      :ok
-    end
-
     test "generates IRI with correct base" do
       context =
         Context.new(
@@ -78,9 +68,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
           config: %{include_expressions: true},
           file_path: "lib/my_app/users.ex"
         )
+        |> Context.with_expression_counter()
 
       ast = {:==, [], [{:x, [], nil}, 1]}
-      {:ok, {expr_iri, _triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {expr_iri, _triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       iri_string = RDF.IRI.to_string(expr_iri)
       assert String.starts_with?(iri_string, "https://example.org/code#expr/")
@@ -93,9 +84,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
           config: %{include_expressions: true},
           file_path: "lib/my_app/users.ex"
         )
+        |> Context.with_expression_counter()
 
       ast = {:==, [], [{:x, [], nil}, 1]}
-      {:ok, {expr_iri, _triples}} = ExpressionBuilder.build(ast, context, suffix: "my_expr")
+      {:ok, {expr_iri, _triples, _context}} = ExpressionBuilder.build(ast, context, suffix: "my_expr")
 
       iri_string = RDF.IRI.to_string(expr_iri)
       assert iri_string == "https://example.org/code#expr/my_expr"
@@ -108,11 +100,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
           config: %{include_expressions: true},
           file_path: "lib/my_app/users.ex"
         )
+        |> Context.with_expression_counter()
 
       ast = {:==, [], [{:x, [], nil}, 1]}
 
-      {:ok, {iri1, _}} = ExpressionBuilder.build(ast, context, [])
-      {:ok, {iri2, _}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {iri1, _, context2}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {iri2, _, _}} = ExpressionBuilder.build(ast, context2, [])
 
       refute iri1 == iri2
     end
@@ -124,12 +117,13 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
           config: %{include_expressions: true},
           file_path: "lib/my_app/users.ex"
         )
+        |> Context.with_expression_counter()
 
       ast = {:==, [], [{:x, [], nil}, 1]}
 
-      {:ok, {iri1, _}} = ExpressionBuilder.build(ast, context, [])
-      {:ok, {iri2, _}} = ExpressionBuilder.build(ast, context, [])
-      {:ok, {iri3, _}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {iri1, _, context2}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {iri2, _, context3}} = ExpressionBuilder.build(ast, context2, [])
+      {:ok, {iri3, _, _}} = ExpressionBuilder.build(ast, context3, [])
 
       # IRIs should be sequential based on counter
       assert RDF.IRI.to_string(iri1) == "https://example.org/code#expr/expr_0"
@@ -151,7 +145,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
           )
 
         ast = {@op, [], [{:x, [], nil}, 1]}
-        {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+        {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
         # Check for ComparisonOperator type
         assert Enum.any?(triples, fn {_s, p, o} ->
@@ -171,7 +165,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches and to LogicalOperator" do
       context = full_mode_context()
       ast = {:and, [], [true, false]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.LogicalOperator)
       assert has_operator_symbol?(triples, "and")
@@ -180,7 +174,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches or to LogicalOperator" do
       context = full_mode_context()
       ast = {:or, [], [true, false]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.LogicalOperator)
       assert has_operator_symbol?(triples, "or")
@@ -189,7 +183,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches && to LogicalOperator" do
       context = full_mode_context()
       ast = {:&&, [], [true, false]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.LogicalOperator)
       assert has_operator_symbol?(triples, "&&")
@@ -198,7 +192,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches || to LogicalOperator" do
       context = full_mode_context()
       ast = {:||, [], [true, false]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.LogicalOperator)
       assert has_operator_symbol?(triples, "||")
@@ -207,7 +201,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches not to LogicalOperator (unary)" do
       context = full_mode_context()
       ast = {:not, [], [true]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.LogicalOperator)
       assert has_operator_symbol?(triples, "not")
@@ -216,7 +210,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches ! to LogicalOperator (unary)" do
       context = full_mode_context()
       ast = {:!, [], [true]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.LogicalOperator)
       assert has_operator_symbol?(triples, "!")
@@ -230,7 +224,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       test "dispatches #{op} to ArithmeticOperator" do
         context = full_mode_context()
         ast = {@op, [], [1, 2]}
-        {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+        {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
         assert has_type?(triples, Core.ArithmeticOperator)
         assert has_operator_symbol?(triples, to_string(@op))
@@ -242,7 +236,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches |> to PipeOperator" do
       context = full_mode_context()
       ast = {:|>, [], [1, Enum]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.PipeOperator)
       assert has_operator_symbol?(triples, "|>")
@@ -253,7 +247,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches <> to StringConcatOperator" do
       context = full_mode_context()
       ast = {:<>, [], ["hello", "world"]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.StringConcatOperator)
       assert has_operator_symbol?(triples, "<>")
@@ -264,7 +258,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches ++ to ListOperator" do
       context = full_mode_context()
       ast = {:++, [], [[1], [2]]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.ListOperator)
       assert has_operator_symbol?(triples, "++")
@@ -273,7 +267,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches -- to ListOperator" do
       context = full_mode_context()
       ast = {:--, [], [[1, 2], [1]]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.ListOperator)
       assert has_operator_symbol?(triples, "--")
@@ -284,7 +278,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches = to MatchOperator" do
       context = full_mode_context()
       ast = {:"=", [], [{:x, [], nil}, 1]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.MatchOperator)
       assert has_operator_symbol?(triples, "=")
@@ -295,7 +289,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches variable pattern to Variable" do
       context = full_mode_context()
       ast = {:x, [], nil}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.Variable)
 
@@ -310,7 +304,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       for var_name <- [:user, :count, :result, :acc] do
         ast = {var_name, [], nil}
-        {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+        {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
         assert has_type?(triples, Core.Variable)
         assert Enum.any?(triples, fn {_s, p, o} ->
@@ -324,7 +318,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches _ to WildcardPattern" do
       context = full_mode_context()
       ast = {:_}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.WildcardPattern)
     end
@@ -339,7 +333,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
         {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [],
          ["123"]}
 
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.RemoteCall)
 
@@ -357,7 +351,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       ast =
         {{:., [], [{:__aliases__, [], [:MyApp, :Users]}, :get]}, [], [1]}
 
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.RemoteCall)
       assert Enum.any?(triples, fn {_s, p, o} ->
@@ -370,7 +364,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches function(args) to LocalCall" do
       context = full_mode_context()
       ast = {:foo, [], [1, 2]}
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.LocalCall)
 
@@ -384,7 +378,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   describe "literals" do
     test "builds IntegerLiteral triples for integer literals" do
       context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(42, context, [])
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(42, context, [])
 
       assert has_type?(triples, Core.IntegerLiteral)
       assert has_literal_value?(triples, expr_iri, Core.integerValue(), 42)
@@ -392,7 +386,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
     test "builds FloatLiteral triples for float literals" do
       context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(3.14, context, [])
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(3.14, context, [])
 
       assert has_type?(triples, Core.FloatLiteral)
       assert has_literal_value?(triples, expr_iri, Core.floatValue(), 3.14)
@@ -400,7 +394,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
     test "builds StringLiteral triples for string literals" do
       context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build("hello", context, [])
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build("hello", context, [])
 
       assert has_type?(triples, Core.StringLiteral)
       assert has_literal_value?(triples, expr_iri, Core.stringValue(), "hello")
@@ -408,7 +402,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
     test "builds AtomLiteral triples for atom literals" do
       context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(:ok, context, [])
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(:ok, context, [])
 
       assert has_type?(triples, Core.AtomLiteral)
       assert has_literal_value?(triples, expr_iri, Core.atomValue(), ":ok")
@@ -416,7 +410,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
     test "builds AtomLiteral triples for true" do
       context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(true, context, [])
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(true, context, [])
 
       assert has_type?(triples, Core.AtomLiteral)
       assert has_literal_value?(triples, expr_iri, Core.atomValue(), "true")
@@ -424,7 +418,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
     test "builds AtomLiteral triples for false" do
       context = full_mode_context()
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(false, context, [])
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(false, context, [])
 
       assert has_type?(triples, Core.AtomLiteral)
       assert has_literal_value?(triples, expr_iri, Core.atomValue(), "false")
@@ -444,7 +438,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       # Using a 2-element tuple which is not a standard Elixir AST form
       unusual_ast = {:some_unknown_form, :unexpected_second_element}
 
-      {:ok, {_expr_iri, triples}} = ExpressionBuilder.build(unusual_ast, context, [])
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(unusual_ast, context, [])
 
       assert has_type?(triples, Core.Expression)
     end
@@ -696,12 +690,6 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   end
 
   describe "integration tests" do
-    setup do
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      ExpressionBuilder.reset_counter("https://other.org/base#")
-      :ok
-    end
-
     test "complete IRI flow through ExpressionBuilder" do
       context =
         Context.new(
@@ -709,15 +697,16 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
           config: %{include_expressions: true},
           file_path: "lib/my_app/users.ex"
         )
+        |> Context.with_expression_counter()
 
       # Build multiple expressions and verify sequential IRIs
       ast1 = {:==, [], [{:x, [], nil}, 1]}
       ast2 = {:>, [], [{:y, [], nil}, 5]}
       ast3 = {:and, [], [true, false]}
 
-      {:ok, {iri1, _}} = ExpressionBuilder.build(ast1, context, [])
-      {:ok, {iri2, _}} = ExpressionBuilder.build(ast2, context, [])
-      {:ok, {iri3, _}} = ExpressionBuilder.build(ast3, context, [])
+      {:ok, {iri1, _, context2}} = ExpressionBuilder.build(ast1, context, [])
+      {:ok, {iri2, _, context3}} = ExpressionBuilder.build(ast2, context2, [])
+      {:ok, {iri3, _, _}} = ExpressionBuilder.build(ast3, context3, [])
 
       # Sequential IRIs based on counter
       assert RDF.IRI.to_string(iri1) == "https://example.org/code#expr/expr_0"
@@ -781,10 +770,6 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "counter properly resets between different contexts" do
-      # Setup: reset counters for both base IRIs
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      ExpressionBuilder.reset_counter("https://other.org/base#")
-
       # Context 1
       context1 =
         Context.new(
@@ -792,19 +777,21 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
           config: %{include_expressions: true},
           file_path: "lib/my_app/users.ex"
         )
+        |> Context.with_expression_counter()
 
-      {:ok, {iri1, _}} = ExpressionBuilder.build({:==, [], [1, 1]}, context1, [])
-      {:ok, {iri2, _}} = ExpressionBuilder.build({:==, [], [2, 2]}, context1, [])
+      {:ok, {iri1, _, context2}} = ExpressionBuilder.build({:==, [], [1, 1]}, context1, [])
+      {:ok, {iri2, _, _}} = ExpressionBuilder.build({:==, [], [2, 2]}, context2, [])
 
       # Context 2 - different base IRI, so counter starts at 0
-      context2 =
+      context3 =
         Context.new(
           base_iri: "https://other.org/base#",
           config: %{include_expressions: true},
           file_path: "lib/my_app/accounts.ex"
         )
+        |> Context.with_expression_counter()
 
-      {:ok, {iri3, _}} = ExpressionBuilder.build({:==, [], [3, 3]}, context2, [])
+      {:ok, {iri3, _, _}} = ExpressionBuilder.build({:==, [], [3, 3]}, context3, [])
 
       # context1 starts at expr_0 and increments
       assert RDF.IRI.to_string(iri1) == "https://example.org/code#expr/expr_0"
@@ -821,13 +808,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
           config: %{include_expressions: true},
           file_path: "lib/my_app/users.ex"
         )
+        |> Context.with_expression_counter()
 
       # Use custom suffix
       ast = {:==, [], [{:x, [], nil}, 1]}
-      {:ok, {iri1, _}} = ExpressionBuilder.build(ast, context, suffix: "custom_expr")
+      {:ok, {iri1, _, _}} = ExpressionBuilder.build(ast, context, suffix: "custom_expr")
 
       # Next expression without suffix should use counter
-      {:ok, {iri2, _}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {iri2, _, _}} = ExpressionBuilder.build(ast, context, [])
 
       # Custom suffix should be respected
       assert RDF.IRI.to_string(iri1) == "https://example.org/code#expr/custom_expr"
@@ -837,16 +825,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   end
 
   describe "nested expression tests (Phase 21.4)" do
-    setup do
-      ExpressionBuilder.reset_counter("https://example.org/code#")
-      :ok
-    end
-
     test "binary operator creates left and right operand triples" do
       context = full_mode_context()
       # x > 5
       ast = {:>, [], [{:x, [], nil}, 5]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       # Should have operator type and symbol
       assert has_type?(triples, Core.ComparisonOperator)
@@ -877,7 +860,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       context = full_mode_context()
       # x > 5 and y < 10
       ast = {:and, [], [{:>, [], [{:x, [], nil}, 5]}, {:<, [], [{:y, [], nil}, 10]}]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       # Top-level is LogicalOperator (and)
       assert has_type?(triples, Core.LogicalOperator)
@@ -918,7 +901,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       context = full_mode_context()
       # not x
       ast = {:not, [], [{:x, [], nil}]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       # Should have operator type and symbol
       assert has_type?(triples, Core.LogicalOperator)
@@ -939,7 +922,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       context = full_mode_context()
       # x + y * 2
       ast = {:+, [], [{:x, [], nil}, {:*, [], [{:y, [], nil}, 2]}]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       # Top-level is ArithmeticOperator (+)
       assert has_type?(triples, Core.ArithmeticOperator)
@@ -960,7 +943,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       context = full_mode_context()
       # x = 42
       ast = {:=, [], [{:x, [], nil}, 42]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       # Should have MatchOperator type
       assert has_type?(triples, Core.MatchOperator)
@@ -998,6 +981,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       config: %{include_expressions: true},
       file_path: "lib/my_app/users.ex"
     )
+    |> Context.with_expression_counter()
   end
 
   defp has_type?(triples, expected_type) do
