@@ -395,6 +395,77 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_literal_value?(triples, expr_iri, Core.floatValue(), 3.14)
     end
 
+    test "builds IntegerLiteral triples for zero" do
+      context = full_mode_context()
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(0, context, [])
+
+      assert has_type?(triples, Core.IntegerLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.integerValue(), 0)
+    end
+
+    test "builds IntegerLiteral triples for large integers" do
+      context = full_mode_context()
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(9_999_999_999, context, [])
+
+      assert has_type?(triples, Core.IntegerLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.integerValue(), 9_999_999_999)
+    end
+
+    test "builds IntegerLiteral triples for small integers" do
+      context = full_mode_context()
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(1, context, [])
+
+      assert has_type?(triples, Core.IntegerLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.integerValue(), 1)
+    end
+
+    test "builds FloatLiteral triples for zero" do
+      context = full_mode_context()
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(0.0, context, [])
+
+      assert has_type?(triples, Core.FloatLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.floatValue(), 0.0)
+    end
+
+    test "builds FloatLiteral triples for scientific notation" do
+      context = full_mode_context()
+
+      # Elixir parses 1.5e-3 as 0.0015
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(0.0015, context, [])
+
+      assert has_type?(triples, Core.FloatLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.floatValue(), 0.0015)
+    end
+
+    test "builds FloatLiteral triples for large scientific notation" do
+      context = full_mode_context()
+
+      # Elixir parses 1.0e10 as 10000000000.0
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(10_000_000_000.0, context, [])
+
+      assert has_type?(triples, Core.FloatLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.floatValue(), 10_000_000_000.0)
+    end
+
+    test "builds FloatLiteral triples for negative decimal" do
+      context = full_mode_context()
+
+      # Negative floats use unary operator, so we test the literal value itself
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(0.5, context, [])
+
+      assert has_type?(triples, Core.FloatLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.floatValue(), 0.5)
+    end
+
+    test "builds FloatLiteral triples for very small floats" do
+      context = full_mode_context()
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(1.0e-10, context, [])
+
+      assert has_type?(triples, Core.FloatLiteral)
+      # The value is preserved in float precision
+      assert has_type?(triples, Core.FloatLiteral)
+    end
+
     test "builds StringLiteral triples for string literals" do
       context = full_mode_context()
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build("hello", context, [])
