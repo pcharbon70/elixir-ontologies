@@ -1181,6 +1181,418 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   end
 
   # ===========================================================================
+  # Phase 21 Integration Tests
+  # ===========================================================================
+
+  describe "Phase 21 Integration Tests" do
+    setup do
+      ExpressionBuilder.reset_counter("https://example.org/code#")
+      :ok
+    end
+
+    # ---------------------------------------------------------------------
+    # Config Flow Tests
+    # ---------------------------------------------------------------------
+
+    test "complete config flow: Config.new → merge → validate → use in Context" do
+      # Create config with include_expressions
+      config = ElixirOntologies.Config.new()
+      merged = ElixirOntologies.Config.merge(config, include_expressions: true)
+      assert {:ok, validated} = ElixirOntologies.Config.validate(merged)
+      assert validated.include_expressions == true
+
+      # Use in Context
+      context = Context.new(
+        base_iri: "https://example.org/code#",
+        config: validated,
+        file_path: "lib/my_app.ex"
+      )
+
+      # Context should have the config
+      assert context.config.include_expressions == true
+
+      # ExpressionBuilder should use the config
+      ast = {:==, [], [{:x, [], nil}, 1]}
+      result = ExpressionBuilder.build(ast, context, [])
+
+      # Should build expression (not skip)
+      assert {:ok, {_iri, triples}} = result
+      assert length(triples) > 0
+    end
+
+    # ---------------------------------------------------------------------
+    # Mode Selection Tests (Comprehensive)
+    # ---------------------------------------------------------------------
+
+    test "ExpressionBuilder returns :skip in light mode for all expression types" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: false},
+          file_path: "lib/my_app.ex"
+        )
+
+      # Test various expression types all return :skip in light mode
+      expressions = [
+        # Comparison operators
+        {:==, [], [1, 2]},
+        {:!=, [], [1, 2]},
+        {:<, [], [1, 2]},
+        # Logical operators
+        {:and, [], [true, false]},
+        {:or, [], [true, false]},
+        # Arithmetic operators
+        {:+, [], [1, 2]},
+        {:*, [], [2, 3]},
+        # Literals
+        42,
+        "hello",
+        :atom,
+        # Variables
+        {:x, [], nil}
+      ]
+
+      Enum.each(expressions, fn ast ->
+        assert ExpressionBuilder.build(ast, context, []) == :skip
+      end)
+    end
+
+    test "ExpressionBuilder builds expressions in full mode for comparison operators" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      # Test all comparison operators build correct triples
+      comparison_ops = [:==, :!=, :===, :!==, :<, :>, :<=, :>=]
+
+      Enum.each(comparison_ops, fn op ->
+        ExpressionBuilder.reset_counter("https://example.org/code#")
+        ast = {op, [], [{:x, [], nil}, 1]}
+
+        assert {:ok, {_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+
+        # Should have ComparisonOperator type
+        assert has_type?(triples, Core.ComparisonOperator)
+
+        # Should have operator symbol
+        assert has_operator_symbol?(triples, Atom.to_string(op))
+
+        # Should have operands
+        assert has_type?(triples, Core.Variable)
+        assert has_type?(triples, Core.IntegerLiteral)
+      end)
+    end
+
+    test "ExpressionBuilder builds expressions in full mode for logical operators" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      # Test logical operators build correct triples
+      logical_ops = [:and, :or, :&&, :||]
+
+      Enum.each(logical_ops, fn op ->
+        ExpressionBuilder.reset_counter("https://example.org/code#")
+        ast = {op, [], [true, false]}
+
+        assert {:ok, {_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+
+        # Should have LogicalOperator type
+        assert has_type?(triples, Core.LogicalOperator)
+
+        # Should have operator symbol
+        assert has_operator_symbol?(triples, Atom.to_string(op))
+
+        # Should have operands (AtomLiterals for true/false)
+        assert Enum.count(triples, fn {_s, p, o} -> p == RDF.type() and o == Core.AtomLiteral end) >= 2
+      end)
+    end
+
+    # ---------------------------------------------------------------------
+    # Nested Expression Tests
+    # ---------------------------------------------------------------------
+
+    test "nested binary operators create correct IRI hierarchy" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      # Nested expression: (x > 5) and (y < 10)
+      # AST: {:and, [], [{:>, [], [{:x, [], nil}, 5]}, {:<, [], [{:y, [], nil}, 10]}]}
+      ast = {:and, [], [{:>, [], [{:x, [], nil}, 5]}, {:<, [], [{:y, [], nil}, 10]}]}
+
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+
+      # Main expression should be LogicalOperator
+      assert has_type_for_subject?(triples, expr_iri, Core.LogicalOperator)
+
+      # Should have left and right operands
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
+
+      # Left operand should be ComparisonOperator (x > 5)
+      assert has_type_for_subject?(triples, left_iri, Core.ComparisonOperator)
+
+      # Right operand should be ComparisonOperator (y < 10)
+      assert has_type_for_subject?(triples, right_iri, Core.ComparisonOperator)
+
+      # Verify IRI hierarchy
+      expr_iri_string = RDF.IRI.to_string(expr_iri)
+      assert String.ends_with?(expr_iri_string, "/expr_0")
+      assert RDF.IRI.to_string(left_iri) == "#{expr_iri_string}/left"
+      assert RDF.IRI.to_string(right_iri) == "#{expr_iri_string}/right"
+    end
+
+    test "expression IRIs follow parent-child pattern for deeply nested expressions" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      # Deeply nested: (x + y) > (z * w)
+      # AST structure: {:>, [], [{:+, [], [x, y]}, {:*, [], [z, w]}]}
+      ast = {:>, [], [{:+, [], [{:x, [], nil}, {:y, [], nil}]}, {:*, [], [{:z, [], nil}, {:w, [], nil}]}]}
+
+      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+
+      # Main expression
+      expr_iri_string = RDF.IRI.to_string(expr_iri)
+
+      # Left operand (x + y)
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      left_iri_string = RDF.IRI.to_string(left_iri)
+      assert left_iri_string == "#{expr_iri_string}/left"
+
+      # Left-left operand (x)
+      left_left_iri = ExpressionBuilder.fresh_iri(left_iri, "left")
+      assert RDF.IRI.to_string(left_left_iri) == "#{left_iri_string}/left"
+
+      # Left-right operand (y)
+      left_right_iri = ExpressionBuilder.fresh_iri(left_iri, "right")
+      assert RDF.IRI.to_string(left_right_iri) == "#{left_iri_string}/right"
+
+      # Verify IRI structure in triples
+      assert has_type_for_subject?(triples, expr_iri, Core.ComparisonOperator)
+      assert has_type_for_subject?(triples, left_iri, Core.ArithmeticOperator)
+    end
+
+    # ---------------------------------------------------------------------
+    # Context Propagation Tests
+    # ---------------------------------------------------------------------
+
+    test "Context.full_mode_for_file?/2 returns true for project file with full config" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/my_app/users.ex"
+        )
+
+      assert Context.full_mode_for_file?(context, "lib/my_app/users.ex")
+      assert Context.full_mode?(context)
+      refute Context.light_mode?(context)
+    end
+
+    test "Context.full_mode_for_file?/2 returns false for project file with light config" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: false},
+          file_path: "lib/my_app/users.ex"
+        )
+
+      refute Context.full_mode_for_file?(context, "lib/my_app/users.ex")
+      refute Context.full_mode?(context)
+      assert Context.light_mode?(context)
+    end
+
+    test "Context.full_mode_for_file?/2 returns false for dependency file even with full config" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/my_app/users.ex"
+        )
+
+      # Dependency file should always be light mode
+      refute Context.full_mode_for_file?(context, "deps/decimal/lib/decimal.ex")
+      # Note: light_mode_for_file?/2 doesn't exist, but we can infer it
+      assert Context.light_mode?(context) or not Context.full_mode_for_file?(context, "deps/decimal/lib/decimal.ex")
+    end
+
+    # ---------------------------------------------------------------------
+    # Helper Function Tests with Real AST
+    # ---------------------------------------------------------------------
+
+    test "build_child_expressions/3 works with real AST nodes" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      # Real-world example: function arguments [1, x + y, :atom]
+      asts = [1, {:+, [], [{:x, [], nil}, {:y, [], nil}]}, :result]
+
+      {children, triples} = ExpressionBuilder.build_child_expressions(asts, context)
+
+      # Should have 3 children
+      assert length(children) == 3
+
+      # Should have triples for all expressions
+      assert length(triples) > 0
+
+      # Should have IntegerLiteral, ArithmeticOperator, and AtomLiteral
+      assert has_type?(triples, Core.IntegerLiteral)
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_type?(triples, Core.AtomLiteral)
+    end
+
+    test "combine_triples/1 works with nested expression triples" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      # Build two expressions and combine their triples
+      {:ok, {_iri1, triples1}} = ExpressionBuilder.build({:==, [], [1, 2]}, context, [])
+      {:ok, {_iri2, triples2}} = ExpressionBuilder.build({:>, [], [3, 4]}, context, [])
+
+      # Combine and deduplicate
+      combined = ExpressionBuilder.combine_triples([triples1, triples2])
+
+      # Should have triples from both expressions
+      assert length(combined) > 0
+      assert has_type?(combined, Core.ComparisonOperator)
+
+      # Count ComparisonOperator types - should have 2 (one for each expression)
+      comparison_count =
+        Enum.count(combined, fn {_s, p, o} -> p == RDF.type() and o == Core.ComparisonOperator end)
+
+      assert comparison_count == 2
+    end
+
+    # ---------------------------------------------------------------------
+    # Backward Compatibility Tests
+    # ---------------------------------------------------------------------
+
+    test "light mode extraction produces no expression triples (backward compatibility)" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: false},
+          file_path: "lib/my_app.ex"
+        )
+
+      # In light mode, expressions should be skipped
+      ast = {:==, [], [{:x, [], nil}, 42]}
+      result = ExpressionBuilder.build(ast, context, [])
+
+      # Should return :skip (no triples)
+      assert result == :skip
+    end
+
+    test "full mode extraction includes expression triples" do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      # In full mode, expressions should be built
+      ast = {:==, [], [{:x, [], nil}, 42]}
+      {:ok, {_iri, triples}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have expression triples
+      assert length(triples) > 0
+
+      # Should have type triple
+      assert Enum.any?(triples, fn {_s, p, _o} -> p == RDF.type() end)
+
+      # Should have operator symbol
+      assert Enum.any?(triples, fn {_s, p, _o} -> p == Core.operatorSymbol() end)
+
+      # Should have operands
+      assert Enum.any?(triples, fn {_s, p, _o} -> p == Core.hasLeftOperand() end)
+      assert Enum.any?(triples, fn {_s, p, _o} -> p == Core.hasRightOperand() end)
+    end
+
+    # ---------------------------------------------------------------------
+    # Project vs Dependency Tests
+    # ---------------------------------------------------------------------
+
+    test "full mode applies to project files but not dependency files" do
+      # Project file with full mode
+      project_context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      ast = {:==, [], [1, 2]}
+
+      # Project file should build expressions
+      assert {:ok, {_iri, triples}} = ExpressionBuilder.build(ast, project_context, [])
+      assert length(triples) > 0
+
+      # Dependency file with same config should skip
+      dep_context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "deps/decimal/lib/decimal.ex"
+        )
+
+      assert ExpressionBuilder.build(ast, dep_context, []) == :skip
+    end
+
+    test "dependency files are always extracted in light mode regardless of config" do
+      dependency_paths = [
+        "deps/decimal/lib/decimal.ex",
+        "deps/nimble_parsec/lib/mix/tasks/compile.ex"
+      ]
+
+      ast = {:==, [], [1, 2]}
+
+      Enum.each(dependency_paths, fn dep_path ->
+        # Even with include_expressions: true, dependency files should skip
+        context =
+          Context.new(
+            base_iri: "https://example.org/code#",
+            config: %{include_expressions: true},
+            file_path: dep_path
+          )
+
+        assert ExpressionBuilder.build(ast, context, []) == :skip
+      end)
+    end
+  end
+
+  # ===========================================================================
   # Helpers
   # ===========================================================================
 
@@ -1205,6 +1617,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   defp has_literal_value?(triples, subject, predicate, expected_value) do
     Enum.any?(triples, fn {s, p, o} ->
       s == subject and p == predicate and RDF.Literal.value(o) == expected_value
+    end)
+  end
+
+  defp has_type_for_subject?(triples, subject, expected_type) do
+    Enum.any?(triples, fn {s, p, o} ->
+      s == subject and p == RDF.type() and o == expected_type
     end)
   end
 end
