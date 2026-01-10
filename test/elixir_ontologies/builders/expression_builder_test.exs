@@ -474,6 +474,78 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_literal_value?(triples, expr_iri, Core.stringValue(), "hello")
     end
 
+    test "builds StringLiteral triples for empty strings" do
+      context = full_mode_context()
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build("", context, [])
+
+      assert has_type?(triples, Core.StringLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.stringValue(), "")
+    end
+
+    test "builds StringLiteral triples for multi-line strings (heredocs)" do
+      context = full_mode_context()
+
+      # Heredocs are converted to plain binaries with newlines preserved
+      heredoc_content = "multi\nline\nstring"
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(heredoc_content, context, [])
+
+      assert has_type?(triples, Core.StringLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.stringValue(), heredoc_content)
+    end
+
+    test "builds StringLiteral triples for strings with escape sequences" do
+      context = full_mode_context()
+
+      # Escape sequences are processed by Elixir compiler before AST
+      # The resulting binary contains the actual characters
+      string_with_escapes = "hello\nworld\t!"
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(string_with_escapes, context, [])
+
+      assert has_type?(triples, Core.StringLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.stringValue(), string_with_escapes)
+    end
+
+    test "builds StringLiteral triples for strings with special characters" do
+      context = full_mode_context()
+
+      special_chars = "!@#$%^&*()_+-=[]{}|;':\",./<>?"
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(special_chars, context, [])
+
+      assert has_type?(triples, Core.StringLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.stringValue(), special_chars)
+    end
+
+    test "builds StringLiteral triples for Unicode strings" do
+      context = full_mode_context()
+
+      unicode_string = "héllo wørld 你好"
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(unicode_string, context, [])
+
+      assert has_type?(triples, Core.StringLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.stringValue(), unicode_string)
+    end
+
+    test "builds StringLiteral triples for strings with quotes" do
+      context = full_mode_context()
+
+      # Strings containing quotes (escape sequences processed by compiler)
+      quoted_string = "He said \"hello\""
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(quoted_string, context, [])
+
+      assert has_type?(triples, Core.StringLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.stringValue(), quoted_string)
+    end
+
+    test "builds StringLiteral triples for long strings" do
+      context = full_mode_context()
+
+      long_string = String.duplicate("a", 1000)
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(long_string, context, [])
+
+      assert has_type?(triples, Core.StringLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.stringValue(), long_string)
+    end
+
     test "builds AtomLiteral triples for atom literals" do
       context = full_mode_context()
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(:ok, context, [])
