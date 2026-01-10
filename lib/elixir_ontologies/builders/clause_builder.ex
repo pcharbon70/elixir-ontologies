@@ -285,6 +285,11 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
               link_triple = Helpers.object_property(head_bnode, Core.hasGuard(), guard_iri)
               guard_triples ++ [link_triple]
 
+            {:ok, {guard_iri, guard_triples, _updated_context}} ->
+              # Link to the guard expression (context-based counter version)
+              link_triple = Helpers.object_property(head_bnode, Core.hasGuard(), guard_iri)
+              guard_triples ++ [link_triple]
+
             :skip ->
               # ExpressionBuilder returned skip, fall back to blank node
               guard_bnode = Helpers.blank_node("guard")
@@ -409,6 +414,13 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
         case expression_builder.build(clause_info.body, context, suffix: "body") do
           {:ok, {_body_iri, expr_triples}} ->
             # Include expression triples plus the FunctionBody type
+            [
+              # rdf:type struct:FunctionBody
+              Helpers.type_triple(body_bnode, Structure.FunctionBody)
+            ] ++ expr_triples
+
+          {:ok, {_body_iri, expr_triples, _updated_context}} ->
+            # Include expression triples plus the FunctionBody type (context-based counter version)
             [
               # rdf:type struct:FunctionBody
               Helpers.type_triple(body_bnode, Structure.FunctionBody)

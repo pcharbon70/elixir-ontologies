@@ -1,556 +1,659 @@
 defmodule ElixirOntologies.Builders.ExpressionBuilder do
   @moduledoc """
-  Builder module for converting Elixir AST nodes into RDF expressions.
+  Builds RDF triples for Elixir AST expression nodes.
 
-  This module provides the core infrastructure for extracting expression
-  information from Elixir AST and representing it as RDF triples according
-  to the elixir-core ontology.
+  This module converts Elixir AST nodes to their RDF representation
+  according to the elixir-core.ttl ontology. Expression extraction is
+  opt-in via the `include_expressions` configuration option.
 
-  ## Expression Extraction Modes
+  ## Mode Selection
 
-  The module supports two extraction modes controlled by `include_expressions`
-  configuration:
+  Expression extraction only occurs in "full mode" which requires:
+  - `include_expressions: true` in the configuration
+  - The file being processed is project code (not a dependency)
 
-  - **Light Mode** (`include_expressions: false`): Returns `:skip` for all
-    expressions. This is the default and provides backward compatibility.
-
-  - **Full Mode** (`include_expressions: true`): Extracts complete expression
-    ASTs as RDF triples with proper type information and operand relationships.
-
-  ## Project vs Dependency Files
-
-  Even in full mode, dependency files (those in `deps/` directory) are always
-  extracted in light mode. Only project files get full expression extraction.
+  When either condition is false, `build/3` returns `:skip`.
 
   ## Usage
 
-      alias ElixirOntologies.Builders.{ExpressionBuilder, Context}
+      context = Context.new(
+        base_iri: "https://example.org/code#",
+        config: %{include_expressions: true},
+        file_path: "lib/my_app/users.ex"
+      )
+      |> Context.with_expression_counter()
 
-      # Light mode - returns :skip
-      context = Context.new(base_iri: "https://example.org/code#", config: %{include_expressions: false})
+      # Build expression from AST
       ast = {:==, [], [{:x, [], nil}, 1]}
-      ExpressionBuilder.build(ast, context, [])
+      {:ok, {expr_iri, triples, updated_context}} = ExpressionBuilder.build(ast, context)
+
+      # In light mode or for dependencies
+      ExpressionBuilder.build(ast, light_mode_context)
       # => :skip
 
-      # Full mode - extracts expression
-      context = Context.new(base_iri: "https://example.org/code#", config: %{include_expressions: true})
-      ast = {:==, [], [{:x, [], nil}, 1]}
-      {:ok, {expr_iri, triples}} = ExpressionBuilder.build(ast, context, [])
-      # => {:ok, {~I<https://example.org/code#expr_0>, [...]}}}
+  ## Expression Dispatch
 
-  ## AST Pattern Matching
+  The builder pattern matches on AST node types and dispatches to
+  specialized builders:
 
-  The module dispatches to specific builder functions based on AST patterns:
+  - Comparison operators (`==`, `!=`, `===`, `!==`, `<`, `>`, `<=`, `>=`)
+  - Logical operators (`and`, `or`, `not`, `&&`, `||`, `!`)
+  - Arithmetic operators (`+`, `-`, `*`, `/`, `div`, `rem`)
+  - Literals (integers, floats, strings, atoms)
+  - Variables and wildcards
+  - Remote and local function calls
+  - Unknown expressions (generic `Expression` type)
 
-  - **Comparison operators**: `==`, `!=`, `===`, `!==`, `<`, `>`, `<=`, `>=`
-  - **Logical operators**: `and`, `or`, `not`, `&&`, `||`, `!`
-  - **Arithmetic operators**: `+`, `-`, `*`, `/`, `div`, `rem`
-  - **Literals**: Integers, floats, strings, atoms, charlists, binaries
-  - **Variables**: `{name, _, context}` pattern
-  - **Patterns**: Wildcards, tuples, lists, maps
+  ## Return Values
 
-  ## Return Type
-
-  All `build/3` calls return either:
-
-  - `{:ok, {iri, triples}}` - Expression was successfully built
+  - `{:ok, {expr_iri, triples, updated_context}}` - Expression successfully built
   - `:skip` - Expression should not be extracted (light mode or nil AST)
 
   ## IRI Generation
 
-  Expression IRIs follow the pattern `{base_iri}expr_{counter}` with nested
-  expressions using relative IRIs like `{parent_iri}/left`, `{parent_iri}/right`.
+  Expression IRIs are generated using a deterministic counter pattern:
+  `{base_iri}expr/{counter}` (e.g., `expr/0`, `expr/1`, `expr/2`)
 
-  The counter is reset per extraction to ensure consistent IRIs within a
-  single analysis run.
+  The counter is maintained in the context metadata and increments for each
+  expression built, ensuring:
+  - Deterministic IRIs within a single extraction
+  - Uniqueness across all expressions in a graph
+  - Queryable expression structure via SPARQL
 
+  For child expressions (operands in binary operators), relative IRIs are used:
+  `{base_iri}expr/{counter}/left`, `{base_iri}expr/{counter}/right`
+
+  The `expression_iri/3`, `fresh_iri/2`, and `get_or_create_iri/3` functions
+  provide flexible IRI generation patterns for different use cases.
+
+  ## Limitations
+
+  The following builder functions currently only record the call signature:
+  - `build_remote_call/5` - Records `Module.function` but doesn't build argument expressions
+  - `build_local_call/4` - Records `function` but doesn't build argument expressions
+
+  Full argument expression building is planned for a future phase. The current
+  implementation captures the function call identity but does not recursively
+  build the argument ASTs into expression triples.
   """
 
-  alias ElixirOntologies.Builders.Context
-  alias ElixirOntologies.Builders.Helpers
+  alias ElixirOntologies.Builders.{Context, Helpers}
   alias ElixirOntologies.NS.Core
 
   # ===========================================================================
-  # Types
-  # ===========================================================================
-
-  @type ast :: Macro.t()
-  @type result :: {:ok, {RDF.IRI.t(), [RDF.Triple.t()]}} | :skip
-
-  # ===========================================================================
-  # Counter State
+  # Public API
   # ===========================================================================
 
   @doc """
-  Resets the expression counter for the given base IRI.
+  Builds RDF triples for an Elixir AST expression node.
 
-  This should be called at the start of each extraction to ensure
-  consistent IRI generation.
-
-  ## Examples
-
-      iex> ExpressionBuilder.reset_counter("https://example.org/code#")
-      :ok
-  """
-  @spec reset_counter(String.t()) :: :ok
-  def reset_counter(base_iri) do
-    # Ensure table exists
-    try do
-      :ets.insert(:expression_counter, {base_iri, 0})
-    rescue
-      ArgumentError ->
-        :ets.new(:expression_counter, [:named_table, :public])
-        :ets.insert(:expression_counter, {base_iri, 0})
-    end
-
-    :ets.delete_all_objects(:expression_counter)
-    :ets.insert(:expression_counter, {base_iri, 0})
-    :ok
-  end
-
-  @doc """
-  Gets the next expression counter value for the given base IRI.
-
-  ## Examples
-
-      iex> ExpressionBuilder.reset_counter("https://example.org/code#")
-      iex> ExpressionBuilder.next_counter("https://example.org/code#")
-      0
-      iex> ExpressionBuilder.next_counter("https://example.org/code#")
-      1
-  """
-  @spec next_counter(String.t()) :: non_neg_integer()
-  def next_counter(base_iri) do
-    try do
-      case :ets.lookup(:expression_counter, base_iri) do
-        [] ->
-          :ets.insert(:expression_counter, {base_iri, 1})
-          0
-        [{^base_iri, counter}] ->
-          :ets.insert(:expression_counter, {base_iri, counter + 1})
-          counter
-      end
-    rescue
-      ArgumentError ->
-        :ets.new(:expression_counter, [:named_table, :public])
-        :ets.insert(:expression_counter, {base_iri, 1})
-        0
-    end
-  end
-
-  # ===========================================================================
-  # Main Build Function
-  # ===========================================================================
-
-  @doc """
-  Builds an RDF representation of an Elixir AST expression.
-
-  Returns `:skip` in light mode or for nil AST nodes. Otherwise returns
-  `{:ok, {iri, triples}}` with the expression IRI and generated triples.
+  Returns `:skip` when expression extraction is disabled or the AST is nil.
+  Returns `{:ok, {expr_iri, triples, updated_context}}` with the expression IRI,
+  all triples, and updated context with incremented counter.
 
   ## Parameters
 
-  - `ast` - The Elixir AST node to convert
-  - `context` - The builder context containing config and base IRI
-  - `opts` - Optional keyword arguments (reserved for future use)
+  - `ast` - The Elixir AST node (3-tuple format or literal)
+  - `context` - The builder context containing configuration
+  - `opts` - Optional keyword list for IRI generation
+
+  ## Options
+
+  - `:base_iri` - Override IRI base (defaults to `context.base_iri`)
+  - `:suffix` - IRI suffix (defaults to generated counter)
+  - `:counter` - Counter for unique IRIs (internal use)
 
   ## Examples
 
-      # Light mode
-      context = Context.new(base_iri: "https://example.org/code#", config: %{include_expressions: false})
-      ExpressionBuilder.build({:==, [], [1, 2]}, context, [])
+      # Full mode - expression extracted
+      context = Context.new(
+        base_iri: "https://example.org/code#",
+        config: %{include_expressions: true},
+        file_path: "lib/my_app/users.ex"
+      )
+      |> Context.with_expression_counter()
+
+      ast = {:==, [], [{:x, [], nil}, 1]}
+      {:ok, {expr_iri, triples, updated_context}} = ExpressionBuilder.build(ast, context)
+
+      # Light mode - expression skipped
+      light_context = Context.new(
+        base_iri: "https://example.org/code#",
+        config: %{include_expressions: false},
+        file_path: "lib/my_app/users.ex"
+      )
+
+      ExpressionBuilder.build(ast, light_context)
       # => :skip
 
-      # Full mode (stub - returns generic Expression)
-      context = Context.new(base_iri: "https://example.org/code#", config: %{include_expressions: true})
-      {:ok, {iri, triples}} = ExpressionBuilder.build({:==, [], [1, 2]}, context, [])
+      # Dependency file - always skipped
+      dep_context = Context.new(
+        base_iri: "https://example.org/code#",
+        config: %{include_expressions: true},
+        file_path: "deps/decimal/lib/decimal.ex"
+      )
+
+      ExpressionBuilder.build(ast, dep_context)
+      # => :skip
+
   """
-  @spec build(ast(), Context.t(), keyword()) :: result()
+  @spec build(Macro.t() | nil, Context.t(), keyword()) ::
+          {:ok, {RDF.IRI.t(), [RDF.Triple.t()], Context.t()}} | :skip
   def build(nil, _context, _opts), do: :skip
 
-  def build(ast, context, opts) do
-    # Check if we should extract expressions for this file
-    file_path = context.file_path || ""
-
-    cond do
-      # Light mode - skip all expressions
-      !Context.full_mode?(context) ->
-        :skip
-
-      # Dependency files - always light mode
-      !Context.full_mode_for_file?(context, file_path) ->
-        :skip
-
-      # Full mode for project files - dispatch to appropriate builder
-      true ->
-        build_expression_triples(ast, context, opts)
+  def build(ast, %Context{} = context, opts) do
+    # Check if we should extract full expressions for this file
+    if Context.full_mode_for_file?(context, context.file_path) do
+      do_build(ast, context, opts)
+    else
+      :skip
     end
+  end
+
+  # ===========================================================================
+  # Main Build Logic
+  # ===========================================================================
+
+  defp do_build(ast, context, opts) do
+    # Get base IRI from options or context
+    base_iri = Keyword.get(opts, :base_iri, context.base_iri)
+
+    # Generate expression IRI using context-based counter
+    {expr_iri, updated_context} = expression_iri_for_build(base_iri, context, opts)
+
+    # Build expression triples
+    triples = build_expression_triples(ast, expr_iri, updated_context)
+
+    {:ok, {expr_iri, triples, updated_context}}
+  end
+
+  # Generates an expression IRI for the build/3 flow using context-based counter
+  # This replaces the old process dictionary approach with thread-safe context counters
+  defp expression_iri_for_build(base_iri, context, opts) do
+    {suffix_string, updated_context} =
+      cond do
+        # Explicit suffix provided (doesn't use counter)
+        custom_suffix = Keyword.get(opts, :suffix) ->
+          {custom_suffix, context}
+
+        # Explicit counter provided (advanced use)
+        counter = Keyword.get(opts, :counter) ->
+          {"expr_#{counter}", context}
+
+        # Use context counter for deterministic IRIs (thread-safe)
+        true ->
+          {counter, new_context} = Context.next_expression_counter(context)
+          {"expr_#{counter}", new_context}
+      end
+
+    iri_string = "#{base_iri}expr/#{suffix_string}"
+    iri = RDF.IRI.new(iri_string)
+    {iri, updated_context}
   end
 
   # ===========================================================================
   # Expression Dispatch
   # ===========================================================================
 
-  # Comparison operators (==, !=, ===, !==, <, >, <=, >=)
   @doc false
-  def build_expression_triples({op, _, [_left, _right]}, context, opts)
-      when op in [:==, :!=, :===, :!==, :<, :>, :<=, :>=] do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(op, :comparison, context, opts)
+  @spec build_expression_triples(Macro.t(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  def build_expression_triples(ast, expr_iri, context)
+
+  # Comparison operators
+  def build_expression_triples({:==, _, [left, right]}, expr_iri, context) do
+    build_comparison(:==, left, right, expr_iri, context)
   end
 
-  # Logical operators (and, or, not, &&, ||, !)
-  @doc false
-  def build_expression_triples({op, _, _args} = _ast, context, opts)
-      when op in [:and, :or] do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(op, :logical, context, opts)
+  def build_expression_triples({:!=, _, [left, right]}, expr_iri, context) do
+    build_comparison(:!=, left, right, expr_iri, context)
   end
 
-  @doc false
-  def build_expression_triples({:not, _, [_arg]}, context, opts) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(:not, :unary_logical, context, opts)
+  def build_expression_triples({:===, _, [left, right]}, expr_iri, context) do
+    build_comparison(:===, left, right, expr_iri, context)
   end
 
-  @doc false
-  def build_expression_triples({op, _, _args} = _ast, context, opts)
-      when op in [:&&, :||] do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(op, :logical_short_circuit, context, opts)
+  def build_expression_triples({:!==, _, [left, right]}, expr_iri, context) do
+    build_comparison(:!==, left, right, expr_iri, context)
   end
 
-  @doc false
-  def build_expression_triples({:!, _, [_arg]}, context, opts) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(:!, :unary_logical_short_circuit, context, opts)
+  def build_expression_triples({:<, _, [left, right]}, expr_iri, context) do
+    build_comparison(:<, left, right, expr_iri, context)
   end
 
-  # Arithmetic operators (+, -, *, /, div, rem)
-  @doc false
-  def build_expression_triples({op, _, [_left, _right]}, context, opts)
-      when op in [:+, :-, :*, :/] do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(op, :arithmetic, context, opts)
+  def build_expression_triples({:>, _, [left, right]}, expr_iri, context) do
+    build_comparison(:>, left, right, expr_iri, context)
   end
 
-  @doc false
-  def build_expression_triples({op, _, [_left, _right]}, context, opts)
-      when op in [:div, :rem] do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(op, :arithmetic, context, opts)
+  def build_expression_triples({:<=, _, [left, right]}, expr_iri, context) do
+    build_comparison(:<=, left, right, expr_iri, context)
   end
 
-  # Pipe operator (|>)
-  @doc false
-  def build_expression_triples({:|>, _, [_left, _right]}, context, opts) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(:|>, :pipe, context, opts)
+  def build_expression_triples({:>=, _, [left, right]}, expr_iri, context) do
+    build_comparison(:>=, left, right, expr_iri, context)
   end
 
-  # Match operator (=)
-  @doc false
-  def build_expression_triples({:=, _, [_left, _right]}, context, opts) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(:=, :match, context, opts)
+  # Logical operators
+  def build_expression_triples({:and, _, [left, right]}, expr_iri, context) do
+    build_logical(:and, left, right, expr_iri, context)
   end
 
-  # String concatenation (<>)
-  @doc false
-  def build_expression_triples({:<>, _, [_left, _right]}, context, opts) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(:<>, :string_concat, context, opts)
+  def build_expression_triples({:or, _, [left, right]}, expr_iri, context) do
+    build_logical(:or, left, right, expr_iri, context)
   end
 
-  # List operators (++, --)
-  @doc false
-  def build_expression_triples({op, _, [_left, _right]}, context, opts)
-      when op in [:++, :--] do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(op, :list, context, opts)
+  def build_expression_triples({:&&, _, [left, right]}, expr_iri, context) do
+    build_logical(:&&, left, right, expr_iri, context)
   end
 
-  # In operator
-  @doc false
-  def build_expression_triples({:in, _, [_left, _right]}, context, opts) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_expression(:in, :in_operator, context, opts)
+  def build_expression_triples({:||, _, [left, right]}, expr_iri, context) do
+    build_logical(:||, left, right, expr_iri, context)
   end
 
-  # Capture operator (&)
-  @doc false
-  def build_expression_triples({:&, _, _} = _ast, context, opts) do
-    # STUB: Will be implemented in section 21.4 or 29
-    build_stub_expression(:&, :capture, context, opts)
+  # Unary operators (not, !, +, -)
+  def build_expression_triples({:not, _, [arg]}, expr_iri, context) do
+    build_unary(:not, arg, expr_iri, context)
   end
 
-  # Remote call (Module.function)
-  @doc false
-  def build_expression_triples({:., _, [_module, _function]}, context, opts) do
-    # STUB: Will be implemented in section 21.4 or 29
-    build_stub_expression(:remote_call, :remote_call, context, opts)
+  def build_expression_triples({:!, _, [arg]}, expr_iri, context) do
+    build_unary(:!, arg, expr_iri, context)
   end
 
-  # Variables ({name, _, context})
-  # Note: Must come before local_call pattern to distinguish variables from function calls
-  # Variables have ctx as an atom (usually nil) while calls have args as a list
-  @doc false
-  def build_expression_triples({name, _, ctx} = _ast, context, opts)
-      when is_atom(name) and is_atom(ctx) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_variable(name, context, opts)
+  # Arithmetic operators
+  def build_expression_triples({:+, _, [left, right]}, expr_iri, context) do
+    build_arithmetic(:+, left, right, expr_iri, context)
   end
 
-  # Local function call (function(args))
-  @doc false
-  def build_expression_triples({function, _, args} = _ast, context, opts)
-      when is_atom(function) and is_list(args) do
-    # STUB: Will be implemented in section 21.4 or 29
-    build_stub_expression(function, :local_call, context, opts)
+  def build_expression_triples({:-, _, [left, right]}, expr_iri, context) do
+    build_arithmetic(:-, left, right, expr_iri, context)
+  end
+
+  def build_expression_triples({:*, _, [left, right]}, expr_iri, context) do
+    build_arithmetic(:*, left, right, expr_iri, context)
+  end
+
+  def build_expression_triples({:/, _, [left, right]}, expr_iri, context) do
+    build_arithmetic(:/, left, right, expr_iri, context)
+  end
+
+  def build_expression_triples({:div, _, [left, right]}, expr_iri, context) do
+    build_arithmetic(:div, left, right, expr_iri, context)
+  end
+
+  def build_expression_triples({:rem, _, [left, right]}, expr_iri, context) do
+    build_arithmetic(:rem, left, right, expr_iri, context)
+  end
+
+  # Pipe operator
+  def build_expression_triples({:|>, _, [left, right]}, expr_iri, context) do
+    build_pipe(left, right, expr_iri, context)
+  end
+
+  # String concatenation
+  def build_expression_triples({:<>, _, [left, right]}, expr_iri, context) do
+    build_string_concat(left, right, expr_iri, context)
+  end
+
+  # List operators
+  def build_expression_triples({:++, _, [left, right]}, expr_iri, context) do
+    build_list_op(:++, left, right, expr_iri, context)
+  end
+
+  def build_expression_triples({:--, _, [left, right]}, expr_iri, context) do
+    build_list_op(:--, left, right, expr_iri, context)
+  end
+
+  # Match operator
+  def build_expression_triples({:=, _, [left, right]}, expr_iri, context) do
+    build_match(left, right, expr_iri, context)
   end
 
   # Integer literals
-  @doc false
-  def build_expression_triples(integer, context, opts) when is_integer(integer) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_literal(integer, :integer, context, opts)
+  def build_expression_triples(int, expr_iri, _context) when is_integer(int) do
+    build_literal(int, expr_iri, Core.IntegerLiteral, Core.integerValue(), RDF.XSD.Integer)
   end
 
   # Float literals
-  @doc false
-  def build_expression_triples(float, context, opts) when is_float(float) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_literal(float, :float, context, opts)
+  def build_expression_triples(float, expr_iri, _context) when is_float(float) do
+    build_literal(float, expr_iri, Core.FloatLiteral, Core.floatValue(), RDF.XSD.Double)
   end
 
-  # String literals
-  @doc false
-  def build_expression_triples(string, context, opts) when is_binary(string) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_literal(string, :string, context, opts)
+  # String literals (binaries)
+  def build_expression_triples(str, expr_iri, _context) when is_binary(str) do
+    build_literal(str, expr_iri, Core.StringLiteral, Core.stringValue(), RDF.XSD.String)
   end
 
   # Atom literals (including true, false, nil)
-  @doc false
-  def build_expression_triples(atom, context, opts) when is_atom(atom) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_literal(atom, :atom, context, opts)
+  def build_expression_triples(atom, expr_iri, _context) when is_atom(atom) do
+    build_atom_literal(atom, expr_iri)
   end
 
-  # Charlist literals (lists of char codes)
-  # Note: We treat all lists as list literals since we can't distinguish
-  # between charlists created with ~c and regular lists at runtime
-  @doc false
-  def build_expression_triples(list, context, opts)
-      when is_list(list) do
-    # STUB: Will be implemented in section 21.4 or 22
-    build_stub_literal(list, :list, context, opts)
+  # Local call: function(args) - must come before variable pattern
+  def build_expression_triples({function, meta, args}, expr_iri, context)
+      when is_atom(function) and is_list(meta) and is_list(args) do
+    build_local_call(function, args, expr_iri, context)
   end
 
-  # Wildcard pattern ({:_})
-  # Note: Must come before tuple patterns since {:_} is a 1-tuple
-  @doc false
-  def build_expression_triples({:_}, context, opts) do
-    # STUB: Will be implemented in section 21.4
-    build_stub_wildcard(context, opts)
+  # Remote call: Module.function(args)
+  def build_expression_triples(
+        {{:., _, [module, function]}, _, args},
+        expr_iri,
+        context
+      ) do
+    build_remote_call(module, function, args, expr_iri, context)
   end
 
-  # Tuple literals
-  # Note: Must come after wildcard pattern since {:_} is technically a tuple
-  # We need to distinguish tuples from operator ASTs
-  @doc false
-  def build_expression_triples({elem1, elem2}, context, opts)
-      when not is_list(elem2) and elem2 != nil do
-    # STUB: Will be implemented in section 21.4 or 22
-    # This matches 2-tuples where elem2 is not a list (not operator metadata)
-    build_stub_literal({elem1, elem2}, :tuple, context, opts)
+  # Variable pattern: {name, meta, ctx} where ctx is nil or an atom
+  # This must come after calls to avoid matching function calls
+  def build_expression_triples({name, meta, ctx} = var, expr_iri, build_context)
+      when is_atom(name) and is_list(meta) and (is_nil(ctx) or is_atom(ctx)) do
+    build_variable(var, expr_iri, build_context)
   end
 
-  @doc false
-  def build_expression_triples(tuple, context, opts) when is_tuple(tuple) do
-    # STUB: Will be implemented in section 21.4 or 22
-    # Match larger tuples (3+ elements)
-    build_stub_literal(tuple, :tuple, context, opts)
-  end
-
-  # Map literals
-  @doc false
-  def build_expression_triples(%{} = map, context, opts) do
-    # STUB: Will be implemented in section 21.4 or 22
-    build_stub_literal(map, :map, context, opts)
+  # Wildcard pattern
+  def build_expression_triples({:_}, expr_iri, _context) do
+    build_wildcard(expr_iri)
   end
 
   # Fallback for unknown expressions
-  @doc false
-  def build_expression_triples(_ast, context, opts) do
-    # Return generic Expression type for unhandled AST nodes
-    build_stub_expression(:unknown, :generic, context, opts)
+  def build_expression_triples(_ast, expr_iri, _context) do
+    build_generic_expression(expr_iri)
   end
 
   # ===========================================================================
-  # Stub Builder Functions (To be implemented in section 21.4)
+  # Builder Functions
   # ===========================================================================
 
-  # Generates a stub expression with appropriate type
-  defp build_stub_expression(op, type, context, _opts) do
-    base_iri = get_base_iri(context)
-    counter = next_counter(base_iri)
-    expr_iri = RDF.IRI.new("#{base_iri}expr_#{counter}")
-
-    # Determine the expression class based on type
-    expr_class =
-      case type do
-        :comparison -> Core.ComparisonOperator
-        :logical -> Core.LogicalOperator
-        :unary_logical -> Core.LogicalOperator
-        :logical_short_circuit -> Core.LogicalOperator
-        :unary_logical_short_circuit -> Core.LogicalOperator
-        :arithmetic -> Core.ArithmeticOperator
-        :pipe -> Core.PipeOperator
-        :match -> Core.MatchOperator
-        :string_concat -> Core.StringConcatOperator
-        :list -> Core.ListOperator
-        :in_operator -> Core.InOperator
-        :capture -> Core.CaptureOperator
-        :remote_call -> Core.RemoteCall
-        :local_call -> Core.LocalCall
-        :generic -> Core.Expression
-        _ -> Core.Expression
-      end
-
-    # Build stub triples
-    triples =
-      [
-        Helpers.type_triple(expr_iri, expr_class)
-      ]
-
-    # Add operator symbol for operators
-    triples =
-      if type != :remote_call and type != :local_call and type != :generic do
-        op_str =
-          if op == :remote_call do
-            "remote_call"
-          else
-            Atom.to_string(op)
-          end
-
-        symbol_triple = Helpers.datatype_property(
-          expr_iri,
-          Core.operatorSymbol(),
-          op_str,
-          RDF.XSD.String
-        )
-        triples ++ [symbol_triple]
-      else
-        triples
-      end
-
-    {:ok, {expr_iri, triples}}
+  # Comparison operators (==, !=, ===, !==, <, >, <=, >=)
+  defp build_comparison(op, left, right, expr_iri, context) do
+    build_binary_operator(op, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
-  # Generates a stub literal expression
-  defp build_stub_literal(value, type, context, _opts) do
-    base_iri = get_base_iri(context)
-    counter = next_counter(base_iri)
-    expr_iri = RDF.IRI.new("#{base_iri}expr_#{counter}")
-
-    # Determine the literal class based on type
-    literal_class =
-      case type do
-        :integer -> Core.IntegerLiteral
-        :float -> Core.FloatLiteral
-        :string -> Core.StringLiteral
-        :atom -> Core.AtomLiteral
-        :charlist -> Core.CharlistLiteral
-        :list -> Core.ListLiteral
-        :tuple -> Core.TupleLiteral
-        :map -> Core.MapLiteral
-        _ -> Core.Literal
-      end
-
-    # Build stub triples
-    triples =
-      [
-        Helpers.type_triple(expr_iri, literal_class)
-      ]
-
-    # Add value property for literals
-    {value_prop, value_type} =
-      case type do
-        :integer -> {Core.integerValue(), RDF.XSD.Integer}
-        :float -> {Core.floatValue(), RDF.XSD.Double}
-        :string -> {Core.stringValue(), RDF.XSD.String}
-        :atom -> {Core.atomValue(), RDF.XSD.String}
-        _ -> {nil, nil}
-      end
-
-    triples =
-      if value_prop do
-        value_triple = Helpers.datatype_property(
-          expr_iri,
-          value_prop,
-          value,
-          value_type
-        )
-        triples ++ [value_triple]
-      else
-        triples
-      end
-
-    {:ok, {expr_iri, triples}}
+  # Logical operators (and, or, &&, ||)
+  defp build_logical(op, left, right, expr_iri, context) do
+    build_binary_operator(op, left, right, expr_iri, context, Core.LogicalOperator)
   end
 
-  # Generates a stub variable expression
-  defp build_stub_variable(name, context, _opts) do
-    base_iri = get_base_iri(context)
-    counter = next_counter(base_iri)
-    expr_iri = RDF.IRI.new("#{base_iri}expr_#{counter}")
+  # Arithmetic operators (+, -, *, /, div, rem)
+  defp build_arithmetic(op, left, right, expr_iri, context) do
+    build_binary_operator(op, left, right, expr_iri, context, Core.ArithmeticOperator)
+  end
 
-    triples = [
+  # Unary operators (not, !)
+  defp build_unary(op, arg, expr_iri, context) do
+    build_unary_operator(op, arg, expr_iri, context, Core.LogicalOperator)
+  end
+
+  # Pipe operator (|>)
+  defp build_pipe(left, right, expr_iri, context) do
+    # Pipe operator is binary but with special semantics
+    # For now, treat as binary operator
+    build_binary_operator(:|>, left, right, expr_iri, context, Core.PipeOperator)
+  end
+
+  # String concatenation (<>)
+  defp build_string_concat(left, right, expr_iri, context) do
+    build_binary_operator(:<>, left, right, expr_iri, context, Core.StringConcatOperator)
+  end
+
+  # List operators (++, --)
+  defp build_list_op(op, left, right, expr_iri, context) do
+    build_binary_operator(op, left, right, expr_iri, context, Core.ListOperator)
+  end
+
+  # Match operator (=)
+  defp build_match(left, right, expr_iri, context) do
+    build_binary_operator(:=, left, right, expr_iri, context, Core.MatchOperator)
+  end
+
+  # ===========================================================================
+  # Core Expression Builders
+  # ===========================================================================
+
+  # Builds a binary operator with left and right operands
+  defp build_binary_operator(op, left_ast, right_ast, expr_iri, context, type_class) do
+    # Generate relative IRIs for child expressions
+    left_iri = fresh_iri(expr_iri, "left")
+    right_iri = fresh_iri(expr_iri, "right")
+
+    # Recursively build operand triples
+    left_triples = build_expression_triples(left_ast, left_iri, context)
+    right_triples = build_expression_triples(right_ast, right_iri, context)
+
+    # Build operator triples
+    operator_triples = [
+      Helpers.type_triple(expr_iri, type_class),
+      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), to_string(op), RDF.XSD.String),
+      Helpers.object_property(expr_iri, Core.hasLeftOperand(), left_iri),
+      Helpers.object_property(expr_iri, Core.hasRightOperand(), right_iri)
+    ]
+
+    # Combine all triples
+    operator_triples ++ left_triples ++ right_triples
+  end
+
+  # Builds a unary operator with a single operand
+  defp build_unary_operator(op, operand_ast, expr_iri, context, type_class) do
+    # Generate relative IRI for child expression
+    operand_iri = fresh_iri(expr_iri, "operand")
+
+    # Recursively build operand triples
+    operand_triples = build_expression_triples(operand_ast, operand_iri, context)
+
+    # Build operator triples
+    operator_triples = [
+      Helpers.type_triple(expr_iri, type_class),
+      Helpers.datatype_property(expr_iri, Core.operatorSymbol(), to_string(op), RDF.XSD.String),
+      Helpers.object_property(expr_iri, Core.hasOperand(), operand_iri)
+    ]
+
+    # Combine all triples
+    operator_triples ++ operand_triples
+  end
+
+  # Remote call: Module.function(args)
+  defp build_remote_call(module, function, _args, expr_iri, _context) do
+    # Extract module name from aliases AST
+    module_name =
+      case module do
+        {:__aliases__, _, parts} -> Enum.join(parts, ".")
+        {:@, _, [{:__, _, [:module]}]} -> :__MODULE__
+        {:__MODULE__, [], []} -> :__MODULE__
+        _ -> inspect(module)
+      end
+
+    function_name =
+      case function do
+        fun when is_atom(fun) -> fun
+        _ -> inspect(function)
+      end
+
+    [
+      Helpers.type_triple(expr_iri, Core.RemoteCall),
+      Helpers.datatype_property(expr_iri, Core.name(), "#{module_name}.#{function_name}", RDF.XSD.String)
+    ]
+  end
+
+  # Local call: function(args)
+  defp build_local_call(function, _args, expr_iri, _context) do
+    [
+      Helpers.type_triple(expr_iri, Core.LocalCall),
+      Helpers.datatype_property(expr_iri, Core.name(), to_string(function), RDF.XSD.String)
+    ]
+  end
+
+  # Variable: {name, meta, ctx}
+  defp build_variable({name, _meta, _ctx}, expr_iri, _context) do
+    [
       Helpers.type_triple(expr_iri, Core.Variable),
-      Helpers.datatype_property(expr_iri, Core.name(), Atom.to_string(name), RDF.XSD.String)
+      Helpers.datatype_property(expr_iri, Core.name(), to_string(name), RDF.XSD.String)
     ]
-
-    {:ok, {expr_iri, triples}}
   end
 
-  # Generates a stub wildcard pattern
-  defp build_stub_wildcard(context, _opts) do
-    base_iri = get_base_iri(context)
-    counter = next_counter(base_iri)
-    expr_iri = RDF.IRI.new("#{base_iri}expr_#{counter}")
-
-    triples = [
-      Helpers.type_triple(expr_iri, Core.WildcardPattern)
-    ]
-
-    {:ok, {expr_iri, triples}}
+  # Wildcard pattern: _
+  defp build_wildcard(expr_iri) do
+    [Helpers.type_triple(expr_iri, Core.WildcardPattern)]
   end
 
   # ===========================================================================
-  # Helper Functions
+  # Literal Builders
+  # ===========================================================================
+
+  # Builds a typed literal (integer, float, string)
+  defp build_literal(value, expr_iri, literal_type, value_property, xsd_type) do
+    [
+      Helpers.type_triple(expr_iri, literal_type),
+      Helpers.datatype_property(expr_iri, value_property, value, xsd_type)
+    ]
+  end
+
+  # Builds an atom literal (including :true, :false, :nil)
+  defp build_atom_literal(atom_value, expr_iri) do
+    [
+      Helpers.type_triple(expr_iri, Core.AtomLiteral),
+      Helpers.datatype_property(expr_iri, Core.atomValue(), atom_to_string(atom_value), RDF.XSD.String)
+    ]
+  end
+
+  # Converts atom to string representation
+  # Handles special atoms (true, false, nil) and custom atoms
+  defp atom_to_string(true), do: "true"
+  defp atom_to_string(false), do: "false"
+  defp atom_to_string(nil), do: "nil"
+  defp atom_to_string(atom) when is_atom(atom), do: ":" <> Atom.to_string(atom)
+
+  # Generic expression for unknown AST nodes
+  defp build_generic_expression(expr_iri) do
+    [Helpers.type_triple(expr_iri, Core.Expression)]
+  end
+
+  # ===========================================================================
+  # IRI Generation
   # ===========================================================================
 
   @doc """
-  Generates a fresh IRI for a nested expression relative to a parent IRI.
+  Generates an expression IRI with deterministic counter-based suffix.
+
+  ## Parameters
+
+  - `base_iri` - The base IRI string (e.g., "https://example.org/code#")
+  - `context` - The builder context (for counter access)
+  - `opts` - Optional keywords:
+    - `:suffix` - Custom suffix (overrides counter generation)
+    - `:counter` - Specific counter value (advanced use)
+
+  ## Returns
+
+  `{iri, updated_context}` - The expression IRI and context with incremented counter
 
   ## Examples
 
-      iex> parent = ~I<https://example.org/code#expr_0>
-      iex> ExpressionBuilder.fresh_iri(parent, "left")
-      ~I<https://example.org/code#expr_0/left>
+      # Using context counter (recommended)
+      {iri, context} = expression_iri("https://example.org/code#", context)
+      # => {~I<https://example.org/code#expr/0>, %Context{metadata: %{expression_counter: 1}}}
+
+      # With custom suffix
+      {iri, context} = expression_iri("https://example.org/code#", context, suffix: "my_expr")
+      # => {~I<https://example.org/code#expr/my_expr>, %Context{}}
+
   """
-  @spec fresh_iri(RDF.IRI.t(), String.t()) :: RDF.IRI.t()
-  def fresh_iri(parent_iri, suffix) do
-    parent_string = RDF.IRI.to_string(parent_iri)
-    RDF.IRI.new("#{parent_string}/#{suffix}")
+  @spec expression_iri(String.t(), Context.t(), keyword()) :: {RDF.IRI.t(), Context.t()}
+  def expression_iri(base_iri, context, opts \\ []) do
+    {suffix, updated_context} =
+      cond do
+        # Explicit suffix provided (doesn't consume counter)
+        custom_suffix = Keyword.get(opts, :suffix) ->
+          {custom_suffix, context}
+
+        # Explicit counter provided (advanced use)
+        counter = Keyword.get(opts, :counter) ->
+          {"expr_#{counter}", context}
+
+        # Use context counter for deterministic IRIs
+        true ->
+          {counter, new_context} = Context.next_expression_counter(context)
+          {"expr_#{counter}", new_context}
+      end
+
+    iri_string = "#{base_iri}expr/#{suffix}"
+    iri = RDF.IRI.new(iri_string)
+
+    {iri, updated_context}
   end
 
-  # Gets the base IRI from the context
-  defp get_base_iri(context) do
-    case context.base_iri do
-      iri when is_binary(iri) -> iri
-      %RDF.IRI{} = iri -> RDF.IRI.to_string(iri)
+  @doc """
+  Generates a relative IRI for child expressions.
+
+  Child expressions (like left/right operands) get IRIs relative to their
+  parent expression for clear hierarchy in the RDF graph.
+
+  ## Parameters
+
+  - `parent_iri` - The parent expression's IRI
+  - `child_name` - The child relationship name (e.g., "left", "right", "condition")
+
+  ## Returns
+
+  A new IRI that is relative to the parent
+
+  ## Examples
+
+      parent = ~I<https://example.org/code#expr/0>
+      fresh_iri(parent, "left")
+      # => ~I<https://example.org/code#expr/0/left>
+
+      fresh_iri(parent, "right")
+      # => ~I<https://example.org/code#expr/0/right>
+
+  """
+  @spec fresh_iri(RDF.IRI.t(), String.t()) :: RDF.IRI.t()
+  def fresh_iri(parent_iri, child_name) when is_binary(child_name) do
+    parent_string = RDF.IRI.to_string(parent_iri)
+    iri_string = "#{parent_string}/#{child_name}"
+    RDF.IRI.new(iri_string)
+  end
+
+  @doc """
+  Gets or creates an IRI from a cache, supporting expression deduplication.
+
+  This pattern allows sharing the same IRI for identical sub-expressions
+  that appear multiple times in a graph, reducing redundancy.
+
+  ## Parameters
+
+  - `cache` - A map cache (can be `nil` to skip caching)
+  - `key` - Cache key (typically AST hash or structure signature)
+  - `generator` - A zero-arity function that generates a new IRI
+
+  ## Returns
+
+  `{iri, updated_cache}` - The IRI (cached or new) and updated cache map
+
+  ## Examples
+
+      # First call - creates new IRI
+      cache = %{}
+      {iri1, cache1} = get_or_create_iri(cache, :some_key, fn -> ~I<https://example.org/expr/0> end)
+
+      # Second call with same key - reuses cached IRI
+      {iri2, cache2} = get_or_create_iri(cache1, :some_key, fn -> ~I<https://example.org/expr/1> end)
+      iri1 == iri2  # => true
+
+      # Different key - creates new IRI
+      {iri3, cache3} = get_or_create_iri(cache2, :other_key, fn -> ~I<https://example.org/expr/2> end)
+      iri1 == iri3  # => false
+
+  """
+  @spec get_or_create_iri(map() | nil, term(), function()) :: {RDF.IRI.t(), map()}
+  def get_or_create_iri(nil, _key, generator), do: {generator.(), %{}}
+
+  def get_or_create_iri(cache, key, generator) when is_map(cache) do
+    case Map.get(cache, key) do
+      nil ->
+        iri = generator.()
+        {iri, Map.put(cache, key, iri)}
+
+      cached_iri ->
+        {cached_iri, cache}
     end
   end
 end
