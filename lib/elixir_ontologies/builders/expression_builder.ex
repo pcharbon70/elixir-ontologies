@@ -139,8 +139,6 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   """
   @spec build(Macro.t() | nil, Context.t(), keyword()) ::
           {:ok, {RDF.IRI.t(), [RDF.Triple.t()], Context.t()}} | :skip
-  def build(nil, _context, _opts), do: :skip
-
   def build(ast, %Context{} = context, opts) do
     # Check if we should extract full expressions for this file
     if Context.full_mode_for_file?(context, context.file_path) do
@@ -507,9 +505,18 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Builds an atom literal (including :true, :false, :nil)
+  # Uses specific types for booleans and nil: BooleanLiteral and NilLiteral
   defp build_atom_literal(atom_value, expr_iri) do
+    type_class =
+      case atom_value do
+        true -> Core.BooleanLiteral
+        false -> Core.BooleanLiteral
+        nil -> Core.NilLiteral
+        _ -> Core.AtomLiteral
+      end
+
     [
-      Helpers.type_triple(expr_iri, Core.AtomLiteral),
+      Helpers.type_triple(expr_iri, type_class),
       Helpers.datatype_property(expr_iri, Core.atomValue(), atom_to_string(atom_value), RDF.XSD.String)
     ]
   end

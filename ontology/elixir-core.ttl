@@ -105,8 +105,18 @@
 :AtomLiteral a owl:Class ;
     rdfs:label "Atom Literal"@en ;
     rdfs:comment """An Elixir atom - a constant whose name is its value.
-    Examples: :ok, :error, true, false, nil."""@en ;
+    Examples: :ok, :error, :foo."""@en ;
     rdfs:subClassOf :Literal .
+
+:BooleanLiteral a owl:Class ;
+    rdfs:label "Boolean Literal"@en ;
+    rdfs:comment "A boolean atom literal: true or false."@en ;
+    rdfs:subClassOf :AtomLiteral .
+
+:NilLiteral a owl:Class ;
+    rdfs:label "Nil Literal"@en ;
+    rdfs:comment "The nil atom literal representing absence of value."@en ;
+    rdfs:subClassOf :AtomLiteral .
 
 :IntegerLiteral a owl:Class ;
     rdfs:label "Integer Literal"@en ;

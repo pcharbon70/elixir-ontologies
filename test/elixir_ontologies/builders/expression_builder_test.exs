@@ -19,15 +19,18 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert ExpressionBuilder.build(ast, context, []) == :skip
     end
 
-    test "returns :skip for nil AST regardless of mode" do
+    test "returns {:ok, {expr_iri, triples, context}} for nil AST in full mode" do
       context =
         Context.new(
           base_iri: "https://example.org/code#",
           config: %{include_expressions: true},
           file_path: "lib/my_app/users.ex"
         )
+        |> Context.with_expression_counter()
 
-      assert ExpressionBuilder.build(nil, context, []) == :skip
+      assert {:ok, {expr_iri, triples, _updated_context}} = ExpressionBuilder.build(nil, context, [])
+      assert has_type?(triples, Core.NilLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.atomValue(), "nil")
     end
 
     test "returns :skip for dependency files even when include_expressions is true" do
@@ -408,25 +411,28 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_literal_value?(triples, expr_iri, Core.atomValue(), ":ok")
     end
 
-    test "builds AtomLiteral triples for true" do
+    test "builds BooleanLiteral triples for true" do
       context = full_mode_context()
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(true, context, [])
 
-      assert has_type?(triples, Core.AtomLiteral)
+      assert has_type?(triples, Core.BooleanLiteral)
       assert has_literal_value?(triples, expr_iri, Core.atomValue(), "true")
     end
 
-    test "builds AtomLiteral triples for false" do
+    test "builds BooleanLiteral triples for false" do
       context = full_mode_context()
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(false, context, [])
 
-      assert has_type?(triples, Core.AtomLiteral)
+      assert has_type?(triples, Core.BooleanLiteral)
       assert has_literal_value?(triples, expr_iri, Core.atomValue(), "false")
     end
 
-    test "returns :skip for nil literals" do
+    test "builds NilLiteral triples for nil" do
       context = full_mode_context()
-      assert ExpressionBuilder.build(nil, context, []) == :skip
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(nil, context, [])
+
+      assert has_type?(triples, Core.NilLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.atomValue(), "nil")
     end
   end
 
