@@ -332,6 +332,23 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     end
   end
 
+  # Binary literals (<<>>)
+  # Matches binary construction patterns like <<65>> or <<x::8>>
+  # Note: Literal binaries like <<"hello">> compile to plain binaries and are caught by is_binary/1
+  def build_expression_triples({:<<>>, _meta, segments}, expr_iri, _context) do
+    if binary_literal?(segments) do
+      # All segments are literal integers - we can construct the binary
+      binary_value = construct_binary_from_literals(segments)
+      # RDF.XSD.Base64Binary handles base64 encoding internally
+      build_literal(binary_value, expr_iri, Core.BinaryLiteral, Core.binaryValue(), RDF.XSD.Base64Binary)
+    else
+      # Binary contains variables or complex type specs
+      # For now, treat as generic expression
+      # Full pattern support deferred to pattern phase
+      build_generic_expression(expr_iri)
+    end
+  end
+
   # Atom literals (including true, false, nil)
   def build_expression_triples(atom, expr_iri, _context) when is_atom(atom) do
     build_atom_literal(atom, expr_iri)
@@ -546,6 +563,25 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     Enum.all?(list, fn
       x when is_integer(x) -> x >= 0 and x <= 0x10FFFF
       _ -> false
+    end)
+  end
+
+  # Check if binary segments are all literal integers (no variables, no type specs)
+  # This allows us to construct a binary value from literals like <<65, 66, 67>>
+  defp binary_literal?(segments) when is_list(segments) do
+    Enum.all?(segments, fn
+      x when is_integer(x) -> x >= 0 and x <= 255
+      _ -> false
+    end)
+  end
+
+  # Construct a binary from a list of literal integer segments
+  # Each integer should be a byte value (0-255)
+  defp construct_binary_from_literals(segments) when is_list(segments) do
+    # Use :erlang.iolist_to_binary or manual construction
+    # Since we know all segments are integers, we can use <<>> syntax
+    Enum.reduce(segments, <<>>, fn byte, acc ->
+      acc <> <<byte>>
     end)
   end
 

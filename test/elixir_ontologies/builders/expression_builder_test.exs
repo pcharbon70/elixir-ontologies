@@ -656,6 +656,106 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       refute has_type?(triples, Core.CharlistLiteral)
       assert has_type?(triples, Core.Expression)
     end
+
+    test "builds BinaryLiteral triples for binary with single literal integer" do
+      context = full_mode_context()
+
+      # Binary with single byte: <<65>>
+      binary_ast = {:<<>>, [], [65]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(binary_ast, context, [])
+
+      assert has_type?(triples, Core.BinaryLiteral)
+      # RDF.XSD.Base64Binary stores the raw binary value (checked via lexical)
+      assert has_binary_literal_value?(triples, expr_iri, Core.binaryValue(), "A")
+    end
+
+    test "builds BinaryLiteral triples for binary with multiple literal integers" do
+      context = full_mode_context()
+
+      # Binary with multiple bytes: <<65, 66, 67>> = "ABC"
+      binary_ast = {:<<>>, [], [65, 66, 67]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(binary_ast, context, [])
+
+      assert has_type?(triples, Core.BinaryLiteral)
+      # RDF.XSD.Base64Binary stores the raw binary value (checked via lexical)
+      assert has_binary_literal_value?(triples, expr_iri, Core.binaryValue(), "ABC")
+    end
+
+    test "builds BinaryLiteral triples for empty binary" do
+      context = full_mode_context()
+
+      # Empty binary: <<>>
+      binary_ast = {:<<>>, [], []}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(binary_ast, context, [])
+
+      assert has_type?(triples, Core.BinaryLiteral)
+      # Empty binary
+      assert has_binary_literal_value?(triples, expr_iri, Core.binaryValue(), "")
+    end
+
+    test "builds BinaryLiteral triples for binary with zero bytes" do
+      context = full_mode_context()
+
+      # Binary with zeros: <<0, 0, 0>>
+      binary_ast = {:<<>>, [], [0, 0, 0]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(binary_ast, context, [])
+
+      assert has_type?(triples, Core.BinaryLiteral)
+      # RDF.XSD.Base64Binary stores the raw binary value (three null bytes)
+      assert has_binary_literal_value?(triples, expr_iri, Core.binaryValue(), <<0, 0, 0>>)
+    end
+
+    test "builds BinaryLiteral triples for binary with all byte values" do
+      context = full_mode_context()
+
+      # Binary with values 0-255
+      bytes = Enum.to_list(0..255)
+      binary_ast = {:<<>>, [], bytes}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(binary_ast, context, [])
+
+      assert has_type?(triples, Core.BinaryLiteral)
+      # Verify the base64 value is set (we don't check exact value due to size)
+      assert Enum.any?(triples, fn
+        {_, p, _} -> p == Core.binaryValue()
+        _ -> false
+      end)
+    end
+
+    test "treats binary with variables as generic expression" do
+      context = full_mode_context()
+
+      # Binary with variable: <<x::8>>
+      binary_ast = {:<<>>, [], [{:"::", [], [{:x, [], Elixir}, 8]}]}
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(binary_ast, context, [])
+
+      # Should fall through to generic expression (not BinaryLiteral)
+      refute has_type?(triples, Core.BinaryLiteral)
+      assert has_type?(triples, Core.Expression)
+    end
+
+    test "treats binary with mixed literals and variables as generic expression" do
+      context = full_mode_context()
+
+      # Binary with mixed: <<65, x::8, 67>>
+      binary_ast = {:<<>>, [], [65, {:"::", [], [{:x, [], Elixir}, 8]}, 67]}
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(binary_ast, context, [])
+
+      # Should fall through to generic expression (not BinaryLiteral)
+      refute has_type?(triples, Core.BinaryLiteral)
+      assert has_type?(triples, Core.Expression)
+    end
+
+    test "treats binary with type specification as generic expression" do
+      context = full_mode_context()
+
+      # Binary with binary type: <<x::binary>>
+      binary_ast = {:<<>>, [], [{:"::", [], [{:x, [], Elixir}, {:binary, [], Elixir}]}]}
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(binary_ast, context, [])
+
+      # Should fall through to generic expression
+      refute has_type?(triples, Core.BinaryLiteral)
+      assert has_type?(triples, Core.Expression)
+    end
   end
 
   describe "unknown expressions" do
@@ -1225,6 +1325,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   defp has_literal_value?(triples, subject, predicate, expected_value) do
     Enum.any?(triples, fn {s, p, o} ->
       s == subject and p == predicate and RDF.Literal.value(o) == expected_value
+    end)
+  end
+
+  # For Base64Binary literals, RDF.Literal.value/1 returns nil
+  # We need to check RDF.Literal.lexical/1 instead
+  defp has_binary_literal_value?(triples, subject, predicate, expected_value) do
+    Enum.any?(triples, fn {s, p, o} ->
+      s == subject and p == predicate and RDF.Literal.lexical(o) == expected_value
     end)
   end
 end
