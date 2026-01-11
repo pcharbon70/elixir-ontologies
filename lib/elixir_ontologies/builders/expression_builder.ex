@@ -329,6 +329,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     build_capture_function_ref(function_ref, nil, expr_iri, context)
   end
 
+  # In operator
+  def build_expression_triples({:in, _, [left, right]}, expr_iri, context) do
+    build_binary_operator(:in, left, right, expr_iri, context, Core.InOperator)
+  end
+
   # Integer literals
   def build_expression_triples(int, expr_iri, _context) when is_integer(int) do
     build_literal(int, expr_iri, Core.IntegerLiteral, Core.integerValue(), RDF.XSD.Integer)

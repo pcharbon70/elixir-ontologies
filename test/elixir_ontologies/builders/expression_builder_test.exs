@@ -766,6 +766,99 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "in operator" do
+    test "dispatches in to InOperator" do
+      context = full_mode_context()
+      # 1 in [1, 2, 3] as AST
+      ast = {:in, [], [1, [1, 2, 3]]}
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.InOperator)
+      assert has_operator_symbol?(triples, "in")
+    end
+
+    test "in operator with variable element" do
+      context = full_mode_context()
+      # x in [1, 2, 3] as AST
+      ast = {:in, [], [{:x, [], nil}, [1, 2, 3]]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create InOperator type
+      assert has_type?(triples, Core.InOperator)
+      assert has_operator_symbol?(triples, "in")
+
+      # Left operand (element) should be Variable
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.Variable end)
+    end
+
+    test "in operator with variable enumerable" do
+      context = full_mode_context()
+      # 1 in list as AST
+      ast = {:in, [], [1, {:list, [], nil}]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create InOperator type
+      assert has_type?(triples, Core.InOperator)
+
+      # Right operand (enumerable) should be Variable
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.Variable end)
+    end
+
+    test "in operator captures left operand (element)" do
+      context = full_mode_context()
+      # x in list as AST
+      ast = {:in, [], [{:x, [], nil}, [1, 2, 3]]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have left operand property
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      # Left operand is Variable "x"
+      assert has_literal_value?(triples, left_iri, Core.name(), "x")
+    end
+
+    test "in operator captures right operand (enumerable)" do
+      context = full_mode_context()
+      # 1 in list as AST
+      ast = {:in, [], [1, {:list, [], nil}]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have right operand property
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
+
+      # Right operand is Variable "list"
+      assert has_literal_value?(triples, right_iri, Core.name(), "list")
+    end
+
+    test "in operator with complex expressions" do
+      context = full_mode_context()
+      # x + y in list as AST
+      add_expr = {:+, [], [{:x, [], nil}, {:y, [], nil}]}
+      ast = {:in, [], [add_expr, {:list, [], nil}]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create InOperator type
+      assert has_type?(triples, Core.InOperator)
+
+      # Left operand is an ArithmeticOperator
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ArithmeticOperator end)
+
+      # Right operand is a Variable
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.Variable end)
+    end
+  end
+
   describe "variables" do
     test "dispatches variable pattern to Variable" do
       context = full_mode_context()
