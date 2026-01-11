@@ -194,6 +194,11 @@
     rdfs:comment "A map literal with key-value pairs."@en ;
     rdfs:subClassOf :Literal .
 
+:StructLiteral a owl:Class ;
+    rdfs:label "Struct Literal"@en ;
+    rdfs:comment "A struct literal with a defined type and fields."@en ;
+    rdfs:subClassOf :MapLiteral .
+
 :KeywordListLiteral a owl:Class ;
     rdfs:label "Keyword List Literal"@en ;
     rdfs:comment """A list of {atom, value} tuples, commonly used for options.

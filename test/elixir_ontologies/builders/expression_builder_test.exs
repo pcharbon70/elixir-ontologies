@@ -962,6 +962,122 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "map literals" do
+    test "builds MapLiteral triples for empty map" do
+      context = full_mode_context()
+
+      # Empty map: %{}
+      empty_map_ast = quote do: %{}
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(empty_map_ast, context, [])
+
+      assert has_type?(triples, Core.MapLiteral)
+    end
+
+    test "builds MapLiteral triples for map with atom keys" do
+      context = full_mode_context()
+
+      # Map with atom keys: %{a: 1, b: 2}
+      map_ast = quote do: %{a: 1, b: 2}
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(map_ast, context, [])
+
+      assert has_type?(triples, Core.MapLiteral)
+    end
+
+    test "builds MapLiteral triples for map with string keys" do
+      context = full_mode_context()
+
+      # Map with string keys: %{"a" => 1, "b" => 2}
+      map_ast = quote do: %{"a" => 1, "b" => 2}
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(map_ast, context, [])
+
+      assert has_type?(triples, Core.MapLiteral)
+    end
+
+    test "builds MapLiteral triples for map with mixed keys" do
+      context = full_mode_context()
+
+      # Map with mixed keys: %{"a" => 1, b: 2}
+      map_ast = quote do: %{"a" => 1, b: 2}
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(map_ast, context, [])
+
+      assert has_type?(triples, Core.MapLiteral)
+    end
+  end
+
+  describe "struct literals" do
+    test "builds StructLiteral triples for struct literal" do
+      context = full_mode_context()
+
+      # Struct literal: %User{name: "John"}
+      # Note: User needs to be defined for this to compile, so we construct the AST manually
+      # AST: {:%, [], [{:__aliases__, ..., [:User]}, {:%{}, [], [name: "John"]}]}
+      kw_list = [name: "John"]
+      struct_ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], kw_list}]}
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(struct_ast, context, [])
+
+      assert has_type?(triples, Core.StructLiteral)
+    end
+
+    test "struct literal includes refersToModule property" do
+      context = full_mode_context()
+
+      # Struct literal: %User{name: "John"}
+      kw_list = [name: "John"]
+      struct_ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], kw_list}]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(struct_ast, context, [])
+
+      assert has_type?(triples, Core.StructLiteral)
+
+      # Check for refersToModule property
+      has_refers_to_module =
+        Enum.any?(triples, fn {s, p, o} ->
+          s == expr_iri and p == Core.refersToModule()
+        end)
+
+      assert has_refers_to_module
+    end
+  end
+
+  describe "keyword list literals" do
+    test "builds KeywordListLiteral triples for keyword list" do
+      context = full_mode_context()
+
+      # Keyword list: [a: 1, b: 2]
+      kw_list_ast = quote do: [a: 1, b: 2]
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(kw_list_ast, context, [])
+
+      assert has_type?(triples, Core.KeywordListLiteral)
+    end
+
+    test "keyword list is distinguished from regular list" do
+      context = full_mode_context()
+
+      # Keyword list: [a: 1, b: 2]
+      kw_list_ast = quote do: [a: 1, b: 2]
+      {:ok, {_expr_iri, kw_triples, _}} = ExpressionBuilder.build(kw_list_ast, context, [])
+
+      # Regular list: [1, 2, 3]
+      regular_list_ast = quote do: [1, 2, 3]
+      {:ok, {_expr_iri, regular_triples, _}} = ExpressionBuilder.build(regular_list_ast, context, [])
+
+      # Keyword list creates KeywordListLiteral
+      assert has_type?(kw_triples, Core.KeywordListLiteral)
+
+      # Regular list does NOT create KeywordListLiteral
+      refute has_type?(regular_triples, Core.KeywordListLiteral)
+    end
+
+    test "keyword list with duplicate keys is handled correctly" do
+      context = full_mode_context()
+
+      # Keyword list with duplicates: [a: 1, a: 2]
+      kw_list_ast = quote do: [a: 1, a: 2]
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(kw_list_ast, context, [])
+
+      assert has_type?(triples, Core.KeywordListLiteral)
+    end
+  end
+
   describe "unknown expressions" do
     test "dispatches unknown AST to generic Expression type" do
       context = full_mode_context()

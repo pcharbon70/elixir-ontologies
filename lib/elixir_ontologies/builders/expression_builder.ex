@@ -324,6 +324,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Must come before generic handlers that might match lists
   def build_expression_triples(list, expr_iri, context) when is_list(list) do
     cond do
+      # Check for keyword list: all elements are 2-tuples with atom first elements
+      # Must come before cons pattern check (cons lists are also lists)
+      Keyword.keyword?(list) and list != [] ->
+        build_keyword_list(list, expr_iri, context)
+
       # Check for cons pattern: [{:|, _, [head, tail]}]
       cons_pattern?(list) ->
         build_cons_list(list, expr_iri, context)
@@ -373,6 +378,18 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # 2-tuple: {left, right} - special form, not a 3-tuple AST node
   def build_expression_triples({left, right}, expr_iri, context) do
     build_tuple_literal([left, right], expr_iri, context)
+  end
+
+  # Struct literals - must come before map handler (both start with :%)
+  # Struct pattern: {:%, meta, [module_ast, map_ast]}
+  def build_expression_triples({:%, _meta, [module_ast, map_ast]}, expr_iri, context) do
+    build_struct_literal(module_ast, map_ast, expr_iri, context)
+  end
+
+  # Map literals
+  # Map pattern: {:%{}, meta, pairs}
+  def build_expression_triples({:%{}, _meta, pairs}, expr_iri, context) do
+    build_map_literal(pairs, expr_iri, context)
   end
 
   # Local call: function(args) - must come before variable pattern
@@ -645,6 +662,24 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     [type_triple | head_triples] ++ tail_triples
   end
 
+  # Build a keyword list from a list of {atom, value} tuples
+  defp build_keyword_list(pairs, expr_iri, context) do
+    # Create the KeywordListLiteral type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.KeywordListLiteral)
+
+    # Build expressions for each value (keys are atom literals)
+    {value_triples_list, _final_context} =
+      Enum.map_reduce(pairs, context, fn {_key, value}, ctx ->
+        {:ok, {_value_iri, triples, new_ctx}} = build(value, ctx, [])
+        {triples, new_ctx}
+      end)
+
+    # Include type triple and all value triples
+    all_triples = [type_triple | List.flatten(value_triples_list)]
+
+    all_triples
+  end
+
   # Build a tuple literal from a list of elements
   defp build_tuple_literal(elements, expr_iri, context) do
     # Create the TupleLiteral type triple
@@ -662,6 +697,75 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     all_triples = [type_triple | List.flatten(child_triples_list)]
 
     all_triples
+  end
+
+  # Build a struct literal from module AST and map AST
+  defp build_struct_literal(module_ast, map_ast, expr_iri, context) do
+    # Extract module name from {:__aliases__, _, parts}
+    module_name =
+      case module_ast do
+        {:__aliases__, _meta, parts} -> Enum.join(parts, ".")
+        _ -> inspect(module_ast)
+      end
+
+    # Create the StructLiteral type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.StructLiteral)
+
+    # Create refersToModule property
+    # refersToModule expects an IRI, so we create a module IRI
+    module_iri_string = "#{context.base_iri}module/#{module_name}"
+    module_iri = RDF.IRI.new(module_iri_string)
+    refers_to_triple = {expr_iri, Core.refersToModule(), module_iri}
+
+    # Extract map entries from the map part of the struct
+    # The map_ast is {:%{}, meta, pairs}
+    map_triples =
+      case map_ast do
+        {:%{}, _meta, pairs} ->
+          build_map_entries(pairs, expr_iri, context)
+
+        _ ->
+          []
+      end
+
+    [type_triple, refers_to_triple | map_triples]
+  end
+
+  # Build a map literal from a list of key-value pairs
+  defp build_map_literal(pairs, expr_iri, context) do
+    # Create the MapLiteral type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.MapLiteral)
+
+    # Build map entries
+    entry_triples = build_map_entries(pairs, expr_iri, context)
+
+    [type_triple | entry_triples]
+  end
+
+  # Build map entries from a list of key-value pairs
+  # Pairs can be:
+  # - Keyword tuples: {:a, 1} (for atom keys using a: 1 syntax)
+  # - 2-tuples: {"a", 1} (for other keys using "a" => 1 syntax)
+  defp build_map_entries(pairs, _expr_iri, _context) when pairs == [], do: []
+
+  defp build_map_entries(pairs, _expr_iri, context) do
+    # Build expressions for each value (keys are literals, not expressions)
+    # We extract the values as child expressions
+    Enum.flat_map(pairs, fn pair ->
+      case pair do
+        # Keyword tuple: {:key, value}
+        {_key, value} when is_atom(elem(pair, 0)) ->
+          # Build value expression
+          {:ok, {_value_iri, value_triples, _}} = build(value, context, [])
+          value_triples
+
+        # 2-tuple: {key, value}
+        {_key, value} ->
+          # Build value expression
+          {:ok, {_value_iri, value_triples, _}} = build(value, context, [])
+          value_triples
+      end
+    end)
   end
 
   # Generic expression for unknown AST nodes
