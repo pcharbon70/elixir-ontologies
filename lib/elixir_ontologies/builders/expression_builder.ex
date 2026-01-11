@@ -392,6 +392,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     build_map_literal(pairs, expr_iri, context)
   end
 
+  # Range literals: 1..10, 1..10//2, a..b, etc.
+  # Simple range pattern: {:.., meta, [first, last]}
+  # Step range pattern: {:"..//", meta, [first, last, step]}
+  def build_expression_triples({:.., _meta, [first, last]}, expr_iri, context) do
+    build_range_literal(first, last, expr_iri, context)
+  end
+
+  def build_expression_triples({:"..//", _meta, [first, last, step]}, expr_iri, context) do
+    build_range_literal(first, last, step, expr_iri, context)
+  end
+
   # Local call: function(args) - must come before variable pattern
   # Note: This handler also checks for sigil atoms (sigil_c, sigil_r, sigil_s, sigil_w)
   # and dispatches them to the sigil literal handler
@@ -898,6 +909,48 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   defp is_sigil_atom?(atom) when is_atom(atom) do
     atom_name = Atom.to_string(atom)
     String.starts_with?(atom_name, "sigil_")
+  end
+
+  # ===========================================================================
+  # Range Literal Builders
+  # ===========================================================================
+
+  @doc """
+  Builds triples for range literals like 1..10 or 1..10//2.
+
+  The range AST pattern is: {:.., meta, [first, last]}
+  - first is the start value (literal, variable, or expression)
+  - last is the end value (literal, variable, or expression)
+
+  For step ranges: {:"..//", meta, [first, last, step]}
+  - step is the increment value
+  """
+  defp build_range_literal(first, last, expr_iri, context) do
+    # Build the first and last as child expressions
+    {:ok, {first_iri, first_triples, _}} = build(first, context, [])
+    {:ok, {last_iri, last_triples, _}} = build(last, context, [])
+
+    # Create the RangeLiteral type and property triples
+    type_triple = Helpers.type_triple(expr_iri, Core.RangeLiteral)
+    start_triple = {expr_iri, Core.rangeStart(), first_iri}
+    end_triple = {expr_iri, Core.rangeEnd(), last_iri}
+
+    [type_triple, start_triple, end_triple | first_triples ++ last_triples]
+  end
+
+  defp build_range_literal(first, last, step, expr_iri, context) do
+    # Build the first, last, and step as child expressions
+    {:ok, {first_iri, first_triples, _}} = build(first, context, [])
+    {:ok, {last_iri, last_triples, _}} = build(last, context, [])
+    {:ok, {step_iri, step_triples, _}} = build(step, context, [])
+
+    # Create the RangeLiteral type and property triples
+    type_triple = Helpers.type_triple(expr_iri, Core.RangeLiteral)
+    start_triple = {expr_iri, Core.rangeStart(), first_iri}
+    end_triple = {expr_iri, Core.rangeEnd(), last_iri}
+    step_triple = {expr_iri, Core.rangeStep(), step_iri}
+
+    [type_triple, start_triple, end_triple, step_triple | first_triples ++ last_triples ++ step_triples]
   end
 
   # ===========================================================================

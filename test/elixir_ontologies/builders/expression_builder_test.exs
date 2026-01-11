@@ -1212,6 +1212,141 @@ string
     end
   end
 
+  describe "range literals" do
+    test "builds RangeLiteral for simple integer range" do
+      context = full_mode_context()
+
+      # Simple range: 1..10
+      range_ast = quote do: 1..10
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(range_ast, context, [])
+
+      assert has_type?(triples, Core.RangeLiteral)
+    end
+
+    test "range literal captures start and end values" do
+      context = full_mode_context()
+
+      # Range: 1..10
+      range_ast = quote do: 1..10
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(range_ast, context, [])
+
+      # Should have rangeStart and rangeEnd properties linking to child expressions
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.rangeStart()
+      end)
+
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.rangeEnd()
+      end)
+    end
+
+    test "builds RangeLiteral for step range" do
+      context = full_mode_context()
+
+      # Step range: 1..10//2
+      range_ast = quote do: 1..10//2
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(range_ast, context, [])
+
+      assert has_type?(triples, Core.RangeLiteral)
+
+      # Should have rangeStep property for step ranges
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.rangeStep()
+      end)
+    end
+
+    test "range literal captures step value for step ranges" do
+      context = full_mode_context()
+
+      # Range with step: 1..10//3
+      range_ast = quote do: 1..10//3
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(range_ast, context, [])
+
+      # Should have rangeStart, rangeEnd, and rangeStep properties
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.rangeStart()
+      end)
+
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.rangeEnd()
+      end)
+
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.rangeStep()
+      end)
+    end
+
+    test "handles negative range" do
+      context = full_mode_context()
+
+      # Negative range: 10..1
+      range_ast = quote do: 10..1
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(range_ast, context, [])
+
+      assert has_type?(triples, Core.RangeLiteral)
+    end
+
+    test "handles variable range" do
+      context = full_mode_context()
+
+      # Variable range: a..b
+      range_ast = quote do: a..b
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(range_ast, context, [])
+
+      assert has_type?(triples, Core.RangeLiteral)
+
+      # Start and end should be variables
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.rangeStart()
+      end)
+
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.rangeEnd()
+      end)
+
+      # Should have Variable child expressions
+      assert has_type?(triples, Core.Variable)
+    end
+
+    test "handles single-element range" do
+      context = full_mode_context()
+
+      # Single-element range: 5..5
+      range_ast = quote do: 5..5
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(range_ast, context, [])
+
+      assert has_type?(triples, Core.RangeLiteral)
+    end
+
+    test "range with expression boundaries" do
+      context = full_mode_context()
+
+      # Range with expressions: (x + 1)..(y - 1)
+      range_ast = quote do: (x + 1)..(y - 1)
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(range_ast, context, [])
+
+      assert has_type?(triples, Core.RangeLiteral)
+
+      # Should link to arithmetic operator expressions
+      assert Enum.any?(triples, fn {_s, _p, o} ->
+        o == Core.ArithmeticOperator
+      end)
+    end
+
+    test "simple range does not have rangeStep property" do
+      context = full_mode_context()
+
+      # Simple range without step: 1..10
+      range_ast = quote do: 1..10
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(range_ast, context, [])
+
+      # Should NOT have rangeStep property for simple ranges
+      refute Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.rangeStep()
+      end)
+    end
+  end
+
   describe "unknown expressions" do
     test "dispatches unknown AST to generic Expression type" do
       context = full_mode_context()
