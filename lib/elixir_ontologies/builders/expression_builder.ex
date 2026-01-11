@@ -364,6 +364,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     build_atom_literal(atom, expr_iri)
   end
 
+  # Tuple literals - must come before local call handler
+  # General tuple form: {:{}, meta, elements} - covers empty tuple and 3+ tuples
+  def build_expression_triples({:{}, _meta, elements}, expr_iri, context) do
+    build_tuple_literal(elements, expr_iri, context)
+  end
+
+  # 2-tuple: {left, right} - special form, not a 3-tuple AST node
+  def build_expression_triples({left, right}, expr_iri, context) do
+    build_tuple_literal([left, right], expr_iri, context)
+  end
+
   # Local call: function(args) - must come before variable pattern
   def build_expression_triples({function, meta, args}, expr_iri, context)
       when is_atom(function) and is_list(meta) and is_list(args) do
@@ -632,6 +643,25 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Note: hasHead and hasTail properties would need to be added to ontology
     # For now, we just include the type triple and child expressions
     [type_triple | head_triples] ++ tail_triples
+  end
+
+  # Build a tuple literal from a list of elements
+  defp build_tuple_literal(elements, expr_iri, context) do
+    # Create the TupleLiteral type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.TupleLiteral)
+
+    # Build child expressions for each element
+    {child_triples_list, _final_context} =
+      Enum.map_reduce(elements, context, fn element, ctx ->
+        {:ok, {_child_iri, triples, new_ctx}} = build(element, ctx, [])
+        {triples, new_ctx}
+      end)
+
+    # Link children via hasChild property (order preserved by extraction sequence)
+    # For now, we don't create explicit hasChild triples, just include child triples
+    all_triples = [type_triple | List.flatten(child_triples_list)]
+
+    all_triples
   end
 
   # Generic expression for unknown AST nodes

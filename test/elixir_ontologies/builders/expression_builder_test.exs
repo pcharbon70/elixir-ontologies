@@ -867,13 +867,109 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "tuple literals" do
+    test "builds TupleLiteral triples for empty tuple" do
+      context = full_mode_context()
+
+      # Empty tuple: {}
+      empty_tuple_ast = quote do: {}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(empty_tuple_ast, context, [])
+
+      assert has_type?(triples, Core.TupleLiteral)
+    end
+
+    test "builds TupleLiteral triples for 2-tuple" do
+      context = full_mode_context()
+
+      # 2-tuple: {1, 2}
+      two_tuple_ast = quote do: {1, 2}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(two_tuple_ast, context, [])
+
+      assert has_type?(triples, Core.TupleLiteral)
+    end
+
+    test "builds TupleLiteral triples for 3-tuple" do
+      context = full_mode_context()
+
+      # 3-tuple: {1, 2, 3}
+      three_tuple_ast = quote do: {1, 2, 3}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(three_tuple_ast, context, [])
+
+      assert has_type?(triples, Core.TupleLiteral)
+    end
+
+    test "builds TupleLiteral triples for 4+ tuple" do
+      context = full_mode_context()
+
+      # 4-tuple: {1, 2, 3, 4}
+      four_tuple_ast = quote do: {1, 2, 3, 4}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(four_tuple_ast, context, [])
+
+      assert has_type?(triples, Core.TupleLiteral)
+    end
+
+    test "builds TupleLiteral triples for nested tuple" do
+      context = full_mode_context()
+
+      # Nested tuples: {{1, 2}, {3, 4}}
+      nested_tuple_ast = quote do: {{1, 2}, {3, 4}}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(nested_tuple_ast, context, [])
+
+      # Top-level tuple is TupleLiteral
+      assert has_type?(triples, Core.TupleLiteral)
+
+      # Should have child expressions for the nested tuples
+      # The children will also be TupleLiteral
+      child_tuples = Enum.filter(triples, fn {s, _p, o} -> o == Core.TupleLiteral end)
+      # At least the parent tuple should be TupleLiteral
+      assert length(child_tuples) >= 1
+    end
+
+    test "builds TupleLiteral triples for heterogeneous tuple" do
+      context = full_mode_context()
+
+      # Tuple with mixed types: {1, "two", :three}
+      het_tuple_ast = quote do: {1, "two", :three}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(het_tuple_ast, context, [])
+
+      assert has_type?(triples, Core.TupleLiteral)
+    end
+
+    test "builds TupleLiteral triples for tagged tuple" do
+      context = full_mode_context()
+
+      # Tagged tuple: {:ok, 42}
+      tagged_tuple_ast = quote do: {:ok, 42}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(tagged_tuple_ast, context, [])
+
+      assert has_type?(triples, Core.TupleLiteral)
+    end
+
+    test "tuple elements are extracted as child expressions" do
+      context = full_mode_context()
+
+      # Tuple with literals: {1, 2, 3}
+      three_tuple_ast = quote do: {1, 2, 3}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(three_tuple_ast, context, [])
+
+      # Parent tuple is TupleLiteral
+      assert has_type?(triples, Core.TupleLiteral)
+
+      # Child elements should be IntegerLiteral
+      # We should have at least 4 IntegerLiteral triples (one for each child + type triples)
+      integer_literals = Enum.filter(triples, fn {s, _p, o} -> o == Core.IntegerLiteral end)
+      assert length(integer_literals) == 3
+    end
+  end
+
   describe "unknown expressions" do
     test "dispatches unknown AST to generic Expression type" do
       context = full_mode_context()
 
       # Some unusual AST that doesn't match our patterns
-      # Using a 2-element tuple which is not a standard Elixir AST form
-      unusual_ast = {:some_unknown_form, :unexpected_second_element}
+      # Using a 4-element tuple which is not a standard Elixir AST form
+      # (3+ tuples use {:{}, meta, elements} form, not direct tuples)
+      unusual_ast = {:one, :two, :three, :four}
 
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(unusual_ast, context, [])
 
