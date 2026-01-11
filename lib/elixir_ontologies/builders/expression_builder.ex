@@ -320,6 +320,18 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     build_literal(str, expr_iri, Core.StringLiteral, Core.stringValue(), RDF.XSD.String)
   end
 
+  # Charlist literals (lists of integers representing UTF-8 codepoints)
+  # Must come before generic handlers that might match lists
+  def build_expression_triples(list, expr_iri, _context) when is_list(list) do
+    if charlist?(list) do
+      string_value = List.to_string(list)
+      build_literal(string_value, expr_iri, Core.CharlistLiteral, Core.charlistValue(), RDF.XSD.String)
+    else
+      # Not a charlist, treat as generic list or unknown expression
+      build_generic_expression(expr_iri)
+    end
+  end
+
   # Atom literals (including true, false, nil)
   def build_expression_triples(atom, expr_iri, _context) when is_atom(atom) do
     build_atom_literal(atom, expr_iri)
@@ -527,6 +539,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   defp atom_to_string(false), do: "false"
   defp atom_to_string(nil), do: "nil"
   defp atom_to_string(atom) when is_atom(atom), do: ":" <> Atom.to_string(atom)
+
+  # Check if a list represents a charlist (all elements are valid UTF-8 codepoints)
+  # A charlist is a list of integers where each integer is a valid Unicode codepoint (0x0 to 0x10FFFF)
+  defp charlist?(list) when is_list(list) do
+    Enum.all?(list, fn
+      x when is_integer(x) -> x >= 0 and x <= 0x10FFFF
+      _ -> false
+    end)
+  end
 
   # Generic expression for unknown AST nodes
   defp build_generic_expression(expr_iri) do
