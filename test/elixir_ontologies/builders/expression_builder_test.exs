@@ -486,6 +486,72 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_type?(triples, Core.StringConcatOperator)
       assert has_operator_symbol?(triples, "<>")
     end
+
+    test "string concatenation with variables" do
+      context = full_mode_context()
+      # x <> "suffix" as AST
+      ast = {:<>, [], [{:x, [], nil}, "suffix"]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create StringConcatOperator type
+      assert has_type?(triples, Core.StringConcatOperator)
+      assert has_operator_symbol?(triples, "<>")
+
+      # Should have left and right operands
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
+
+      # Left operand is Variable "x"
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.Variable end)
+      assert has_literal_value?(triples, left_iri, Core.name(), "x")
+
+      # Right operand is StringLiteral "suffix"
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.StringLiteral end)
+    end
+
+    test "string concatenation with two variables" do
+      context = full_mode_context()
+      # x <> y as AST
+      ast = {:<>, [], [{:x, [], nil}, {:y, [], nil}]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create StringConcatOperator type
+      assert has_type?(triples, Core.StringConcatOperator)
+
+      # Both operands should be Variables
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.Variable end)
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.Variable end)
+    end
+
+    test "chained string concatenation" do
+      context = full_mode_context()
+      # "a" <> "b" <> "c" as AST (nested)
+      inner_concat = {:<>, [], ["b", "c"]}
+      ast = {:<>, [], ["a", inner_concat]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create StringConcatOperator type
+      assert has_type?(triples, Core.StringConcatOperator)
+
+      # Right operand should be another StringConcatOperator
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.StringConcatOperator end)
+
+      # The inner concat should also have operator symbol "<>"
+      assert has_operator_symbol_for_iri?(triples, right_iri, "<>")
+    end
   end
 
   describe "list operators" do
@@ -505,6 +571,81 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       assert has_type?(triples, Core.ListOperator)
       assert has_operator_symbol?(triples, "--")
+    end
+
+    test "list concatenation with variables" do
+      context = full_mode_context()
+      # list1 ++ list2 as AST
+      ast = {:++, [], [{:list1, [], nil}, {:list2, [], nil}]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ListOperator type
+      assert has_type?(triples, Core.ListOperator)
+      assert has_operator_symbol?(triples, "++")
+
+      # Both operands should be Variables
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.Variable end)
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.Variable end)
+    end
+
+    test "list subtraction with list literals" do
+      context = full_mode_context()
+      # Using atoms to avoid charlist detection
+      # [:a, :b, :c] -- [:b, :d] as AST
+      ast = {:--, [], [[:a, [], nil], [:b, [], nil]]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ListOperator type
+      assert has_type?(triples, Core.ListOperator)
+      assert has_operator_symbol?(triples, "--")
+
+      # Both operands should be ListLiterals (atom lists, not charlists)
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ListLiteral end)
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ListLiteral end)
+    end
+
+    test "chained list operations" do
+      context = full_mode_context()
+      # [1] ++ [2] ++ [3] as AST (nested)
+      inner_concat = {:++, [], [[2], [3]]}
+      ast = {:++, [], [[1], inner_concat]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ListOperator type
+      assert has_type?(triples, Core.ListOperator)
+
+      # Right operand should be another ListOperator
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ListOperator end)
+
+      # The inner concat should also have operator symbol "++"
+      assert has_operator_symbol_for_iri?(triples, right_iri, "++")
+    end
+
+    test "list operators capture left and right operands" do
+      context = full_mode_context()
+      # [1, 2] ++ [3, 4] as AST
+      ast = {:++, [], [[1, 2], [3, 4]]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have left and right operands
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
     end
   end
 
