@@ -256,6 +256,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     build_unary(:!, arg, expr_iri, context)
   end
 
+  # Unary arithmetic operators (must come before binary to match single-argument case)
+  def build_expression_triples({:-, _, [operand]}, expr_iri, context) do
+    build_unary_arithmetic(:-, operand, expr_iri, context)
+  end
+
+  def build_expression_triples({:+, _, [operand]}, expr_iri, context) do
+    build_unary_arithmetic(:+, operand, expr_iri, context)
+  end
+
   # Arithmetic operators
   def build_expression_triples({:+, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:+, left, right, expr_iri, context, Core.ArithmeticOperator)
@@ -451,6 +460,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Unary operators (not, !)
   defp build_unary(op, arg, expr_iri, context) do
     build_unary_operator(op, arg, expr_iri, context, Core.LogicalOperator)
+  end
+
+  # Unary arithmetic operators (+, -)
+  defp build_unary_arithmetic(op, operand, expr_iri, context) do
+    build_unary_operator(op, operand, expr_iri, context, Core.ArithmeticOperator)
   end
 
   # ===========================================================================

@@ -235,6 +235,106 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "unary arithmetic operators" do
+    test "unary minus creates ArithmeticOperator" do
+      context = full_mode_context()
+      # Unary minus: -5
+      ast = {:-, [], [5]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "-")
+      assert has_operand?(triples, expr_iri)
+    end
+
+    test "unary minus with integer literal" do
+      context = full_mode_context()
+      ast = {:-, [], [42]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "-")
+      # Operand should be an IntegerLiteral
+      assert has_child_with_type?(triples, expr_iri, Core.IntegerLiteral)
+    end
+
+    test "unary minus with float literal" do
+      context = full_mode_context()
+      ast = {:-, [], [3.14]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "-")
+      assert has_child_with_type?(triples, expr_iri, Core.FloatLiteral)
+    end
+
+    test "unary minus with variable" do
+      context = full_mode_context()
+      # Unary minus: -x
+      ast = {:-, [], [{:x, [], Elixir}]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "-")
+      assert has_child_with_type?(triples, expr_iri, Core.Variable)
+    end
+
+    test "unary minus with expression" do
+      context = full_mode_context()
+      # Unary minus: -(a + b)
+      ast = {:-, [], [{:+, [], [{:a, [], Elixir}, {:b, [], Elixir}]}]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "-")
+      # Operand should be an ArithmeticOperator (the + expression)
+      assert has_child_with_type?(triples, expr_iri, Core.ArithmeticOperator)
+    end
+
+    test "unary plus creates ArithmeticOperator" do
+      context = full_mode_context()
+      # Unary plus: +5
+      ast = {:+, [], [5]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "+")
+      assert has_operand?(triples, expr_iri)
+    end
+
+    test "unary plus with integer literal" do
+      context = full_mode_context()
+      ast = {:+, [], [42]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "+")
+      assert has_child_with_type?(triples, expr_iri, Core.IntegerLiteral)
+    end
+
+    test "unary plus with variable" do
+      context = full_mode_context()
+      # Unary plus: +x
+      ast = {:+, [], [{:x, [], Elixir}]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "+")
+      assert has_child_with_type?(triples, expr_iri, Core.Variable)
+    end
+
+    test "nested unary operators" do
+      context = full_mode_context()
+      # Double negative: - -x
+      ast = {:-, [], [{:-, [], [{:x, [], Elixir}]}]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.ArithmeticOperator)
+      # Should have nested ArithmeticOperator
+      assert has_child_with_type?(triples, expr_iri, Core.ArithmeticOperator)
+    end
+  end
+
   describe "pipe operator" do
     test "dispatches |> to PipeOperator" do
       context = full_mode_context()
@@ -1982,6 +2082,32 @@ string
   defp has_binary_literal_value?(triples, subject, predicate, expected_value) do
     Enum.any?(triples, fn {s, p, o} ->
       s == subject and p == predicate and RDF.Literal.lexical(o) == expected_value
+    end)
+  end
+
+  # Check if an expression has a hasOperand property (for unary operators)
+  defp has_operand?(triples, expr_iri) do
+    Enum.any?(triples, fn {s, p, _o} ->
+      s == expr_iri and p == Core.hasOperand()
+    end)
+  end
+
+  # Check if an expression has a child expression of a specific type
+  defp has_child_with_type?(triples, expr_iri, child_type) do
+    # First find the hasOperand or hasLeftOperand/hasRightOperand property
+    child_iris =
+      triples
+      |> Enum.filter(fn {s, _p, _o} -> s == expr_iri end)
+      |> Enum.filter(fn {_s, p, _o} ->
+        p == Core.hasOperand() or p == Core.hasLeftOperand() or p == Core.hasRightOperand()
+      end)
+      |> Enum.map(fn {_s, _p, o} -> o end)
+
+    # Check if any child IRI has the expected type
+    Enum.any?(child_iris, fn child_iri ->
+      Enum.any?(triples, fn {s, p, o} ->
+        s == child_iri and p == RDF.type() and o == child_type
+      end)
     end)
   end
 end
