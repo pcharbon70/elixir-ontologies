@@ -314,6 +314,21 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     build_binary_operator(:=, left, right, expr_iri, context, Core.MatchOperator)
   end
 
+  # Capture operator (&)
+  # Matches: &1, &2, &3 (argument capture)
+  # Matches: &Mod.fun/arity, &Mod.fun (function reference)
+  def build_expression_triples({:&, _, [arg]}, expr_iri, _context) when is_integer(arg) do
+    build_capture_index(arg, expr_iri)
+  end
+
+  def build_expression_triples({:&, _, [{:/, _, [function_ref, arity]}]}, expr_iri, context) do
+    build_capture_function_ref(function_ref, arity, expr_iri, context)
+  end
+
+  def build_expression_triples({:&, _, [function_ref]}, expr_iri, context) do
+    build_capture_function_ref(function_ref, nil, expr_iri, context)
+  end
+
   # Integer literals
   def build_expression_triples(int, expr_iri, _context) when is_integer(int) do
     build_literal(int, expr_iri, Core.IntegerLiteral, Core.integerValue(), RDF.XSD.Integer)
@@ -983,4 +998,79 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
         {cached_iri, cache}
     end
   end
+
+  # ===========================================================================
+  # Capture Operator Helpers
+  # ===========================================================================
+
+  @doc false
+  # Build capture operator for argument index (&1, &2, etc.)
+  # Note: Using RDF.value() as a generic property for the capture index
+  # since the ontology doesn't have a dedicated captureIndex property yet.
+  defp build_capture_index(index, expr_iri) do
+    [
+      {expr_iri, RDF.type(), Core.CaptureOperator},
+      {expr_iri, Core.operatorSymbol(), RDF.Literal.new("&")},
+      {expr_iri, RDF.value(), RDF.Literal.new(index)}
+    ]
+  end
+
+  @doc false
+  # Build capture operator for function reference (&Mod.fun/arity)
+  # Note: Using RDFS.label to capture module/function info
+  # since the ontology doesn't have dedicated moduleName/functionName properties yet.
+  defp build_capture_function_ref(function_ref, arity, expr_iri, _context) do
+    # Extract module and function name from function_ref AST
+    {module, function} = extract_function_ref_parts(function_ref)
+
+    # Create a descriptive label for the function reference
+    ref_label = if arity, do: "&#{module}.#{function}/#{arity}", else: "&#{module}.#{function}"
+
+    base_triples = [
+      {expr_iri, RDF.type(), Core.CaptureOperator},
+      {expr_iri, Core.operatorSymbol(), RDF.Literal.new("&")},
+      {expr_iri, RDF.NS.RDFS.label(), RDF.Literal.new(ref_label)}
+    ]
+
+    # Add arity value if specified
+    arity_triples =
+      if arity do
+        [{expr_iri, RDF.value(), RDF.Literal.new(arity)}]
+      else
+        []
+      end
+
+    base_triples ++ arity_triples
+  end
+
+  @doc false
+  # Extract module and function name from a function reference AST
+  # Handles: {{:., _, [module, function]}, _, args}
+  defp extract_function_ref_parts({{:., _, [module_ast, function_ast]}, _meta, _args}) do
+    module = extract_module_name(module_ast)
+    function = extract_function_name(function_ast)
+    {module, function}
+  end
+
+  defp extract_function_ref_parts({:., _, [module_ast, function_ast]}) do
+    module = extract_module_name(module_ast)
+    function = extract_function_name(function_ast)
+    {module, function}
+  end
+
+  # Fallback for other patterns
+  defp extract_function_ref_parts(other), do: {inspect(other), "unknown"}
+
+  @doc false
+  # Extract module name from AST
+  defp extract_module_name({:__aliases__, _, parts}), do: Enum.join(parts, ".")
+  defp extract_module_name({:@, _, [{:__MODULE__, _, []}]}), do: "__MODULE__"
+  defp extract_module_name({:__MODULE__, [], []}), do: "__MODULE__"
+  defp extract_module_name(atom) when is_atom(atom), do: Atom.to_string(atom)
+  defp extract_module_name(other), do: inspect(other)
+
+  @doc false
+  # Extract function name from AST
+  defp extract_function_name(atom) when is_atom(atom), do: Atom.to_string(atom)
+  defp extract_function_name(other), do: inspect(other)
 end

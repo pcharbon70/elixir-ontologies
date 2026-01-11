@@ -519,6 +519,112 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "capture operator" do
+    test "dispatches &1 to CaptureOperator" do
+      context = full_mode_context()
+      ast = {:&, [], [1]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.CaptureOperator)
+      assert has_operator_symbol?(triples, "&")
+
+      # Check for capture index using RDF.value()
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.value() and RDF.Literal.value(o) == 1
+      end)
+    end
+
+    test "dispatches &2 to CaptureOperator" do
+      context = full_mode_context()
+      ast = {:&, [], [2]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.CaptureOperator)
+      assert has_operator_symbol?(triples, "&")
+
+      # Check for capture index
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.value() and RDF.Literal.value(o) == 2
+      end)
+    end
+
+    test "dispatches &3 to CaptureOperator" do
+      context = full_mode_context()
+      ast = {:&, [], [3]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.CaptureOperator)
+      assert has_operator_symbol?(triples, "&")
+
+      # Check for capture index
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.value() and RDF.Literal.value(o) == 3
+      end)
+    end
+
+    test "dispatches &Mod.fun/arity to CaptureOperator" do
+      context = full_mode_context()
+      # &Enum.map/2 as AST
+      function_ref = {{:., [], [{:__aliases__, [], [:Enum]}, :map]}, [], []}
+      ast = {:&, [], [{:/, [], [function_ref, 2]}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.CaptureOperator)
+      assert has_operator_symbol?(triples, "&")
+
+      # Check for function reference label
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.NS.RDFS.label() and RDF.Literal.value(o) == "&Enum.map/2"
+      end)
+
+      # Check for arity value
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.value() and RDF.Literal.value(o) == 2
+      end)
+    end
+
+    test "dispatches &Mod.fun to CaptureOperator without arity" do
+      context = full_mode_context()
+      # &IO.inspect as AST
+      function_ref = {{:., [], [{:__aliases__, [], [:IO]}, :inspect]}, [], []}
+      ast = {:&, [], [function_ref]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.CaptureOperator)
+      assert has_operator_symbol?(triples, "&")
+
+      # Check for function reference label (without arity)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.NS.RDFS.label() and RDF.Literal.value(o) == "&IO.inspect"
+      end)
+    end
+
+    test "capture operator distinguishes argument index from function reference" do
+      context = full_mode_context()
+
+      # Argument index (&1)
+      ast1 = {:&, [], [1]}
+      {:ok, {_expr_iri1, triples1, _}} = ExpressionBuilder.build(ast1, context, [])
+
+      # Has integer value for capture index
+      assert Enum.any?(triples1, fn {_s, p, o} ->
+        p == RDF.value() and RDF.Literal.value(o) == 1
+      end)
+
+      # Function reference (&Enum.map/2)
+      function_ref = {{:., [], [{:__aliases__, [], [:Enum]}, :map]}, [], []}
+      ast2 = {:&, [], [{:/, [], [function_ref, 2]}]}
+      {:ok, {_expr_iri2, triples2, _}} = ExpressionBuilder.build(ast2, context, [])
+
+      # Has string label for function reference
+      assert Enum.any?(triples2, fn {_s, p, o} ->
+        p == RDF.NS.RDFS.label() and RDF.Literal.value(o) == "&Enum.map/2"
+      end)
+    end
+  end
+
   describe "variables" do
     test "dispatches variable pattern to Variable" do
       context = full_mode_context()
