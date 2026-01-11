@@ -344,6 +344,137 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_type?(triples, Core.PipeOperator)
       assert has_operator_symbol?(triples, "|>")
     end
+
+    test "pipe operator with literal and variable" do
+      context = full_mode_context()
+      # x |> f() as AST
+      ast = {:|>, [], [{:x, [], nil}, {:f, [], []}]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create PipeOperator type
+      assert has_type?(triples, Core.PipeOperator)
+      assert has_operator_symbol?(triples, "|>")
+
+      # Should have left and right operands
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
+
+      # Left operand is Variable "x"
+      assert has_type?(triples, Core.Variable)
+      assert has_literal_value?(triples, left_iri, Core.name(), "x")
+    end
+
+    test "pipe operator with function call operands" do
+      context = full_mode_context()
+      # f(x) |> g(y) as AST
+      ast =
+        {:|>, [], [
+          {{:., [], [{:__aliases__, [], [:F]}, :f]}, [], [{:x, [], nil}]},
+          {{:., [], [{:__aliases__, [], [:G]}, :g]}, [], [{:y, [], nil}]}
+        ]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create PipeOperator type
+      assert has_type?(triples, Core.PipeOperator)
+
+      # Left operand is a RemoteCall (module.function calls)
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.RemoteCall end)
+
+      # Right operand is a RemoteCall
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.RemoteCall end)
+    end
+
+    test "pipe operator with chained pipes" do
+      context = full_mode_context()
+      # 1 |> f() |> g() as AST (nested pipes)
+      inner_pipe = {:|>, [], [1, {:f, [], []}]}
+      ast = {:|>, [], [inner_pipe, {:g, [], []}]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create PipeOperator type
+      assert has_type?(triples, Core.PipeOperator)
+
+      # Left operand should be another PipeOperator (the inner pipe)
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.PipeOperator end)
+
+      # The inner pipe should also have operator symbol "|>"
+      assert has_operator_symbol_for_iri?(triples, left_iri, "|>")
+    end
+
+    test "pipe operator captures left expression" do
+      context = full_mode_context()
+      # [:a, :b, :c] |> Enum.map() - using atoms to avoid charlist detection
+      list_ast = [[:a, [], nil], [:b, [], nil], [:c, [], nil]]
+      enum_map = {{:., [], [{:__aliases__, [], [:Enum]}, :map]}, [], []}
+
+      ast = {:|>, [], [list_ast, enum_map]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Left operand should be captured
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      # Left operand should be a ListLiteral
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ListLiteral end)
+    end
+
+    test "pipe operator captures right expression" do
+      context = full_mode_context()
+      # x |> IO.inspect() as AST
+      io_inspect = {{:., [], [{:__aliases__, [], [:IO]}, :inspect]}, [], []}
+
+      ast = {:|>, [], [{:x, [], nil}, io_inspect]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Right operand should be captured
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
+
+      # Right operand should be a RemoteCall (module function calls)
+      assert Enum.any?(triples, fn {s, _p, o} ->
+        s == right_iri and o == Core.RemoteCall
+      end)
+    end
+
+    test "pipe operator with complex nested expressions" do
+      context = full_mode_context()
+      # (x + y) |> f() |> g(z) - complex nested pipe
+      add_expr = {:+, [], [{:x, [], nil}, {:y, [], nil}]}
+      first_pipe = {:|>, [], [add_expr, {:f, [], []}]}
+      ast = {:|>, [], [first_pipe, {:g, [], [{:z, [], nil}]}]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Top-level is PipeOperator
+      assert has_type?(triples, Core.PipeOperator)
+
+      # Left operand is another PipeOperator
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.PipeOperator end)
+
+      # The inner pipe's left operand is an ArithmeticOperator
+      inner_left_iri = ExpressionBuilder.fresh_iri(left_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} ->
+        s == inner_left_iri and o == Core.ArithmeticOperator
+      end)
+    end
   end
 
   describe "string concatenation operator" do
@@ -2068,6 +2199,13 @@ string
   defp has_operator_symbol?(triples, symbol) do
     Enum.any?(triples, fn {_s, p, o} ->
       p == Core.operatorSymbol() and RDF.Literal.value(o) == symbol
+    end)
+  end
+
+  # Check if a specific IRI has a given operator symbol
+  defp has_operator_symbol_for_iri?(triples, iri, symbol) do
+    Enum.any?(triples, fn {s, p, o} ->
+      s == iri and p == Core.operatorSymbol() and RDF.Literal.value(o) == symbol
     end)
   end
 
