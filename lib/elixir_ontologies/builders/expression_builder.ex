@@ -199,52 +199,52 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   # Comparison operators
   def build_expression_triples({:==, _, [left, right]}, expr_iri, context) do
-    build_comparison(:==, left, right, expr_iri, context)
+    build_binary_operator(:==, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
   def build_expression_triples({:!=, _, [left, right]}, expr_iri, context) do
-    build_comparison(:!=, left, right, expr_iri, context)
+    build_binary_operator(:!=, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
   def build_expression_triples({:===, _, [left, right]}, expr_iri, context) do
-    build_comparison(:===, left, right, expr_iri, context)
+    build_binary_operator(:===, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
   def build_expression_triples({:!==, _, [left, right]}, expr_iri, context) do
-    build_comparison(:!==, left, right, expr_iri, context)
+    build_binary_operator(:!==, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
   def build_expression_triples({:<, _, [left, right]}, expr_iri, context) do
-    build_comparison(:<, left, right, expr_iri, context)
+    build_binary_operator(:<, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
   def build_expression_triples({:>, _, [left, right]}, expr_iri, context) do
-    build_comparison(:>, left, right, expr_iri, context)
+    build_binary_operator(:>, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
   def build_expression_triples({:<=, _, [left, right]}, expr_iri, context) do
-    build_comparison(:<=, left, right, expr_iri, context)
+    build_binary_operator(:<=, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
   def build_expression_triples({:>=, _, [left, right]}, expr_iri, context) do
-    build_comparison(:>=, left, right, expr_iri, context)
+    build_binary_operator(:>=, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
   # Logical operators
   def build_expression_triples({:and, _, [left, right]}, expr_iri, context) do
-    build_logical(:and, left, right, expr_iri, context)
+    build_binary_operator(:and, left, right, expr_iri, context, Core.LogicalOperator)
   end
 
   def build_expression_triples({:or, _, [left, right]}, expr_iri, context) do
-    build_logical(:or, left, right, expr_iri, context)
+    build_binary_operator(:or, left, right, expr_iri, context, Core.LogicalOperator)
   end
 
   def build_expression_triples({:&&, _, [left, right]}, expr_iri, context) do
-    build_logical(:&&, left, right, expr_iri, context)
+    build_binary_operator(:&&, left, right, expr_iri, context, Core.LogicalOperator)
   end
 
   def build_expression_triples({:||, _, [left, right]}, expr_iri, context) do
-    build_logical(:||, left, right, expr_iri, context)
+    build_binary_operator(:||, left, right, expr_iri, context, Core.LogicalOperator)
   end
 
   # Unary operators (not, !, +, -)
@@ -258,51 +258,51 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   # Arithmetic operators
   def build_expression_triples({:+, _, [left, right]}, expr_iri, context) do
-    build_arithmetic(:+, left, right, expr_iri, context)
+    build_binary_operator(:+, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
   def build_expression_triples({:-, _, [left, right]}, expr_iri, context) do
-    build_arithmetic(:-, left, right, expr_iri, context)
+    build_binary_operator(:-, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
   def build_expression_triples({:*, _, [left, right]}, expr_iri, context) do
-    build_arithmetic(:*, left, right, expr_iri, context)
+    build_binary_operator(:*, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
   def build_expression_triples({:/, _, [left, right]}, expr_iri, context) do
-    build_arithmetic(:/, left, right, expr_iri, context)
+    build_binary_operator(:/, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
   def build_expression_triples({:div, _, [left, right]}, expr_iri, context) do
-    build_arithmetic(:div, left, right, expr_iri, context)
+    build_binary_operator(:div, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
   def build_expression_triples({:rem, _, [left, right]}, expr_iri, context) do
-    build_arithmetic(:rem, left, right, expr_iri, context)
+    build_binary_operator(:rem, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
   # Pipe operator
   def build_expression_triples({:|>, _, [left, right]}, expr_iri, context) do
-    build_pipe(left, right, expr_iri, context)
+    build_binary_operator(:|>, left, right, expr_iri, context, Core.PipeOperator)
   end
 
   # String concatenation
   def build_expression_triples({:<>, _, [left, right]}, expr_iri, context) do
-    build_string_concat(left, right, expr_iri, context)
+    build_binary_operator(:<>, left, right, expr_iri, context, Core.StringConcatOperator)
   end
 
   # List operators
   def build_expression_triples({:++, _, [left, right]}, expr_iri, context) do
-    build_list_op(:++, left, right, expr_iri, context)
+    build_binary_operator(:++, left, right, expr_iri, context, Core.ListOperator)
   end
 
   def build_expression_triples({:--, _, [left, right]}, expr_iri, context) do
-    build_list_op(:--, left, right, expr_iri, context)
+    build_binary_operator(:--, left, right, expr_iri, context, Core.ListOperator)
   end
 
   # Match operator
   def build_expression_triples({:=, _, [left, right]}, expr_iri, context) do
-    build_match(left, right, expr_iri, context)
+    build_binary_operator(:=, left, right, expr_iri, context, Core.MatchOperator)
   end
 
   # Integer literals
@@ -448,46 +448,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Builder Functions
   # ===========================================================================
 
-  # Comparison operators (==, !=, ===, !==, <, >, <=, >=)
-  defp build_comparison(op, left, right, expr_iri, context) do
-    build_binary_operator(op, left, right, expr_iri, context, Core.ComparisonOperator)
-  end
-
-  # Logical operators (and, or, &&, ||)
-  defp build_logical(op, left, right, expr_iri, context) do
-    build_binary_operator(op, left, right, expr_iri, context, Core.LogicalOperator)
-  end
-
-  # Arithmetic operators (+, -, *, /, div, rem)
-  defp build_arithmetic(op, left, right, expr_iri, context) do
-    build_binary_operator(op, left, right, expr_iri, context, Core.ArithmeticOperator)
-  end
-
   # Unary operators (not, !)
   defp build_unary(op, arg, expr_iri, context) do
     build_unary_operator(op, arg, expr_iri, context, Core.LogicalOperator)
-  end
-
-  # Pipe operator (|>)
-  defp build_pipe(left, right, expr_iri, context) do
-    # Pipe operator is binary but with special semantics
-    # For now, treat as binary operator
-    build_binary_operator(:|>, left, right, expr_iri, context, Core.PipeOperator)
-  end
-
-  # String concatenation (<>)
-  defp build_string_concat(left, right, expr_iri, context) do
-    build_binary_operator(:<>, left, right, expr_iri, context, Core.StringConcatOperator)
-  end
-
-  # List operators (++, --)
-  defp build_list_op(op, left, right, expr_iri, context) do
-    build_binary_operator(op, left, right, expr_iri, context, Core.ListOperator)
-  end
-
-  # Match operator (=)
-  defp build_match(left, right, expr_iri, context) do
-    build_binary_operator(:=, left, right, expr_iri, context, Core.MatchOperator)
   end
 
   # ===========================================================================
@@ -636,16 +599,26 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Construct a binary from a list of literal integer segments
   # Each integer should be a byte value (0-255)
   defp construct_binary_from_literals(segments) when is_list(segments) do
-    # Use :erlang.iolist_to_binary or manual construction
-    # Since we know all segments are integers, we can use <<>> syntax
-    Enum.reduce(segments, <<>>, fn byte, acc ->
-      acc <> <<byte>>
-    end)
+    # Use IO.iodata_to_binary for O(n) performance instead of O(n²) string concatenation
+    IO.iodata_to_binary(segments)
   end
 
   # Check if a list is a cons pattern: [{:|, _, [head, tail]}]
   defp cons_pattern?([{:|, _, [_head, _tail]}]), do: true
   defp cons_pattern?(_), do: false
+
+  # Build child expressions from a collection, threading context through
+  # Returns {flat_triples_list, final_context}
+  # A mapper function can be provided to transform items before building
+  defp build_child_expressions(items, context, mapper \\ fn item -> item end) do
+    {triples_list, final_ctx} =
+      Enum.map_reduce(items, context, fn item, ctx ->
+        {:ok, {_child_iri, triples, new_ctx}} = build(mapper.(item), ctx, [])
+        {triples, new_ctx}
+      end)
+
+    {List.flatten(triples_list), final_ctx}
+  end
 
   # Build a list literal from a list of elements
   defp build_list_literal(list, expr_iri, context) do
@@ -653,17 +626,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     type_triple = Helpers.type_triple(expr_iri, Core.ListLiteral)
 
     # Build child expressions for each element
-    {child_triples_list, _final_context} =
-      Enum.map_reduce(list, context, fn element, ctx ->
-        {:ok, {_child_iri, triples, new_ctx}} = build(element, ctx, [])
-        {triples, new_ctx}
-      end)
+    {child_triples, _final_context} = build_child_expressions(list, context)
 
-    # Link children via hasChild property (order preserved by extraction sequence)
-    # For now, we don't create explicit hasChild triples, just include child triples
-    all_triples = [type_triple | List.flatten(child_triples_list)]
-
-    all_triples
+    # Include type triple and all child triples
+    [type_triple | child_triples]
   end
 
   # Build a cons pattern [head | tail]
@@ -688,16 +654,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     type_triple = Helpers.type_triple(expr_iri, Core.KeywordListLiteral)
 
     # Build expressions for each value (keys are atom literals)
-    {value_triples_list, _final_context} =
-      Enum.map_reduce(pairs, context, fn {_key, value}, ctx ->
-        {:ok, {_value_iri, triples, new_ctx}} = build(value, ctx, [])
-        {triples, new_ctx}
-      end)
+    {value_triples, _final_context} =
+      build_child_expressions(pairs, context, fn {_key, value} -> value end)
 
     # Include type triple and all value triples
-    all_triples = [type_triple | List.flatten(value_triples_list)]
-
-    all_triples
+    [type_triple | value_triples]
   end
 
   # Build a tuple literal from a list of elements
@@ -706,17 +667,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     type_triple = Helpers.type_triple(expr_iri, Core.TupleLiteral)
 
     # Build child expressions for each element
-    {child_triples_list, _final_context} =
-      Enum.map_reduce(elements, context, fn element, ctx ->
-        {:ok, {_child_iri, triples, new_ctx}} = build(element, ctx, [])
-        {triples, new_ctx}
-      end)
+    {child_triples, _final_context} = build_child_expressions(elements, context)
 
-    # Link children via hasChild property (order preserved by extraction sequence)
-    # For now, we don't create explicit hasChild triples, just include child triples
-    all_triples = [type_triple | List.flatten(child_triples_list)]
-
-    all_triples
+    # Include type triple and all child triples
+    [type_triple | child_triples]
   end
 
   # Build a struct literal from module AST and map AST
@@ -770,22 +724,16 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   defp build_map_entries(pairs, _expr_iri, context) do
     # Build expressions for each value (keys are literals, not expressions)
-    # We extract the values as child expressions
-    Enum.flat_map(pairs, fn pair ->
-      case pair do
-        # Keyword tuple: {:key, value}
-        {_key, value} when is_atom(elem(pair, 0)) ->
-          # Build value expression
-          {:ok, {_value_iri, value_triples, _}} = build(value, context, [])
-          value_triples
-
-        # 2-tuple: {key, value}
-        {_key, value} ->
-          # Build value expression
-          {:ok, {_value_iri, value_triples, _}} = build(value, context, [])
-          value_triples
-      end
+    # Filter out map update syntax {:|, ..., [...]} for now
+    regular_pairs = Enum.filter(pairs, fn
+      {:|, _, _} -> false
+      _ -> true
     end)
+
+    {value_triples, _final_context} =
+      build_child_expressions(regular_pairs, context, fn {_key, value} -> value end)
+
+    value_triples
   end
 
   # Generic expression for unknown AST nodes
@@ -797,14 +745,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Sigil Literal Builders
   # ===========================================================================
 
-  @doc """
-  Builds triples for sigil literals like ~r/pattern/, ~s(string), ~w(words).
-
-  The sigil AST pattern is: {:sigil_CHAR, meta, [content_ast, modifiers_ast]}
-  - sigil_CHAR indicates the sigil character (w, r, s, c, etc.)
-  - content_ast is {:<<>>, ..., [content]} - a binary construction
-  - modifiers_ast is [] (empty) or a charlist like ~c"opts"
-  """
+  @doc false
   defp build_sigil_literal(sigil_atom, content_ast, modifiers_ast, expr_iri, _context) do
     # Extract sigil character from atom name (e.g., :sigil_w -> "w")
     sigil_char = extract_sigil_char(sigil_atom)
@@ -831,34 +772,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     [type_triple, char_triple, content_triple | modifiers_triples]
   end
 
-  @doc """
-  Extracts the sigil character from the sigil atom.
-
-  ## Examples
-
-      iex> extract_sigil_char(:sigil_w)
-      "w"
-      iex> extract_sigil_char(:sigil_r)
-      "r"
-  """
+  @doc false
   defp extract_sigil_char(sigil_atom) do
     sigil_name = Atom.to_string(sigil_atom)
     # Remove "sigil_" prefix to get the character
     String.replace_prefix(sigil_name, "sigil_", "")
   end
 
-  @doc """
-  Extracts the sigil content from the binary construction AST.
-
-  The content is wrapped as {:<<>>, meta, [content]} where content is a binary.
-
-  ## Examples
-
-      iex> extract_sigil_content({:<<>>, [], ["pattern"]})
-      "pattern"
-      iex> extract_sigil_content({:<<>>, [], [""]})
-      ""
-  """
+  @doc false
   defp extract_sigil_content({:<<>>, _meta, [content]}) when is_binary(content) do
     content
   end
@@ -868,22 +789,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     ""
   end
 
-  @doc """
-  Extracts and converts sigil modifiers from charlist to string.
-
-  Modifiers are stored as charlists in the AST:
-  - Empty modifiers: [] -> ""
-  - With modifiers: ~c"opts" -> "opts"
-
-  ## Examples
-
-      iex> extract_sigil_modifiers([])
-      ""
-      iex> extract_sigil_modifiers(~c"i")
-      "i"
-      iex> extract_sigil_modifiers(~c"iom")
-      "iom"
-  """
+  @doc false
   defp extract_sigil_modifiers([]), do: ""
 
   defp extract_sigil_modifiers(modifiers) when is_list(modifiers) do
@@ -894,18 +800,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Fallback for unexpected modifier format
   defp extract_sigil_modifiers(_other), do: ""
 
-  @doc """
-  Checks if an atom is a sigil atom (starts with "sigil_").
-
-  ## Examples
-
-      iex> is_sigil_atom?(:sigil_w)
-      true
-      iex> is_sigil_atom?(:sigil_r)
-      true
-      iex> is_sigil_atom?(:foo)
-      false
-  """
+  @doc false
   defp is_sigil_atom?(atom) when is_atom(atom) do
     atom_name = Atom.to_string(atom)
     String.starts_with?(atom_name, "sigil_")
@@ -915,16 +810,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Range Literal Builders
   # ===========================================================================
 
-  @doc """
-  Builds triples for range literals like 1..10 or 1..10//2.
-
-  The range AST pattern is: {:.., meta, [first, last]}
-  - first is the start value (literal, variable, or expression)
-  - last is the end value (literal, variable, or expression)
-
-  For step ranges: {:"..//", meta, [first, last, step]}
-  - step is the increment value
-  """
+  @doc false
   defp build_range_literal(first, last, expr_iri, context) do
     # Build the first and last as child expressions
     {:ok, {first_iri, first_triples, _}} = build(first, context, [])
