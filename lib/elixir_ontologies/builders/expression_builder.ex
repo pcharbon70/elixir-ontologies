@@ -320,15 +320,25 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     build_literal(str, expr_iri, Core.StringLiteral, Core.stringValue(), RDF.XSD.String)
   end
 
-  # Charlist literals (lists of integers representing UTF-8 codepoints)
+  # List literals and charlist literals (lists of integers representing UTF-8 codepoints)
   # Must come before generic handlers that might match lists
-  def build_expression_triples(list, expr_iri, _context) when is_list(list) do
-    if charlist?(list) do
-      string_value = List.to_string(list)
-      build_literal(string_value, expr_iri, Core.CharlistLiteral, Core.charlistValue(), RDF.XSD.String)
-    else
-      # Not a charlist, treat as generic list or unknown expression
-      build_generic_expression(expr_iri)
+  def build_expression_triples(list, expr_iri, context) when is_list(list) do
+    cond do
+      # Check for cons pattern: [{:|, _, [head, tail]}]
+      cons_pattern?(list) ->
+        build_cons_list(list, expr_iri, context)
+
+      # Check for regular list (non-charlist):
+      # - Contains non-integer elements
+      # - Contains integers outside Unicode range
+      # - Is a nested list structure
+      not charlist?(list) ->
+        build_list_literal(list, expr_iri, context)
+
+      # Otherwise, it's a charlist (all elements are valid Unicode codepoints)
+      true ->
+        string_value = List.to_string(list)
+        build_literal(string_value, expr_iri, Core.CharlistLiteral, Core.charlistValue(), RDF.XSD.String)
     end
   end
 
@@ -583,6 +593,45 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     Enum.reduce(segments, <<>>, fn byte, acc ->
       acc <> <<byte>>
     end)
+  end
+
+  # Check if a list is a cons pattern: [{:|, _, [head, tail]}]
+  defp cons_pattern?([{:|, _, [_head, _tail]}]), do: true
+  defp cons_pattern?(_), do: false
+
+  # Build a list literal from a list of elements
+  defp build_list_literal(list, expr_iri, context) do
+    # Create the ListLiteral type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.ListLiteral)
+
+    # Build child expressions for each element
+    {child_triples_list, _final_context} =
+      Enum.map_reduce(list, context, fn element, ctx ->
+        {:ok, {_child_iri, triples, new_ctx}} = build(element, ctx, [])
+        {triples, new_ctx}
+      end)
+
+    # Link children via hasChild property (order preserved by extraction sequence)
+    # For now, we don't create explicit hasChild triples, just include child triples
+    all_triples = [type_triple | List.flatten(child_triples_list)]
+
+    all_triples
+  end
+
+  # Build a cons pattern [head | tail]
+  defp build_cons_list([{:|, _, [head, tail]}], expr_iri, context) do
+    # Create the ListLiteral type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.ListLiteral)
+
+    # Build head expression
+    {:ok, {_head_iri, head_triples, context_after_head}} = build(head, context, [])
+
+    # Build tail expression
+    {:ok, {_tail_iri, tail_triples, _context_after_tail}} = build(tail, context_after_head, [])
+
+    # Note: hasHead and hasTail properties would need to be added to ontology
+    # For now, we just include the type triple and child expressions
+    [type_triple | head_triples] ++ tail_triples
   end
 
   # Generic expression for unknown AST nodes

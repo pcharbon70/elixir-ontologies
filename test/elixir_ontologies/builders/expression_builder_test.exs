@@ -645,16 +645,16 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_literal_value?(triples, expr_iri, Core.charlistValue(), "你好")
     end
 
-    test "treats non-charlist lists as generic expression" do
+    test "treats non-charlist lists as ListLiteral" do
       context = full_mode_context()
 
       # A list containing non-integer elements is not a charlist
       mixed_list = [1, :atom, "string"]
       {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(mixed_list, context, [])
 
-      # Should fall through to generic expression (not CharlistLiteral)
+      # Should be ListLiteral (not CharlistLiteral, not generic Expression)
       refute has_type?(triples, Core.CharlistLiteral)
-      assert has_type?(triples, Core.Expression)
+      assert has_type?(triples, Core.ListLiteral)
     end
 
     test "builds BinaryLiteral triples for binary with single literal integer" do
@@ -755,6 +755,115 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       # Should fall through to generic expression
       refute has_type?(triples, Core.BinaryLiteral)
       assert has_type?(triples, Core.Expression)
+    end
+
+    test "builds ListLiteral triples for empty list" do
+      context = full_mode_context()
+
+      # Empty list is [] - which is also an empty charlist
+      # This gets caught by charlist check first
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build([], context, [])
+
+      # Empty list is treated as charlist (indistinguishable in AST)
+      assert has_type?(triples, Core.CharlistLiteral)
+    end
+
+    test "builds ListLiteral triples for list of integers" do
+      context = full_mode_context()
+
+      # List of integers
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build([1, 2, 3], context, [])
+
+      # This is treated as a charlist since all elements are valid codepoints
+      # In practice, [1, 2, 3] could be either a list or a charlist
+      # Our implementation treats it as charlist
+      assert has_type?(triples, Core.CharlistLiteral)
+    end
+
+    test "builds ListLiteral triples for heterogeneous list" do
+      context = full_mode_context()
+
+      # List with mixed types
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build([1, "two", :three], context, [])
+
+      # Heterogeneous lists are treated as ListLiteral, not charlist
+      assert has_type?(triples, Core.ListLiteral)
+    end
+
+    test "builds ListLiteral triples for nested lists" do
+      context = full_mode_context()
+
+      # Nested lists
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build([["a", "b"], ["c", "d"]], context, [])
+
+      # Nested lists are treated as ListLiteral
+      assert has_type?(triples, Core.ListLiteral)
+    end
+
+    test "builds ListLiteral triples for list with atoms" do
+      context = full_mode_context()
+
+      # List with atoms
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build([:ok, :error], context, [])
+
+      # List with atoms is treated as ListLiteral, not charlist
+      assert has_type?(triples, Core.ListLiteral)
+    end
+
+    test "builds ListLiteral triples for cons pattern with atom tail" do
+      context = full_mode_context()
+
+      # Cons pattern: [1 | :two]
+      cons_ast = [{:|, [], [1, :two]}]
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(cons_ast, context, [])
+
+      # Cons pattern creates ListLiteral
+      assert has_type?(triples, Core.ListLiteral)
+    end
+
+    test "builds ListLiteral triples for cons pattern with list tail" do
+      context = full_mode_context()
+
+      # Cons pattern with list tail: [1 | [2, 3]]
+      cons_ast = [{:|, [], [1, [2, 3]]}]
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(cons_ast, context, [])
+
+      # Cons pattern creates ListLiteral
+      assert has_type?(triples, Core.ListLiteral)
+    end
+
+    test "charlists with valid codepoints are still handled correctly" do
+      context = full_mode_context()
+
+      # Charlist with ASCII characters
+      charlist = [104, 101, 108, 108, 111]  # "hello"
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(charlist, context, [])
+
+      assert has_type?(triples, Core.CharlistLiteral)
+      assert has_binary_literal_value?(triples, expr_iri, Core.charlistValue(), "hello")
+    end
+
+    test "charlists with Unicode are still handled correctly" do
+      context = full_mode_context()
+
+      # Charlist with Unicode characters: "héllo" = [104, 233, 108, 108, 111]
+      charlist = [104, 233, 108, 108, 111]
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(charlist, context, [])
+
+      assert has_type?(triples, Core.CharlistLiteral)
+      assert has_binary_literal_value?(triples, expr_iri, Core.charlistValue(), "héllo")
+    end
+
+    test "lists with integers outside Unicode range are ListLiteral" do
+      context = full_mode_context()
+
+      # Integer outside Unicode range (> 0x10FFFF)
+      list_with_large_int = [0x110000]
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(list_with_large_int, context, [])
+
+      # Should be treated as ListLiteral, not charlist
+      assert has_type?(triples, Core.ListLiteral)
+      refute has_type?(triples, Core.CharlistLiteral)
     end
   end
 
