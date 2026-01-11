@@ -393,9 +393,18 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Local call: function(args) - must come before variable pattern
+  # Note: This handler also checks for sigil atoms (sigil_c, sigil_r, sigil_s, sigil_w)
+  # and dispatches them to the sigil literal handler
   def build_expression_triples({function, meta, args}, expr_iri, context)
       when is_atom(function) and is_list(meta) and is_list(args) do
-    build_local_call(function, args, expr_iri, context)
+    # Check if this is a sigil literal (pattern: {:sigil_CHAR, meta, [content_ast, modifiers_ast]})
+    # Sigils have exactly 2 elements in args list: [content_ast, modifiers_ast]
+    # We check if the atom name starts with "sigil_"
+    if is_sigil_atom?(function) and length(args) == 2 do
+      build_sigil_literal(function, Enum.at(args, 0), Enum.at(args, 1), expr_iri, context)
+    else
+      build_local_call(function, args, expr_iri, context)
+    end
   end
 
   # Remote call: Module.function(args)
@@ -771,6 +780,124 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Generic expression for unknown AST nodes
   defp build_generic_expression(expr_iri) do
     [Helpers.type_triple(expr_iri, Core.Expression)]
+  end
+
+  # ===========================================================================
+  # Sigil Literal Builders
+  # ===========================================================================
+
+  @doc """
+  Builds triples for sigil literals like ~r/pattern/, ~s(string), ~w(words).
+
+  The sigil AST pattern is: {:sigil_CHAR, meta, [content_ast, modifiers_ast]}
+  - sigil_CHAR indicates the sigil character (w, r, s, c, etc.)
+  - content_ast is {:<<>>, ..., [content]} - a binary construction
+  - modifiers_ast is [] (empty) or a charlist like ~c"opts"
+  """
+  defp build_sigil_literal(sigil_atom, content_ast, modifiers_ast, expr_iri, _context) do
+    # Extract sigil character from atom name (e.g., :sigil_w -> "w")
+    sigil_char = extract_sigil_char(sigil_atom)
+
+    # Extract content from binary construction
+    sigil_content = extract_sigil_content(content_ast)
+
+    # Convert modifiers from charlist to string
+    sigil_modifiers = extract_sigil_modifiers(modifiers_ast)
+
+    # Build the RDF triples
+    type_triple = Helpers.type_triple(expr_iri, Core.SigilLiteral)
+    char_triple = {expr_iri, Core.sigilChar, RDF.XSD.String.new(sigil_char)}
+    content_triple = {expr_iri, Core.sigilContent, RDF.XSD.String.new(sigil_content)}
+
+    # Only add modifiers triple if non-empty
+    modifiers_triples =
+      if sigil_modifiers != "" do
+        [{expr_iri, Core.sigilModifiers, RDF.XSD.String.new(sigil_modifiers)}]
+      else
+        []
+      end
+
+    [type_triple, char_triple, content_triple | modifiers_triples]
+  end
+
+  @doc """
+  Extracts the sigil character from the sigil atom.
+
+  ## Examples
+
+      iex> extract_sigil_char(:sigil_w)
+      "w"
+      iex> extract_sigil_char(:sigil_r)
+      "r"
+  """
+  defp extract_sigil_char(sigil_atom) do
+    sigil_name = Atom.to_string(sigil_atom)
+    # Remove "sigil_" prefix to get the character
+    String.replace_prefix(sigil_name, "sigil_", "")
+  end
+
+  @doc """
+  Extracts the sigil content from the binary construction AST.
+
+  The content is wrapped as {:<<>>, meta, [content]} where content is a binary.
+
+  ## Examples
+
+      iex> extract_sigil_content({:<<>>, [], ["pattern"]})
+      "pattern"
+      iex> extract_sigil_content({:<<>>, [], [""]})
+      ""
+  """
+  defp extract_sigil_content({:<<>>, _meta, [content]}) when is_binary(content) do
+    content
+  end
+
+  # Fallback for unexpected content format
+  defp extract_sigil_content(_other) do
+    ""
+  end
+
+  @doc """
+  Extracts and converts sigil modifiers from charlist to string.
+
+  Modifiers are stored as charlists in the AST:
+  - Empty modifiers: [] -> ""
+  - With modifiers: ~c"opts" -> "opts"
+
+  ## Examples
+
+      iex> extract_sigil_modifiers([])
+      ""
+      iex> extract_sigil_modifiers(~c"i")
+      "i"
+      iex> extract_sigil_modifiers(~c"iom")
+      "iom"
+  """
+  defp extract_sigil_modifiers([]), do: ""
+
+  defp extract_sigil_modifiers(modifiers) when is_list(modifiers) do
+    # Convert charlist to string
+    List.to_string(modifiers)
+  end
+
+  # Fallback for unexpected modifier format
+  defp extract_sigil_modifiers(_other), do: ""
+
+  @doc """
+  Checks if an atom is a sigil atom (starts with "sigil_").
+
+  ## Examples
+
+      iex> is_sigil_atom?(:sigil_w)
+      true
+      iex> is_sigil_atom?(:sigil_r)
+      true
+      iex> is_sigil_atom?(:foo)
+      false
+  """
+  defp is_sigil_atom?(atom) when is_atom(atom) do
+    atom_name = Atom.to_string(atom)
+    String.starts_with?(atom_name, "sigil_")
   end
 
   # ===========================================================================

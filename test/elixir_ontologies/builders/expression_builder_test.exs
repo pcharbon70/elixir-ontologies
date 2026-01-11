@@ -1078,6 +1078,140 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "sigil literals" do
+    test "builds SigilLiteral for word sigil" do
+      context = full_mode_context()
+
+      # Word sigil: ~w(foo bar baz)
+      sigil_ast = quote do: ~w(foo bar baz)
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(sigil_ast, context, [])
+
+      assert has_type?(triples, Core.SigilLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.sigilChar(), "w")
+      assert has_literal_value?(triples, expr_iri, Core.sigilContent(), "foo bar baz")
+    end
+
+    test "builds SigilLiteral for regex sigil" do
+      context = full_mode_context()
+
+      # Regex sigil: ~r/pattern/
+      sigil_ast = quote do: ~r(pattern)
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(sigil_ast, context, [])
+
+      assert has_type?(triples, Core.SigilLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.sigilChar(), "r")
+      assert has_literal_value?(triples, expr_iri, Core.sigilContent(), "pattern")
+    end
+
+    test "builds SigilLiteral for string sigil" do
+      context = full_mode_context()
+
+      # String sigil: ~s(string)
+      sigil_ast = quote do: ~s(string)
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(sigil_ast, context, [])
+
+      assert has_type?(triples, Core.SigilLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.sigilChar(), "s")
+      assert has_literal_value?(triples, expr_iri, Core.sigilContent(), "string")
+    end
+
+    test "builds SigilLiteral for custom sigil" do
+      context = full_mode_context()
+
+      # Custom sigil: ~x(content)
+      # Note: This will fail at runtime but the AST is valid
+      sigil_ast = {:sigil_x, [], [{:<<>>, [], ["content"]}, []]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(sigil_ast, context, [])
+
+      assert has_type?(triples, Core.SigilLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.sigilChar(), "x")
+      assert has_literal_value?(triples, expr_iri, Core.sigilContent(), "content")
+    end
+
+    test "handles sigil with empty content" do
+      context = full_mode_context()
+
+      # Empty sigil: ~s()
+      sigil_ast = quote do: ~s()
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(sigil_ast, context, [])
+
+      assert has_type?(triples, Core.SigilLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.sigilChar(), "s")
+      assert has_literal_value?(triples, expr_iri, Core.sigilContent(), "")
+    end
+
+    test "handles sigil with modifiers" do
+      context = full_mode_context()
+
+      # Regex sigil with modifiers: ~r/pattern/iom
+      sigil_ast = quote do: ~r(pattern)iom
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(sigil_ast, context, [])
+
+      assert has_type?(triples, Core.SigilLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.sigilChar(), "r")
+      assert has_literal_value?(triples, expr_iri, Core.sigilContent(), "pattern")
+      assert has_literal_value?(triples, expr_iri, Core.sigilModifiers(), "iom")
+    end
+
+    test "handles sigil without modifiers" do
+      context = full_mode_context()
+
+      # Regex sigil without modifiers: ~r/pattern/
+      sigil_ast = quote do: ~r(pattern)
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(sigil_ast, context, [])
+
+      assert has_type?(triples, Core.SigilLiteral)
+      # Should NOT have sigilModifiers triple (empty modifiers don't create a triple)
+      refute Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.sigilModifiers()
+      end)
+    end
+
+    test "handles charlist sigil" do
+      context = full_mode_context()
+
+      # Charlist sigil: ~c(charlist)
+      sigil_ast = quote do: ~c(charlist)
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(sigil_ast, context, [])
+
+      assert has_type?(triples, Core.SigilLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.sigilChar(), "c")
+      assert has_literal_value?(triples, expr_iri, Core.sigilContent(), "charlist")
+    end
+
+    test "handles sigil with heredoc content" do
+      context = full_mode_context()
+
+      # Heredoc sigil: ~s"""
+      # multi
+      # line
+      # string
+      # """
+      sigil_ast = quote do: ~s"""
+multi
+line
+string
+"""
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(sigil_ast, context, [])
+
+      assert has_type?(triples, Core.SigilLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.sigilChar(), "s")
+      # Heredoc content is multi-line
+      assert has_literal_value?(triples, expr_iri, Core.sigilContent(), "multi\nline\nstring\n")
+    end
+
+    test "handles sigil with multiple modifiers" do
+      context = full_mode_context()
+
+      # Regex sigil with multiple modifiers: ~r/pattern/iom
+      sigil_ast = quote do: ~r(pattern)iom
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(sigil_ast, context, [])
+
+      assert has_type?(triples, Core.SigilLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.sigilModifiers(), "iom")
+    end
+  end
+
   describe "unknown expressions" do
     test "dispatches unknown AST to generic Expression type" do
       context = full_mode_context()
