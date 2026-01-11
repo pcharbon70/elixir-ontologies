@@ -787,6 +787,11 @@
     rdfs:domain :BinaryLiteral ;
     rdfs:range xsd:base64Binary .
 
+:charlistValue a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "charlist value"@en ;
+    rdfs:domain :CharlistLiteral ;
+    rdfs:range xsd:string .
+
 # Operator identity
 :operatorSymbol a owl:DatatypeProperty, owl:FunctionalProperty ;
     rdfs:label "operator symbol"@en ;

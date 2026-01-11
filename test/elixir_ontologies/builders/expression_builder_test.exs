@@ -577,6 +577,85 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_type?(triples, Core.NilLiteral)
       assert has_literal_value?(triples, expr_iri, Core.atomValue(), "nil")
     end
+
+    test "builds CharlistLiteral triples for charlists" do
+      context = full_mode_context()
+
+      # In Elixir AST, 'hello' appears as a list of character codes
+      charlist = [104, 101, 108, 108, 111]
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(charlist, context, [])
+
+      assert has_type?(triples, Core.CharlistLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.charlistValue(), "hello")
+    end
+
+    test "builds CharlistLiteral triples for empty charlist" do
+      context = full_mode_context()
+
+      # Empty charlist '' appears as empty list []
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build([], context, [])
+
+      assert has_type?(triples, Core.CharlistLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.charlistValue(), "")
+    end
+
+    test "builds CharlistLiteral triples for single character charlist" do
+      context = full_mode_context()
+
+      # Single character charlist like '?' appears as [63]
+      charlist = [63]
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(charlist, context, [])
+
+      assert has_type?(triples, Core.CharlistLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.charlistValue(), "?")
+    end
+
+    test "builds CharlistLiteral triples for charlist with escape sequences" do
+      context = full_mode_context()
+
+      # Escape sequences are processed by Elixir compiler
+      # '\n' appears as [10] (newline character code)
+      charlist = [10]
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(charlist, context, [])
+
+      assert has_type?(triples, Core.CharlistLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.charlistValue(), "\n")
+    end
+
+    test "builds CharlistLiteral triples for charlist with Unicode characters" do
+      context = full_mode_context()
+
+      # Unicode characters are represented by their codepoints
+      # "héllo" = [104, 233, 108, 108, 111]
+      charlist = [104, 233, 108, 108, 111]
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(charlist, context, [])
+
+      assert has_type?(triples, Core.CharlistLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.charlistValue(), "héllo")
+    end
+
+    test "builds CharlistLiteral triples for multi-byte Unicode charlist" do
+      context = full_mode_context()
+
+      # Chinese characters: "你好" (codepoints 20320 and 22909)
+      charlist = [20320, 22909]
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(charlist, context, [])
+
+      assert has_type?(triples, Core.CharlistLiteral)
+      assert has_literal_value?(triples, expr_iri, Core.charlistValue(), "你好")
+    end
+
+    test "treats non-charlist lists as generic expression" do
+      context = full_mode_context()
+
+      # A list containing non-integer elements is not a charlist
+      mixed_list = [1, :atom, "string"]
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(mixed_list, context, [])
+
+      # Should fall through to generic expression (not CharlistLiteral)
+      refute has_type?(triples, Core.CharlistLiteral)
+      assert has_type?(triples, Core.Expression)
+    end
   end
 
   describe "unknown expressions" do
