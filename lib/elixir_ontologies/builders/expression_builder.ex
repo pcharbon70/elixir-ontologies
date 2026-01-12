@@ -1240,13 +1240,44 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Full implementations will be added in later sections (24.2-24.6)
 
   @doc false
-  defp build_literal_pattern(_ast, expr_iri, _context) do
-    [Helpers.type_triple(expr_iri, Core.LiteralPattern)]
+  defp build_literal_pattern(ast, expr_iri, _context) do
+    {value_property, xsd_type, value} = literal_value_info(ast)
+
+    [
+      Helpers.type_triple(expr_iri, Core.LiteralPattern),
+      Helpers.datatype_property(expr_iri, value_property, value, xsd_type)
+    ]
   end
 
-  @doc false
-  defp build_variable_pattern(ast, expr_iri, _context) do
-    {name, _, _} = ast
+  @doc """
+  Returns the value property, XSD type, and actual value for literal patterns.
+
+  For atoms, uses atom_to_string/1 to get the source representation.
+  For other literals, uses the raw value.
+
+  ## Returns
+
+  `{property_iri, xsd_type, value}` triple
+  """
+  defp literal_value_info(int) when is_integer(int), do: {Core.integerValue(), RDF.XSD.Integer, int}
+  defp literal_value_info(float) when is_float(float), do: {Core.floatValue(), RDF.XSD.Double, float}
+  defp literal_value_info(str) when is_binary(str), do: {Core.stringValue(), RDF.XSD.String, str}
+  defp literal_value_info(atom) when is_atom(atom), do: {Core.atomValue(), RDF.XSD.String, atom_to_string(atom)}
+
+  @doc """
+  Builds RDF triples for a variable pattern.
+
+  Variable patterns bind matched values to variable names.
+  This is distinct from Variable expressions (expression context).
+
+  ## Notes
+
+  - Variables with leading underscores (_name) are still variable patterns, not wildcards
+  - The single underscore (_) is a wildcard pattern, handled elsewhere
+  - Pin patterns (^x) are handled elsewhere
+  - For future scope analysis, this should link to a Core.Variable instance
+  """
+  defp build_variable_pattern({name, _meta, _ctx}, expr_iri, _context) do
     [
       Helpers.type_triple(expr_iri, Core.VariablePattern),
       Helpers.datatype_property(expr_iri, Core.name(), Atom.to_string(name), RDF.XSD.String)

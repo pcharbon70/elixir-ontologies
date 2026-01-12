@@ -3022,6 +3022,126 @@ string
     end
   end
 
+  describe "literal pattern extraction" do
+    test "builds LiteralPattern with integer value" do
+      context = full_mode_context()
+      ast = 42
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have LiteralPattern type
+      assert has_type?(pattern_triples, Core.LiteralPattern)
+
+      # Should have literal value property
+      assert has_literal_value?(pattern_triples, expr_iri, Core.integerValue(), 42)
+    end
+
+    test "builds LiteralPattern with float value" do
+      context = full_mode_context()
+      ast = 3.14
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      assert has_type?(pattern_triples, Core.LiteralPattern)
+      assert has_literal_value?(pattern_triples, expr_iri, Core.floatValue(), 3.14)
+    end
+
+    test "builds LiteralPattern with string value" do
+      context = full_mode_context()
+      ast = "hello"
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      assert has_type?(pattern_triples, Core.LiteralPattern)
+      assert has_literal_value?(pattern_triples, expr_iri, Core.stringValue(), "hello")
+    end
+
+    test "builds LiteralPattern with atom value" do
+      context = full_mode_context()
+      ast = :ok
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      assert has_type?(pattern_triples, Core.LiteralPattern)
+      assert has_literal_value?(pattern_triples, expr_iri, Core.atomValue(), ":ok")
+    end
+
+    test "builds LiteralPattern with true boolean" do
+      context = full_mode_context()
+      ast = true
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Pattern context uses LiteralPattern, not BooleanLiteral
+      assert has_type?(pattern_triples, Core.LiteralPattern)
+      assert has_literal_value?(pattern_triples, expr_iri, Core.atomValue(), "true")
+    end
+
+    test "builds LiteralPattern with false boolean" do
+      context = full_mode_context()
+      ast = false
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      assert has_type?(pattern_triples, Core.LiteralPattern)
+      assert has_literal_value?(pattern_triples, expr_iri, Core.atomValue(), "false")
+    end
+
+    test "builds LiteralPattern with nil" do
+      context = full_mode_context()
+      ast = nil
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      assert has_type?(pattern_triples, Core.LiteralPattern)
+      assert has_literal_value?(pattern_triples, expr_iri, Core.atomValue(), "nil")
+    end
+  end
+
+  describe "variable pattern extraction" do
+    test "builds VariablePattern with variable name" do
+      context = full_mode_context()
+      ast = {:x, [], Elixir}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      assert has_type?(pattern_triples, Core.VariablePattern)
+      assert has_variable_name?(pattern_triples, expr_iri, "x")
+    end
+
+    test "builds VariablePattern for variables with leading underscore" do
+      context = full_mode_context()
+      ast = {:_name, [], Elixir}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      assert has_type?(pattern_triples, Core.VariablePattern)
+      assert has_variable_name?(pattern_triples, expr_iri, "_name")
+    end
+
+    test "distinguishes VariablePattern from Variable expression" do
+      context = full_mode_context()
+      ast = {:result, [], Elixir}
+      {:ok, {expr_iri, expression_triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Expression context creates Core.Variable
+      assert has_type?(expression_triples, Core.Variable)
+
+      # Pattern context creates Core.VariablePattern
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+  end
+
   # ===========================================================================
   # Helpers
   # ===========================================================================
@@ -3093,6 +3213,13 @@ string
       Enum.any?(triples, fn {s, p, o} ->
         s == child_iri and p == RDF.type() and o == child_type
       end)
+    end)
+  end
+
+  # Pattern extraction helpers
+  defp has_variable_name?(triples, subject_iri, expected_name) do
+    Enum.any?(triples, fn {s, p, o} ->
+      s == subject_iri and p == Core.name() and RDF.Literal.value(o) == expected_name
     end)
   end
 end
