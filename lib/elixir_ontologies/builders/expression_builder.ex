@@ -31,6 +31,32 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       ExpressionBuilder.build(ast, light_mode_context)
       # => :skip
 
+  ## Public API vs Internal Functions
+
+  This module provides two layers of functions for expression building:
+
+  ### `build/3` - Public API
+
+  Use `build/3` for top-level expression building from external code:
+  - Handles mode checking (full vs light mode)
+  - Manages IRI counter in the context
+  - Returns `{:ok, {expr_iri, triples, updated_context}}` or `:skip`
+  - Thread the returned context to subsequent `build/3` calls
+
+  ### `build_expression_triples/3` - Internal Dispatch
+
+  Internal function used by operator builders for recursive expression building:
+  - Directly builds triples given an expression IRI
+  - Does NOT check mode (assumes caller already validated)
+  - Does NOT manage context counter
+  - Returns a list of RDF triples
+  - Used when the expr_iri is already known (e.g., child expressions)
+
+  ### When to Use Each
+
+  - **Use `build/3`** when building expressions from external code (e.g., processing AST)
+  - **Use `build_expression_triples/3`** when implementing operator builders that need to recursively build child expressions
+
   ## Expression Dispatch
 
   The builder pattern matches on AST node types and dispatches to
@@ -193,7 +219,33 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Expression Dispatch
   # ===========================================================================
 
-  @doc false
+  @doc """
+  Builds RDF triples for an expression given its IRI.
+
+  This is the internal dispatch function that pattern matches on AST nodes
+  and generates the appropriate RDF triples. Unlike `build/3`, this function:
+
+  - Does NOT check mode (assumes caller validated)
+  - Does NOT manage context counter
+  - Returns a list of triples directly (not wrapped in {:ok, ...})
+  - Requires an explicit expr_iri parameter
+
+  ## Parameters
+
+  - `ast` - The Elixir AST node (3-tuple format or literal)
+  - `expr_iri` - The IRI to use for this expression
+  - `context` - The builder context (for configuration, not counter management)
+
+  ## Returns
+
+  A list of RDF triples representing the expression.
+
+  ## When to Use
+
+  Use this function when implementing operator builders that need to
+  recursively build child expressions. For top-level expression building,
+  use `build/3` instead.
+  """
   @spec build_expression_triples(Macro.t(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
   def build_expression_triples(ast, expr_iri, context)
 
@@ -497,7 +549,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     left_iri = fresh_iri(expr_iri, "left")
     right_iri = fresh_iri(expr_iri, "right")
 
-    # Recursively build operand triples
+    # Recursively build operand triples using build_expression_triples/3 directly.
+    # We use build_expression_triples/3 instead of build/3 here because:
+    # 1. The expr_iri for each operand is already known (left_iri, right_iri)
+    # 2. Mode checking was already done by the parent build/3 call
+    # 3. We don't need additional IRI counter management (child IRIs are relative)
+    # 4. We need direct access to the triples list for concatenation
     left_triples = build_expression_triples(left_ast, left_iri, context)
     right_triples = build_expression_triples(right_ast, right_iri, context)
 
@@ -518,7 +575,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Generate relative IRI for child expression
     operand_iri = fresh_iri(expr_iri, "operand")
 
-    # Recursively build operand triples
+    # Recursively build operand triples using build_expression_triples/3 directly.
+    # We use build_expression_triples/3 instead of build/3 here because:
+    # 1. The expr_iri for the operand is already known (operand_iri)
+    # 2. Mode checking was already done by the parent build/3 call
+    # 3. We don't need additional IRI counter management (child IRIs are relative)
+    # 4. We need direct access to the triples list for concatenation
     operand_triples = build_expression_triples(operand_ast, operand_iri, context)
 
     # Build operator triples
@@ -1010,42 +1072,35 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   @doc false
   # Build capture operator for argument index (&1, &2, etc.)
-  # Note: Using RDF.value() as a generic property for the capture index
-  # since the ontology doesn't have a dedicated captureIndex property yet.
+  # Uses dedicated captureIndex property from the ontology
   defp build_capture_index(index, expr_iri) do
     [
       {expr_iri, RDF.type(), Core.CaptureOperator},
       {expr_iri, Core.operatorSymbol(), RDF.Literal.new("&")},
-      {expr_iri, RDF.value(), RDF.Literal.new(index)}
+      {expr_iri, Core.captureIndex(), RDF.Literal.new(index)}
     ]
   end
 
   @doc false
   # Build capture operator for function reference (&Mod.fun/arity)
-  # Note: Using RDFS.label to capture module/function info
-  # since the ontology doesn't have dedicated moduleName/functionName properties yet.
+  # Uses dedicated captureModuleName, captureFunctionName, and captureArity properties
   defp build_capture_function_ref(function_ref, arity, expr_iri, _context) do
     # Extract module and function name from function_ref AST
     {module, function} = extract_function_ref_parts(function_ref)
 
-    # Create a descriptive label for the function reference
-    ref_label = if arity, do: "&#{module}.#{function}/#{arity}", else: "&#{module}.#{function}"
-
     base_triples = [
       {expr_iri, RDF.type(), Core.CaptureOperator},
       {expr_iri, Core.operatorSymbol(), RDF.Literal.new("&")},
-      {expr_iri, RDF.NS.RDFS.label(), RDF.Literal.new(ref_label)}
+      {expr_iri, Core.captureModuleName(), RDF.Literal.new(module)},
+      {expr_iri, Core.captureFunctionName(), RDF.Literal.new(function)}
     ]
 
-    # Add arity value if specified
-    arity_triples =
-      if arity do
-        [{expr_iri, RDF.value(), RDF.Literal.new(arity)}]
-      else
-        []
-      end
-
-    base_triples ++ arity_triples
+    # Add arity if specified
+    if arity do
+      base_triples ++ [{expr_iri, Core.captureArity(), RDF.Literal.new(arity)}]
+    else
+      base_triples
+    end
   end
 
   @doc false

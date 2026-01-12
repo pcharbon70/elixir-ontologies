@@ -162,6 +162,75 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
         end)
       end
     end
+
+    test "comparison operator captures left and right operands" do
+      context = full_mode_context()
+      ast = {:==, [], [{:x, [], nil}, 42]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ComparisonOperator type
+      assert has_type?(triples, Core.ComparisonOperator)
+
+      # Should have left and right operands
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
+
+      # Left operand is a Variable
+      assert has_type?(triples, Core.Variable)
+
+      # Right operand is an IntegerLiteral
+      assert has_type?(triples, Core.IntegerLiteral)
+    end
+
+    test "comparison operator with nested expressions" do
+      context = full_mode_context()
+      # x > (y + 1) as AST
+      ast = {:>, [], [{:x, [], nil}, {:+, [], [{:y, [], nil}, 1]}]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ComparisonOperator type
+      assert has_type?(triples, Core.ComparisonOperator)
+
+      # Right operand should be an ArithmeticOperator (the nested addition)
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ArithmeticOperator end)
+
+      # The nested arithmetic operator should have its own operator symbol
+      assert has_operator_symbol_for_iri?(triples, right_iri, "+")
+    end
+
+    test "comparison operator with both operands as expressions" do
+      context = full_mode_context()
+      # (x + 1) == (y - 2) as AST
+      left_expr = {:+, [], [{:x, [], nil}, 1]}
+      right_expr = {:-, [], [{:y, [], nil}, 2]}
+      ast = {:==, [], [left_expr, right_expr]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ComparisonOperator type
+      assert has_type?(triples, Core.ComparisonOperator)
+
+      # Left operand should be an ArithmeticOperator
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ArithmeticOperator end)
+
+      # Right operand should be an ArithmeticOperator
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ArithmeticOperator end)
+
+      # Both nested operators should have their symbols
+      assert has_operator_symbol_for_iri?(triples, left_iri, "+")
+      assert has_operator_symbol_for_iri?(triples, right_iri, "-")
+    end
   end
 
   describe "logical operators" do
@@ -218,6 +287,78 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_type?(triples, Core.LogicalOperator)
       assert has_operator_symbol?(triples, "!")
     end
+
+    test "logical operator captures left and right operands" do
+      context = full_mode_context()
+      ast = {:and, [], [true, false]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create LogicalOperator type
+      assert has_type?(triples, Core.LogicalOperator)
+
+      # Should have left and right operands
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
+
+      # Both operands are BooleanLiterals
+      assert has_type?(triples, Core.BooleanLiteral)
+    end
+
+    test "logical operator with nested expressions" do
+      context = full_mode_context()
+      # (x > 5) and (y < 10) as AST
+      left_expr = {:>, [], [{:x, [], nil}, 5]}
+      right_expr = {:<, [], [{:y, [], nil}, 10]}
+      ast = {:and, [], [left_expr, right_expr]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create LogicalOperator type
+      assert has_type?(triples, Core.LogicalOperator)
+
+      # Left operand should be a ComparisonOperator
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ComparisonOperator end)
+
+      # Right operand should be a ComparisonOperator
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ComparisonOperator end)
+
+      # Both nested operators should have their symbols
+      assert has_operator_symbol_for_iri?(triples, left_iri, ">")
+      assert has_operator_symbol_for_iri?(triples, right_iri, "<")
+    end
+
+    test "unary logical operator with expression operand" do
+      context = full_mode_context()
+      # not (x == 5) as AST
+      ast = {:not, [], [{:==, [], [{:x, [], nil}, 5]}]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create LogicalOperator type
+      assert has_type?(triples, Core.LogicalOperator)
+
+      # Should have operand
+      operand_iri = ExpressionBuilder.fresh_iri(expr_iri, "operand")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasOperand() and o == operand_iri
+      end)
+
+      # Operand should be a ComparisonOperator
+      assert Enum.any?(triples, fn {s, _p, o} -> s == operand_iri and o == Core.ComparisonOperator end)
+
+      # The nested comparison should have its symbol
+      assert has_operator_symbol_for_iri?(triples, operand_iri, "==")
+    end
   end
 
   describe "arithmetic operators" do
@@ -233,53 +374,149 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
         assert has_operator_symbol?(triples, to_string(@op))
       end
     end
+
+    test "arithmetic operator captures left and right operands" do
+      context = full_mode_context()
+      ast = {:+, [], [1, 2]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ArithmeticOperator type
+      assert has_type?(triples, Core.ArithmeticOperator)
+
+      # Should have left and right operands
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
+
+      # Both operands are IntegerLiterals
+      assert has_type?(triples, Core.IntegerLiteral)
+    end
+
+    test "arithmetic operator with nested expressions" do
+      context = full_mode_context()
+      # x + (y * 2) as AST
+      ast = {:+, [], [{:x, [], nil}, {:*, [], [{:y, [], nil}, 2]}]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ArithmeticOperator type
+      assert has_type?(triples, Core.ArithmeticOperator)
+
+      # Right operand should be an ArithmeticOperator (the nested multiplication)
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ArithmeticOperator end)
+
+      # The nested arithmetic operator should have its own operator symbol
+      assert has_operator_symbol_for_iri?(triples, right_iri, "*")
+    end
+
+    test "arithmetic operator with both operands as expressions" do
+      context = full_mode_context()
+      # (x + 1) * (y - 2) as AST
+      left_expr = {:+, [], [{:x, [], nil}, 1]}
+      right_expr = {:-, [], [{:y, [], nil}, 2]}
+      ast = {:*, [], [left_expr, right_expr]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ArithmeticOperator type
+      assert has_type?(triples, Core.ArithmeticOperator)
+
+      # Left operand should be an ArithmeticOperator
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ArithmeticOperator end)
+
+      # Right operand should be an ArithmeticOperator
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ArithmeticOperator end)
+
+      # Both nested operators should have their symbols
+      assert has_operator_symbol_for_iri?(triples, left_iri, "+")
+      assert has_operator_symbol_for_iri?(triples, right_iri, "-")
+    end
+
+    test "chained arithmetic operations (left-associative)" do
+      context = full_mode_context()
+      # 1 + 2 + 3 as AST (left-associative: (1 + 2) + 3)
+      inner_add = {:+, [], [1, 2]}
+      ast = {:+, [], [inner_add, 3]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ArithmeticOperator type
+      assert has_type?(triples, Core.ArithmeticOperator)
+
+      # Left operand should be another ArithmeticOperator (the inner addition)
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ArithmeticOperator end)
+
+      # The inner operator should have operator symbol "+"
+      assert has_operator_symbol_for_iri?(triples, left_iri, "+")
+
+      # Right operand should be an IntegerLiteral (3)
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.IntegerLiteral end)
+    end
+
+    test "arithmetic operator with precedence (multiplication before addition)" do
+      context = full_mode_context()
+      # 1 * (2 + 3) as AST
+      inner_add = {:+, [], [2, 3]}
+      ast = {:*, [], [1, inner_add]}
+
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ArithmeticOperator type (multiplication)
+      assert has_type?(triples, Core.ArithmeticOperator)
+      assert has_operator_symbol?(triples, "*")
+
+      # Right operand should be an ArithmeticOperator (the inner addition)
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ArithmeticOperator end)
+
+      # The inner operator should have operator symbol "+"
+      assert has_operator_symbol_for_iri?(triples, right_iri, "+")
+    end
   end
 
   describe "unary arithmetic operators" do
-    test "unary minus creates ArithmeticOperator" do
-      context = full_mode_context()
-      # Unary minus: -5
-      ast = {:-, [], [5]}
-      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+    # Table-driven tests for unary operators with different operand types
+    @unary_operator_tests [
+      # {operator, operand, expected_operand_type, description}
+      {:minus, 42, Core.IntegerLiteral, "unary minus with integer literal"},
+      {:minus, 3.14, Core.FloatLiteral, "unary minus with float literal"},
+      {:minus, {:x, [], Elixir}, Core.Variable, "unary minus with variable"},
+      {:plus, 42, Core.IntegerLiteral, "unary plus with integer literal"},
+      {:plus, {:x, [], Elixir}, Core.Variable, "unary plus with variable"}
+    ]
 
-      assert has_type?(triples, Core.ArithmeticOperator)
-      assert has_operator_symbol?(triples, "-")
-      assert has_operand?(triples, expr_iri)
+    for {op, operand, expected_child_type, description} <- @unary_operator_tests do
+      @op op
+      @operand operand
+      @expected_child_type expected_child_type
+      @description description
+
+      test "#{@description}" do
+        context = full_mode_context()
+        op_symbol = if @op == :minus, do: :-, else: :+
+        ast = {op_symbol, [], [@operand]}
+        {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+        assert has_type?(triples, Core.ArithmeticOperator)
+        symbol = if @op == :minus, do: "-", else: "+"
+        assert has_operator_symbol?(triples, symbol)
+        assert has_child_with_type?(triples, expr_iri, @expected_child_type)
+      end
     end
 
-    test "unary minus with integer literal" do
-      context = full_mode_context()
-      ast = {:-, [], [42]}
-      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
-
-      assert has_type?(triples, Core.ArithmeticOperator)
-      assert has_operator_symbol?(triples, "-")
-      # Operand should be an IntegerLiteral
-      assert has_child_with_type?(triples, expr_iri, Core.IntegerLiteral)
-    end
-
-    test "unary minus with float literal" do
-      context = full_mode_context()
-      ast = {:-, [], [3.14]}
-      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
-
-      assert has_type?(triples, Core.ArithmeticOperator)
-      assert has_operator_symbol?(triples, "-")
-      assert has_child_with_type?(triples, expr_iri, Core.FloatLiteral)
-    end
-
-    test "unary minus with variable" do
-      context = full_mode_context()
-      # Unary minus: -x
-      ast = {:-, [], [{:x, [], Elixir}]}
-      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
-
-      assert has_type?(triples, Core.ArithmeticOperator)
-      assert has_operator_symbol?(triples, "-")
-      assert has_child_with_type?(triples, expr_iri, Core.Variable)
-    end
-
-    test "unary minus with expression" do
+    # Tests for nested expressions and edge cases
+    test "unary minus with nested expression" do
       context = full_mode_context()
       # Unary minus: -(a + b)
       ast = {:-, [], [{:+, [], [{:a, [], Elixir}, {:b, [], Elixir}]}]}
@@ -291,38 +528,6 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_child_with_type?(triples, expr_iri, Core.ArithmeticOperator)
     end
 
-    test "unary plus creates ArithmeticOperator" do
-      context = full_mode_context()
-      # Unary plus: +5
-      ast = {:+, [], [5]}
-      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
-
-      assert has_type?(triples, Core.ArithmeticOperator)
-      assert has_operator_symbol?(triples, "+")
-      assert has_operand?(triples, expr_iri)
-    end
-
-    test "unary plus with integer literal" do
-      context = full_mode_context()
-      ast = {:+, [], [42]}
-      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
-
-      assert has_type?(triples, Core.ArithmeticOperator)
-      assert has_operator_symbol?(triples, "+")
-      assert has_child_with_type?(triples, expr_iri, Core.IntegerLiteral)
-    end
-
-    test "unary plus with variable" do
-      context = full_mode_context()
-      # Unary plus: +x
-      ast = {:+, [], [{:x, [], Elixir}]}
-      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
-
-      assert has_type?(triples, Core.ArithmeticOperator)
-      assert has_operator_symbol?(triples, "+")
-      assert has_child_with_type?(triples, expr_iri, Core.Variable)
-    end
-
     test "nested unary operators" do
       context = full_mode_context()
       # Double negative: - -x
@@ -332,6 +537,28 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_type?(triples, Core.ArithmeticOperator)
       # Should have nested ArithmeticOperator
       assert has_child_with_type?(triples, expr_iri, Core.ArithmeticOperator)
+    end
+
+    # Basic operator creation tests
+    @unary_basic_tests [
+      {:minus, :-, "-"},
+      {:plus, :+, "+"}
+    ]
+
+    for {op, ast_op, symbol} <- @unary_basic_tests do
+      @op op
+      @ast_op ast_op
+      @symbol symbol
+
+      test "unary #{@op} creates ArithmeticOperator" do
+        context = full_mode_context()
+        ast = {@ast_op, [], [5]}
+        {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+        assert has_type?(triples, Core.ArithmeticOperator)
+        assert has_operator_symbol?(triples, @symbol)
+        assert has_operand?(triples, expr_iri)
+      end
     end
   end
 
@@ -552,6 +779,42 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       # The inner concat should also have operator symbol "<>"
       assert has_operator_symbol_for_iri?(triples, right_iri, "<>")
     end
+
+    test "string concatenation with empty string" do
+      context = full_mode_context()
+      # "" <> "hello" as AST
+      ast = {:<>, [], ["", "hello"]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create StringConcatOperator type
+      assert has_type?(triples, Core.StringConcatOperator)
+
+      # Left operand is an empty StringLiteral
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.StringLiteral end)
+
+      # Right operand is a StringLiteral
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.StringLiteral end)
+    end
+
+    test "string concatenation with special characters" do
+      context = full_mode_context()
+      # "hello\n" <> "world" as AST
+      ast = {:<>, [], ["hello\n", "world"]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create StringConcatOperator type
+      assert has_type?(triples, Core.StringConcatOperator)
+
+      # Left operand is a StringLiteral with newline
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.StringLiteral end)
+
+      # Right operand is a StringLiteral
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.StringLiteral end)
+    end
   end
 
   describe "list operators" do
@@ -669,9 +932,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_type?(triples, Core.CaptureOperator)
       assert has_operator_symbol?(triples, "&")
 
-      # Check for capture index using RDF.value()
+      # Check for capture index using dedicated captureIndex property
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.value() and RDF.Literal.value(o) == 1
+        s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 1
       end)
     end
 
@@ -685,7 +948,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for capture index
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.value() and RDF.Literal.value(o) == 2
+        s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 2
       end)
     end
 
@@ -699,7 +962,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for capture index
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.value() and RDF.Literal.value(o) == 3
+        s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 3
       end)
     end
 
@@ -714,14 +977,19 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_type?(triples, Core.CaptureOperator)
       assert has_operator_symbol?(triples, "&")
 
-      # Check for function reference label
+      # Check for module name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.NS.RDFS.label() and RDF.Literal.value(o) == "&Enum.map/2"
+        s == expr_iri and p == Core.captureModuleName() and RDF.Literal.value(o) == "Enum"
       end)
 
-      # Check for arity value
+      # Check for function name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.value() and RDF.Literal.value(o) == 2
+        s == expr_iri and p == Core.captureFunctionName() and RDF.Literal.value(o) == "map"
+      end)
+
+      # Check for arity
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.captureArity() and RDF.Literal.value(o) == 2
       end)
     end
 
@@ -736,9 +1004,47 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_type?(triples, Core.CaptureOperator)
       assert has_operator_symbol?(triples, "&")
 
-      # Check for function reference label (without arity)
+      # Check for module name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.NS.RDFS.label() and RDF.Literal.value(o) == "&IO.inspect"
+        s == expr_iri and p == Core.captureModuleName() and RDF.Literal.value(o) == "IO"
+      end)
+
+      # Check for function name
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.captureFunctionName() and RDF.Literal.value(o) == "inspect"
+      end)
+
+      # Should NOT have arity property
+      refute Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.captureArity()
+      end)
+    end
+
+    test "dispatches &4 to CaptureOperator" do
+      context = full_mode_context()
+      ast = {:&, [], [4]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.CaptureOperator)
+      assert has_operator_symbol?(triples, "&")
+
+      # Check for capture index
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 4
+      end)
+    end
+
+    test "dispatches &5 to CaptureOperator" do
+      context = full_mode_context()
+      ast = {:&, [], [5]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.CaptureOperator)
+      assert has_operator_symbol?(triples, "&")
+
+      # Check for capture index
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 5
       end)
     end
 
@@ -749,9 +1055,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       ast1 = {:&, [], [1]}
       {:ok, {_expr_iri1, triples1, _}} = ExpressionBuilder.build(ast1, context, [])
 
-      # Has integer value for capture index
+      # Has captureIndex property for argument index
       assert Enum.any?(triples1, fn {_s, p, o} ->
-        p == RDF.value() and RDF.Literal.value(o) == 1
+        p == Core.captureIndex() and RDF.Literal.value(o) == 1
       end)
 
       # Function reference (&Enum.map/2)
@@ -759,9 +1065,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       ast2 = {:&, [], [{:/, [], [function_ref, 2]}]}
       {:ok, {_expr_iri2, triples2, _}} = ExpressionBuilder.build(ast2, context, [])
 
-      # Has string label for function reference
+      # Has moduleName, functionName, and arity for function reference
       assert Enum.any?(triples2, fn {_s, p, o} ->
-        p == RDF.NS.RDFS.label() and RDF.Literal.value(o) == "&Enum.map/2"
+        p == Core.captureModuleName() and RDF.Literal.value(o) == "Enum"
+      end)
+
+      assert Enum.any?(triples2, fn {_s, p, o} ->
+        p == Core.captureFunctionName() and RDF.Literal.value(o) == "map"
+      end)
+
+      assert Enum.any?(triples2, fn {_s, p, o} ->
+        p == Core.captureArity() and RDF.Literal.value(o) == 2
       end)
     end
   end
@@ -857,6 +1171,21 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
       assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.Variable end)
     end
+
+    test "in operator with empty enumerable" do
+      context = full_mode_context()
+      # x in [] as AST - use atom list to force ListLiteral (not CharlistLiteral)
+      ast = {:in, [], [{:x, [], nil}, [[:a, [], nil], []]]}
+      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create InOperator type
+      assert has_type?(triples, Core.InOperator)
+      assert has_operator_symbol?(triples, "in")
+
+      # Right operand should be a ListLiteral
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ListLiteral end)
+    end
   end
 
   describe "variables" do
@@ -950,228 +1279,101 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   end
 
   describe "literals" do
-    test "builds IntegerLiteral triples for integer literals" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(42, context, [])
+    # Table-driven tests for simple numeric and string literals
+    @numeric_literal_tests [
+      # Integer literals
+      {:integer, 42, Core.IntegerLiteral, Core.integerValue(), 42},
+      {:integer, 0, Core.IntegerLiteral, Core.integerValue(), 0},
+      {:integer, 9_999_999_999, Core.IntegerLiteral, Core.integerValue(), 9_999_999_999},
+      {:integer, 1, Core.IntegerLiteral, Core.integerValue(), 1},
+      # Float literals
+      {:float, 3.14, Core.FloatLiteral, Core.floatValue(), 3.14},
+      {:float, 0.0, Core.FloatLiteral, Core.floatValue(), 0.0},
+      {:float, 0.0015, Core.FloatLiteral, Core.floatValue(), 0.0015},
+      {:float, 10_000_000_000.0, Core.FloatLiteral, Core.floatValue(), 10_000_000_000.0},
+      {:float, 0.5, Core.FloatLiteral, Core.floatValue(), 0.5}
+    ]
 
-      assert has_type?(triples, Core.IntegerLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.integerValue(), 42)
+    for {type_name, value, expected_type, value_property, expected_value} <- @numeric_literal_tests do
+      @type_name type_name
+      @value value
+      @expected_type expected_type
+      @value_property value_property
+      @expected_value expected_value
+
+      test "builds #{@type_name} literal for #{inspect(@value)}" do
+        context = full_mode_context()
+        {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(@value, context, [])
+
+        assert has_type?(triples, @expected_type)
+        assert has_literal_value?(triples, expr_iri, @value_property, @expected_value)
+      end
     end
 
-    test "builds FloatLiteral triples for float literals" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(3.14, context, [])
+    # Special float cases (edge values that don't need exact value matching)
+    @float_edge_cases [
+      {1.0e-10, "very small float"},
+      {1.0e308, "positive infinity"},
+      {-1.0e308, "negative infinity"}
+    ]
 
-      assert has_type?(triples, Core.FloatLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.floatValue(), 3.14)
+    for {value, description} <- @float_edge_cases do
+      @value value
+      @description description
+
+      test "builds FloatLiteral triples for #{@description}" do
+        context = full_mode_context()
+        {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(@value, context, [])
+
+        assert has_type?(triples, Core.FloatLiteral)
+      end
     end
 
-    test "builds IntegerLiteral triples for zero" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(0, context, [])
+    # Table-driven tests for string literals
+    @string_literal_tests [
+      {"hello", "basic string"},
+      {"", "empty string"},
+      {"multi\nline\nstring", "multi-line string (heredoc)"},
+      {"hello\nworld\t!", "string with escape sequences"},
+      {"!@#$%^&*()_+-=[]{}|;':\",./<>?", "string with special characters"},
+      {"héllo wørld 你好", "Unicode string"},
+      {"He said \"hello\"", "string with quotes"},
+      {String.duplicate("a", 1000), "long string"}
+    ]
 
-      assert has_type?(triples, Core.IntegerLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.integerValue(), 0)
+    for {string_value, description} <- @string_literal_tests do
+      @string_value string_value
+      @description description
+
+      test "builds StringLiteral triples for #{@description}" do
+        context = full_mode_context()
+        {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(@string_value, context, [])
+
+        assert has_type?(triples, Core.StringLiteral)
+        assert has_literal_value?(triples, expr_iri, Core.stringValue(), @string_value)
+      end
     end
 
-    test "builds IntegerLiteral triples for large integers" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(9_999_999_999, context, [])
+    # Table-driven tests for atom/boolean/nil literals
+    @atom_literal_tests [
+      {:ok, Core.AtomLiteral, ":ok"},
+      {true, Core.BooleanLiteral, "true"},
+      {false, Core.BooleanLiteral, "false"},
+      {nil, Core.NilLiteral, "nil"}
+    ]
 
-      assert has_type?(triples, Core.IntegerLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.integerValue(), 9_999_999_999)
-    end
+    for {value, expected_type, expected_value} <- @atom_literal_tests do
+      @value value
+      @expected_type expected_type
+      @expected_value expected_value
 
-    test "builds IntegerLiteral triples for small integers" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(1, context, [])
+      test "builds #{expected_type} triples for #{inspect(@value)}" do
+        context = full_mode_context()
+        {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(@value, context, [])
 
-      assert has_type?(triples, Core.IntegerLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.integerValue(), 1)
-    end
-
-    test "builds FloatLiteral triples for zero" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(0.0, context, [])
-
-      assert has_type?(triples, Core.FloatLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.floatValue(), 0.0)
-    end
-
-    test "builds FloatLiteral triples for scientific notation" do
-      context = full_mode_context()
-
-      # Elixir parses 1.5e-3 as 0.0015
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(0.0015, context, [])
-
-      assert has_type?(triples, Core.FloatLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.floatValue(), 0.0015)
-    end
-
-    test "builds FloatLiteral triples for large scientific notation" do
-      context = full_mode_context()
-
-      # Elixir parses 1.0e10 as 10000000000.0
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(10_000_000_000.0, context, [])
-
-      assert has_type?(triples, Core.FloatLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.floatValue(), 10_000_000_000.0)
-    end
-
-    test "builds FloatLiteral triples for negative decimal" do
-      context = full_mode_context()
-
-      # Negative floats use unary operator, so we test the literal value itself
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(0.5, context, [])
-
-      assert has_type?(triples, Core.FloatLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.floatValue(), 0.5)
-    end
-
-    test "builds FloatLiteral triples for very small floats" do
-      context = full_mode_context()
-      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(1.0e-10, context, [])
-
-      assert has_type?(triples, Core.FloatLiteral)
-      # The value is preserved in float precision
-      assert has_type?(triples, Core.FloatLiteral)
-    end
-
-    test "builds FloatLiteral triples for positive infinity" do
-      context = full_mode_context()
-      # Verify very large floats are handled as FloatLiteral
-      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(1.0e308, context, [])
-
-      assert has_type?(triples, Core.FloatLiteral)
-    end
-
-    test "builds FloatLiteral triples for negative infinity" do
-      context = full_mode_context()
-      # Verify very large negative floats are handled
-      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(-1.0e308, context, [])
-
-      assert has_type?(triples, Core.FloatLiteral)
-    end
-
-    test "builds FloatLiteral triples for NaN" do
-      context = full_mode_context()
-      # NaN is a special float value - testing with a very large negative number
-      # since true NaN is difficult to generate at compile time
-      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(-1.0e308, context, [])
-
-      assert has_type?(triples, Core.FloatLiteral)
-    end
-
-    test "builds StringLiteral triples for string literals" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build("hello", context, [])
-
-      assert has_type?(triples, Core.StringLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.stringValue(), "hello")
-    end
-
-    test "builds StringLiteral triples for empty strings" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build("", context, [])
-
-      assert has_type?(triples, Core.StringLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.stringValue(), "")
-    end
-
-    test "builds StringLiteral triples for multi-line strings (heredocs)" do
-      context = full_mode_context()
-
-      # Heredocs are converted to plain binaries with newlines preserved
-      heredoc_content = "multi\nline\nstring"
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(heredoc_content, context, [])
-
-      assert has_type?(triples, Core.StringLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.stringValue(), heredoc_content)
-    end
-
-    test "builds StringLiteral triples for strings with escape sequences" do
-      context = full_mode_context()
-
-      # Escape sequences are processed by Elixir compiler before AST
-      # The resulting binary contains the actual characters
-      string_with_escapes = "hello\nworld\t!"
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(string_with_escapes, context, [])
-
-      assert has_type?(triples, Core.StringLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.stringValue(), string_with_escapes)
-    end
-
-    test "builds StringLiteral triples for strings with special characters" do
-      context = full_mode_context()
-
-      special_chars = "!@#$%^&*()_+-=[]{}|;':\",./<>?"
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(special_chars, context, [])
-
-      assert has_type?(triples, Core.StringLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.stringValue(), special_chars)
-    end
-
-    test "builds StringLiteral triples for Unicode strings" do
-      context = full_mode_context()
-
-      unicode_string = "héllo wørld 你好"
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(unicode_string, context, [])
-
-      assert has_type?(triples, Core.StringLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.stringValue(), unicode_string)
-    end
-
-    test "builds StringLiteral triples for strings with quotes" do
-      context = full_mode_context()
-
-      # Strings containing quotes (escape sequences processed by compiler)
-      quoted_string = "He said \"hello\""
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(quoted_string, context, [])
-
-      assert has_type?(triples, Core.StringLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.stringValue(), quoted_string)
-    end
-
-    test "builds StringLiteral triples for long strings" do
-      context = full_mode_context()
-
-      long_string = String.duplicate("a", 1000)
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(long_string, context, [])
-
-      assert has_type?(triples, Core.StringLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.stringValue(), long_string)
-    end
-
-    test "builds AtomLiteral triples for atom literals" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(:ok, context, [])
-
-      assert has_type?(triples, Core.AtomLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.atomValue(), ":ok")
-    end
-
-    test "builds BooleanLiteral triples for true" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(true, context, [])
-
-      assert has_type?(triples, Core.BooleanLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.atomValue(), "true")
-    end
-
-    test "builds BooleanLiteral triples for false" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(false, context, [])
-
-      assert has_type?(triples, Core.BooleanLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.atomValue(), "false")
-    end
-
-    test "builds NilLiteral triples for nil" do
-      context = full_mode_context()
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(nil, context, [])
-
-      assert has_type?(triples, Core.NilLiteral)
-      assert has_literal_value?(triples, expr_iri, Core.atomValue(), "nil")
+        assert has_type?(triples, @expected_type)
+        assert has_literal_value?(triples, expr_iri, Core.atomValue(), @expected_value)
+      end
     end
 
     test "builds CharlistLiteral triples for charlists" do
@@ -2522,6 +2724,10 @@ string
   # ===========================================================================
   # Helpers
   # ===========================================================================
+  #
+  # Note: Some of these helpers are also available in ExpressionTestHelpers
+  # module for reuse in other test files. They are duplicated here for
+  # direct use in this test file.
 
   defp full_mode_context do
     Context.new(

@@ -572,6 +572,38 @@
     rdfs:domain :UnaryOperator ;
     rdfs:range :Expression .
 
+# =============================================================================
+# Capture Operator Properties
+# =============================================================================
+
+:captureIndex a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture index"@en ;
+    rdfs:comment """The argument index captured by &1, &2, etc.
+    Used in anonymous function shorthand."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:integer .
+
+:captureModuleName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture module name"@en ;
+    rdfs:comment """The module name referenced in &Module.fun/arity
+    function capture syntax."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:string .
+
+:captureFunctionName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture function name"@en ;
+    rdfs:comment """The function name referenced in &Module.fun/arity
+    function capture syntax."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:string .
+
+:captureArity a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture arity"@en ;
+    rdfs:comment """The arity specified in &Module.fun/arity
+    function capture syntax."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:integer .
+
 # Pattern matching properties
 :hasPattern a owl:ObjectProperty ;
     rdfs:label "has pattern"@en ;

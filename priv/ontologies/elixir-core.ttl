@@ -66,41 +66,6 @@
     rdfs:subClassOf bfo:BFO_0000031 .
 
 # =============================================================================
-# Comments
-# =============================================================================
-
-:Comment a owl:Class ;
-    rdfs:label "Comment"@en ;
-    rdfs:comment "A source code comment. Comments are not part of the AST but provide important context."@en ;
-    rdfs:subClassOf :CodeElement .
-
-:LineComment a owl:Class ;
-    rdfs:label "Line Comment"@en ;
-    rdfs:comment "A single-line comment starting with #."@en ;
-    rdfs:subClassOf :Comment ;
-    skos:example "# This is a line comment"@en .
-
-:BlockComment a owl:Class ;
-    rdfs:label "Block Comment"@en ;
-    rdfs:comment "A multi-line comment block (consecutive line comments treated as a block)."@en ;
-    rdfs:subClassOf :Comment ;
-    skos:example """# This is a block comment
-# spanning multiple lines
-# with related content"""@en .
-
-:TodoComment a owl:Class ;
-    rdfs:label "TODO Comment"@en ;
-    rdfs:comment "A comment containing TODO, FIXME, HACK, XXX, or similar markers indicating pending work."@en ;
-    rdfs:subClassOf :Comment ;
-    skos:example "# TODO: Implement error handling"@en .
-
-:FixmeComment a owl:Class ;
-    rdfs:label "FIXME Comment"@en ;
-    rdfs:comment "A comment containing FIXME indicating code that needs to be fixed."@en ;
-    rdfs:subClassOf :TodoComment ;
-    skos:example "# FIXME: This breaks with empty lists"@en .
-
-# =============================================================================
 # Abstract Syntax Tree Classes
 # =============================================================================
 
@@ -334,11 +299,6 @@
     rdfs:comment "Throws a value to be caught by a catch clause."@en ;
     rdfs:subClassOf :ControlFlowExpression .
 
-:ExitExpression a owl:Class ;
-    rdfs:label "Exit Expression"@en ;
-    rdfs:comment "Terminates the current process with a reason."@en ;
-    rdfs:subClassOf :ControlFlowExpression .
-
 :ReceiveExpression a owl:Class ;
     rdfs:label "Receive Expression"@en ;
     rdfs:comment """Waits for a message in the process mailbox, matching against
@@ -542,27 +502,6 @@
 # Object Properties
 # =============================================================================
 
-# Comment properties
-:hasComment a owl:ObjectProperty ;
-    rdfs:label "has comment"@en ;
-    rdfs:comment "Links a code element to an associated comment."@en ;
-    rdfs:domain :CodeElement ;
-    rdfs:range :Comment .
-
-:commentAbove a owl:ObjectProperty ;
-    rdfs:label "comment above"@en ;
-    rdfs:comment "A comment appearing directly above a code element."@en ;
-    rdfs:subPropertyOf :hasComment ;
-    rdfs:domain :CodeElement ;
-    rdfs:range :Comment .
-
-:inlineComment a owl:ObjectProperty ;
-    rdfs:label "inline comment"@en ;
-    rdfs:comment "A comment appearing on the same line as a code element."@en ;
-    rdfs:subPropertyOf :hasComment ;
-    rdfs:domain :CodeElement ;
-    rdfs:range :Comment .
-
 # Source location properties
 :hasSourceLocation a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:label "has source location"@en ;
@@ -633,6 +572,38 @@
     rdfs:domain :UnaryOperator ;
     rdfs:range :Expression .
 
+# =============================================================================
+# Capture Operator Properties
+# =============================================================================
+
+:captureIndex a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture index"@en ;
+    rdfs:comment """The argument index captured by &1, &2, etc.
+    Used in anonymous function shorthand."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:integer .
+
+:captureModuleName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture module name"@en ;
+    rdfs:comment """The module name referenced in &Module.fun/arity
+    function capture syntax."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:string .
+
+:captureFunctionName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture function name"@en ;
+    rdfs:comment """The function name referenced in &Module.fun/arity
+    function capture syntax."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:string .
+
+:captureArity a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture arity"@en ;
+    rdfs:comment """The arity specified in &Module.fun/arity
+    function capture syntax."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:integer .
+
 # Pattern matching properties
 :hasPattern a owl:ObjectProperty ;
     rdfs:label "has pattern"@en ;
@@ -699,30 +670,6 @@
 :hasIntoCollector a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:label "has into collector"@en ;
     rdfs:domain :ForComprehension .
-
-:hasIntoOption a owl:DatatypeProperty, owl:FunctionalProperty ;
-    rdfs:label "has into option"@en ;
-    rdfs:comment "Indicates the comprehension uses into option to collect results."@en ;
-    rdfs:domain :ForComprehension ;
-    rdfs:range xsd:boolean .
-
-:hasReduceOption a owl:DatatypeProperty, owl:FunctionalProperty ;
-    rdfs:label "has reduce option"@en ;
-    rdfs:comment "Indicates the comprehension uses reduce option for accumulation."@en ;
-    rdfs:domain :ForComprehension ;
-    rdfs:range xsd:boolean .
-
-:hasUniqOption a owl:DatatypeProperty, owl:FunctionalProperty ;
-    rdfs:label "has uniq option"@en ;
-    rdfs:comment "Indicates the comprehension uses uniq option to filter duplicates."@en ;
-    rdfs:domain :ForComprehension ;
-    rdfs:range xsd:boolean .
-
-:hasAfterTimeout a owl:DatatypeProperty, owl:FunctionalProperty ;
-    rdfs:label "has after timeout"@en ;
-    rdfs:comment "Indicates the receive expression has an after timeout block."@en ;
-    rdfs:domain :ReceiveExpression ;
-    rdfs:range xsd:boolean .
 
 # Block and scope properties
 :containsExpression a owl:ObjectProperty ;
