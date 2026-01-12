@@ -1133,4 +1133,167 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Extract function name from AST
   defp extract_function_name(atom) when is_atom(atom), do: Atom.to_string(atom)
   defp extract_function_name(other), do: inspect(other)
+
+  # ===========================================================================
+  # Pattern Detection and Dispatch
+  # ===========================================================================
+
+  @doc """
+  Detects the type of pattern from an Elixir AST node.
+
+  ## Parameters
+
+  - `ast` - The Elixir AST node to analyze
+
+  ## Returns
+
+  An atom representing the pattern type:
+  - `:literal_pattern` - Literal values (integers, floats, strings, atoms)
+  - `:variable_pattern` - Variable binding patterns
+  - `:wildcard_pattern` - Underscore wildcard patterns
+  - `:pin_pattern` - Pin operator patterns (^var)
+  - `:tuple_pattern` - Tuple destructuring patterns
+  - `:list_pattern` - List destructuring patterns
+  - `:map_pattern` - Map pattern matching
+  - `:struct_pattern` - Struct pattern matching
+  - `:binary_pattern` - Binary/bitstring patterns
+  - `:as_pattern` - Pattern aliasing (pattern = var)
+  - `:unknown` - Unrecognized pattern
+
+  ## Examples
+
+      iex> ExpressionBuilder.detect_pattern_type({:_})
+      :wildcard_pattern
+
+      iex> ExpressionBuilder.detect_pattern_type({:x, [], Elixir})
+      :variable_pattern
+
+      iex> ExpressionBuilder.detect_pattern_type(42)
+      :literal_pattern
+  """
+  @spec detect_pattern_type(Macro.t()) :: atom()
+  def detect_pattern_type({:_}), do: :wildcard_pattern
+  def detect_pattern_type({:^, _, [{_var, _, _}]}), do: :pin_pattern
+  def detect_pattern_type({:=, _, [_, _]}), do: :as_pattern
+  def detect_pattern_type({:{}, _, _}), do: :tuple_pattern
+  def detect_pattern_type({:%, _, [{:{}, _, _}, {:%{}, _, _}]}), do: :struct_pattern
+  def detect_pattern_type({:%, _, [{:__aliases__, _, _}, {:%{}, _, _}]}), do: :struct_pattern
+  def detect_pattern_type({:%{}, _, _}), do: :map_pattern
+  def detect_pattern_type({:<<>>, _, _}), do: :binary_pattern
+  def detect_pattern_type(list) when is_list(list), do: :list_pattern
+  # Variable pattern must come after all other tuple-based patterns
+  # because {name, _, ctx} also matches {:{}, [], []}
+  def detect_pattern_type({name, _, _ctx}) when is_atom(name) and name != :{} and name != :_, do: :variable_pattern
+  # 2-tuple is a special case: {left, right} without the {:{}, _, _} wrapper
+  # Must come after variable pattern to avoid conflicts
+  def detect_pattern_type({left, _right}) when not is_tuple(left), do: :tuple_pattern
+  def detect_pattern_type(value) when is_integer(value), do: :literal_pattern
+  def detect_pattern_type(value) when is_float(value), do: :literal_pattern
+  def detect_pattern_type(value) when is_binary(value), do: :literal_pattern
+  def detect_pattern_type(value) when is_atom(value), do: :literal_pattern
+  def detect_pattern_type(nil), do: :literal_pattern
+  def detect_pattern_type(_), do: :unknown
+
+  @doc """
+  Builds RDF triples for a pattern expression.
+
+  Uses `detect_pattern_type/1` to identify the pattern type and dispatches
+  to the appropriate builder function.
+
+  ## Parameters
+
+  - `ast` - The Elixir AST pattern node
+  - `expr_iri` - The IRI for this pattern expression
+  - `context` - The builder context
+
+  ## Returns
+
+  A list of RDF triples representing the pattern.
+
+  ## Examples
+
+      iex> ast = {:x, [], Elixir}
+      iex> context = ElixirOntologies.Builders.Context.new(base_iri: "https://example.org/test#", config: %{include_expressions: true}, file_path: "lib/my_app/users.ex") |> ElixirOntologies.Builders.Context.with_expression_counter()
+      iex> {:ok, {iri, _triples, ctx}} = ExpressionBuilder.build(ast, context, [])
+      iex> pattern_triples = ExpressionBuilder.build_pattern(ast, iri, ctx)
+      iex> Enum.any?(pattern_triples, fn {s, p, o} -> p == RDF.type() and o == Core.VariablePattern end)
+      true
+  """
+  @spec build_pattern(Macro.t(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  def build_pattern(ast, expr_iri, context) do
+    case detect_pattern_type(ast) do
+      :literal_pattern -> build_literal_pattern(ast, expr_iri, context)
+      :variable_pattern -> build_variable_pattern(ast, expr_iri, context)
+      :wildcard_pattern -> build_wildcard_pattern(ast, expr_iri, context)
+      :pin_pattern -> build_pin_pattern(ast, expr_iri, context)
+      :tuple_pattern -> build_tuple_pattern(ast, expr_iri, context)
+      :list_pattern -> build_list_pattern(ast, expr_iri, context)
+      :map_pattern -> build_map_pattern(ast, expr_iri, context)
+      :struct_pattern -> build_struct_pattern(ast, expr_iri, context)
+      :binary_pattern -> build_binary_pattern(ast, expr_iri, context)
+      :as_pattern -> build_as_pattern(ast, expr_iri, context)
+      :unknown -> build_generic_expression(expr_iri)
+    end
+  end
+
+  # Placeholder builder functions for individual pattern types
+  # Full implementations will be added in later sections (24.2-24.6)
+
+  @doc false
+  defp build_literal_pattern(_ast, expr_iri, _context) do
+    [Helpers.type_triple(expr_iri, Core.LiteralPattern)]
+  end
+
+  @doc false
+  defp build_variable_pattern(ast, expr_iri, _context) do
+    {name, _, _} = ast
+    [
+      Helpers.type_triple(expr_iri, Core.VariablePattern),
+      Helpers.datatype_property(expr_iri, Core.name(), Atom.to_string(name), RDF.XSD.String)
+    ]
+  end
+
+  @doc false
+  defp build_wildcard_pattern(_ast, expr_iri, _context) do
+    [Helpers.type_triple(expr_iri, Core.WildcardPattern)]
+  end
+
+  @doc false
+  defp build_pin_pattern(ast, expr_iri, _context) do
+    {:^, _, [{var, _, _}]} = ast
+    [
+      Helpers.type_triple(expr_iri, Core.PinPattern),
+      Helpers.datatype_property(expr_iri, Core.name(), Atom.to_string(var), RDF.XSD.String)
+    ]
+  end
+
+  @doc false
+  defp build_tuple_pattern(_ast, expr_iri, _context) do
+    [Helpers.type_triple(expr_iri, Core.TuplePattern)]
+  end
+
+  @doc false
+  defp build_list_pattern(_ast, expr_iri, _context) do
+    [Helpers.type_triple(expr_iri, Core.ListPattern)]
+  end
+
+  @doc false
+  defp build_map_pattern(_ast, expr_iri, _context) do
+    [Helpers.type_triple(expr_iri, Core.MapPattern)]
+  end
+
+  @doc false
+  defp build_struct_pattern(_ast, expr_iri, _context) do
+    [Helpers.type_triple(expr_iri, Core.StructPattern)]
+  end
+
+  @doc false
+  defp build_binary_pattern(_ast, expr_iri, _context) do
+    [Helpers.type_triple(expr_iri, Core.BinaryPattern)]
+  end
+
+  @doc false
+  defp build_as_pattern(_ast, expr_iri, _context) do
+    [Helpers.type_triple(expr_iri, Core.AsPattern)]
+  end
 end
