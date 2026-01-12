@@ -1186,7 +1186,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   def detect_pattern_type({name, _, _ctx}) when is_atom(name) and name != :{} and name != :_, do: :variable_pattern
   # 2-tuple is a special case: {left, right} without the {:{}, _, _} wrapper
   # Must come after variable pattern to avoid conflicts
-  def detect_pattern_type({left, _right}) when not is_tuple(left), do: :tuple_pattern
+  # The guard checks that left is not an n-tuple's {:{}, _, _} marker
+  def detect_pattern_type({left, _right}) when not (is_tuple(left) and tuple_size(left) == 3 and elem(left, 0) == :{}), do: :tuple_pattern
   def detect_pattern_type(value) when is_integer(value), do: :literal_pattern
   def detect_pattern_type(value) when is_float(value), do: :literal_pattern
   def detect_pattern_type(value) when is_binary(value), do: :literal_pattern
@@ -1329,14 +1330,149 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     ]
   end
 
-  @doc false
-  defp build_tuple_pattern(_ast, expr_iri, _context) do
-    [Helpers.type_triple(expr_iri, Core.TuplePattern)]
+  @doc """
+  Builds RDF triples for a tuple pattern.
+
+  Tuple patterns destructuring tuple values into nested patterns.
+
+  ## Parameters
+
+  - `ast` - The tuple pattern AST: {:{}, _, elements} or {left, right}
+  - `expr_iri` - The IRI for this pattern expression
+  - `context` - The builder context
+
+  ## Returns
+
+  A list of RDF triples with:
+  - Core.TuplePattern type triple
+  - Nested pattern triples for each element
+
+  ## Examples
+
+      iex> # 2-tuple: {x, y}
+      iex> ast = {{:x, [], Elixir}, {:y, [], Elixir}}
+      iex> expr_iri = RDF.iri("ex://pattern/1")
+      iex> build_tuple_pattern(ast, expr_iri, full_mode_context())
+      iex> |> Enum.at(0)
+      {RDF.iri("ex://pattern/1"), RDF.type(), Core.TuplePattern()}
+
+  """
+  defp build_tuple_pattern(ast, expr_iri, context) do
+    # Extract elements from tuple AST
+    elements = extract_tuple_elements(ast)
+
+    # Create the TuplePattern type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.TuplePattern)
+
+    # Build child patterns for each element
+    {child_triples, _final_context} = build_child_patterns(elements, context)
+
+    # Include type triple and all child pattern triples
+    [type_triple | child_triples]
   end
 
-  @doc false
-  defp build_list_pattern(_ast, expr_iri, _context) do
-    [Helpers.type_triple(expr_iri, Core.ListPattern)]
+  @doc """
+  Builds RDF triples for a list pattern.
+
+  List patterns destructuring list values, including head|tail cons patterns.
+
+  ## Parameters
+
+  - `ast` - The list pattern AST: [elements] or [{:|, _, [head, tail]}]
+  - `expr_iri` - The IRI for this pattern expression
+  - `context` - The builder context
+
+  ## Returns
+
+  A list of RDF triples with:
+  - Core.ListPattern type triple
+  - Nested pattern triples for elements
+
+  ## Examples
+
+      iex> # Flat list: [x, y, z]
+      iex> ast = [{:x, [], Elixir}, {:y, [], Elixir}, {:z, [], Elixir}]
+      iex> expr_iri = RDF.iri("ex://pattern/1")
+      iex> build_list_pattern(ast, expr_iri, full_mode_context())
+      iex> |> Enum.at(0)
+      {RDF.iri("ex://pattern/1"), RDF.type(), Core.ListPattern()}
+
+      iex> # Cons pattern: [head | tail]
+      iex> ast = [{:|, [], [{:head, [], Elixir}, {:tail, [], Elixir}]}]
+      iex> expr_iri = RDF.iri("ex://pattern/2")
+      iex> build_list_pattern(ast, expr_iri, full_mode_context())
+      iex> |> Enum.at(0)
+      {RDF.iri("ex://pattern/2"), RDF.type(), Core.ListPattern()}
+
+  """
+  defp build_list_pattern(ast, expr_iri, context) do
+    # Create the ListPattern type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.ListPattern)
+
+    # Check for cons pattern vs flat list
+    child_triples =
+      if cons_pattern?(ast) do
+        build_cons_list_pattern(ast, context)
+      else
+        {triples, _ctx} = build_child_patterns(ast, context)
+        triples
+      end
+
+    # Include type triple and all child pattern triples
+    [type_triple | child_triples]
+  end
+
+  # Helper to extract elements from tuple AST
+  # Handles both {:{}, _, elements} (n-tuple) and {left, right} (2-tuple) forms
+  defp extract_tuple_elements({:{}, _meta, elements}), do: elements
+  defp extract_tuple_elements({left, right}), do: [left, right]
+
+  # Helper to build child patterns from a collection
+  # Similar to build_child_expressions but uses build_pattern/3
+  # Returns {flat_triples_list, final_context}
+  defp build_child_patterns(items, context) do
+    {triples_list, final_ctx} =
+      Enum.map_reduce(items, context, fn item, ctx ->
+        # Use build/3 to get IRI, then build_pattern/3 for pattern context
+        case build(item, ctx, []) do
+          {:ok, {child_iri, _expression_triples, new_ctx}} ->
+            pattern_triples = build_pattern(item, child_iri, ctx)
+            {pattern_triples, new_ctx}
+
+          # Skip items that can't be built as expressions
+          _ ->
+            {[], ctx}
+        end
+      end)
+
+    {List.flatten(triples_list), final_ctx}
+  end
+
+  # Helper to build cons pattern [head | tail]
+  # Builds head and tail as separate child patterns
+  defp build_cons_list_pattern([{:|, _, [head, tail]}], context) do
+    # Build head pattern
+    head_triples =
+      case build(head, context, []) do
+        {:ok, {head_iri, _head_expr_triples, context_after_head}} ->
+          build_pattern(head, head_iri, context_after_head)
+
+        _ ->
+          []
+      end
+
+    # Build tail pattern
+    tail_triples =
+      case build(tail, context, []) do
+        {:ok, {tail_iri, _tail_expr_triples, _context_after_tail}} ->
+          build_pattern(tail, tail_iri, context)
+
+        _ ->
+          []
+      end
+
+    # Combine head and tail pattern triples
+    head_triples ++ tail_triples
   end
 
   @doc false

@@ -3259,6 +3259,247 @@ string
     end
   end
 
+  describe "tuple pattern extraction" do
+    test "builds TuplePattern for empty tuple" do
+      context = full_mode_context()
+      # Empty tuple AST: {:{}, [], []}
+      ast = {:{}, [], []}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have TuplePattern type
+      assert has_type?(pattern_triples, Core.TuplePattern)
+
+      # Empty tuple has only type triple (no child patterns)
+      assert length(pattern_triples) == 1
+    end
+
+    test "builds TuplePattern for 2-tuple with variables" do
+      context = full_mode_context()
+      # 2-tuple AST: {x, y}
+      ast = {{:x, [], Elixir}, {:y, [], Elixir}}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have TuplePattern type
+      assert has_type?(pattern_triples, Core.TuplePattern)
+
+      # Should have nested VariablePatterns
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+
+    test "builds TuplePattern for n-tuple with literals" do
+      context = full_mode_context()
+      # n-tuple AST: {1, :ok, "hello"}
+      ast = {:{}, [], [1, {:ok, [], nil}, "hello"]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have TuplePattern type
+      assert has_type?(pattern_triples, Core.TuplePattern)
+
+      # Should have nested LiteralPatterns
+      assert has_type?(pattern_triples, Core.LiteralPattern)
+    end
+
+    test "builds TuplePattern with wildcard" do
+      context = full_mode_context()
+      # Tuple with wildcard: {:ok, _}
+      ast = {:{}, [], [{:ok, [], nil}, {:_}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have TuplePattern type
+      assert has_type?(pattern_triples, Core.TuplePattern)
+
+      # Should have WildcardPattern
+      assert has_type?(pattern_triples, Core.WildcardPattern)
+    end
+
+    test "builds TuplePattern with pin pattern" do
+      context = full_mode_context()
+      # Tuple with pin: {^x, y}
+      ast = {:{}, [], [{:^, [], [{:x, [], Elixir}]}, {:y, [], Elixir}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have TuplePattern type
+      assert has_type?(pattern_triples, Core.TuplePattern)
+
+      # Should have PinPattern
+      assert has_type?(pattern_triples, Core.PinPattern)
+    end
+
+    test "builds nested tuple patterns" do
+      context = full_mode_context()
+      # Nested tuple: {{a, b}, c}
+      inner_tuple = {:{}, [], [{:a, [], Elixir}, {:b, [], Elixir}]}
+      ast = {:{}, [], [inner_tuple, {:c, [], Elixir}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have TuplePattern type
+      assert has_type?(pattern_triples, Core.TuplePattern)
+      # Nested tuples should create multiple TuplePattern instances
+      tuple_pattern_count = Enum.count(pattern_triples, fn {_s, p, o} ->
+        p == RDF.type() and o == Core.TuplePattern
+      end)
+      assert tuple_pattern_count >= 2
+    end
+  end
+
+  describe "list pattern extraction" do
+    test "builds ListPattern for empty list" do
+      context = full_mode_context()
+      # Empty list AST: []
+      ast = []
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have ListPattern type
+      assert has_type?(pattern_triples, Core.ListPattern)
+
+      # Empty list has only type triple (no child patterns)
+      assert length(pattern_triples) == 1
+    end
+
+    test "builds ListPattern for flat list with variables" do
+      context = full_mode_context()
+      # Flat list AST: [x, y, z]
+      ast = [{:x, [], Elixir}, {:y, [], Elixir}, {:z, [], Elixir}]
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have ListPattern type
+      assert has_type?(pattern_triples, Core.ListPattern)
+
+      # Should have nested VariablePatterns
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+
+    test "builds ListPattern for list with literals" do
+      context = full_mode_context()
+      # List with literals: [1, 2, 3]
+      ast = [1, 2, 3]
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have ListPattern type
+      assert has_type?(pattern_triples, Core.ListPattern)
+
+      # Should have nested LiteralPatterns
+      assert has_type?(pattern_triples, Core.LiteralPattern)
+    end
+
+    test "builds ListPattern with cons pattern" do
+      context = full_mode_context()
+      # Cons pattern: [head | tail]
+      # AST: [{:|, [], [{:head, [], Elixir}, {:tail, [], Elixir}]}]
+      ast = [{:|, [], [{:head, [], Elixir}, {:tail, [], Elixir}]}]
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have ListPattern type
+      assert has_type?(pattern_triples, Core.ListPattern)
+
+      # Should have VariablePatterns for head and tail
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+
+    test "builds ListPattern with wildcard in cons" do
+      context = full_mode_context()
+      # Cons with wildcard: [_ | tail]
+      ast = [{:|, [], [{:_}, {:tail, [], Elixir}]}]
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have ListPattern type
+      assert has_type?(pattern_triples, Core.ListPattern)
+
+      # Should have WildcardPattern
+      assert has_type?(pattern_triples, Core.WildcardPattern)
+    end
+
+    test "builds nested list patterns" do
+      context = full_mode_context()
+      # Nested list: [[a, b], [c, d]]
+      inner_list_1 = [{:a, [], Elixir}, {:b, [], Elixir}]
+      inner_list_2 = [{:c, [], Elixir}, {:d, [], Elixir}]
+      ast = [inner_list_1, inner_list_2]
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have ListPattern type
+      assert has_type?(pattern_triples, Core.ListPattern)
+      # Nested lists should create multiple ListPattern instances
+      list_pattern_count = Enum.count(pattern_triples, fn {_s, p, o} ->
+        p == RDF.type() and o == Core.ListPattern
+      end)
+      assert list_pattern_count >= 2
+    end
+  end
+
+  describe "mixed nested pattern extraction" do
+    test "builds tuple within list pattern" do
+      context = full_mode_context()
+      # List containing tuple: [{x, y}, z]
+      tuple_pattern = {{:x, [], Elixir}, {:y, [], Elixir}}
+      ast = [tuple_pattern, {:z, [], Elixir}]
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have ListPattern (outer)
+      assert has_type?(pattern_triples, Core.ListPattern)
+      # Should have TuplePattern (nested)
+      assert has_type?(pattern_triples, Core.TuplePattern)
+    end
+
+    test "builds list within tuple pattern" do
+      context = full_mode_context()
+      # Tuple containing list: {[x, y], z}
+      list_pattern = [{:x, [], Elixir}, {:y, [], Elixir}]
+      ast = {:{}, [], [list_pattern, {:z, [], Elixir}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have TuplePattern (outer)
+      assert has_type?(pattern_triples, Core.TuplePattern)
+      # Should have ListPattern (nested)
+      assert has_type?(pattern_triples, Core.ListPattern)
+    end
+
+    test "builds deeply nested pattern structures" do
+      context = full_mode_context()
+      # Complex nested: [{a, [b, c]}, {d, [e, f]}]
+      inner_list_1 = [{:b, [], Elixir}, {:c, [], Elixir}]
+      inner_list_2 = [{:e, [], Elixir}, {:f, [], Elixir}]
+      tuple_1 = {{:a, [], Elixir}, inner_list_1}
+      tuple_2 = {{:d, [], Elixir}, inner_list_2}
+      ast = [tuple_1, tuple_2]
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have both ListPattern and TuplePattern
+      assert has_type?(pattern_triples, Core.ListPattern)
+      assert has_type?(pattern_triples, Core.TuplePattern)
+    end
+  end
+
   # ===========================================================================
   # Helpers
   # ===========================================================================
