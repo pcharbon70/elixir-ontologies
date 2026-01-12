@@ -3142,6 +3142,123 @@ string
     end
   end
 
+  describe "wildcard pattern extraction" do
+    test "builds WildcardPattern for underscore" do
+      context = full_mode_context()
+      ast = {:_}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      assert has_type?(pattern_triples, Core.WildcardPattern)
+      # WildcardPattern has no additional properties (just the type)
+      assert length(pattern_triples) == 1
+    end
+
+    test "distinguishes wildcard from variable pattern" do
+      context = full_mode_context()
+
+      # Wildcard pattern
+      wildcard_ast = {:_}
+      {:ok, {wildcard_iri, _, _}} = ExpressionBuilder.build(wildcard_ast, context, [])
+      wildcard_triples = ExpressionBuilder.build_pattern(wildcard_ast, wildcard_iri, context)
+
+      assert has_type?(wildcard_triples, Core.WildcardPattern)
+      refute has_type?(wildcard_triples, Core.VariablePattern)
+
+      # Variable pattern (leading underscore is still a variable)
+      variable_ast = {:_x, [], Elixir}
+      {:ok, {variable_iri, _, _}} = ExpressionBuilder.build(variable_ast, context, [])
+      variable_triples = ExpressionBuilder.build_pattern(variable_ast, variable_iri, context)
+
+      assert has_type?(variable_triples, Core.VariablePattern)
+      refute has_type?(variable_triples, Core.WildcardPattern)
+    end
+  end
+
+  describe "pin pattern extraction" do
+    test "builds PinPattern with variable name" do
+      context = full_mode_context()
+      ast = {:^, [], [{:x, [], Elixir}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      assert has_type?(pattern_triples, Core.PinPattern)
+      assert has_variable_name?(pattern_triples, expr_iri, "x")
+    end
+
+    test "builds PinPattern for variables with leading underscore" do
+      context = full_mode_context()
+      ast = {:^, [], [{:_x, [], Elixir}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      assert has_type?(pattern_triples, Core.PinPattern)
+      assert has_variable_name?(pattern_triples, expr_iri, "_x")
+    end
+
+    test "distinguishes PinPattern from VariablePattern" do
+      context = full_mode_context()
+
+      # Pin pattern (^x)
+      pin_ast = {:^, [], [{:result, [], Elixir}]}
+      {:ok, {pin_iri, _, _}} = ExpressionBuilder.build(pin_ast, context, [])
+      pin_triples = ExpressionBuilder.build_pattern(pin_ast, pin_iri, context)
+
+      assert has_type?(pin_triples, Core.PinPattern)
+      refute has_type?(pin_triples, Core.VariablePattern)
+
+      # Variable pattern (result)
+      var_ast = {:result, [], Elixir}
+      {:ok, {var_iri, _, _}} = ExpressionBuilder.build(var_ast, context, [])
+      var_triples = ExpressionBuilder.build_pattern(var_ast, var_iri, context)
+
+      assert has_type?(var_triples, Core.VariablePattern)
+      refute has_type?(var_triples, Core.PinPattern)
+    end
+  end
+
+  describe "nested pattern extraction" do
+    test "builds nested patterns in tuple" do
+      context = full_mode_context()
+      # Pattern: {1, x} - contains literal and variable patterns
+      ast = {1, {:x, [], Elixir}}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Tuple pattern type
+      assert has_type?(pattern_triples, Core.TuplePattern)
+    end
+
+    test "builds nested patterns with wildcard in list" do
+      context = full_mode_context()
+      # Pattern: [_ | tail] - list with wildcard head
+      ast = [{:_}, {:|, [], [{:tail, [], Elixir}]}]
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # List pattern type
+      assert has_type?(pattern_triples, Core.ListPattern)
+    end
+
+    test "builds nested patterns with pin in map" do
+      context = full_mode_context()
+      # Create expr_iri manually for pattern context test
+      # Pattern: %{^key => value} - map with pinned key
+      ast = {:%{}, [], [[{:^, [], [{:key, [], Elixir}]}, {:value, [], Elixir}]]}
+      expr_iri = RDF.iri("https://example.org/test#pattern/1")
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Map pattern type
+      assert has_type?(pattern_triples, Core.MapPattern)
+    end
+  end
+
   # ===========================================================================
   # Helpers
   # ===========================================================================

@@ -1284,12 +1284,43 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     ]
   end
 
-  @doc false
+  @doc """
+  Builds a wildcard pattern from AST.
+
+  The wildcard pattern (`_`) matches any value and discards it.
+  It is represented in AST as `{:_}` (a 2-tuple with atom `:_`).
+
+  ## Examples
+
+      iex> ast = {:_}
+      ...> expr_iri = RDF.iri("ex://pattern/1")
+      ...> build_wildcard_pattern(ast, expr_iri, %{})
+      ...> |> Enum.at(0)
+      {RDF.iri("ex://pattern/1"), RDF.type(), Core.WildcardPattern()}
+
+  """
   defp build_wildcard_pattern(_ast, expr_iri, _context) do
     [Helpers.type_triple(expr_iri, Core.WildcardPattern)]
   end
 
-  @doc false
+  @doc """
+  Builds a pin pattern from AST.
+
+  The pin pattern (`^x`) matches against the existing value of a variable.
+  It is represented in AST as `{:^, _, [{:x, _, _}]}`.
+
+  The pin operator ensures pattern matching uses the already-bound value
+  of the variable rather than rebinding it.
+
+  ## Examples
+
+      iex> ast = {:^, [], [{:x, [], Elixir}]}
+      ...> expr_iri = RDF.iri("ex://pattern/1")
+      ...> build_pin_pattern(ast, expr_iri, %{})
+      ...> |> Enum.at(0)
+      {RDF.iri("ex://pattern/1"), RDF.type(), Core.PinPattern()}
+
+  """
   defp build_pin_pattern(ast, expr_iri, _context) do
     {:^, _, [{var, _, _}]} = ast
     [
