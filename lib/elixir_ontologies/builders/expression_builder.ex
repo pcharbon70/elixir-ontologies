@@ -816,6 +816,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Pairs can be:
   # - Keyword tuples: {:a, 1} (for atom keys using a: 1 syntax)
   # - 2-tuples: {"a", 1} (for other keys using "a" => 1 syntax)
+  # - 2-element lists: [[key_ast, value_ast], ...] (for complex keys like pin patterns)
   defp build_map_entries(pairs, _expr_iri, _context) when pairs == [], do: []
 
   defp build_map_entries(pairs, _expr_iri, context) do
@@ -826,8 +827,21 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       _ -> true
     end)
 
+    # Extract values from pairs, handling both tuple and list formats
+    # For list format [[key_ast, value_ast], ...], we need to check each element
+    value_extractor = fn pair ->
+      case pair do
+        # 2-element list format for complex keys: [key_ast, value_ast]
+        [key_ast, value_ast] when is_tuple(key_ast) -> value_ast
+        # Tuple format for simple keys: {key, value_ast}
+        {_key, value_ast} -> value_ast
+        # Plain value (shouldn't happen in normal map syntax)
+        value -> value
+      end
+    end
+
     {value_triples, _final_context} =
-      build_child_expressions(regular_pairs, context, fn {_key, value} -> value end)
+      build_child_expressions(regular_pairs, context, value_extractor)
 
     value_triples
   end
@@ -1178,12 +1192,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   def detect_pattern_type({:{}, _, _}), do: :tuple_pattern
   def detect_pattern_type({:%, _, [{:{}, _, _}, {:%{}, _, _}]}), do: :struct_pattern
   def detect_pattern_type({:%, _, [{:__aliases__, _, _}, {:%{}, _, _}]}), do: :struct_pattern
+  def detect_pattern_type({:%, _, [{:__MODULE__, [], []}, {:%{}, _, _}]}), do: :struct_pattern
   def detect_pattern_type({:%{}, _, _}), do: :map_pattern
   def detect_pattern_type({:<<>>, _, _}), do: :binary_pattern
   def detect_pattern_type(list) when is_list(list), do: :list_pattern
+  # Atom literal AST: {name, meta, nil} - must come before variable pattern
+  # Variables have Elixir as ctx, atom literals have nil
+  def detect_pattern_type({name, _, nil}) when is_atom(name), do: :literal_pattern
   # Variable pattern must come after all other tuple-based patterns
   # because {name, _, ctx} also matches {:{}, [], []}
-  def detect_pattern_type({name, _, _ctx}) when is_atom(name) and name != :{} and name != :_, do: :variable_pattern
+  # Variables have Elixir as the third element, atoms have nil
+  def detect_pattern_type({name, _, Elixir}) when is_atom(name) and name != :{} and name != :_, do: :variable_pattern
   # 2-tuple is a special case: {left, right} without the {:{}, _, _} wrapper
   # Must come after variable pattern to avoid conflicts
   # The guard checks that left is not an n-tuple's {:{}, _, _} marker
@@ -1260,6 +1279,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   `{property_iri, xsd_type, value}` triple
   """
+  defp literal_value_info({atom, _meta, nil}) when is_atom(atom), do: {Core.atomValue(), RDF.XSD.String, atom_to_string(atom)}
   defp literal_value_info(int) when is_integer(int), do: {Core.integerValue(), RDF.XSD.Integer, int}
   defp literal_value_info(float) when is_float(float), do: {Core.floatValue(), RDF.XSD.Double, float}
   defp literal_value_info(str) when is_binary(str), do: {Core.stringValue(), RDF.XSD.String, str}
@@ -1475,14 +1495,170 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     head_triples ++ tail_triples
   end
 
-  @doc false
-  defp build_map_pattern(_ast, expr_iri, _context) do
-    [Helpers.type_triple(expr_iri, Core.MapPattern)]
+  @doc """
+  Builds RDF triples for a map pattern.
+
+  Map patterns match specific keys in a map, with values being any pattern.
+
+  ## Parameters
+
+  - `ast` - The map pattern AST: {:%{}, _, pairs}
+  - `expr_iri` - The IRI for this pattern expression
+  - `context` - The builder context
+
+  ## Returns
+
+  A list of RDF triples with:
+  - Core.MapPattern type triple
+  - Nested pattern triples for each complex key (e.g., pin patterns)
+  - Nested pattern triples for each value in the key-value pairs
+
+  ## Examples
+
+      iex> # %{a: x, b: y}
+      iex> ast = {:%{}, [], [a: {:x, [], Elixir}, b: {:y, [], Elixir}]}
+      iex> expr_iri = RDF.iri("ex://pattern/1")
+      iex> build_map_pattern(ast, expr_iri, full_mode_context())
+      iex> |> Enum.at(0)
+      {RDF.iri("ex://pattern/1"), RDF.type(), Core.MapPattern()}
+
+  """
+  defp build_map_pattern({:%{}, _meta, pairs}, expr_iri, context) do
+    # Create the MapPattern type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.MapPattern)
+
+    # Extract both complex keys and values from key-value pairs
+    # Simple keys (atoms, strings) are literals and don't need pattern triples
+    # Complex keys (pin patterns, etc.) need to be built as child patterns
+    {complex_keys, value_patterns} = extract_map_pattern_pairs(pairs)
+
+    # Build child patterns for complex keys and values
+    all_patterns = complex_keys ++ value_patterns
+    {child_triples, _final_context} = build_child_patterns(all_patterns, context)
+
+    # Include type triple and all child pattern triples
+    [type_triple | child_triples]
   end
 
-  @doc false
-  defp build_struct_pattern(_ast, expr_iri, _context) do
-    [Helpers.type_triple(expr_iri, Core.StructPattern)]
+  @doc """
+  Builds RDF triples for a struct pattern.
+
+  Struct patterns match a struct with specific field values.
+
+  ## Parameters
+
+  - `ast` - The struct pattern AST: {:%, _, [module_ast, map_ast]}
+  - `expr_iri` - The IRI for this pattern expression
+  - `context` - The builder context
+
+  ## Returns
+
+  A list of RDF triples with:
+  - Core.StructPattern type triple
+  - refersToModule property linking to the struct's module
+  - Nested pattern triples for each field value
+
+  ## Examples
+
+      iex> # %User{name: name}
+      iex> module_ast = {:__aliases__, [], [:User]}
+      iex> map_ast = {:%{}, [], [name: {:name, [], Elixir}]}
+      iex> ast = {:%, [], [module_ast, map_ast]}
+      iex> expr_iri = RDF.iri("ex://pattern/1")
+      iex> build_struct_pattern(ast, expr_iri, full_mode_context())
+      iex> |> Enum.at(0)
+      {RDF.iri("ex://pattern/1"), RDF.type(), Core.StructPattern()}
+
+  """
+  defp build_struct_pattern({:%, _meta, [module_ast, {:%{}, _map_meta, pairs}]}, expr_iri, context) do
+    # Extract module name from module AST
+    module_name = extract_struct_module_name(module_ast)
+
+    # Create the StructPattern type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.StructPattern)
+
+    # Create refersToModule property
+    module_iri_string = "#{context.base_iri}module/#{module_name}"
+    module_iri = RDF.IRI.new(module_iri_string)
+    refers_to_triple = {expr_iri, Core.refersToModule(), module_iri}
+
+    # Extract field value patterns from the map portion
+    field_patterns = extract_map_pattern_values(pairs)
+
+    # Build child patterns for each field value
+    {child_triples, _final_context} = build_child_patterns(field_patterns, context)
+
+    # Include type triple, module reference, and all child pattern triples
+    [type_triple, refers_to_triple | child_triples]
+  end
+
+  # Extract complex keys and value patterns from map pattern pairs
+  # Returns {[complex_keys], [value_patterns]}
+  # Pairs are keyword list format: [key1: value1_ast, key2: value2_ast, ...]
+  # Or for string keys: [{"key1", value1_ast}, {"key2", value2_ast}]
+  # Or for complex keys (like pin patterns): [[key_ast, value_ast], ...]
+  defp extract_map_pattern_pairs(pairs) when is_list(pairs) do
+    Enum.reduce(pairs, {[], []}, fn pair, {keys_acc, values_acc} ->
+      case pair do
+        # 2-element list format for complex keys: [key_ast, value_ast]
+        # where key_ast is a tuple (complex key like pin pattern)
+        [key_ast, value_ast] when is_tuple(key_ast) and tuple_size(key_ast) == 3 ->
+          # Include the complex key in the patterns list
+          {[key_ast | keys_acc], [value_ast | values_acc]}
+        # Tuple format for simple keys: {key, value_ast}
+        # Simple keys (atoms, strings) are literals, not patterns
+        {_key, value_ast} ->
+          {keys_acc, [value_ast | values_acc]}
+        # Handle non-tuple/non-list values (literals like integers, strings, etc.)
+        value ->
+          {keys_acc, [value | values_acc]}
+      end
+    end)
+    |> fn({keys_list, values_list}) ->
+      # Reverse and flatten the results
+      {Enum.reverse(keys_list), Enum.reverse(values_list)}
+    end.()
+  end
+
+  # Extract value patterns from map pattern pairs
+  # Pairs are keyword list format: [key1: value1_ast, key2: value2_ast, ...]
+  # Or for string keys: [{"key1", value1_ast}, {"key2", value2_ast}]
+  # Or for complex keys (like pin patterns): [[key_ast, value_ast], ...]
+  defp extract_map_pattern_values(pairs) when is_list(pairs) do
+    Enum.map(pairs, fn
+      # 2-element list format for complex keys: [key_ast, value_ast]
+      # where key_ast is a tuple like {:^, ..., [var]}
+      # Must come before tuple pattern to avoid matching [_, _] as {_, _}
+      entry when is_list(entry) and length(entry) == 2 ->
+        [_key_ast, value_ast] = entry
+        value_ast
+      # Keyword list or string key tuple format: {key, value_ast}
+      {_key, value_ast} -> value_ast
+      # Handle non-tuple/non-list values (literals like integers, strings, etc.)
+      value -> value
+    end)
+  end
+
+  # Extract module name from struct pattern module AST
+  defp extract_struct_module_name({:__aliases__, _meta, parts}) do
+    Enum.join(parts, ".")
+  end
+
+  defp extract_struct_module_name({:__MODULE__, [], []}) do
+    "__MODULE__"
+  end
+
+  defp extract_struct_module_name({:{}, _meta, parts}) when is_list(parts) do
+    # Handle tuple form module reference
+    Enum.map(parts, fn
+      part when is_atom(part) -> Atom.to_string(part)
+      part -> inspect(part)
+    end)
+    |> Enum.join(".")
+  end
+
+  defp extract_struct_module_name(other) do
+    inspect(other)
   end
 
   @doc false

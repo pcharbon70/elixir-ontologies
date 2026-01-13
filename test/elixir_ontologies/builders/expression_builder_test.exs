@@ -3500,6 +3500,309 @@ string
     end
   end
 
+  describe "map pattern extraction" do
+    test "builds MapPattern for empty map" do
+      context = full_mode_context()
+      # Empty map AST: {:%{}, [], []}
+      ast = {:%{}, [], []}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have MapPattern type
+      assert has_type?(pattern_triples, Core.MapPattern)
+
+      # Empty map has only type triple (no child patterns)
+      assert length(pattern_triples) == 1
+    end
+
+    test "builds MapPattern with variable values" do
+      context = full_mode_context()
+      # %{a: x, b: y}
+      ast = {:%{}, [], [a: {:x, [], Elixir}, b: {:y, [], Elixir}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have MapPattern type
+      assert has_type?(pattern_triples, Core.MapPattern)
+
+      # Should have nested VariablePatterns
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+
+    test "builds MapPattern with literal values" do
+      context = full_mode_context()
+      # %{status: :ok, count: 42}
+      ast = {:%{}, [], [status: {:ok, [], nil}, count: 42]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have MapPattern type
+      assert has_type?(pattern_triples, Core.MapPattern)
+
+      # Should have nested LiteralPatterns
+      assert has_type?(pattern_triples, Core.LiteralPattern)
+    end
+
+    test "builds MapPattern with string keys" do
+      context = full_mode_context()
+      # %{"key" => value}
+      ast = {:%{}, [], [{"key", {:value, [], Elixir}}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have MapPattern type
+      assert has_type?(pattern_triples, Core.MapPattern)
+
+      # Should have nested VariablePattern
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+
+    test "builds MapPattern with wildcard values" do
+      context = full_mode_context()
+      # %{a: _, b: x}
+      ast = {:%{}, [], [a: {:_}, b: {:x, [], Elixir}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have MapPattern type
+      assert has_type?(pattern_triples, Core.MapPattern)
+
+      # Should have WildcardPattern
+      assert has_type?(pattern_triples, Core.WildcardPattern)
+    end
+
+    test "builds MapPattern with pin pattern values" do
+      context = full_mode_context()
+      # %{^key => value}
+      ast = {:%{}, [], [[{:^, [], [{:key, [], Elixir}]}, {:value, [], Elixir}]]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have MapPattern type
+      assert has_type?(pattern_triples, Core.MapPattern)
+
+      # Should have PinPattern
+      assert has_type?(pattern_triples, Core.PinPattern)
+    end
+
+    test "builds MapPattern with nested map patterns" do
+      context = full_mode_context()
+      # %{outer: %{inner: x}}
+      inner_map = {:%{}, [], [inner: {:x, [], Elixir}]}
+      ast = {:%{}, [], [outer: inner_map]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have MapPattern type
+      assert has_type?(pattern_triples, Core.MapPattern)
+
+      # Nested maps should create multiple MapPattern instances
+      map_pattern_count = Enum.count(pattern_triples, fn {_s, p, o} ->
+        p == RDF.type() and o == Core.MapPattern
+      end)
+      assert map_pattern_count >= 2
+    end
+
+    test "builds MapPattern with nested tuple patterns" do
+      context = full_mode_context()
+      # %{coords: {x, y}}
+      tuple_pattern = {{:x, [], Elixir}, {:y, [], Elixir}}
+      ast = {:%{}, [], [coords: tuple_pattern]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have MapPattern type
+      assert has_type?(pattern_triples, Core.MapPattern)
+
+      # Should have TuplePattern
+      assert has_type?(pattern_triples, Core.TuplePattern)
+    end
+  end
+
+  describe "struct pattern extraction" do
+    test "builds StructPattern for empty struct" do
+      context = full_mode_context()
+      # %User{}
+      module_ast = {:__aliases__, [], [:User]}
+      map_ast = {:%{}, [], []}
+      ast = {:%, [], [module_ast, map_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have StructPattern type
+      assert has_type?(pattern_triples, Core.StructPattern)
+
+      # Should have module reference
+      assert Enum.any?(pattern_triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.refersToModule()
+      end)
+
+      # Empty struct has type triple and module reference (no field patterns)
+      assert length(pattern_triples) == 2
+    end
+
+    test "builds StructPattern with simple module alias" do
+      context = full_mode_context()
+      # %User{name: name}
+      module_ast = {:__aliases__, [], [:User]}
+      map_ast = {:%{}, [], [name: {:name, [], Elixir}]}
+      ast = {:%, [], [module_ast, map_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have StructPattern type
+      assert has_type?(pattern_triples, Core.StructPattern)
+
+      # Module reference should point to "User"
+      assert Enum.any?(pattern_triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.refersToModule() and
+          String.contains?(RDF.IRI.to_string(o), "User")
+      end)
+
+      # Should have nested VariablePattern
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+
+    test "builds StructPattern with nested module alias" do
+      context = full_mode_context()
+      # %MyApp.User{name: name}
+      module_ast = {:__aliases__, [], [:MyApp, :User]}
+      map_ast = {:%{}, [], [name: {:name, [], Elixir}]}
+      ast = {:%, [], [module_ast, map_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have StructPattern type
+      assert has_type?(pattern_triples, Core.StructPattern)
+
+      # Module reference should point to "MyApp.User"
+      assert Enum.any?(pattern_triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.refersToModule() and
+          String.contains?(RDF.IRI.to_string(o), "MyApp.User")
+      end)
+    end
+
+    test "builds StructPattern with __MODULE__" do
+      context = full_mode_context()
+      # %{__MODULE__}{name: name}
+      module_ast = {:__MODULE__, [], []}
+      map_ast = {:%{}, [], [name: {:name, [], Elixir}]}
+      ast = {:%, [], [module_ast, map_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have StructPattern type
+      assert has_type?(pattern_triples, Core.StructPattern)
+
+      # Module reference should point to "__MODULE__"
+      assert Enum.any?(pattern_triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.refersToModule() and
+          String.contains?(RDF.IRI.to_string(o), "__MODULE__")
+      end)
+    end
+
+    test "builds StructPattern with multiple fields" do
+      context = full_mode_context()
+      # %User{name: name, age: age, email: email}
+      module_ast = {:__aliases__, [], [:User]}
+      map_ast = {:%{}, [], [
+        name: {:name, [], Elixir},
+        age: {:age, [], Elixir},
+        email: {:email, [], Elixir}
+      ]}
+      ast = {:%, [], [module_ast, map_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have StructPattern type
+      assert has_type?(pattern_triples, Core.StructPattern)
+
+      # Should have multiple nested VariablePatterns
+      variable_pattern_count = Enum.count(pattern_triples, fn {_s, p, o} ->
+        p == RDF.type() and o == Core.VariablePattern
+      end)
+      assert variable_pattern_count == 3
+    end
+
+    test "builds StructPattern with literal field values" do
+      context = full_mode_context()
+      # %User{role: :admin}
+      module_ast = {:__aliases__, [], [:User]}
+      map_ast = {:%{}, [], [role: {:admin, [], nil}]}
+      ast = {:%, [], [module_ast, map_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have StructPattern type
+      assert has_type?(pattern_triples, Core.StructPattern)
+
+      # Should have nested LiteralPattern
+      assert has_type?(pattern_triples, Core.LiteralPattern)
+    end
+
+    test "builds StructPattern with wildcard fields" do
+      context = full_mode_context()
+      # %User{name: _, age: age}
+      module_ast = {:__aliases__, [], [:User]}
+      map_ast = {:%{}, [], [name: {:_}, age: {:age, [], Elixir}]}
+      ast = {:%, [], [module_ast, map_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have StructPattern type
+      assert has_type?(pattern_triples, Core.StructPattern)
+
+      # Should have WildcardPattern
+      assert has_type?(pattern_triples, Core.WildcardPattern)
+
+      # Should have VariablePattern
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+
+    test "distinguishes StructPattern from MapPattern" do
+      context = full_mode_context()
+
+      # Struct pattern: %User{}
+      module_ast = {:__aliases__, [], [:User]}
+      map_ast = {:%{}, [], []}
+      struct_ast = {:%, [], [module_ast, map_ast]}
+      {:ok, {struct_iri, _, _}} = ExpressionBuilder.build(struct_ast, context, [])
+      struct_triples = ExpressionBuilder.build_pattern(struct_ast, struct_iri, context)
+
+      # Map pattern: %{}
+      map_pattern_ast = {:%{}, [], []}
+      {:ok, {map_iri, _, _}} = ExpressionBuilder.build(map_pattern_ast, context, [])
+      map_triples = ExpressionBuilder.build_pattern(map_pattern_ast, map_iri, context)
+
+      # Struct should have StructPattern type
+      assert has_type?(struct_triples, Core.StructPattern)
+      refute has_type?(struct_triples, Core.MapPattern)
+
+      # Map should have MapPattern type
+      assert has_type?(map_triples, Core.MapPattern)
+      refute has_type?(map_triples, Core.StructPattern)
+
+      # Struct should have module reference, map should not
+      assert Enum.any?(struct_triples, fn {_s, p, _o} -> p == Core.refersToModule() end)
+      refute Enum.any?(map_triples, fn {_s, p, _o} -> p == Core.refersToModule() end)
+    end
+  end
+
   # ===========================================================================
   # Helpers
   # ===========================================================================
