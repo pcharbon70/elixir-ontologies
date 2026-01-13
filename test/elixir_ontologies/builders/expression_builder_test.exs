@@ -3971,6 +3971,298 @@ string
     end
   end
 
+  describe "deeply nested pattern extraction" do
+    test "builds 3-level nested tuple patterns" do
+      context = full_mode_context()
+      # {{{a, b}, c}, d}
+      inner_tuple = {{:a, [], Elixir}, {:b, [], Elixir}}
+      middle_tuple = {inner_tuple, {:c, [], Elixir}}
+      ast = {middle_tuple, {:d, [], Elixir}}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have TuplePattern type
+      assert has_type?(pattern_triples, Core.TuplePattern)
+      # Should have multiple nested TuplePattern instances
+      tuple_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.TuplePattern
+        end)
+
+      assert tuple_pattern_count >= 3
+    end
+
+    test "builds 5-level nested tuple patterns" do
+      context = full_mode_context()
+      # {{{{{x, y}, z}, w}, v}, u}
+      level1 = {{:x, [], Elixir}, {:y, [], Elixir}}
+      level2 = {level1, {:z, [], Elixir}}
+      level3 = {level2, {:w, [], Elixir}}
+      level4 = {level3, {:v, [], Elixir}}
+      ast = {level4, {:u, [], Elixir}}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have TuplePattern type
+      assert has_type?(pattern_triples, Core.TuplePattern)
+      # Should have 5 nested TuplePattern instances
+      tuple_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.TuplePattern
+        end)
+
+      assert tuple_pattern_count >= 5
+    end
+
+    test "builds tuple patterns with mixed types at each level" do
+      context = full_mode_context()
+      # {<<x>>, %{y: z}, [:a | :b]}
+      binary_seg = {:x, [], Elixir}
+      binary_ast = {:<<>>, [], [binary_seg]}
+      map_ast = {:%{}, [], [y: {:z, [], Elixir}]}
+      list_ast = [{:|, [], [[{:a, [], nil}], {:b, [], nil}]}]
+      ast = {binary_ast, {map_ast, list_ast}}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have all pattern types
+      assert has_type?(pattern_triples, Core.TuplePattern)
+      assert has_type?(pattern_triples, Core.BinaryPattern)
+      assert has_type?(pattern_triples, Core.MapPattern)
+      assert has_type?(pattern_triples, Core.ListPattern)
+    end
+
+    test "builds 3-level nested list patterns" do
+      context = full_mode_context()
+      # [[[a, b]], [c]]
+      inner_list = [{:a, [], Elixir}, {:b, [], Elixir}]
+      middle_list = [inner_list]
+      ast = {middle_list, [{:c, [], Elixir}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have ListPattern type
+      assert has_type?(pattern_triples, Core.ListPattern)
+      # Should have multiple nested ListPattern instances
+      list_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.ListPattern
+        end)
+
+      assert list_pattern_count >= 3
+    end
+
+    test "builds nested lists with cons patterns" do
+      context = full_mode_context()
+      # [[a | b] | [c | d]]
+      inner_cons = [{:|, [], [[{:a, [], Elixir}], {:b, [], Elixir}]}]
+      ast = [{:|, [], [inner_cons, [{:|, [], [[{:c, [], Elixir}], {:d, [], Elixir}]}]]}]
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have ListPattern type
+      assert has_type?(pattern_triples, Core.ListPattern)
+      # Should have VariablePattern for a, b, c, d
+      variable_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.VariablePattern
+        end)
+
+      assert variable_pattern_count >= 4
+    end
+
+    test "builds lists containing tuples containing lists" do
+      context = full_mode_context()
+      # [{[a, b], [c, d]}]
+      inner_list1 = [{:a, [], Elixir}, {:b, [], Elixir}]
+      inner_list2 = [{:c, [], Elixir}, {:d, [], Elixir}]
+      tuple_ast = {inner_list1, inner_list2}
+      ast = [tuple_ast]
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have both ListPattern and TuplePattern
+      assert has_type?(pattern_triples, Core.ListPattern)
+      assert has_type?(pattern_triples, Core.TuplePattern)
+    end
+
+    test "builds map containing map containing map" do
+      context = full_mode_context()
+      # %{a: %{b: %{c: d}}}
+      innermost_map = {:%{}, [], [c: {:d, [], Elixir}]}
+      middle_map = {:%{}, [], [b: innermost_map]}
+      ast = {:%{}, [], [a: middle_map]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have MapPattern type
+      assert has_type?(pattern_triples, Core.MapPattern)
+      # Should have 3 nested MapPattern instances
+      map_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.MapPattern
+        end)
+
+      assert map_pattern_count >= 3
+    end
+
+    test "builds struct with nested struct fields" do
+      context = full_mode_context()
+      # %User{address: %Address{city: city}}
+      inner_struct = {:%, [], [{:__aliases__, [], [:Address]}, {:%{}, [], [city: {:city, [], Elixir}]}]}
+      ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], [address: inner_struct]}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have StructPattern type
+      assert has_type?(pattern_triples, Core.StructPattern)
+      # Should have 2 nested StructPattern instances
+      struct_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.StructPattern
+        end)
+
+      assert struct_pattern_count >= 2
+    end
+
+    test "builds map with tuple keys and struct values" do
+      context = full_mode_context()
+      # {%{a: b} => %User{name: name}}
+      # Note: This uses list format for complex key
+      key_map = {:%{}, [], [a: {:b, [], Elixir}]}
+      struct_val = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], [name: {:name, [], Elixir}]}]}
+      ast = {:%{}, [], [[key_map, struct_val]]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have MapPattern
+      assert has_type?(pattern_triples, Core.MapPattern)
+      # Should have StructPattern
+      assert has_type?(pattern_triples, Core.StructPattern)
+    end
+
+    test "builds binary pattern within tuple" do
+      context = full_mode_context()
+      # {<<x::8>>, y}
+      binary_seg = {:"::", [], [{:x, [], Elixir}, 8]}
+      binary_ast = {:<<>>, [], [binary_seg]}
+      ast = {binary_ast, {:y, [], Elixir}}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have both BinaryPattern and TuplePattern
+      assert has_type?(pattern_triples, Core.BinaryPattern)
+      assert has_type?(pattern_triples, Core.TuplePattern)
+    end
+
+    test "builds binary pattern within map" do
+      context = full_mode_context()
+      # %{data: <<header::8, body::binary>>}
+      seg1 = {:"::", [], [{:header, [], Elixir}, 8]}
+      seg2 = {:"::", [], [{:body, [], Elixir}, {:binary, [], Elixir}]}
+      binary_ast = {:<<>>, [], [seg1, seg2]}
+      ast = {:%{}, [], [data: binary_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have both BinaryPattern and MapPattern
+      assert has_type?(pattern_triples, Core.BinaryPattern)
+      assert has_type?(pattern_triples, Core.MapPattern)
+    end
+
+    test "builds as-pattern wrapping deeply nested structure" do
+      context = full_mode_context()
+      # {{a, b}, c} = nested = result
+      nested_pattern = {{{:a, [], Elixir}, {:b, [], Elixir}}, {:c, [], Elixir}}
+      var_ast = {:nested, [], Elixir}
+      result_ast = {:result, [], Elixir}
+      # Create the as-pattern: pattern = var
+      as_ast = {:=, [], [nested_pattern, var_ast]}
+      # Then: as_pattern = result
+      ast = {:=, [], [as_ast, result_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have AsPattern type
+      assert has_type?(pattern_triples, Core.AsPattern)
+      # Should have TuplePattern for the nested structure
+      assert has_type?(pattern_triples, Core.TuplePattern)
+    end
+
+    test "builds tuple containing list containing map" do
+      context = full_mode_context()
+      # {[{a: b}, {c: d}], e}
+      inner_map1 = {:%{}, [], [a: {:b, [], Elixir}]}
+      inner_map2 = {:%{}, [], [c: {:d, [], Elixir}]}
+      list_ast = [inner_map1, inner_map2]
+      ast = {list_ast, {:e, [], Elixir}}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have all three pattern types
+      assert has_type?(pattern_triples, Core.TuplePattern)
+      assert has_type?(pattern_triples, Core.ListPattern)
+      assert has_type?(pattern_triples, Core.MapPattern)
+    end
+
+    test "builds map with all pattern types as values" do
+      context = full_mode_context()
+      # %{tuple: {a, b}, list: [c], map: %{d: e}, binary: <<f>>, as: {g} = h}
+      tuple_ast = {{:a, [], Elixir}, {:b, [], Elixir}}
+      list_ast = [{:c, [], Elixir}]
+      map_ast = {:%{}, [], [d: {:e, [], Elixir}]}
+      binary_ast = {:<<>>, [], [{:f, [], Elixir}]}
+      as_pattern = {:=, [], [{{:g, [], Elixir}}, {:h, [], Elixir}]}
+
+      ast = {:%{}, [], [tuple: tuple_ast, list: list_ast, map: map_ast, binary: binary_ast, as: as_pattern]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have all pattern types
+      assert has_type?(pattern_triples, Core.MapPattern)
+      assert has_type?(pattern_triples, Core.TuplePattern)
+      assert has_type?(pattern_triples, Core.ListPattern)
+      assert has_type?(pattern_triples, Core.BinaryPattern)
+      assert has_type?(pattern_triples, Core.AsPattern)
+    end
+
+    test "builds struct with binary field containing tuple pattern" do
+      context = full_mode_context()
+      # %Packet{header: {<<type::8>>, size::16}, body: <<data::binary>>}
+      type_seg = {:"::", [], [{:type, [], Elixir}, 8]}
+      size_seg = {:"::", [], [{:size, [], Elixir}, 16]}
+      header_binary = {:<<>>, [], [type_seg, size_seg]}
+      header_tuple = {header_binary, {:"::", [], [{:size, [], Elixir}, {:integer, [], Elixir}]}}
+      data_seg = {:"::", [], [{:data, [], Elixir}, {:binary, [], Elixir}]}
+      body_binary = {:<<>>, [], [data_seg]}
+
+      map_ast = {:%{}, [], [header: header_tuple, body: body_binary]}
+      ast = {:%, [], [{:__aliases__, [], [:Packet]}, map_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have StructPattern, BinaryPattern, and TuplePattern
+      assert has_type?(pattern_triples, Core.StructPattern)
+      assert has_type?(pattern_triples, Core.BinaryPattern)
+      assert has_type?(pattern_triples, Core.TuplePattern)
+    end
+  end
+
   # ===========================================================================
   # Helpers
   # ===========================================================================
