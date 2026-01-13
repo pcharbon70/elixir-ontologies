@@ -3803,6 +3803,174 @@ string
     end
   end
 
+  describe "binary pattern extraction" do
+    test "builds BinaryPattern for empty binary" do
+      context = full_mode_context()
+      # <<>>
+      ast = {:<<>>, [], []}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have BinaryPattern type
+      assert has_type?(pattern_triples, Core.BinaryPattern)
+    end
+
+    test "builds BinaryPattern for simple segment without specifier" do
+      context = full_mode_context()
+      # <<x>>
+      ast = {:<<>>, [], [{:x, [], Elixir}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have BinaryPattern type
+      assert has_type?(pattern_triples, Core.BinaryPattern)
+      # Should also have VariablePattern for x
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+
+    test "builds BinaryPattern for sized segment" do
+      context = full_mode_context()
+      # <<x::8>>
+      segment = {:"::", [], [{:x, [], Elixir}, 8]}
+      ast = {:<<>>, [], [segment]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have BinaryPattern type
+      assert has_type?(pattern_triples, Core.BinaryPattern)
+      # Should have VariablePattern for x
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+
+    test "builds BinaryPattern for typed segment" do
+      context = full_mode_context()
+      # <<rest::binary>>
+      segment = {:"::", [], [{:rest, [], Elixir}, {:binary, [], Elixir}]}
+      ast = {:<<>>, [], [segment]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have BinaryPattern type
+      assert has_type?(pattern_triples, Core.BinaryPattern)
+      # Should have VariablePattern for rest
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+
+    test "builds BinaryPattern for complex multi-segment binary" do
+      context = full_mode_context()
+      # <<head::8, rest::binary>>
+      seg1 = {:"::", [], [{:head, [], Elixir}, 8]}
+      seg2 = {:"::", [], [{:rest, [], Elixir}, {:binary, [], Elixir}]}
+      ast = {:<<>>, [], [seg1, seg2]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have BinaryPattern type
+      assert has_type?(pattern_triples, Core.BinaryPattern)
+      # Should have VariablePattern for both head and rest
+      variable_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.VariablePattern
+        end)
+
+      assert variable_pattern_count >= 2
+    end
+
+    test "builds BinaryPattern with literal segments" do
+      context = full_mode_context()
+      # <<0, 1, x>>
+      ast = {:<<>>, [], [0, 1, {:x, [], Elixir}]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have BinaryPattern type
+      assert has_type?(pattern_triples, Core.BinaryPattern)
+      # Should have VariablePattern for x
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+  end
+
+  describe "as pattern extraction" do
+    test "builds AsPattern for simple pattern = var" do
+      context = full_mode_context()
+      # x = result
+      pattern_ast = {:x, [], Elixir}
+      var_ast = {:result, [], Elixir}
+      ast = {:=, [], [pattern_ast, var_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have AsPattern type
+      assert has_type?(pattern_triples, Core.AsPattern)
+      # Should have VariablePattern for x
+      assert has_type?(pattern_triples, Core.VariablePattern)
+      # Should have VariablePattern for result
+      variable_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.VariablePattern
+        end)
+
+      assert variable_pattern_count >= 1
+    end
+
+    test "builds AsPattern for complex pattern = var" do
+      context = full_mode_context()
+      # {:ok, value} = result
+      pattern_ast = {{:ok, [], Elixir}, {:value, [], Elixir}}
+      var_ast = {:result, [], Elixir}
+      ast = {:=, [], [pattern_ast, var_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have AsPattern type
+      assert has_type?(pattern_triples, Core.AsPattern)
+      # Should have TuplePattern for left side
+      assert has_type?(pattern_triples, Core.TuplePattern)
+    end
+
+    test "builds AsPattern with hasPattern property" do
+      context = full_mode_context()
+      # x = var
+      pattern_ast = {:x, [], Elixir}
+      var_ast = {:var, [], Elixir}
+      ast = {:=, [], [pattern_ast, var_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have hasPattern property
+      assert Enum.any?(pattern_triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.hasPattern()
+      end)
+    end
+
+    test "builds AsPattern for map pattern = var" do
+      context = full_mode_context()
+      # %{x: value} = map
+      pattern_ast = {:%{}, [], [x: {:value, [], Elixir}]}
+      var_ast = {:map, [], Elixir}
+      ast = {:=, [], [pattern_ast, var_ast]}
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
+
+      pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
+      # Should have AsPattern type
+      assert has_type?(pattern_triples, Core.AsPattern)
+      # Should have MapPattern for left side
+      assert has_type?(pattern_triples, Core.MapPattern)
+      # Should have VariablePattern for value
+      assert has_type?(pattern_triples, Core.VariablePattern)
+    end
+  end
+
   # ===========================================================================
   # Helpers
   # ===========================================================================

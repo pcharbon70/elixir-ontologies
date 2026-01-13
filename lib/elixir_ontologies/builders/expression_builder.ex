@@ -1661,13 +1661,107 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     inspect(other)
   end
 
-  @doc false
-  defp build_binary_pattern(_ast, expr_iri, _context) do
-    [Helpers.type_triple(expr_iri, Core.BinaryPattern)]
+  @doc """
+  Builds RDF triples for a binary pattern.
+
+  Binary patterns match binary/bitstring data with size and type specifiers.
+
+  ## Parameters
+
+  - `ast` - The binary pattern AST: {:<<>>, _, segments}
+  - `expr_iri` - The IRI for this pattern expression
+  - `context` - The builder context
+
+  ## Returns
+
+  A list of RDF triples with:
+  - Core.BinaryPattern type triple
+  - Nested pattern triples for each segment
+
+  ## Examples
+
+      iex> # <<x::8, rest::binary>>
+      iex> seg1 = {:"::", [], [{:x, [], Elixir}, 8]}
+      iex> seg2 = {:"::", [], [{:rest, [], Elixir}, {:binary, [], Elixir}]}
+      iex> ast = {:<<>>, [], [seg1, seg2]}
+      iex> expr_iri = RDF.iri("ex://pattern/1")
+      iex> context = ElixirOntologies.Builders.Context.new(base_iri: "ex://", config: %{include_expressions: true}, file_path: "lib/my_app/users.ex") |> ElixirOntologies.Builders.Context.with_expression_counter()
+      iex> build_binary_pattern(ast, expr_iri, context)
+      iex> |> Enum.at(0)
+      {RDF.iri("ex://pattern/1"), RDF.type(), Core.BinaryPattern()}
+  """
+  defp build_binary_pattern({:<<>>, _meta, segments}, expr_iri, context) do
+    # Create the BinaryPattern type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.BinaryPattern)
+
+    # Extract segment patterns (variables or literals within the binary)
+    segment_patterns = extract_binary_segment_patterns(segments)
+
+    # Build child patterns for each segment
+    {child_triples, _final_context} = build_child_patterns(segment_patterns, context)
+
+    # Include type triple and all segment pattern triples
+    [type_triple | child_triples]
   end
 
-  @doc false
-  defp build_as_pattern(_ast, expr_iri, _context) do
-    [Helpers.type_triple(expr_iri, Core.AsPattern)]
+  # Extract patterns from binary segments
+  # Segments can be simple variables or complex with :: specifiers
+  defp extract_binary_segment_patterns(segments) when is_list(segments) do
+    Enum.map(segments, fn
+      # Segment with specifier: {:"::", _, [pattern, _specifier]}
+      {:"::", _meta, [pattern, _specifier]} -> pattern
+      # Simple segment without specifier
+      pattern -> pattern
+    end)
+  end
+
+  @doc """
+  Builds RDF triples for an as-pattern (pattern aliasing).
+
+  As-patterns bind the entire matched value while also destructuring it.
+
+  ## Parameters
+
+  - `ast` - The as-pattern AST: {:=, _, [pattern, variable]}
+  - `expr_iri` - The IRI for this pattern expression
+  - `context` - The builder context
+
+  ## Returns
+
+  A list of RDF triples with:
+  - Core.AsPattern type triple
+  - Nested pattern triples for the left side (destructure)
+  - Variable pattern for the right side (binding)
+  - hasPattern property linking to inner pattern
+
+  ## Examples
+
+      iex> # {:ok, x} = result
+      iex> pattern_ast = {{:ok, [], Elixir}, {:x, [], Elixir}}
+      iex> var_ast = {:result, [], Elixir}
+      iex> ast = {:=, [], [pattern_ast, var_ast]}
+      iex> expr_iri = RDF.iri("ex://pattern/1")
+      iex> context = ElixirOntologies.Builders.Context.new(base_iri: "ex://", config: %{include_expressions: true}, file_path: "lib/my_app/users.ex") |> ElixirOntologies.Builders.Context.with_expression_counter()
+      iex> build_as_pattern(ast, expr_iri, context)
+      iex> |> Enum.at(0)
+      {RDF.iri("ex://pattern/1"), RDF.type(), Core.AsPattern()}
+  """
+  defp build_as_pattern({:=, _meta, [left, right]}, expr_iri, context) do
+    # Create the AsPattern type triple
+    type_triple = Helpers.type_triple(expr_iri, Core.AsPattern)
+
+    # Build the left pattern (destructure pattern)
+    {:ok, {left_iri, _left_expr_triples, context_after_left}} = build(left, context, [])
+    left_pattern_triples = build_pattern(left, left_iri, context_after_left)
+
+    # Link to the inner pattern via hasPattern
+    has_pattern_triple = {expr_iri, Core.hasPattern(), left_iri}
+
+    # Build the right variable (binding variable)
+    {:ok, {_right_iri, _right_expr_triples, _context_after_right}} = build(right, context_after_left, [])
+    right_pattern_triples = build_pattern(right, left_iri, context_after_left)
+
+    # Combine all triples: type, hasPattern link, left patterns, right patterns
+    [type_triple, has_pattern_triple | left_pattern_triples] ++ right_pattern_triples
   end
 end
