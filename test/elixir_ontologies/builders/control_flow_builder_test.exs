@@ -2274,6 +2274,273 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # Receive Expression Integration Tests (Phase 25.5)
+  # ===========================================================================
+
+  describe "receive expression integration" do
+    alias ElixirOntologies.Extractors.CaseWith.{ReceiveExpression, CaseClause, AfterClause}
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "receive clause pattern extraction in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:msg, [], Elixir},
+            guard: nil,
+            body: {:handle, [], []},
+            has_guard: false
+          }
+        ],
+        after_clause: nil,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasPattern linking to the pattern IRI
+      pattern_triple = find_triple(triples, expr_iri, Core.hasPattern())
+      assert pattern_triple != nil
+
+      # Pattern should be a VariablePattern
+      pattern_iri = elem(pattern_triple, 2)
+      pattern_type_triple = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type_triple != nil
+      assert elem(pattern_type_triple, 2) == Core.VariablePattern
+    end
+
+    test "receive clause guard extraction in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:x, [], Elixir},
+            guard: {:when, [], [{:x, [], Elixir}, {:is_integer, [], [{:x, [], Elixir}]}]},
+            body: {:x, [], Elixir},
+            has_guard: true
+          }
+        ],
+        after_clause: nil,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasGuard linking to guard expression
+      guard_triple = find_triple(triples, expr_iri, Core.hasGuard())
+      assert guard_triple != nil
+
+      # Guard should be a function call
+      guard_iri = elem(guard_triple, 2)
+      guard_type_triple = find_triple(triples, guard_iri, RDF.type())
+      assert guard_type_triple != nil
+      assert elem(guard_type_triple, 2) == Core.LocalCall
+    end
+
+    test "receive clause body extraction in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:msg, [], Elixir},
+            guard: nil,
+            body: {:process_msg, [], [{:msg, [], Elixir}]},
+            has_guard: false
+          }
+        ],
+        after_clause: nil,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasBody linking to body expression
+      body_triple = find_triple(triples, expr_iri, ElixirOntologies.NS.Structure.hasBody())
+      assert body_triple != nil
+
+      # Body should be a LocalCall
+      body_iri = elem(body_triple, 2)
+      body_type_triple = find_triple(triples, body_iri, RDF.type())
+      assert body_type_triple != nil
+      assert elem(body_type_triple, 2) == Core.LocalCall
+    end
+
+    test "receive timeout expression extraction in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [],
+        after_clause: %AfterClause{
+          timeout: 5000,
+          body: :timeout,
+          is_immediate: false
+        },
+        has_after: true,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition linking to timeout expression
+      timeout_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert timeout_triple != nil
+
+      # Timeout should be an IntegerLiteral
+      timeout_iri = elem(timeout_triple, 2)
+      timeout_type_triple = find_triple(triples, timeout_iri, RDF.type())
+      assert timeout_type_triple != nil
+      assert elem(timeout_type_triple, 2) == Core.IntegerLiteral
+    end
+
+    test "receive after block extraction in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [],
+        after_clause: %AfterClause{
+          timeout: 5000,
+          body: {:handle_timeout, [], []},
+          is_immediate: false
+        },
+        has_after: true,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasAfterClause linking to after body
+      after_triple = find_triple(triples, expr_iri, Core.hasAfterClause())
+      assert after_triple != nil
+
+      # After body should be a LocalCall
+      after_body_iri = elem(after_triple, 2)
+      after_body_type_triple = find_triple(triples, after_body_iri, RDF.type())
+      assert after_body_type_triple != nil
+      assert elem(after_body_type_triple, 2) == Core.LocalCall
+    end
+
+    test "receive extraction with multiple clauses in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:ping, [], Elixir},
+            guard: nil,
+            body: {:pong, [], []},
+            has_guard: false
+          },
+          %CaseClause{
+            index: 1,
+            pattern: {:stop, [], Elixir},
+            guard: nil,
+            body: {:exit, [], [:normal]},
+            has_guard: false
+          },
+          %CaseClause{
+            index: 2,
+            pattern: {:_, [], nil},
+            guard: nil,
+            body: {:unknown_msg, [], []},
+            has_guard: false
+          }
+        ],
+        after_clause: nil,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have 3 hasPattern links (one per clause)
+      pattern_iris =
+        triples
+        |> Enum.filter(fn {s, p, _o} -> s == expr_iri and p == Core.hasPattern() end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+
+      assert length(pattern_iris) == 3
+
+      # Should have 3 hasBody links (one per clause)
+      body_iris =
+        triples
+        |> Enum.filter(fn {s, p, _o} -> s == expr_iri and p == ElixirOntologies.NS.Structure.hasBody() end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+
+      assert length(body_iris) == 3
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 

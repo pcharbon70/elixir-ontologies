@@ -358,14 +358,19 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   def build_receive(%ReceiveExpression{} = receive_expr, %Context{} = context, opts \\ []) do
     containing_function = Keyword.get(opts, :containing_function, "unknown/0")
     index = Keyword.get(opts, :index, 0)
+    expression_builder = Keyword.get(opts, :expression_builder)
 
     expr_iri = receive_iri(context.base_iri, containing_function, index)
+
+    # Check if we should build full expressions
+    build_expressions? =
+      expression_builder != nil and Context.full_mode_for_file?(context, context.file_path)
 
     triples =
       []
       |> add_type_triple(expr_iri, Core.ReceiveExpression)
-      |> add_receive_clause_triples(expr_iri, receive_expr.clauses)
-      |> add_after_timeout_triple(expr_iri, receive_expr.has_after)
+      |> add_receive_clause_triples(expr_iri, receive_expr.clauses, expression_builder, build_expressions?, context)
+      |> add_receive_after_triples(expr_iri, receive_expr.after_clause, expression_builder, build_expressions?, context)
       |> add_location_triple(expr_iri, receive_expr.location)
 
     {expr_iri, triples}
@@ -867,22 +872,115 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # Private - Receive Expression Helpers
   # ===========================================================================
 
-  # For receive expressions, track that message clauses exist
-  defp add_receive_clause_triples(triples, expr_iri, clauses)
+  # For receive expressions, build full clause pattern/guard/body triples in full mode
+  defp add_receive_clause_triples(triples, expr_iri, clauses, expression_builder, build_expressions?, context)
        when is_list(clauses) and clauses != [] do
-    triple = Helpers.datatype_property(expr_iri, Core.hasClause(), true, RDF.XSD.Boolean)
-    [triple | triples]
+    if build_expressions? do
+      # Build full expression triples for each clause
+      clauses
+      |> Enum.reduce(triples, fn clause, acc ->
+        add_receive_clause_expression_triples(acc, expr_iri, clause, expression_builder, context)
+      end)
+    else
+      # Light mode: store boolean flag only
+      triple = Helpers.datatype_property(expr_iri, Core.hasClause(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
   end
 
-  defp add_receive_clause_triples(triples, _expr_iri, _clauses), do: triples
+  defp add_receive_clause_triples(triples, _expr_iri, _clauses, _expression_builder, _build_expressions?, _context),
+    do: triples
 
-  # Track presence of after timeout clause
-  defp add_after_timeout_triple(triples, expr_iri, true) do
-    triple = Helpers.datatype_property(expr_iri, Core.hasAfterTimeout(), true, RDF.XSD.Boolean)
-    [triple | triples]
+  # Build pattern, guard, and body triples for a single receive clause
+  defp add_receive_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
+    # 1. Build pattern triples
+    pattern_iri = RDF.iri("#{expr_iri}/pattern/#{clause.index}")
+    pattern_triples = ExpressionBuilder.build_pattern(clause.pattern, pattern_iri, context)
+    pattern_link_triple = Helpers.object_property(expr_iri, Core.hasPattern(), pattern_iri)
+
+    # 2. Build guard expression if present
+    guard_triples =
+      if clause.guard != nil do
+        case expression_builder.build(clause.guard, context, suffix: "receive_#{clause.index}_guard") do
+          {:ok, {guard_iri, guard_expr_triples}} ->
+            link_triple = Helpers.object_property(expr_iri, Core.hasGuard(), guard_iri)
+            guard_expr_triples ++ [link_triple]
+
+          {:ok, {guard_iri, guard_expr_triples, _updated_context}} ->
+            link_triple = Helpers.object_property(expr_iri, Core.hasGuard(), guard_iri)
+            guard_expr_triples ++ [link_triple]
+
+          :skip ->
+            []
+        end
+      else
+        []
+      end
+
+    # 3. Build body expression
+    body_triples_with_link =
+      case expression_builder.build(clause.body, context, suffix: "receive_#{clause.index}_body") do
+        {:ok, {body_iri, body_expr_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Structure.hasBody(), body_iri)
+          body_expr_triples ++ [link_triple]
+
+        {:ok, {body_iri, body_expr_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Structure.hasBody(), body_iri)
+          body_expr_triples ++ [link_triple]
+
+        :skip ->
+          []
+      end
+
+    pattern_triples ++ [pattern_link_triple] ++ guard_triples ++ body_triples_with_link ++ triples
   end
 
-  defp add_after_timeout_triple(triples, _expr_iri, _has_after), do: triples
+  # Build after clause triples (timeout and body) in full mode
+  defp add_receive_after_triples(triples, expr_iri, after_clause, expression_builder, build_expressions?, context)
+       when not is_nil(after_clause) do
+    if build_expressions? do
+      # Build full expression triples for after clause
+      # Extract timeout expression
+      timeout_triples =
+        case expression_builder.build(after_clause.timeout, context, suffix: "timeout") do
+          {:ok, {timeout_iri, timeout_expr_triples}} ->
+            # Note: hasTimeout property doesn't exist in ontology, using hasCondition
+            link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), timeout_iri)
+            timeout_expr_triples ++ [link_triple]
+
+          {:ok, {timeout_iri, timeout_expr_triples, _updated_context}} ->
+            link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), timeout_iri)
+            timeout_expr_triples ++ [link_triple]
+
+          :skip ->
+            []
+        end
+
+      # Extract after body
+      body_triples_with_link =
+        case expression_builder.build(after_clause.body, context, suffix: "after_body") do
+          {:ok, {body_iri, body_expr_triples}} ->
+            link_triple = Helpers.object_property(expr_iri, Core.hasAfterClause(), body_iri)
+            body_expr_triples ++ [link_triple]
+
+          {:ok, {body_iri, body_expr_triples, _updated_context}} ->
+            link_triple = Helpers.object_property(expr_iri, Core.hasAfterClause(), body_iri)
+            body_expr_triples ++ [link_triple]
+
+          :skip ->
+            []
+        end
+
+      timeout_triples ++ body_triples_with_link ++ triples
+    else
+      # Light mode: store boolean flag only
+      triple = Helpers.datatype_property(expr_iri, Core.hasAfterTimeout(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
+  end
+
+  defp add_receive_after_triples(triples, _expr_iri, _after_clause, _expression_builder, _build_expressions?, _context),
+    do: triples
 
   # ===========================================================================
   # Private - Comprehension Helpers
