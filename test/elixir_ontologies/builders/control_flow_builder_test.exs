@@ -2541,6 +2541,320 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # Try Expression Integration Tests (Phase 25.6)
+  # ===========================================================================
+
+  describe "try expression integration" do
+    alias ElixirOntologies.Extractors.{Exception, Exception.RescueClause, Exception.CatchClause}
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "try expression extraction for try body in full mode" do
+      try_expr = %Exception{
+        body: {:risky_operation, [], []},
+        rescue_clauses: [],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: false,
+        has_catch: false,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.TryExpression
+
+      # Should have hasBody linking to try body
+      body_triple = find_triple(triples, expr_iri, ElixirOntologies.NS.Structure.hasBody())
+      assert body_triple != nil
+
+      # Body should be a LocalCall
+      body_iri = elem(body_triple, 2)
+      body_type_triple = find_triple(triples, body_iri, RDF.type())
+      assert body_type_triple != nil
+      assert elem(body_type_triple, 2) == Core.LocalCall
+    end
+
+    test "try expression rescue pattern extraction in full mode" do
+      try_expr = %Exception{
+        body: :ok,
+        rescue_clauses: [
+          %RescueClause{
+            exceptions: [],
+            variable: {:e, [], Elixir},
+            body: {:handle_error, [], []},
+            is_catch_all: true
+          }
+        ],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: true,
+        has_catch: false,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasRescueClause linking to rescue clause
+      rescue_triples =
+        triples
+        |> Enum.filter(fn {s, p, _o} -> s == expr_iri and p == Core.hasRescueClause() end)
+
+      assert length(rescue_triples) == 1
+    end
+
+    test "try expression catch pattern extraction in full mode" do
+      try_expr = %Exception{
+        body: :ok,
+        rescue_clauses: [],
+        catch_clauses: [
+          %CatchClause{
+            kind: :throw,
+            pattern: {:value, [], Elixir},
+            body: {:handle_throw, [], []}
+          }
+        ],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: false,
+        has_catch: true,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasPattern linking to catch pattern
+      pattern_triple = find_triple(triples, expr_iri, Core.hasPattern())
+      assert pattern_triple != nil
+
+      # Should have hasCatchClause linking to catch clause
+      catch_triple = find_triple(triples, expr_iri, Core.hasCatchClause())
+      assert catch_triple != nil
+
+      # Should have hasBody linking to catch body
+      body_triple = find_triple(triples, expr_iri, ElixirOntologies.NS.Structure.hasBody())
+      assert body_triple != nil
+    end
+
+    test "try expression after block extraction in full mode" do
+      try_expr = %Exception{
+        body: :ok,
+        rescue_clauses: [],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: {:cleanup, [], []},
+        has_rescue: false,
+        has_catch: false,
+        has_else: false,
+        has_after: true,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasAfterClause linking to after body
+      after_triple = find_triple(triples, expr_iri, Core.hasAfterClause())
+      assert after_triple != nil
+
+      # After body should be a LocalCall
+      after_body_iri = elem(after_triple, 2)
+      after_body_type_triple = find_triple(triples, after_body_iri, RDF.type())
+      assert after_body_type_triple != nil
+      assert elem(after_body_type_triple, 2) == Core.LocalCall
+    end
+
+    test "try expression extraction handles multiple rescue clauses in full mode" do
+      try_expr = %Exception{
+        body: :ok,
+        rescue_clauses: [
+          %RescueClause{
+            exceptions: [RuntimeError],
+            variable: nil,
+            body: {:handle_runtime, [], []},
+            is_catch_all: false
+          },
+          %RescueClause{
+            exceptions: [],
+            variable: {:e, [], Elixir},
+            body: {:handle_any, [], []},
+            is_catch_all: true
+          }
+        ],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: true,
+        has_catch: false,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have 2 hasRescueClause links
+      rescue_triples =
+        triples
+        |> Enum.filter(fn {s, p, _o} -> s == expr_iri and p == Core.hasRescueClause() end)
+
+      assert length(rescue_triples) == 2
+    end
+
+    test "try expression extraction handles wildcard rescue in full mode" do
+      try_expr = %Exception{
+        body: :ok,
+        rescue_clauses: [
+          %RescueClause{
+            exceptions: [],
+            variable: nil,
+            body: :error,
+            is_catch_all: true
+          }
+        ],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: true,
+        has_catch: false,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasRescueClause link
+      rescue_triple = find_triple(triples, expr_iri, Core.hasRescueClause())
+      assert rescue_triple != nil
+    end
+
+    test "try expression extraction for simple try (no rescue/catch/after) in full mode" do
+      try_expr = %Exception{
+        body: {:simple, [], []},
+        rescue_clauses: [],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: false,
+        has_catch: false,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.TryExpression
+
+      # Should have hasBody linking to try body
+      body_triple = find_triple(triples, expr_iri, ElixirOntologies.NS.Structure.hasBody())
+      assert body_triple != nil
+
+      # Should NOT have any rescue, catch, or after links
+      refute find_triple(triples, expr_iri, Core.hasRescueClause())
+      refute find_triple(triples, expr_iri, Core.hasCatchClause())
+      refute find_triple(triples, expr_iri, Core.hasAfterClause())
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 

@@ -80,7 +80,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   alias ElixirOntologies.NS.{Core, Structure}
   alias ElixirOntologies.Extractors.Conditional.{Conditional, Branch}
   alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, WithExpression, ReceiveExpression}
-  alias ElixirOntologies.Extractors.Comprehension
+  alias ElixirOntologies.Extractors.{Comprehension, Exception}
+  alias ElixirOntologies.Extractors.Exception.{RescueClause, CatchClause, ElseClause}
 
   # ===========================================================================
   # Public API - Conditional Builder
@@ -391,6 +392,78 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
 
   def receive_iri(%RDF.IRI{value: base}, containing_function, index) do
     receive_iri(base, containing_function, index)
+  end
+
+  # ===========================================================================
+  # Public API - Try Builder
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for a try expression.
+
+  ## Parameters
+
+  - `try_expr` - Exception extraction result (try expression)
+  - `context` - Builder context with base IRI
+  - `opts` - Options:
+    - `:containing_function` - IRI fragment of containing function
+    - `:index` - Expression index within the function (default: 0)
+    - `:expression_builder` - Expression builder for full mode
+
+  ## Returns
+
+  A tuple `{expr_iri, triples}`.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{ControlFlowBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Exception
+      iex> try_expr = %Exception{body: :ok, rescue_clauses: [], has_rescue: false, metadata: %{}}
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {iri, _triples} = ControlFlowBuilder.build_try(try_expr, context, containing_function: "MyApp/risky/0", index: 0)
+      iex> to_string(iri)
+      "https://example.org/code#try/MyApp/risky/0/0"
+  """
+  @spec build_try(Exception.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  def build_try(%Exception{} = try_expr, %Context{} = context, opts \\ []) do
+    containing_function = Keyword.get(opts, :containing_function, "unknown/0")
+    index = Keyword.get(opts, :index, 0)
+    expression_builder = Keyword.get(opts, :expression_builder)
+
+    expr_iri = try_iri(context.base_iri, containing_function, index)
+
+    # Check if we should build full expressions
+    build_expressions? =
+      expression_builder != nil and Context.full_mode_for_file?(context, context.file_path)
+
+    triples =
+      []
+      |> add_type_triple(expr_iri, Core.TryExpression)
+      |> add_try_body_triple(expr_iri, try_expr.body, expression_builder, build_expressions?, context)
+      |> add_rescue_clause_triples(expr_iri, try_expr.rescue_clauses, expression_builder, build_expressions?, context)
+      |> add_catch_clause_triples(expr_iri, try_expr.catch_clauses, expression_builder, build_expressions?, context)
+      |> add_else_clause_triples(expr_iri, try_expr.else_clauses, expression_builder, build_expressions?, context)
+      |> add_try_after_triple(expr_iri, try_expr.after_body, expression_builder, build_expressions?, context)
+      |> add_location_triple(expr_iri, try_expr.location)
+
+    {expr_iri, triples}
+  end
+
+  @doc """
+  Generates an IRI for a try expression.
+
+  ## Examples
+
+      iex> ElixirOntologies.Builders.ControlFlowBuilder.try_iri("https://example.org/code#", "MyApp/foo/1", 0)
+      ~I<https://example.org/code#try/MyApp/foo/1/0>
+  """
+  @spec try_iri(String.t() | RDF.IRI.t(), String.t(), non_neg_integer()) :: RDF.IRI.t()
+  def try_iri(base_iri, containing_function, index) when is_binary(base_iri) do
+    RDF.iri("#{base_iri}try/#{containing_function}/#{index}")
+  end
+
+  def try_iri(%RDF.IRI{value: base}, containing_function, index) do
+    try_iri(base, containing_function, index)
   end
 
   # ===========================================================================
@@ -981,6 +1054,199 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
 
   defp add_receive_after_triples(triples, _expr_iri, _after_clause, _expression_builder, _build_expressions?, _context),
     do: triples
+
+  # ===========================================================================
+  # Private - Try Expression Helpers
+  # ===========================================================================
+
+  # Extract try body expression
+  defp add_try_body_triple(triples, expr_iri, body, expression_builder, build_expressions?, context) do
+    if build_expressions? and not is_nil(body) do
+      case expression_builder.build(body, context, suffix: "body") do
+        {:ok, {body_iri, body_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Structure.hasBody(), body_iri)
+          body_triples ++ [link_triple | triples]
+
+        {:ok, {body_iri, body_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Structure.hasBody(), body_iri)
+          body_triples ++ [link_triple | triples]
+
+        :skip ->
+          triples
+      end
+    else
+      triples
+    end
+  end
+
+  # Extract rescue clauses
+  defp add_rescue_clause_triples(triples, expr_iri, clauses, expression_builder, build_expressions?, context)
+       when is_list(clauses) and clauses != [] do
+    if build_expressions? do
+      Enum.reduce(clauses, triples, fn clause, acc ->
+        add_rescue_clause_expression_triples(acc, expr_iri, clause, expression_builder, context)
+      end)
+    else
+      triple = Helpers.datatype_property(expr_iri, Core.hasRescueClause(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
+  end
+
+  defp add_rescue_clause_triples(triples, _expr_iri, _clauses, _expression_builder, _build_expressions?, _context),
+    do: triples
+
+  # Rescue clause expression extraction
+  defp add_rescue_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
+    # Create unique IRI for this rescue clause
+    clause_index = :erlang.unique_integer([:positive, :monotonic])
+    clause_iri = RDF.iri("#{expr_iri}/rescue/#{clause_index}")
+
+    # Build rescue body
+    body_triples_with_link =
+      case expression_builder.build(clause.body, context, suffix: "rescue_#{clause_index}_body") do
+        {:ok, {body_iri, body_triples}} ->
+          link_triple = Helpers.object_property(clause_iri, Structure.hasBody(), body_iri)
+          body_triples ++ [link_triple]
+
+        {:ok, {body_iri, body_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(clause_iri, Structure.hasBody(), body_iri)
+          body_triples ++ [link_triple]
+
+        :skip ->
+          []
+      end
+
+    # Link to clause via hasRescueClause
+    clause_link_triple = Helpers.object_property(expr_iri, Core.hasRescueClause(), clause_iri)
+
+    body_triples_with_link ++ [clause_link_triple] ++ triples
+  end
+
+  # Extract catch clauses
+  defp add_catch_clause_triples(triples, expr_iri, clauses, expression_builder, build_expressions?, context)
+       when is_list(clauses) and clauses != [] do
+    if build_expressions? do
+      Enum.reduce(clauses, triples, fn clause, acc ->
+        add_catch_clause_expression_triples(acc, expr_iri, clause, expression_builder, context)
+      end)
+    else
+      triple = Helpers.datatype_property(expr_iri, Core.hasCatchClause(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
+  end
+
+  defp add_catch_clause_triples(triples, _expr_iri, _clauses, _expression_builder, _build_expressions?, _context),
+    do: triples
+
+  # Catch clause expression extraction
+  defp add_catch_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
+    # Build pattern for catch
+    clause_index = :erlang.unique_integer([:positive, :monotonic])
+    pattern_iri = RDF.iri("#{expr_iri}/catch/#{clause_index}/pattern")
+    pattern_triples = ExpressionBuilder.build_pattern(clause.pattern, pattern_iri, context)
+    pattern_link_triple = Helpers.object_property(expr_iri, Core.hasPattern(), pattern_iri)
+
+    # Build catch body
+    body_triples_with_link =
+      case expression_builder.build(clause.body, context, suffix: "catch_#{clause_index}_body") do
+        {:ok, {body_iri, body_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Structure.hasBody(), body_iri)
+          body_triples ++ [link_triple]
+
+        {:ok, {body_iri, body_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Structure.hasBody(), body_iri)
+          body_triples ++ [link_triple]
+
+        :skip ->
+          []
+      end
+
+    # Link to clause via hasCatchClause
+    clause_link_triple = Helpers.object_property(expr_iri, Core.hasCatchClause(), pattern_iri)
+
+    pattern_triples ++ [pattern_link_triple] ++ body_triples_with_link ++ [clause_link_triple] ++ triples
+  end
+
+  # Extract else clauses (similar to case else clauses)
+  defp add_else_clause_triples(triples, expr_iri, clauses, expression_builder, build_expressions?, context)
+       when is_list(clauses) and clauses != [] do
+    if build_expressions? do
+      Enum.reduce(clauses, triples, fn clause, acc ->
+        add_try_else_clause_expression_triples(acc, expr_iri, clause, expression_builder, context)
+      end)
+    else
+      triples
+    end
+  end
+
+  defp add_else_clause_triples(triples, _expr_iri, _clauses, _expression_builder, _build_expressions?, _context),
+    do: triples
+
+  # Else clause expression extraction (similar to case else clauses)
+  defp add_try_else_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
+    clause_index = :erlang.unique_integer([:positive, :monotonic])
+
+    # Build pattern
+    pattern_iri = RDF.iri("#{expr_iri}/else/#{clause_index}/pattern")
+    pattern_triples = ExpressionBuilder.build_pattern(clause.pattern, pattern_iri, context)
+    pattern_link_triple = Helpers.object_property(expr_iri, Core.hasPattern(), pattern_iri)
+
+    # Build guard if present
+    guard_triples =
+      if clause.guard != nil do
+        case expression_builder.build(clause.guard, context, suffix: "else_#{clause_index}_guard") do
+          {:ok, {guard_iri, guard_expr_triples}} ->
+            link_triple = Helpers.object_property(expr_iri, Core.hasGuard(), guard_iri)
+            guard_expr_triples ++ [link_triple]
+
+          {:ok, {guard_iri, guard_expr_triples, _updated_context}} ->
+            link_triple = Helpers.object_property(expr_iri, Core.hasGuard(), guard_iri)
+            guard_expr_triples ++ [link_triple]
+
+          :skip ->
+            []
+        end
+      else
+        []
+      end
+
+    # Build body
+    body_triples_with_link =
+      case expression_builder.build(clause.body, context, suffix: "else_#{clause_index}_body") do
+        {:ok, {body_iri, body_expr_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasThenBranch(), body_iri)
+          body_expr_triples ++ [link_triple]
+
+        {:ok, {body_iri, body_expr_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasThenBranch(), body_iri)
+          body_expr_triples ++ [link_triple]
+
+        :skip ->
+          []
+      end
+
+    pattern_triples ++ [pattern_link_triple] ++ guard_triples ++ body_triples_with_link ++ triples
+  end
+
+  # Extract after block
+  defp add_try_after_triple(triples, expr_iri, after_body, expression_builder, build_expressions?, context) do
+    if build_expressions? and not is_nil(after_body) do
+      case expression_builder.build(after_body, context, suffix: "after") do
+        {:ok, {after_iri, after_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasAfterClause(), after_iri)
+          after_triples ++ [link_triple | triples]
+
+        {:ok, {after_iri, after_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasAfterClause(), after_iri)
+          after_triples ++ [link_triple | triples]
+
+        :skip ->
+          triples
+      end
+    else
+      triples
+    end
+  end
 
   # ===========================================================================
   # Private - Comprehension Helpers
