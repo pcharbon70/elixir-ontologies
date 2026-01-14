@@ -1341,6 +1341,315 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # Cond Expression Integration Tests (Phase 25.2)
+  # ===========================================================================
+
+  describe "cond clause expression extraction" do
+    test "cond clause extraction in light mode uses boolean flag" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{condition: {:>, [], [{:x, [], nil}, 0]}, body: :positive, index: 0, is_catch_all: false},
+          %{condition: true, body: :default, index: 1, is_catch_all: true}
+        ],
+        metadata: %{}
+      }
+
+      # Light mode: include_expressions is false
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: false},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/classify/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should use boolean flag for hasClause in light mode
+      clause_triple = find_triple(triples, expr_iri, Core.hasClause())
+      assert clause_triple != nil
+      assert %RDF.Literal{} = elem(clause_triple, 2)
+      assert RDF.Literal.value(elem(clause_triple, 2)) == true
+
+      # Should NOT have expression IRIs in light mode
+      refute find_triple(triples, expr_iri, Core.hasCondition()) != nil and
+             match?(%RDF.IRI{}, elem(find_triple(triples, expr_iri, Core.hasCondition()), 2))
+    end
+
+    test "cond clause extraction in full mode builds expression trees" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{condition: {:>, [], [{:x, [], nil}, 0]}, body: :positive, index: 0, is_catch_all: false},
+          %{condition: true, body: :default, index: 1, is_catch_all: true}
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/classify/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition links to expression IRIs (not boolean)
+      has_condition_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasCondition() end)
+
+      # In full mode, we should have hasCondition links to IRIs, not boolean
+      assert length(has_condition_triples) > 0
+      # All hasCondition values should be IRIs in full mode
+      Enum.each(has_condition_triples, fn {_s, _p, o} ->
+        assert %RDF.IRI{} = o
+      end)
+    end
+
+    test "cond clause extraction captures condition expression" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{
+            condition: {:==, [], [{:x, [], nil}, 5]},
+            body: :matched,
+            index: 0,
+            is_catch_all: false
+          }
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition linking to an expression IRI
+      cond_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert cond_triple != nil
+      condition_iri = elem(cond_triple, 2)
+      assert %RDF.IRI{} = condition_iri
+
+      # The condition should be a ComparisonOperator
+      type_triple = find_triple(triples, condition_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ComparisonOperator
+    end
+
+    test "cond clause extraction captures body expression" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{
+            condition: {:>, [], [{:x, [], nil}, 0]},
+            body: {:*, [], [{:x, [], nil}, 2]},
+            index: 0,
+            is_catch_all: false
+          }
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/double/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasThenBranch linking to the body expression IRI
+      body_triple = find_triple(triples, expr_iri, Core.hasThenBranch())
+      assert body_triple != nil
+      body_iri = elem(body_triple, 2)
+      assert %RDF.IRI{} = body_iri
+
+      # The body should have an expression type
+      type_triple = find_triple(triples, body_iri, RDF.type())
+      assert type_triple != nil
+    end
+
+    test "cond clause extraction handles multiple clauses" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{condition: {:>, [], [{:x, [], nil}, 10]}, body: :large, index: 0, is_catch_all: false},
+          %{condition: {:>, [], [{:x, [], nil}, 5]}, body: :medium, index: 1, is_catch_all: false},
+          %{condition: true, body: :small, index: 2, is_catch_all: true}
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/categorize/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition links for each clause (3 total)
+      has_condition_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasCondition() end)
+
+      assert length(has_condition_triples) == 3
+
+      # Should have hasThenBranch links for each clause body (3 total)
+      has_body_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasThenBranch() end)
+
+      assert length(has_body_triples) == 3
+    end
+
+    test "cond clause extraction handles catch-all clause" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{condition: {:>, [], [{:x, [], nil}, 0]}, body: :positive, index: 0, is_catch_all: false},
+          %{condition: true, body: :zero_or_negative, index: 1, is_catch_all: true}
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/sign/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should handle the catch-all clause (condition: true)
+      # The catch-all clause should still generate condition and body triples
+      has_condition_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasCondition() end)
+
+      assert length(has_condition_triples) == 2
+
+      has_body_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasThenBranch() end)
+
+      assert length(has_body_triples) == 2
+    end
+
+    test "cond clause extraction preserves clause order" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{condition: {:==, [], [{:x, [], nil}, 1]}, body: :one, index: 0, is_catch_all: false},
+          %{condition: {:==, [], [{:x, [], nil}, 2]}, body: :two, index: 1, is_catch_all: false},
+          %{condition: {:==, [], [{:x, [], nil}, 3]}, body: :three, index: 2, is_catch_all: false}
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {_expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/number_name/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find all condition IRIs
+      condition_iris =
+        triples
+        |> Enum.filter(fn {_s, p, _o} -> p == Core.hasCondition() end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+        |> Enum.filter(fn o -> match?(%RDF.IRI{}, o) end)
+
+      # Check that the suffixes preserve order (cond_0_condition, cond_1_condition, cond_2_condition)
+      suffixes =
+        condition_iris
+        |> Enum.map(fn iri ->
+          iri
+          |> to_string()
+          |> String.split("/")
+          |> List.last()
+        end)
+        |> Enum.sort()
+
+      # Should have suffixes in order
+      assert Enum.at(suffixes, 0) =~ "cond_0"
+      assert Enum.at(suffixes, 1) =~ "cond_1"
+      assert Enum.at(suffixes, 2) =~ "cond_2"
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 

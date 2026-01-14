@@ -597,20 +597,24 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
           []
       end
 
-    # Build body expression
-    body_triples =
+    # Build body expression and create link triple
+    body_triples_with_link =
       case expression_builder.build(clause.body, context, suffix: "cond_#{clause.index}_body") do
-        {:ok, {_body_iri, body_expr_triples}} ->
-          body_expr_triples
+        {:ok, {body_iri, body_expr_triples}} ->
+          # Create hasThenBranch link from cond expression to body
+          link_triple = Helpers.object_property(expr_iri, Core.hasThenBranch(), body_iri)
+          body_expr_triples ++ [link_triple]
 
-        {:ok, {_body_iri, body_expr_triples, _updated_context}} ->
-          body_expr_triples
+        {:ok, {body_iri, body_expr_triples, _updated_context}} ->
+          # Create hasThenBranch link from cond expression to body
+          link_triple = Helpers.object_property(expr_iri, Core.hasThenBranch(), body_iri)
+          body_expr_triples ++ [link_triple]
 
         :skip ->
           []
       end
 
-    cond_triples ++ body_triples ++ triples
+    cond_triples ++ body_triples_with_link ++ triples
   end
 
   # ===========================================================================
