@@ -2,29 +2,12 @@ defmodule ElixirOntologies.Builders.PatternContextIntegrationTest do
   use ExUnit.Case, async: true
 
   alias ElixirOntologies.Builders.ExpressionBuilder
-  alias ElixirOntologies.Builders.Context
   alias ElixirOntologies.NS.Core
+  import ElixirOntologies.Builders.ExpressionTestHelpers
 
   doctest ElixirOntologies.Builders.ExpressionBuilder
 
   @moduletag :pattern_context_integration
-
-  # ===========================================================================
-  # Fixtures
-  # ===========================================================================
-
-  defp full_mode_context do
-    Context.new(
-      base_iri: "https://example.org/code#",
-      config: %{include_expressions: true},
-      file_path: "lib/my_app/users.ex"
-    )
-    |> Context.with_expression_counter()
-  end
-
-  defp has_type?(triples, expected_type) do
-    Enum.any?(triples, fn {_s, p, o} -> p == RDF.type() and o == expected_type end)
-  end
 
   # ===========================================================================
   # Context Pattern Integration Tests

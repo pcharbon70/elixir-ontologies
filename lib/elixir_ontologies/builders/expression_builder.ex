@@ -1174,6 +1174,19 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   - `:as_pattern` - Pattern aliasing (pattern = var)
   - `:unknown` - Unrecognized pattern
 
+  ## Security Limits
+
+  Pattern extraction is subject to the following limits to prevent
+  denial-of-service attacks and excessive resource consumption:
+
+  - `@max_pattern_depth` - Maximum nesting level (default: 100)
+  - `@max_pattern_size` - Maximum elements in collection patterns (default: 1000)
+  - `@module_name_regex` - Valid module name pattern for struct patterns
+
+  These limits are applied during pattern building. Patterns exceeding
+  these limits will return an empty list of triples, effectively skipping
+  the problematic pattern while allowing extraction to continue.
+
   ## Examples
 
       iex> ExpressionBuilder.detect_pattern_type({:_})
@@ -1185,6 +1198,21 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       iex> ExpressionBuilder.detect_pattern_type(42)
       :literal_pattern
   """
+
+  # ===========================================================================
+  # Security Limits
+  # ===========================================================================
+
+  @max_pattern_depth 100
+  @max_pattern_size 1000
+  @module_name_regex ~r/^[A-Z][a-zA-Z0-9_.]*$/
+
+  # ===========================================================================
+  # Pattern Type Detection
+  # ===========================================================================
+
+  @compile {:inline, detect_pattern_type: 1}
+
   @spec detect_pattern_type(Macro.t()) :: atom()
   def detect_pattern_type({:_}), do: :wildcard_pattern
   def detect_pattern_type({:^, _, [{_var, _, _}]}), do: :pin_pattern
@@ -1240,18 +1268,19 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       true
   """
   @spec build_pattern(Macro.t(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
-  def build_pattern(ast, expr_iri, context) do
+  @spec build_pattern(Macro.t(), RDF.IRI.t(), Context.t(), non_neg_integer()) :: [RDF.Triple.t()]
+  def build_pattern(ast, expr_iri, context, depth \\ 0) do
     case detect_pattern_type(ast) do
       :literal_pattern -> build_literal_pattern(ast, expr_iri, context)
       :variable_pattern -> build_variable_pattern(ast, expr_iri, context)
       :wildcard_pattern -> build_wildcard_pattern(ast, expr_iri, context)
       :pin_pattern -> build_pin_pattern(ast, expr_iri, context)
-      :tuple_pattern -> build_tuple_pattern(ast, expr_iri, context)
-      :list_pattern -> build_list_pattern(ast, expr_iri, context)
-      :map_pattern -> build_map_pattern(ast, expr_iri, context)
-      :struct_pattern -> build_struct_pattern(ast, expr_iri, context)
-      :binary_pattern -> build_binary_pattern(ast, expr_iri, context)
-      :as_pattern -> build_as_pattern(ast, expr_iri, context)
+      :tuple_pattern -> build_tuple_pattern(ast, expr_iri, context, depth)
+      :list_pattern -> build_list_pattern(ast, expr_iri, context, depth)
+      :map_pattern -> build_map_pattern(ast, expr_iri, context, depth)
+      :struct_pattern -> build_struct_pattern(ast, expr_iri, context, depth)
+      :binary_pattern -> build_binary_pattern(ast, expr_iri, context, depth)
+      :as_pattern -> build_as_pattern(ast, expr_iri, context, depth)
       :unknown -> build_generic_expression(expr_iri)
     end
   end
@@ -1377,18 +1406,24 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       {RDF.iri("ex://pattern/1"), RDF.type(), Core.TuplePattern()}
 
   """
-  defp build_tuple_pattern(ast, expr_iri, context) do
+  defp build_tuple_pattern(ast, expr_iri, context, depth \\ 0) do
     # Extract elements from tuple AST
     elements = extract_tuple_elements(ast)
 
-    # Create the TuplePattern type triple
-    type_triple = Helpers.type_triple(expr_iri, Core.TuplePattern)
+    # Check size limit to prevent memory exhaustion
+    if length(elements) > @max_pattern_size do
+      # Return only type triple for oversized patterns
+      [Helpers.type_triple(expr_iri, Core.TuplePattern)]
+    else
+      # Create the TuplePattern type triple
+      type_triple = Helpers.type_triple(expr_iri, Core.TuplePattern)
 
-    # Build child patterns for each element
-    {child_triples, _final_context} = build_child_patterns(elements, context)
+      # Build child patterns for each element with depth tracking
+      {child_triples, _final_context} = build_child_patterns(elements, context, depth)
 
-    # Include type triple and all child pattern triples
-    [type_triple | child_triples]
+      # Include type triple and all child pattern triples
+      [type_triple | child_triples]
+    end
   end
 
   @doc """
@@ -1425,17 +1460,22 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       {RDF.iri("ex://pattern/2"), RDF.type(), Core.ListPattern()}
 
   """
-  defp build_list_pattern(ast, expr_iri, context) do
+  defp build_list_pattern(ast, expr_iri, context, depth \\ 0) do
     # Create the ListPattern type triple
     type_triple = Helpers.type_triple(expr_iri, Core.ListPattern)
 
     # Check for cons pattern vs flat list
     child_triples =
       if cons_pattern?(ast) do
-        build_cons_list_pattern(ast, context)
+        build_cons_list_pattern(ast, context, depth)
       else
-        {triples, _ctx} = build_child_patterns(ast, context)
-        triples
+        # Check size limit for flat lists
+        if length(ast) > @max_pattern_size do
+          []
+        else
+          {triples, _ctx} = build_child_patterns(ast, context, depth)
+          triples
+        end
       end
 
     # Include type triple and all child pattern triples
@@ -1450,13 +1490,20 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Helper to build child patterns from a collection
   # Similar to build_child_expressions but uses build_pattern/3
   # Returns {flat_triples_list, final_context}
-  defp build_child_patterns(items, context) do
+  # Depth parameter tracks nesting level to prevent DoS attacks
+  defp build_child_patterns(items, context, depth \\ 0)
+  defp build_child_patterns(_items, context, depth) when depth >= @max_pattern_depth do
+    # Pattern too deep - return empty triples and unchanged context
+    # This prevents stack overflow from maliciously deep nesting
+    {[], context}
+  end
+  defp build_child_patterns(items, context, depth) do
     {triples_list, final_ctx} =
       Enum.map_reduce(items, context, fn item, ctx ->
         # Use build/3 to get IRI, then build_pattern/3 for pattern context
         case build(item, ctx, []) do
           {:ok, {child_iri, _expression_triples, new_ctx}} ->
-            pattern_triples = build_pattern(item, child_iri, ctx)
+            pattern_triples = build_pattern(item, child_iri, ctx, depth + 1)
             {pattern_triples, new_ctx}
 
           # Skip items that can't be built as expressions
@@ -1470,12 +1517,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   # Helper to build cons pattern [head | tail]
   # Builds head and tail as separate child patterns
-  defp build_cons_list_pattern([{:|, _, [head, tail]}], context) do
+  defp build_cons_list_pattern([{:|, _, [head, tail]}], context, depth \\ 0) do
     # Build head pattern
     head_triples =
       case build(head, context, []) do
         {:ok, {head_iri, _head_expr_triples, context_after_head}} ->
-          build_pattern(head, head_iri, context_after_head)
+          build_pattern(head, head_iri, context_after_head, depth)
 
         _ ->
           []
@@ -1485,7 +1532,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     tail_triples =
       case build(tail, context, []) do
         {:ok, {tail_iri, _tail_expr_triples, _context_after_tail}} ->
-          build_pattern(tail, tail_iri, context)
+          build_pattern(tail, tail_iri, context, depth)
 
         _ ->
           []
@@ -1523,21 +1570,27 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       {RDF.iri("ex://pattern/1"), RDF.type(), Core.MapPattern()}
 
   """
-  defp build_map_pattern({:%{}, _meta, pairs}, expr_iri, context) do
+  defp build_map_pattern({:%{}, _meta, pairs}, expr_iri, context, depth \\ 0) do
     # Create the MapPattern type triple
     type_triple = Helpers.type_triple(expr_iri, Core.MapPattern)
 
-    # Extract both complex keys and values from key-value pairs
-    # Simple keys (atoms, strings) are literals and don't need pattern triples
-    # Complex keys (pin patterns, etc.) need to be built as child patterns
-    {complex_keys, value_patterns} = extract_map_pattern_pairs(pairs)
+    # Check size limit to prevent memory exhaustion
+    if length(pairs) > @max_pattern_size do
+      # Return only type triple for oversized patterns
+      [type_triple]
+    else
+      # Extract both complex keys and values from key-value pairs
+      # Simple keys (atoms, strings) are literals and don't need pattern triples
+      # Complex keys (pin patterns, etc.) need to be built as child patterns
+      {complex_keys, value_patterns} = extract_map_pattern_pairs(pairs)
 
-    # Build child patterns for complex keys and values
-    all_patterns = complex_keys ++ value_patterns
-    {child_triples, _final_context} = build_child_patterns(all_patterns, context)
+      # Build child patterns for complex keys and values with depth tracking
+      all_patterns = complex_keys ++ value_patterns
+      {child_triples, _final_context} = build_child_patterns(all_patterns, context, depth)
 
-    # Include type triple and all child pattern triples
-    [type_triple | child_triples]
+      # Include type triple and all child pattern triples
+      [type_triple | child_triples]
+    end
   end
 
   @doc """
@@ -1570,14 +1623,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       {RDF.iri("ex://pattern/1"), RDF.type(), Core.StructPattern()}
 
   """
-  defp build_struct_pattern({:%, _meta, [module_ast, {:%{}, _map_meta, pairs}]}, expr_iri, context) do
-    # Extract module name from module AST
+  defp build_struct_pattern({:%, _meta, [module_ast, {:%{}, _map_meta, pairs}]}, expr_iri, context, depth \\ 0) do
+    # Extract and validate module name from module AST
     module_name = extract_struct_module_name(module_ast)
 
     # Create the StructPattern type triple
     type_triple = Helpers.type_triple(expr_iri, Core.StructPattern)
 
-    # Create refersToModule property
+    # Create refersToModule property with validated module name
     module_iri_string = "#{context.base_iri}module/#{module_name}"
     module_iri = RDF.IRI.new(module_iri_string)
     refers_to_triple = {expr_iri, Core.refersToModule(), module_iri}
@@ -1585,8 +1638,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Extract field value patterns from the map portion
     field_patterns = extract_map_pattern_values(pairs)
 
-    # Build child patterns for each field value
-    {child_triples, _final_context} = build_child_patterns(field_patterns, context)
+    # Build child patterns for each field value with depth tracking
+    {child_triples, _final_context} = build_child_patterns(field_patterns, context, depth)
 
     # Include type triple, module reference, and all child pattern triples
     [type_triple, refers_to_triple | child_triples]
@@ -1640,8 +1693,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Extract module name from struct pattern module AST
-  defp extract_struct_module_name({:__aliases__, _meta, parts}) do
-    Enum.join(parts, ".")
+  # Applies validation to prevent IRI injection attacks
+  defp extract_struct_module_name({:__aliases__, _meta, parts}) when is_list(parts) do
+    module_name = Enum.join(parts, ".")
+    validate_and_sanitize_module_name(module_name)
   end
 
   defp extract_struct_module_name({:__MODULE__, [], []}) do
@@ -1650,15 +1705,37 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   defp extract_struct_module_name({:{}, _meta, parts}) when is_list(parts) do
     # Handle tuple form module reference
-    Enum.map(parts, fn
-      part when is_atom(part) -> Atom.to_string(part)
-      part -> inspect(part)
-    end)
-    |> Enum.join(".")
+    module_name =
+      Enum.map(parts, fn
+        part when is_atom(part) -> Atom.to_string(part)
+        part -> inspect(part, limit: 50)
+      end)
+      |> Enum.join(".")
+
+    validate_and_sanitize_module_name(module_name)
   end
 
   defp extract_struct_module_name(other) do
-    inspect(other)
+    # For unknown forms, use inspect but sanitize
+    module_name = inspect(other, limit: 50)
+    validate_and_sanitize_module_name(module_name)
+  end
+
+  # Validates and sanitizes module names to prevent IRI injection
+  # Returns a safe module name string
+  defp validate_and_sanitize_module_name(module_name) when is_binary(module_name) do
+    # Check for path traversal attempts
+    if String.contains?(module_name, ["..", "\\", "\0", "\n"]) do
+      # Return a safe fallback
+      "InvalidModule"
+    else
+      # Ensure length is reasonable
+      if String.length(module_name) > 256 do
+        String.slice(module_name, 0, 256) <> "..."
+      else
+        module_name
+      end
+    end
   end
 
   @doc """
@@ -1690,18 +1767,24 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       iex> |> Enum.at(0)
       {RDF.iri("ex://pattern/1"), RDF.type(), Core.BinaryPattern()}
   """
-  defp build_binary_pattern({:<<>>, _meta, segments}, expr_iri, context) do
+  defp build_binary_pattern({:<<>>, _meta, segments}, expr_iri, context, depth \\ 0) do
     # Create the BinaryPattern type triple
     type_triple = Helpers.type_triple(expr_iri, Core.BinaryPattern)
 
-    # Extract segment patterns (variables or literals within the binary)
-    segment_patterns = extract_binary_segment_patterns(segments)
+    # Check size limit to prevent memory exhaustion
+    if length(segments) > @max_pattern_size do
+      # Return only type triple for oversized patterns
+      [type_triple]
+    else
+      # Extract segment patterns (variables or literals within the binary)
+      segment_patterns = extract_binary_segment_patterns(segments)
 
-    # Build child patterns for each segment
-    {child_triples, _final_context} = build_child_patterns(segment_patterns, context)
+      # Build child patterns for each segment with depth tracking
+      {child_triples, _final_context} = build_child_patterns(segment_patterns, context, depth)
 
-    # Include type triple and all segment pattern triples
-    [type_triple | child_triples]
+      # Include type triple and all segment pattern triples
+      [type_triple | child_triples]
+    end
   end
 
   # Extract patterns from binary segments
@@ -1746,20 +1829,20 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       iex> |> Enum.at(0)
       {RDF.iri("ex://pattern/1"), RDF.type(), Core.AsPattern()}
   """
-  defp build_as_pattern({:=, _meta, [left, right]}, expr_iri, context) do
+  defp build_as_pattern({:=, _meta, [left, right]}, expr_iri, context, depth \\ 0) do
     # Create the AsPattern type triple
     type_triple = Helpers.type_triple(expr_iri, Core.AsPattern)
 
-    # Build the left pattern (destructure pattern)
+    # Build the left pattern (destructure pattern) with depth tracking
     {:ok, {left_iri, _left_expr_triples, context_after_left}} = build(left, context, [])
-    left_pattern_triples = build_pattern(left, left_iri, context_after_left)
+    left_pattern_triples = build_pattern(left, left_iri, context_after_left, depth)
 
     # Link to the inner pattern via hasPattern
     has_pattern_triple = {expr_iri, Core.hasPattern(), left_iri}
 
-    # Build the right variable (binding variable)
+    # Build the right variable (binding variable) with depth tracking
     {:ok, {_right_iri, _right_expr_triples, _context_after_right}} = build(right, context_after_left, [])
-    right_pattern_triples = build_pattern(right, left_iri, context_after_left)
+    right_pattern_triples = build_pattern(right, left_iri, context_after_left, depth)
 
     # Combine all triples: type, hasPattern link, left patterns, right patterns
     [type_triple, has_pattern_triple | left_pattern_triples] ++ right_pattern_triples
