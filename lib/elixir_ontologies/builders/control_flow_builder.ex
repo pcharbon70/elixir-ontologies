@@ -1638,6 +1638,35 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # Private - Common Helpers
   # ===========================================================================
 
+  # Helper for building expressions with the expression_builder.
+  # Handles the 3-way return pattern: {:ok, {iri, triples}}, {:ok, {iri, triples, context}}, or :skip
+  #
+  # Returns: {updated_triples, updated_context_or_nil}
+  defp call_expression_builder(expression, expression_builder, context, opts) do
+    case expression_builder.build(expression, context, opts) do
+      {:ok, {expr_iri, expr_triples}} ->
+        {expr_triples, expr_iri}
+
+      {:ok, {expr_iri, expr_triples, _updated_context}} ->
+        {expr_triples, expr_iri}
+
+      :skip ->
+        {:skip, :skip}
+    end
+  end
+
+  # Link an expression IRI to a parent with a property, adding triples to accumulator
+  defp link_expression(triples, expr_triples, parent_iri, property, expr_iri) do
+    link_triple = Helpers.object_property(parent_iri, property, expr_iri)
+    expr_triples ++ [link_triple | triples]
+  end
+
+  # Link an expression IRI to a parent with a property, returning a new list (no accumulator)
+  defp link_expression_list(expr_triples, parent_iri, property, expr_iri) do
+    link_triple = Helpers.object_property(parent_iri, property, expr_iri)
+    expr_triples ++ [link_triple]
+  end
+
   defp add_location_triple(triples, expr_iri, %{line: line}) when is_integer(line) do
     triple = Helpers.datatype_property(expr_iri, Core.startLine(), line, RDF.XSD.PositiveInteger)
     [triple | triples]
