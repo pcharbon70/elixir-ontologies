@@ -2855,6 +2855,207 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # Raise/Throw Expression Integration Tests (Phase 25.7)
+  # ===========================================================================
+
+  describe "raise/throw expression integration" do
+    alias ElixirOntologies.Extractors.Exception.{RaiseExpression, ThrowExpression}
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "raise expression extraction with message in full mode" do
+      raise_expr = %RaiseExpression{
+        exception: nil,
+        message: "something went wrong",
+        attributes: nil,
+        is_reraise: false,
+        stacktrace: nil,
+        location: %{line: 10}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_raise(raise_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.RaiseExpression
+
+      # Should have hasCondition linking to message expression
+      condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert condition_triple != nil
+
+      # Message should be a StringLiteral
+      msg_iri = elem(condition_triple, 2)
+      msg_type_triple = find_triple(triples, msg_iri, RDF.type())
+      assert msg_type_triple != nil
+      assert elem(msg_type_triple, 2) == Core.StringLiteral
+
+      # Should have location
+      line_triple = find_triple(triples, expr_iri, Core.startLine())
+      assert line_triple != nil
+      assert RDF.Literal.value(elem(line_triple, 2)) == 10
+    end
+
+    test "raise expression extraction with exception and message in full mode" do
+      raise_expr = %RaiseExpression{
+        exception: RuntimeError,
+        message: "error occurred",
+        attributes: nil,
+        is_reraise: false,
+        stacktrace: nil,
+        location: %{line: 15}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_raise(raise_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 1,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.RaiseExpression
+
+      # Should have hasCondition linking to message expression
+      condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert condition_triple != nil
+    end
+
+    test "raise expression extraction for reraise in full mode" do
+      # Reraise uses __STACKTRACE__ as the stacktrace
+      raise_expr = %RaiseExpression{
+        exception: nil,
+        message: nil,
+        attributes: nil,
+        is_reraise: true,
+        stacktrace: {:@, [], [{:__STACKTRACE__, [], Elixir}]},
+        location: %{line: 20}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_raise(raise_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.RaiseExpression
+
+      # Reraise with no message should not have hasCondition
+      condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert condition_triple == nil
+    end
+
+    test "throw expression extraction for value in full mode" do
+      throw_expr = %ThrowExpression{
+        value: :error,
+        location: %{line: 25}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_throw(throw_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ThrowExpression
+
+      # Should have hasCondition linking to value expression
+      condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert condition_triple != nil
+
+      # Value should be an AtomLiteral
+      value_iri = elem(condition_triple, 2)
+      value_type_triple = find_triple(triples, value_iri, RDF.type())
+      assert value_type_triple != nil
+      assert elem(value_type_triple, 2) == Core.AtomLiteral
+
+      # Should have location
+      line_triple = find_triple(triples, expr_iri, Core.startLine())
+      assert line_triple != nil
+      assert RDF.Literal.value(elem(line_triple, 2)) == 25
+    end
+
+    test "throw expression extraction handles complex expressions" do
+      # Throw a tuple value
+      throw_expr = %ThrowExpression{
+        value: {:{}, [], [:error, "message", 123]},
+        location: %{line: 30}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_throw(throw_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 1,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ThrowExpression
+
+      # Should have hasCondition linking to value expression
+      condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert condition_triple != nil
+
+      # Value should be a TupleLiteral
+      value_iri = elem(condition_triple, 2)
+      value_type_triple = find_triple(triples, value_iri, RDF.type())
+      assert value_type_triple != nil
+      assert elem(value_type_triple, 2) == Core.TupleLiteral
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 

@@ -81,7 +81,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   alias ElixirOntologies.Extractors.Conditional.{Conditional, Branch}
   alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, WithExpression, ReceiveExpression}
   alias ElixirOntologies.Extractors.{Comprehension, Exception}
-  alias ElixirOntologies.Extractors.Exception.{RescueClause, CatchClause, ElseClause}
+  alias ElixirOntologies.Extractors.Exception.{RescueClause, CatchClause, ElseClause, RaiseExpression, ThrowExpression}
 
   # ===========================================================================
   # Public API - Conditional Builder
@@ -464,6 +464,142 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
 
   def try_iri(%RDF.IRI{value: base}, containing_function, index) do
     try_iri(base, containing_function, index)
+  end
+
+  # ===========================================================================
+  # Public API - Raise Builder
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for a raise expression.
+
+  ## Parameters
+
+  - `raise_expr` - RaiseExpression extraction result
+  - `context` - Builder context with base IRI
+  - `opts` - Options:
+    - `:containing_function` - IRI fragment of containing function
+    - `:index` - Expression index within the function (default: 0)
+    - `:expression_builder` - Expression builder for full mode
+
+  ## Returns
+
+  A tuple `{expr_iri, triples}`.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{ControlFlowBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Exception.RaiseExpression
+      iex> raise_expr = %RaiseExpression{message: "error", exception: nil, is_reraise: false, metadata: %{}}
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {iri, _triples} = ControlFlowBuilder.build_raise(raise_expr, context, containing_function: "MyApp/raise/0", index: 0)
+      iex> to_string(iri)
+      "https://example.org/code#raise/MyApp/raise/0/0"
+  """
+  @spec build_raise(RaiseExpression.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  def build_raise(%RaiseExpression{} = raise_expr, %Context{} = context, opts \\ []) do
+    containing_function = Keyword.get(opts, :containing_function, "unknown/0")
+    index = Keyword.get(opts, :index, 0)
+    expression_builder = Keyword.get(opts, :expression_builder)
+
+    expr_iri = raise_iri(context.base_iri, containing_function, index)
+
+    # Check if we should build full expressions
+    build_expressions? =
+      expression_builder != nil and Context.full_mode_for_file?(context, context.file_path)
+
+    triples =
+      []
+      |> add_type_triple(expr_iri, Core.RaiseExpression)
+      |> add_raise_argument_triple(expr_iri, raise_expr, expression_builder, build_expressions?, context)
+      |> add_location_triple(expr_iri, raise_expr.location)
+
+    {expr_iri, triples}
+  end
+
+  @doc """
+  Generates an IRI for a raise expression.
+
+  ## Examples
+
+      iex> ElixirOntologies.Builders.ControlFlowBuilder.raise_iri("https://example.org/code#", "MyApp/foo/1", 0)
+      ~I<https://example.org/code#raise/MyApp/foo/1/0>
+  """
+  @spec raise_iri(String.t() | RDF.IRI.t(), String.t(), non_neg_integer()) :: RDF.IRI.t()
+  def raise_iri(base_iri, containing_function, index) when is_binary(base_iri) do
+    RDF.iri("#{base_iri}raise/#{containing_function}/#{index}")
+  end
+
+  def raise_iri(%RDF.IRI{value: base}, containing_function, index) do
+    raise_iri(base, containing_function, index)
+  end
+
+  # ===========================================================================
+  # Public API - Throw Builder
+  # ===========================================================================
+
+  @doc """
+  Builds RDF triples for a throw expression.
+
+  ## Parameters
+
+  - `throw_expr` - ThrowExpression extraction result
+  - `context` - Builder context with base IRI
+  - `opts` - Options:
+    - `:containing_function` - IRI fragment of containing function
+    - `:index` - Expression index within the function (default: 0)
+    - `:expression_builder` - Expression builder for full mode
+
+  ## Returns
+
+  A tuple `{expr_iri, triples}`.
+
+  ## Examples
+
+      iex> alias ElixirOntologies.Builders.{ControlFlowBuilder, Context}
+      iex> alias ElixirOntologies.Extractors.Exception.ThrowExpression
+      iex> throw_expr = %ThrowExpression{value: :error, metadata: %{}}
+      iex> context = Context.new(base_iri: "https://example.org/code#")
+      iex> {iri, _triples} = ControlFlowBuilder.build_throw(throw_expr, context, containing_function: "MyApp/throw/0", index: 0)
+      iex> to_string(iri)
+      "https://example.org/code#throw/MyApp/throw/0/0"
+  """
+  @spec build_throw(ThrowExpression.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  def build_throw(%ThrowExpression{} = throw_expr, %Context{} = context, opts \\ []) do
+    containing_function = Keyword.get(opts, :containing_function, "unknown/0")
+    index = Keyword.get(opts, :index, 0)
+    expression_builder = Keyword.get(opts, :expression_builder)
+
+    expr_iri = throw_iri(context.base_iri, containing_function, index)
+
+    # Check if we should build full expressions
+    build_expressions? =
+      expression_builder != nil and Context.full_mode_for_file?(context, context.file_path)
+
+    triples =
+      []
+      |> add_type_triple(expr_iri, Core.ThrowExpression)
+      |> add_throw_value_triple(expr_iri, throw_expr.value, expression_builder, build_expressions?, context)
+      |> add_location_triple(expr_iri, throw_expr.location)
+
+    {expr_iri, triples}
+  end
+
+  @doc """
+  Generates an IRI for a throw expression.
+
+  ## Examples
+
+      iex> ElixirOntologies.Builders.ControlFlowBuilder.throw_iri("https://example.org/code#", "MyApp/foo/1", 0)
+      ~I<https://example.org/code#throw/MyApp/foo/1/0>
+  """
+  @spec throw_iri(String.t() | RDF.IRI.t(), String.t(), non_neg_integer()) :: RDF.IRI.t()
+  def throw_iri(base_iri, containing_function, index) when is_binary(base_iri) do
+    RDF.iri("#{base_iri}throw/#{containing_function}/#{index}")
+  end
+
+  def throw_iri(%RDF.IRI{value: base}, containing_function, index) do
+    throw_iri(base, containing_function, index)
   end
 
   # ===========================================================================
@@ -1239,6 +1375,59 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
         {:ok, {after_iri, after_triples, _updated_context}} ->
           link_triple = Helpers.object_property(expr_iri, Core.hasAfterClause(), after_iri)
           after_triples ++ [link_triple | triples]
+
+        :skip ->
+          triples
+      end
+    else
+      triples
+    end
+  end
+
+  # ===========================================================================
+  # Private - Raise/Throw Expression Helpers
+  # ===========================================================================
+
+  # Extract raise argument (message or exception expression)
+  defp add_raise_argument_triple(triples, expr_iri, raise_expr, expression_builder, build_expressions?, context) do
+    if build_expressions? do
+      # For raise, we extract the message as the primary expression
+      # If there's an exception module, we can add it as an atom
+      message_triples =
+        if not is_nil(raise_expr.message) do
+          case expression_builder.build(raise_expr.message, context, suffix: "message") do
+            {:ok, {msg_iri, msg_triples}} ->
+              link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), msg_iri)
+              msg_triples ++ [link_triple]
+
+            {:ok, {msg_iri, msg_triples, _updated_context}} ->
+              link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), msg_iri)
+              msg_triples ++ [link_triple]
+
+            :skip ->
+              []
+          end
+        else
+          []
+        end
+
+      triples ++ message_triples
+    else
+      triples
+    end
+  end
+
+  # Extract throw value
+  defp add_throw_value_triple(triples, expr_iri, value, expression_builder, build_expressions?, context) do
+    if build_expressions? do
+      case expression_builder.build(value, context, suffix: "value") do
+        {:ok, {value_iri, value_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), value_iri)
+          value_triples ++ [link_triple | triples]
+
+        {:ok, {value_iri, value_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), value_iri)
+          value_triples ++ [link_triple | triples]
 
         :skip ->
           triples
