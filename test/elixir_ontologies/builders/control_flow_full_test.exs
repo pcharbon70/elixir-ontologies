@@ -497,7 +497,6 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
       if_iri_string = to_string(if_iri)
       case_iri_string = to_string(case_iri)
 
-      assert String.contains?(if_iri_string, "/0")
       assert String.contains?(if_iri_string, "/0")  # index 0 for if
 
       assert String.contains?(case_iri_string, "/1")  # index 1 for case
@@ -751,6 +750,134 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should find the case expression with guard
       assert length(result.results) >= 1
+    end
+  end
+
+  describe "edge cases" do
+    setup do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "deeply nested control flow (3 levels)", %{context: context} do
+      # with expression with pattern matching
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], [{:x, [], nil}]},
+            expression: {:some_fun, [], []}
+          }
+        ],
+        body: {:x, [], nil},
+        location: nil,
+        metadata: %{}
+      }
+
+      # Build the with expression
+      {_with_iri, with_triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp.nested/0",
+          index: 0
+        )
+
+      # Should have type triple for WithExpression
+      assert Enum.any?(with_triples, fn {_s, _p, o} ->
+        o == Core.WithExpression
+      end)
+
+      # Should have hasClause triple in light mode
+      assert Enum.any?(with_triples, fn {_s, p, _o} ->
+        p == Core.hasClause()
+      end)
+    end
+
+    test "complex guard with multiple conditions", %{context: context} do
+      # Case with complex guard
+      case_expr = %CaseExpression{
+        subject: {:x, [], nil},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:n, [], nil},
+            body: :ok,
+            has_guard: true,
+            guard: {:when, [], [[{:>, [], [{:n, [], nil}, 0]}]]}
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      {_case_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp.complex_guard/1",
+          index: 0
+        )
+
+      # Should have hasGuard triple
+      assert Enum.any?(triples, fn {_s, p, _o} ->
+        p == Core.hasGuard()
+      end)
+    end
+
+    test "empty control flow structures", %{context: context} do
+      # Cond with only catch-all clause
+      cond_expr = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{condition: true, body: :default, index: 0, is_catch_all: true}
+        ],
+        metadata: %{}
+      }
+
+      {_cond_iri, triples} =
+        ControlFlowBuilder.build_conditional(cond_expr, context,
+          containing_function: "MyApp.empty_cond/0",
+          index: 0
+        )
+
+      # Should have type triple for CondExpression
+      assert Enum.any?(triples, fn {_s, _p, o} ->
+        o == Core.CondExpression
+      end)
+    end
+
+    test "control flow with nil location", %{context: context} do
+      # Control flow with nil location should still generate triples
+      if_expr = %Conditional{
+        type: :if,
+        condition: true,
+        branches: [
+          %Branch{type: :then, body: :result}
+        ],
+        metadata: %{}
+      }
+
+      {_if_iri, triples} =
+        ControlFlowBuilder.build_conditional(if_expr, context,
+          containing_function: "MyApp.no_location/0",
+          index: 0
+        )
+
+      # Should have type triple
+      assert Enum.any?(triples, fn {_s, _p, o} ->
+        o == Core.IfExpression
+      end)
+
+      # Should not have location triples when location is nil
+      refute Enum.any?(triples, fn {_s, p, _o} ->
+        p == Core.startLine()
+      end)
     end
   end
 end

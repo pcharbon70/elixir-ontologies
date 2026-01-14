@@ -880,6 +880,36 @@
     rdfs:domain :ReceiveExpression ;
     rdfs:range xsd:nonNegativeInteger .
 
+# After timeout clause for receive
+:hasAfterTimeout a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has after timeout"@en ;
+    rdfs:comment """Links a receive expression to its after timeout clause body.
+    The after clause executes when no message is received within the timeout period."""@en ;
+    rdfs:domain :ReceiveExpression ;
+    rdfs:range :Expression .
+
+# Comprehension option properties
+:hasIntoOption a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has into option"@en ;
+    rdfs:comment """Links a comprehension to its :into collector expression.
+    Specifies the container to collect comprehension results into."""@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range :Expression .
+
+:hasReduceOption a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has reduce option"@en ;
+    rdfs:comment """Links a comprehension to its :reduce accumulator expression.
+    Specifies the reducer function for accumulating comprehension results."""@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range :Expression .
+
+:hasUniqOption a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "has uniq option"@en ;
+    rdfs:comment """Indicates whether a comprehension filters duplicate values.
+    The :uniq option removes duplicates from comprehension results."""@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range xsd:boolean .
+
 # =============================================================================
 # OWL Axioms
 # =============================================================================

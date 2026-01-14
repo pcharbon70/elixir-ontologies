@@ -616,10 +616,23 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   - `opts` - Options:
     - `:containing_function` - IRI fragment of containing function
     - `:index` - Expression index within the function (default: 0)
+    - `:expression_builder` - Optional module for building expression triples
+      (e.g., `ElixirOntologies.Builders.ExpressionBuilder`)
 
   ## Returns
 
   A tuple `{expr_iri, triples}`.
+
+  ## Expression Building
+
+  When `:expression_builder` is provided and `Context.full_mode_for_file?/2`
+  returns `true`, this function builds full expression triples for:
+  - Generator enumerables (linked via `core:hasGenerator`)
+  - Filter expressions (linked via `core:hasFilter`)
+  - Body expression
+  - Option expressions (`into:`, `reduce:`)
+
+  Otherwise, creates lightweight boolean flag triples only.
 
   ## Examples
 
@@ -636,15 +649,21 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   def build_comprehension(%Comprehension{} = comprehension, %Context{} = context, opts \\ []) do
     containing_function = Keyword.get(opts, :containing_function, "unknown/0")
     index = Keyword.get(opts, :index, 0)
+    expression_builder = Keyword.get(opts, :expression_builder)
 
     expr_iri = comprehension_iri(context.base_iri, containing_function, index)
+
+    # Check if we should build full expressions
+    build_expressions? =
+      expression_builder != nil and Context.full_mode_for_file?(context, context.file_path)
 
     triples =
       []
       |> add_type_triple(expr_iri, Core.ForComprehension)
-      |> add_generator_triple(expr_iri, comprehension.generators)
-      |> add_filter_triple(expr_iri, comprehension.filters)
-      |> add_comprehension_options_triples(expr_iri, comprehension.options)
+      |> add_generator_triples(expr_iri, comprehension.generators, expression_builder, build_expressions?, context, containing_function, index)
+      |> add_filter_triples(expr_iri, comprehension.filters, expression_builder, build_expressions?, context, containing_function, index)
+      |> add_comprehension_body_triple(expr_iri, comprehension.body, expression_builder, build_expressions?, context, containing_function, index)
+      |> add_comprehension_options_triples(expr_iri, comprehension.options, expression_builder, build_expressions?, context, containing_function, index)
       |> add_location_triple(expr_iri, comprehension.location)
 
     {expr_iri, triples}
@@ -1441,46 +1460,172 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # Private - Comprehension Helpers
   # ===========================================================================
 
-  # Track presence of generators
-  defp add_generator_triple(triples, expr_iri, generators)
+  # Add generator triples with optional expression building
+  defp add_generator_triples(triples, expr_iri, generators, expression_builder, build_expressions?, context, containing_function, comprehension_index)
        when is_list(generators) and generators != [] do
-    triple = Helpers.datatype_property(expr_iri, Core.hasGenerator(), true, RDF.XSD.Boolean)
-    [triple | triples]
+    if build_expressions? do
+      # Build full expression triples for each generator's enumerable
+      {all_generator_triples, _} =
+        Enum.map_reduce(generators, 0, fn gen, idx ->
+          gen_iri = RDF.iri("#{expr_iri.value}-gen-#{idx}")
+
+          gen_triples =
+            []
+            |> add_type_triple(gen_iri, Core.Generator)
+            |> add_generator_enumerable_triple(gen_iri, gen.enumerable, expression_builder, context, containing_function, comprehension_index, idx)
+
+          link_triple = Helpers.object_property(expr_iri, Core.hasGenerator(), gen_iri)
+          {gen_triples ++ [link_triple], idx + 1}
+        end)
+
+      List.flatten(all_generator_triples) ++ triples
+    else
+      # Light mode: store boolean flag only
+      triple = Helpers.datatype_property(expr_iri, Core.hasGenerator(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
   end
 
-  defp add_generator_triple(triples, _expr_iri, _generators), do: triples
+  defp add_generator_triples(triples, _expr_iri, _generators, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
 
-  # Track presence of filters
-  defp add_filter_triple(triples, expr_iri, filters) when is_list(filters) and filters != [] do
-    triple = Helpers.datatype_property(expr_iri, Core.hasFilter(), true, RDF.XSD.Boolean)
-    [triple | triples]
+  # Add enumerable expression for a generator
+  defp add_generator_enumerable_triple(triples, gen_iri, enumerable, expression_builder, context, containing_function, comp_index, gen_index) do
+    case expression_builder.build(enumerable, context, containing_function: containing_function, index: comp_index * 100 + gen_index) do
+      {:ok, {enum_iri, enum_triples}} ->
+        link_triple = Helpers.object_property(gen_iri, Core.hasCondition(), enum_iri)
+        enum_triples ++ [link_triple | triples]
+
+      {:ok, {enum_iri, enum_triples, _updated_context}} ->
+        link_triple = Helpers.object_property(gen_iri, Core.hasCondition(), enum_iri)
+        enum_triples ++ [link_triple | triples]
+
+      :skip ->
+        triples
+    end
   end
 
-  defp add_filter_triple(triples, _expr_iri, _filters), do: triples
+  # Add filter triples with optional expression building
+  defp add_filter_triples(triples, expr_iri, filters, expression_builder, build_expressions?, context, containing_function, comprehension_index)
+       when is_list(filters) and filters != [] do
+    if build_expressions? do
+      # Build full expression triples for each filter
+      {all_filter_triples, _} =
+        Enum.map_reduce(filters, 0, fn filter, idx ->
+          filter_iri = RDF.iri("#{expr_iri.value}-filter-#{idx}")
 
-  # Track comprehension options (into, reduce, uniq)
-  defp add_comprehension_options_triples(triples, expr_iri, options) when is_map(options) do
+          filter_triples =
+            []
+            |> add_type_triple(filter_iri, Core.Filter)
+            |> add_filter_expression_triple(filter_iri, filter.expression, expression_builder, context, containing_function, comprehension_index, idx)
+
+          link_triple = Helpers.object_property(expr_iri, Core.hasFilter(), filter_iri)
+          {filter_triples ++ [link_triple], idx + 1}
+        end)
+
+      List.flatten(all_filter_triples) ++ triples
+    else
+      # Light mode: store boolean flag only
+      triple = Helpers.datatype_property(expr_iri, Core.hasFilter(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
+  end
+
+  defp add_filter_triples(triples, _expr_iri, _filters, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
+
+  # Add filter expression
+  defp add_filter_expression_triple(triples, filter_iri, expression, expression_builder, context, containing_function, comp_index, filter_index) do
+    case expression_builder.build(expression, context, containing_function: containing_function, index: comp_index * 100 + filter_index + 50) do
+      {:ok, {expr_iri, expr_triples}} ->
+        link_triple = Helpers.object_property(filter_iri, Core.hasCondition(), expr_iri)
+        expr_triples ++ [link_triple | triples]
+
+      {:ok, {expr_iri, expr_triples, _updated_context}} ->
+        link_triple = Helpers.object_property(filter_iri, Core.hasCondition(), expr_iri)
+        expr_triples ++ [link_triple | triples]
+
+      :skip ->
+        triples
+    end
+  end
+
+  # Add comprehension body triple
+  defp add_comprehension_body_triple(triples, _expr_iri, nil, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
+
+  defp add_comprehension_body_triple(triples, expr_iri, body, expression_builder, build_expressions?, context, containing_function, comprehension_index) do
+    if build_expressions? and body != nil do
+      case expression_builder.build(body, context, containing_function: containing_function, index: comprehension_index * 100 + 99) do
+        {:ok, {body_iri, body_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), body_iri)
+          body_triples ++ [link_triple | triples]
+
+        {:ok, {body_iri, body_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), body_iri)
+          body_triples ++ [link_triple | triples]
+
+        :skip ->
+          triples
+      end
+    else
+      triples
+    end
+  end
+
+  # Track comprehension options (into, reduce, uniq) with optional expression building
+  defp add_comprehension_options_triples(triples, expr_iri, options, expression_builder, build_expressions?, context, containing_function, comprehension_index)
+       when is_map(options) do
     triples
-    |> add_into_option_triple(expr_iri, Map.get(options, :into))
-    |> add_reduce_option_triple(expr_iri, Map.get(options, :reduce))
+    |> add_into_option_triple(expr_iri, Map.get(options, :into), expression_builder, build_expressions?, context, containing_function, comprehension_index)
+    |> add_reduce_option_triple(expr_iri, Map.get(options, :reduce), expression_builder, build_expressions?, context, containing_function, comprehension_index)
     |> add_uniq_option_triple(expr_iri, Map.get(options, :uniq))
   end
 
-  defp add_comprehension_options_triples(triples, _expr_iri, _options), do: triples
+  defp add_comprehension_options_triples(triples, _expr_iri, _options, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
 
-  defp add_into_option_triple(triples, expr_iri, into) when not is_nil(into) do
-    triple = Helpers.datatype_property(expr_iri, Core.hasIntoOption(), true, RDF.XSD.Boolean)
-    [triple | triples]
+  defp add_into_option_triple(triples, expr_iri, into, expression_builder, build_expressions?, context, containing_function, comprehension_index) when not is_nil(into) do
+    if build_expressions? do
+      case expression_builder.build(into, context, containing_function: containing_function, index: comprehension_index * 100 + 10) do
+        {:ok, {into_iri, into_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasIntoOption(), into_iri)
+          into_triples ++ [link_triple | triples]
+
+        {:ok, {into_iri, into_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasIntoOption(), into_iri)
+          into_triples ++ [link_triple | triples]
+
+        :skip ->
+          triple = Helpers.datatype_property(expr_iri, Core.hasIntoOption(), true, RDF.XSD.Boolean)
+          [triple | triples]
+      end
+    else
+      triple = Helpers.datatype_property(expr_iri, Core.hasIntoOption(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
   end
 
-  defp add_into_option_triple(triples, _expr_iri, _into), do: triples
+  defp add_into_option_triple(triples, _expr_iri, _into, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
 
-  defp add_reduce_option_triple(triples, expr_iri, reduce) when not is_nil(reduce) do
-    triple = Helpers.datatype_property(expr_iri, Core.hasReduceOption(), true, RDF.XSD.Boolean)
-    [triple | triples]
+  defp add_reduce_option_triple(triples, expr_iri, reduce, expression_builder, build_expressions?, context, containing_function, comprehension_index) when not is_nil(reduce) do
+    if build_expressions? do
+      case expression_builder.build(reduce, context, containing_function: containing_function, index: comprehension_index * 100 + 20) do
+        {:ok, {reduce_iri, reduce_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasReduceOption(), reduce_iri)
+          reduce_triples ++ [link_triple | triples]
+
+        {:ok, {reduce_iri, reduce_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasReduceOption(), reduce_iri)
+          reduce_triples ++ [link_triple | triples]
+
+        :skip ->
+          triple = Helpers.datatype_property(expr_iri, Core.hasReduceOption(), true, RDF.XSD.Boolean)
+          [triple | triples]
+      end
+    else
+      triple = Helpers.datatype_property(expr_iri, Core.hasReduceOption(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
   end
 
-  defp add_reduce_option_triple(triples, _expr_iri, _reduce), do: triples
+  defp add_reduce_option_triple(triples, _expr_iri, _reduce, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
 
   defp add_uniq_option_triple(triples, expr_iri, true) do
     triple = Helpers.datatype_property(expr_iri, Core.hasUniqOption(), true, RDF.XSD.Boolean)
