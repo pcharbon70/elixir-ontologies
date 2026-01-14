@@ -1650,6 +1650,340 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # Case Expression Integration Tests (Phase 25.3)
+  # ===========================================================================
+
+  describe "case expression integration" do
+    alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, CaseClause}
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "case subject expression extraction in full mode" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], Elixir},  # Variable uses Elixir as context
+        clauses: [
+          %CaseClause{index: 0, pattern: {:a, [], Elixir}, guard: nil, body: 1, has_guard: false}
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition linking to the subject expression
+      subject_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert subject_triple != nil
+      subject_iri = elem(subject_triple, 2)
+      assert %RDF.IRI{} = subject_iri
+
+      # The subject should be a Variable
+      type_triple = find_triple(triples, subject_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.Variable
+    end
+
+    test "case clause pattern extraction in full mode" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], nil},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:x, [], Elixir},  # Variable pattern uses Elixir as context
+            guard: nil,
+            body: :matched,
+            has_guard: false
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasPattern linking to a pattern IRI
+      pattern_triple = find_triple(triples, expr_iri, Core.hasPattern())
+      assert pattern_triple != nil
+      pattern_iri = elem(pattern_triple, 2)
+      assert %RDF.IRI{} = pattern_iri
+
+      # The pattern should be a VariablePattern
+      pattern_type_triple = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type_triple != nil
+      assert elem(pattern_type_triple, 2) == Core.VariablePattern
+    end
+
+    test "case clause guard extraction in full mode" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], Elixir},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:x, [], Elixir},
+            guard: {:when, [], [{:>, [], [{:x, [], Elixir}, 0]}]},
+            body: :positive,
+            has_guard: true
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasGuard linking to guard expression
+      guard_triple = find_triple(triples, expr_iri, Core.hasGuard())
+      assert guard_triple != nil
+      guard_iri = elem(guard_triple, 2)
+      assert %RDF.IRI{} = guard_iri
+    end
+
+    test "case clause body extraction in full mode" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], Elixir},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:a, [], Elixir},
+            guard: nil,
+            body: {:+, [], [{:a, [], Elixir}, 1]},
+            has_guard: false
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasThenBranch linking to body expression
+      body_triple = find_triple(triples, expr_iri, Core.hasThenBranch())
+      assert body_triple != nil
+      body_iri = elem(body_triple, 2)
+      assert %RDF.IRI{} = body_iri
+
+      # The body should have an expression type
+      type_triple = find_triple(triples, body_iri, RDF.type())
+      assert type_triple != nil
+    end
+
+    test "case extraction with multiple clauses" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], Elixir},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:a, [], Elixir},
+            guard: nil,
+            body: :one,
+            has_guard: false
+          },
+          %CaseClause{
+            index: 1,
+            pattern: {:b, [], Elixir},
+            guard: nil,
+            body: :two,
+            has_guard: false
+          },
+          %CaseClause{
+            index: 2,
+            pattern: {:c, [], Elixir},
+            guard: nil,
+            body: :three,
+            has_guard: false
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasThenBranch links for each clause (3 total)
+      body_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasThenBranch() end)
+
+      assert length(body_triples) == 3
+    end
+
+    test "case extraction with guarded clauses" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], Elixir},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:a, [], Elixir},
+            guard: {:when, [], [{:>, [], [{:a, [], Elixir}, 0]}]},
+            body: :positive,
+            has_guard: true
+          },
+          %CaseClause{
+            index: 1,
+            pattern: {:b, [], Elixir},
+            guard: nil,
+            body: :other,
+            has_guard: false
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasGuard linking for the guarded clause
+      guard_triple = find_triple(triples, expr_iri, Core.hasGuard())
+      assert guard_triple != nil
+      guard_iri = elem(guard_triple, 2)
+      assert %RDF.IRI{} = guard_iri
+
+      # Should still have body expressions for both clauses
+      body_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasThenBranch() end)
+
+      assert length(body_triples) == 2
+    end
+
+    test "case extraction preserves clause order" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], Elixir},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:one, [], Elixir},
+            guard: nil,
+            body: 1,
+            has_guard: false
+          },
+          %CaseClause{
+            index: 1,
+            pattern: {:two, [], Elixir},
+            guard: nil,
+            body: 2,
+            has_guard: false
+          },
+          %CaseClause{
+            index: 2,
+            pattern: {:three, [], Elixir},
+            guard: nil,
+            body: 3,
+            has_guard: false
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {_expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find all body IRIs
+      body_iris =
+        triples
+        |> Enum.filter(fn {_s, p, _o} -> p == Core.hasThenBranch() end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+        |> Enum.filter(fn o -> match?(%RDF.IRI{}, o) end)
+
+      # Check that the suffixes preserve order (case_0_body, case_1_body, case_2_body)
+      suffixes =
+        body_iris
+        |> Enum.map(fn iri ->
+          iri
+          |> to_string()
+          |> String.split("/")
+          |> List.last()
+        end)
+        |> Enum.sort()
+
+      # Should have suffixes in order
+      assert Enum.at(suffixes, 0) =~ "case_0"
+      assert Enum.at(suffixes, 1) =~ "case_1"
+      assert Enum.at(suffixes, 2) =~ "case_2"
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 
