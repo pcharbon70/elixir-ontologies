@@ -77,7 +77,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   """
 
   alias ElixirOntologies.Builders.{Context, ExpressionBuilder, Helpers}
-  alias ElixirOntologies.NS.Core
+  alias ElixirOntologies.NS.{Core, Structure}
   alias ElixirOntologies.Extractors.Conditional.{Conditional, Branch}
   alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, WithExpression, ReceiveExpression}
   alias ElixirOntologies.Extractors.Comprehension
@@ -288,14 +288,20 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   def build_with(%WithExpression{} = with_expr, %Context{} = context, opts \\ []) do
     containing_function = Keyword.get(opts, :containing_function, "unknown/0")
     index = Keyword.get(opts, :index, 0)
+    expression_builder = Keyword.get(opts, :expression_builder)
 
     expr_iri = with_iri(context.base_iri, containing_function, index)
+
+    # Check if we should build full expressions
+    build_expressions? =
+      expression_builder != nil and Context.full_mode_for_file?(context, context.file_path)
 
     triples =
       []
       |> add_type_triple(expr_iri, Core.WithExpression)
-      |> add_with_clause_triples(expr_iri, with_expr.clauses)
-      |> add_has_else_triple(expr_iri, with_expr.else_clauses)
+      |> add_with_clause_triples(expr_iri, with_expr.clauses, expression_builder, build_expressions?, context)
+      |> add_with_body_triple(expr_iri, with_expr.body, expression_builder, build_expressions?, context)
+      |> add_with_else_triples(expr_iri, with_expr.else_clauses, expression_builder, build_expressions?, context)
       |> add_location_triple(expr_iri, with_expr.location)
 
     {expr_iri, triples}
@@ -726,24 +732,136 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # Private - With Clause Triples
   # ===========================================================================
 
-  # For with expressions, track that clauses exist
-  defp add_with_clause_triples(triples, expr_iri, clauses)
+  # For with expressions, build full clause pattern/expression triples in full mode
+  defp add_with_clause_triples(triples, expr_iri, clauses, expression_builder, build_expressions?, context)
        when is_list(clauses) and clauses != [] do
-    # Add hasClause to indicate clauses are present
-    triple = Helpers.datatype_property(expr_iri, Core.hasClause(), true, RDF.XSD.Boolean)
-    [triple | triples]
+    if build_expressions? do
+      # Build full expression triples for each clause
+      clauses
+      |> Enum.reduce(triples, fn clause, acc ->
+        add_with_clause_expression_triples(acc, expr_iri, clause, expression_builder, context)
+      end)
+    else
+      # Light mode: store boolean flag only
+      triple = Helpers.datatype_property(expr_iri, Core.hasClause(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
   end
 
-  defp add_with_clause_triples(triples, _expr_iri, _clauses), do: triples
+  defp add_with_clause_triples(triples, _expr_iri, _clauses, _expression_builder, _build_expressions?, _context),
+    do: triples
 
-  # Track presence of else clauses using hasElseClause
-  defp add_has_else_triple(triples, expr_iri, else_clauses)
+  # Build pattern and expression triples for a single with clause
+  defp add_with_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
+    # 1. Build pattern triples
+    pattern_iri = RDF.iri("#{expr_iri}/pattern/#{clause.index}")
+    pattern_triples = ExpressionBuilder.build_pattern(clause.pattern, pattern_iri, context)
+    pattern_link_triple = Helpers.object_property(expr_iri, Core.hasPattern(), pattern_iri)
+
+    # 2. Build expression being matched
+    # Use hasCondition to link the expression being matched to the with expression
+    # (similar to how case expressions link the subject)
+    expression_triples_with_link =
+      case expression_builder.build(clause.expression, context, suffix: "with_#{clause.index}_expression") do
+        {:ok, {expr_ast_iri, expr_ast_triples}} ->
+          # Create hasCondition link from with expression to the expression being matched
+          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), expr_ast_iri)
+          expr_ast_triples ++ [link_triple]
+
+        {:ok, {expr_ast_iri, expr_ast_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), expr_ast_iri)
+          expr_ast_triples ++ [link_triple]
+
+        :skip ->
+          []
+      end
+
+    pattern_triples ++ [pattern_link_triple] ++ expression_triples_with_link ++ triples
+  end
+
+  # Extract with body expression in full mode
+  defp add_with_body_triple(triples, expr_iri, body, expression_builder, build_expressions?, context) do
+    if build_expressions? and not is_nil(body) do
+      case expression_builder.build(body, context, suffix: "body") do
+        {:ok, {body_iri, body_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Structure.hasBody(), body_iri)
+          body_triples ++ [link_triple | triples]
+
+        {:ok, {body_iri, body_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Structure.hasBody(), body_iri)
+          body_triples ++ [link_triple | triples]
+
+        :skip ->
+          triples
+      end
+    else
+      triples
+    end
+  end
+
+  # Build else clause triples in full mode
+  defp add_with_else_triples(triples, expr_iri, else_clauses, expression_builder, build_expressions?, context)
        when is_list(else_clauses) and else_clauses != [] do
-    triple = Helpers.datatype_property(expr_iri, Core.hasElseClause(), true, RDF.XSD.Boolean)
-    [triple | triples]
+    if build_expressions? do
+      # Build expression triples for else clauses
+      # For with, else clauses are CaseClause structs (same as case expression)
+      else_clauses
+      |> Enum.reduce(triples, fn clause, acc ->
+        add_else_clause_expression_triples(acc, expr_iri, clause, expression_builder, context)
+      end)
+    else
+      # Light mode: store boolean flag only
+      triple = Helpers.datatype_property(expr_iri, Core.hasElseClause(), true, RDF.XSD.Boolean)
+      [triple | triples]
+    end
   end
 
-  defp add_has_else_triple(triples, _expr_iri, _else_clauses), do: triples
+  defp add_with_else_triples(triples, _expr_iri, _else_clauses, _expression_builder, _build_expressions?, _context),
+    do: triples
+
+  # Build expression triples for an else clause (similar to case clauses)
+  defp add_else_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
+    # Build pattern
+    pattern_iri = RDF.iri("#{expr_iri}/else/#{clause.index}/pattern")
+    pattern_triples = ExpressionBuilder.build_pattern(clause.pattern, pattern_iri, context)
+    pattern_link_triple = Helpers.object_property(expr_iri, Core.hasPattern(), pattern_iri)
+
+    # Build guard if present
+    guard_triples =
+      if clause.guard != nil do
+        case expression_builder.build(clause.guard, context, suffix: "else_#{clause.index}_guard") do
+          {:ok, {guard_iri, guard_expr_triples}} ->
+            link_triple = Helpers.object_property(expr_iri, Core.hasGuard(), guard_iri)
+            guard_expr_triples ++ [link_triple]
+
+          {:ok, {guard_iri, guard_expr_triples, _updated_context}} ->
+            link_triple = Helpers.object_property(expr_iri, Core.hasGuard(), guard_iri)
+            guard_expr_triples ++ [link_triple]
+
+          :skip ->
+            []
+        end
+      else
+        []
+      end
+
+    # Build body
+    body_triples_with_link =
+      case expression_builder.build(clause.body, context, suffix: "else_#{clause.index}_body") do
+        {:ok, {body_iri, body_expr_triples}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasThenBranch(), body_iri)
+          body_expr_triples ++ [link_triple]
+
+        {:ok, {body_iri, body_expr_triples, _updated_context}} ->
+          link_triple = Helpers.object_property(expr_iri, Core.hasThenBranch(), body_iri)
+          body_expr_triples ++ [link_triple]
+
+        :skip ->
+          []
+      end
+
+    pattern_triples ++ [pattern_link_triple] ++ guard_triples ++ body_triples_with_link ++ triples
+  end
 
   # ===========================================================================
   # Private - Receive Expression Helpers

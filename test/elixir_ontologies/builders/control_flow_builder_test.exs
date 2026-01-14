@@ -1984,6 +1984,296 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # With Expression Integration Tests (Phase 25.4)
+  # ===========================================================================
+
+  describe "with expression integration" do
+    alias ElixirOntologies.Extractors.CaseWith.{WithExpression, WithClause, CaseClause}
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "with clause pattern extraction in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result, [], Elixir}
+          }
+        ],
+        body: {:result, [], Elixir},
+        else_clauses: [],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasPattern linking to the pattern IRI
+      pattern_triple = find_triple(triples, expr_iri, Core.hasPattern())
+      assert pattern_triple != nil
+
+      # Pattern should be a VariablePattern for the variable { :ok, [], Elixir }
+      pattern_iri = elem(pattern_triple, 2)
+      pattern_type_triple = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type_triple != nil
+      assert elem(pattern_type_triple, 2) == Core.VariablePattern
+    end
+
+    test "with clause expression extraction in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:x, [], Elixir},
+            expression: {:get_value, [], []}
+          }
+        ],
+        body: {:x, [], Elixir},
+        else_clauses: [],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition linking to the matched expression
+      # (The expression on the right side of the <- operator)
+      expr_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert expr_triple != nil
+
+      # The expression should be a LocalCall
+      matched_expr_iri = elem(expr_triple, 2)
+      expr_type_triple = find_triple(triples, matched_expr_iri, RDF.type())
+      assert expr_type_triple != nil
+      assert elem(expr_type_triple, 2) == Core.LocalCall
+    end
+
+    test "with body extraction in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result, [], Elixir}
+          }
+        ],
+        body: {:result, [], Elixir},
+        else_clauses: [],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasBody linking to body expression
+      body_triple = find_triple(triples, expr_iri, ElixirOntologies.NS.Structure.hasBody())
+      assert body_triple != nil
+
+      # Body should be a Variable
+      body_iri = elem(body_triple, 2)
+      body_type_triple = find_triple(triples, body_iri, RDF.type())
+      assert body_type_triple != nil
+      assert elem(body_type_triple, 2) == Core.Variable
+    end
+
+    test "with else clause extraction in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result, [], Elixir}
+          }
+        ],
+        body: {:result, [], Elixir},
+        else_clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:error, [], Elixir},
+            guard: nil,
+            body: {:handle_error, [], []},
+            has_guard: false
+          }
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasPattern linking to else pattern
+      pattern_triple = find_triple(triples, expr_iri, Core.hasPattern())
+      # Find the else pattern (there should be at least 2 patterns - one for with clause, one for else)
+      pattern_iris =
+        triples
+        |> Enum.filter(fn {s, p, _o} -> s == expr_iri and p == Core.hasPattern() end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+
+      # Should have at least 2 patterns (with clause + else clause)
+      assert length(pattern_iris) >= 2
+
+      # Should have hasThenBranch linking to else body
+      body_triple = find_triple(triples, expr_iri, Core.hasThenBranch())
+      assert body_triple != nil
+
+      # Else body should be a LocalCall
+      body_iri = elem(body_triple, 2)
+      body_type_triple = find_triple(triples, body_iri, RDF.type())
+      assert body_type_triple != nil
+      assert elem(body_type_triple, 2) == Core.LocalCall
+    end
+
+    test "with extraction with multiple clauses in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result1, [], Elixir}
+          },
+          %WithClause{
+            index: 1,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result2, [], Elixir}
+          },
+          %WithClause{
+            index: 2,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result3, [], Elixir}
+          }
+        ],
+        body: {:final_result, [], Elixir},
+        else_clauses: [],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have 3 hasPattern links (one per clause)
+      pattern_iris =
+        triples
+        |> Enum.filter(fn {s, p, _o} -> s == expr_iri and p == Core.hasPattern() end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+
+      assert length(pattern_iris) == 3
+
+      # Should have hasCondition links for each expression being matched
+      condition_links =
+        triples
+        |> Enum.filter(fn {s, p, _o} ->
+          s == expr_iri and p == Core.hasCondition()
+        end)
+
+      assert length(condition_links) == 3
+    end
+
+    test "with extraction handles else clauses with guards in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result, [], Elixir}
+          }
+        ],
+        body: {:result, [], Elixir},
+        else_clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:error, [], Elixir},
+            guard: {:when, [], [{:x, [], Elixir}, {:is_exception, [], []}]},
+            body: {:raise, [], []},
+            has_guard: true
+          }
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasGuard link for the else clause
+      guard_triple = find_triple(triples, expr_iri, Core.hasGuard())
+      assert guard_triple != nil
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 
