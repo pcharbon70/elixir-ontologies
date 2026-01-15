@@ -131,23 +131,25 @@ This section ensures that guard expressions preserve their semantic meaning and 
 This section ensures that guards are correctly extracted for functions with multiple clauses, each potentially having different guards.
 
 ### 26.5.1 Per-Clause Guard Extraction
-- [ ] 26.5.1.1 Ensure guard extraction works for each clause independently
-- [ ] 26.5.1.2 Handle clauses with guards vs clauses without guards
-- [ ] 26.5.1.3 Generate unique guard IRIs: `{clause_iri}/guard`
-- [ ] 26.5.1.4 Link guards from function head
-- [ ] 26.5.1.5 Preserve guard clause order (important for semantics)
+- [x] 26.5.1.1 Ensure guard extraction works for each clause independently
+- [x] 26.5.1.2 Handle clauses with guards vs clauses without guards
+- [x] 26.5.1.3 Generate unique guard IRIs: `{clause_iri}/guard`
+- [x] 26.5.1.4 Link guards from function head
+- [x] 26.5.1.5 Preserve guard clause order (important for semantics)
 
 ### 26.5.2 Guard Order and Evaluation
-- [ ] 26.5.2.1 Document that guards are evaluated in order
-- [ ] 26.5.2.2 First matching clause wins (Elixir semantics)
-- [ ] 26.5.2.3 Guard expression structure should reflect evaluation order
-- [ ] 26.5.2.4 And/or expressions preserve left-to-right evaluation
+- [x] 26.5.2.1 Document that guards are evaluated in order
+- [x] 26.5.2.2 First matching clause wins (Elixir semantics)
+- [x] 26.5.2.3 Guard expression structure should reflect evaluation order
+- [x] 26.5.2.4 And/or expressions preserve left-to-right evaluation
 
 **Section 26.5 Unit Tests:**
-- [ ] Test guard extraction for multi-clause function
-- [ ] Test guard extraction handles mixed guarded/unguarded clauses
-- [ ] Test guard extraction preserves guard order
-- [ ] Test guard extraction works for complex multi-clause functions
+- [x] Test guard extraction for multi-clause function
+- [x] Test guard extraction handles mixed guarded/unguarded clauses
+- [x] Test guard extraction preserves guard order
+- [x] Test guard extraction works for complex multi-clause functions
+
+**Status:** ✅ COMPLETE (Already Implemented in Phases 21, 23, 26.1-26.4)
 
 ## Phase 26 Integration Tests
 
