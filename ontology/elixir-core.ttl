@@ -690,6 +690,13 @@
     rdfs:domain :Block ;
     rdfs:range :Expression .
 
+:hasReturnExpression a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has return expression"@en ;
+    rdfs:comment "Links a block to the expression that provides its return value. Typically the last expression, but may be an early exit expression (throw/raise)."@en ;
+    rdfs:subPropertyOf :hasChild ;
+    rdfs:domain :Block ;
+    rdfs:range :Expression .
+
 :definesScope a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:label "defines scope"@en ;
     rdfs:range :Scope .

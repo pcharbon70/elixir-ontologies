@@ -354,8 +354,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
         expr_triples ++ [link_triple]
       end)
 
-    # Combine type triple with all child triples
-    [type_triple | child_triples]
+    # Link the last expression as the return value
+    return_triple =
+      if length(expressions) > 0 do
+        last_child_iri = fresh_iri(block_iri, "child/#{length(expressions) - 1}")
+        Helpers.object_property(block_iri, Core.hasReturnExpression(), last_child_iri)
+      else
+        []
+      end
+
+    # Combine type triple, child triples, and return triple
+    [type_triple | child_triples] ++ [return_triple]
   end
 
   @spec build_fn_block(list(), RDF.IRI.t(), Context.t(), non_neg_integer(), non_neg_integer()) :: [RDF.Triple.t()]
@@ -438,12 +447,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     body_triples = build_expression_triples(body, body_iri, context)
     body_link_triple = Helpers.object_property(clause_iri, Core.hasChild(), body_iri)
 
+    # Link body as return expression for the clause
+    return_link_triple = Helpers.object_property(clause_iri, Core.hasReturnExpression(), body_iri)
+
     # Link clause to fn block
     clause_link_triple = Helpers.object_property(fn_iri, Core.hasClause(), clause_iri)
 
     # Combine all triples
     param_triples ++ guard_triples ++ body_triples ++
-      [body_link_triple, clause_link_triple]
+      [body_link_triple, return_link_triple, clause_link_triple]
   end
 
   # Parse fn parameters to extract parameters and optional guard

@@ -4814,22 +4814,50 @@ string
 
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
 
-      # Get children
-      children = find_all_objects(triples, expr_iri, Core.hasChild())
+      # Should have hasReturnExpression link to the last child
+      return_expr = find_object(triples, expr_iri, Core.hasReturnExpression())
 
-      # The return value is the last expression
-      # Find the child with index 1 (second child, zero-based)
-      return_child_iri = Enum.find(children, fn child ->
-        RDF.IRI.to_string(child)
-        |> String.ends_with?("child/1")
-      end)
+      assert return_expr != nil
 
-      assert return_child_iri != nil
+      # Return expression should be child/1 (the last child, zero-based)
+      assert RDF.IRI.to_string(return_expr) =~ ~r|/child/1$|
 
       # Verify it's an addition expression (the return value)
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == return_child_iri and p == RDF.type() and o == Core.ArithmeticOperator
+        s == return_expr and p == RDF.type() and o == Core.ArithmeticOperator
       end)
+    end
+
+    test "do block extraction with single expression has return expression", %{context: context} do
+      # do
+      #   42  # Single expression, also the return value
+      # end
+      ast = {:__block__, [], [42]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have hasReturnExpression link to child/0 (the only child)
+      return_expr = find_object(triples, expr_iri, Core.hasReturnExpression())
+
+      assert return_expr != nil
+      assert RDF.IRI.to_string(return_expr) =~ ~r|/child/0$|
+    end
+
+    test "do block extraction for empty block has no return expression", %{context: context} do
+      # do
+      # end  (empty block)
+      ast = {:__block__, [], []}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should NOT have hasReturnExpression link
+      return_expr = find_object(triples, expr_iri, Core.hasReturnExpression())
+
+      assert return_expr == nil
     end
 
     test "do block extraction handles empty blocks", %{context: context} do
@@ -5162,6 +5190,91 @@ string
         s == outer_body and p == RDF.type() and o == Core.FnBlock
       end)
     end
+
+    test "fn block extraction has return expression link to body", %{context: context} do
+      # fn x -> x + 1 end
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{:x, [], nil}], {:+, [], [{:x, [], nil}, 1]}]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Get the clause
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      first_clause = Enum.at(clauses, 0)
+
+      # Should have hasReturnExpression link to the body
+      return_expr = find_object(triples, first_clause, Core.hasReturnExpression())
+
+      assert return_expr != nil
+
+      # Return expression should end with "/body"
+      assert RDF.IRI.to_string(return_expr) =~ ~r|/body$|
+
+      # The body should be an arithmetic operator (the return value)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == return_expr and p == RDF.type() and o == Core.ArithmeticOperator
+      end)
+    end
+
+    test "fn block extraction with multiple clauses each has return expression", %{context: context} do
+      # fn
+      #   x -> x + 1
+      #   y -> y * 2
+      # end
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{:x, [], nil}], {:+, [], [{:x, [], nil}, 1]}]},
+           {:->, [], [[{:y, [], nil}], {:*, [], [{:y, [], nil}, 2]}]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Get both clauses
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      assert length(clauses) == 2
+
+      # Each clause should have a return expression
+      for clause <- clauses do
+        return_expr = find_object(triples, clause, Core.hasReturnExpression())
+        assert return_expr != nil
+        assert RDF.IRI.to_string(return_expr) =~ ~r|/body$|
+      end
+    end
+
+    test "fn block extraction with guard has return expression", %{context: context} do
+      # fn x when is_integer(x) -> x + 1 end
+      ast =
+        {:fn, [],
+         [
+           {:->, [],
+            [
+              [{:when, [], [{:x, [], nil}, {:is_integer, [], [{:x, [], nil}]}]}],
+              {:+, [], [{:x, [], nil}, 1]}
+            ]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Get the clause
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      first_clause = Enum.at(clauses, 0)
+
+      # Should have hasReturnExpression link to the body
+      return_expr = find_object(triples, first_clause, Core.hasReturnExpression())
+
+      assert return_expr != nil
+      assert RDF.IRI.to_string(return_expr) =~ ~r|/body$|
+    end
   end
 
   # ===========================================================================
@@ -5173,5 +5286,10 @@ string
       s == subject and p == predicate
     end)
     |> Enum.map(fn {_s, _p, o} -> o end)
+  end
+
+  defp find_object(triples, subject, predicate) do
+    find_all_objects(triples, subject, predicate)
+    |> List.first()
   end
 end
