@@ -6,6 +6,8 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
   alias ElixirOntologies.Extractors.Clause
   alias ElixirOntologies.NS.{Structure, Core}
 
+  @base_iri "https://example.org/code#"
+
   doctest ClauseBuilder
 
   # ===========================================================================
@@ -1008,7 +1010,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Find the FunctionHead blank node
       head_triple =
-        Enum.find(triples, fn {s, p, o} ->
+        Enum.find(triples, fn {s, p, _o} ->
           s == clause_iri and p == Structure.hasHead()
         end)
 
@@ -1017,7 +1019,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Find the guard expression IRI linked from head
       guard_triple =
-        Enum.find(triples, fn {s, p, o} ->
+        Enum.find(triples, fn {s, p, _o} ->
           s == head_bnode and p == Core.hasGuard()
         end)
 
@@ -1046,7 +1048,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Find the FunctionHead blank node
       head_triple =
-        Enum.find(triples, fn {s, p, o} ->
+        Enum.find(triples, fn {s, p, _o} ->
           s == clause_iri and p == Structure.hasHead()
         end)
 
@@ -1055,7 +1057,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Find the guard blank node linked from head
       guard_triple =
-        Enum.find(triples, fn {s, p, o} ->
+        Enum.find(triples, fn {s, p, _o} ->
           s == head_bnode and p == Core.hasGuard()
         end)
 
@@ -1093,14 +1095,14 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Find the guard - should be blank node in light mode
       head_triple =
-        Enum.find(triples, fn {s, p, o} ->
+        Enum.find(triples, fn {s, p, _o} ->
           s == clause_iri and p == Structure.hasHead()
         end)
 
       head_bnode = elem(head_triple, 2)
 
       guard_triple =
-        Enum.find(triples, fn {s, p, o} ->
+        Enum.find(triples, fn {s, p, _o} ->
           s == head_bnode and p == Core.hasGuard()
         end)
 
@@ -1136,14 +1138,14 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Should use blank node for dependency files
       head_triple =
-        Enum.find(triples, fn {s, p, o} ->
+        Enum.find(triples, fn {s, p, _o} ->
           s == clause_iri and p == Structure.hasHead()
         end)
 
       head_bnode = elem(head_triple, 2)
 
       guard_triple =
-        Enum.find(triples, fn {s, p, o} ->
+        Enum.find(triples, fn {s, p, _o} ->
           s == head_bnode and p == Core.hasGuard()
         end)
 
@@ -1178,14 +1180,14 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Should not have a hasGuard triple when guard is nil
       head_triple =
-        Enum.find(triples, fn {s, p, o} ->
+        Enum.find(triples, fn {s, p, _o} ->
           s == clause_iri and p == Structure.hasHead()
         end)
 
       head_bnode = elem(head_triple, 2)
 
       guard_triple =
-        Enum.find(triples, fn {s, p, o} ->
+        Enum.find(triples, fn {s, p, _o} ->
           s == head_bnode and p == Core.hasGuard()
         end)
 
@@ -1324,7 +1326,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Find the guard expression IRI (the RemoteCall)
       guard_iri =
-        Enum.find_value(triples, fn {s, p, o} ->
+        Enum.find_value(triples, fn {_s, p, o} ->
           if p == Core.hasGuard() do
             o
           else

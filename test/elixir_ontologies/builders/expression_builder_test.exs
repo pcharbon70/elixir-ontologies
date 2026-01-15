@@ -3101,7 +3101,7 @@ string
     test "dispatches variable pattern to VariablePattern via build_pattern" do
       context = full_mode_context()
       ast = {:x, [], Elixir}
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       # Using build_pattern directly should return VariablePattern
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
@@ -3113,7 +3113,7 @@ string
     test "dispatches wildcard pattern to WildcardPattern via build_pattern" do
       context = full_mode_context()
       ast = {:_}
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       # Using build_pattern directly should return WildcardPattern
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
