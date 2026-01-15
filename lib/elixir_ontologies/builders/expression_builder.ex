@@ -214,6 +214,110 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # ===========================================================================
+  # Block Detection Helpers
+  # ===========================================================================
+
+  @doc """
+  Detects the type of block expression in the AST.
+
+  Returns the block type atom based on AST structure:
+  - `:fn_block` - Anonymous function (fn...end)
+  - `:do_block` - Multi-expression block ({:__block__, _, ...})
+  - `:single_expr` - Single expression (not a block)
+
+  ## Parameters
+
+  - `ast` - The Elixir AST node to analyze
+
+  ## Returns
+
+  Block type atom: `:fn_block`, `:do_block`, or `:single_expr`
+
+  ## Examples
+
+      iex> ExpressionBuilder.detect_block_type({:fn, [], []})
+      :fn_block
+
+      iex> ExpressionBuilder.detect_block_type({:__block__, [], [:a, :b]})
+      :do_block
+
+      iex> ExpressionBuilder.detect_block_type({:+, [], [1, 2]})
+      :single_expr
+
+  """
+  @spec detect_block_type(Macro.t()) :: :fn_block | :do_block | :single_expr
+  def detect_block_type({:fn, _, _}), do: :fn_block
+  def detect_block_type({:__block__, _, _}), do: :do_block
+  def detect_block_type(_), do: :single_expr
+
+  @doc """
+  Analyzes the structure of a block expression.
+
+  Extracts block type, expression list, and metadata from the AST.
+
+  ## Parameters
+
+  - `ast` - The Elixir AST node to analyze
+
+  ## Returns
+
+  A map containing:
+  - `:type` - Block type atom (`:fn_block`, `:do_block`, `:single_expr`)
+  - `:expressions` - List of expressions in the block
+  - `:empty?` - Boolean indicating if block is empty
+  - `:metadata` - AST metadata (line numbers, context)
+
+  ## Examples
+
+      iex> ast = {:__block__, [], [:a, :b]}
+      ...> ExpressionBuilder.analyze_block_structure(ast)
+      %{
+        type: :do_block,
+        expressions: [:a, :b],
+        empty?: false,
+        metadata: []
+      }
+
+      iex> ast = {:+, [], [1, 2]}
+      ...> ExpressionBuilder.analyze_block_structure(ast)
+      %{
+        type: :single_expr,
+        expressions: [{:+, [], [1, 2]}],
+        empty?: false,
+        metadata: []
+      }
+
+  """
+  @spec analyze_block_structure(Macro.t()) :: %{
+          type: atom(),
+          expressions: list(),
+          empty?: boolean(),
+          metadata: list()
+        }
+  def analyze_block_structure(ast) do
+    type = detect_block_type(ast)
+
+    {expressions, metadata} =
+      case ast do
+        {:__block__, meta, exprs} when is_list(exprs) ->
+          {exprs, meta}
+
+        {:fn, meta, clauses} ->
+          {clauses, meta}
+
+        _ ->
+          {[ast], []}
+      end
+
+    %{
+      type: type,
+      expressions: expressions,
+      empty?: expressions == [],
+      metadata: metadata
+    }
+  end
+
+  # ===========================================================================
   # Expression Dispatch
   # ===========================================================================
 

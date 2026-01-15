@@ -4571,4 +4571,140 @@ string
       s == subject_iri and p == Core.name() and RDF.Literal.value(o) == expected_name
     end)
   end
+
+  # ===========================================================================
+  # Block Detection Tests (Phase 27.1)
+  # ===========================================================================
+
+  describe "block detection" do
+    test "detect_block_type identifies fn blocks" do
+      # fn x -> x + 1 end
+      ast = {:fn, [], [{:->, [], [[{:x, [], nil}], {:+, [], [{:x, [], nil}, 1]}]}]}
+
+      assert ExpressionBuilder.detect_block_type(ast) == :fn_block
+    end
+
+    test "detect_block_type identifies do blocks (__block__)" do
+      # Multi-expression block (compiled from do..end)
+      ast = {:__block__, [], [:a, :b]}
+
+      assert ExpressionBuilder.detect_block_type(ast) == :do_block
+    end
+
+    test "detect_block_type identifies single expressions" do
+      # x + 1 (not a block)
+      ast = {:+, [], [{:x, [], nil}, 1]}
+
+      assert ExpressionBuilder.detect_block_type(ast) == :single_expr
+    end
+
+    test "detect_block_type identifies variable as single expression" do
+      # x (not a block)
+      ast = {:x, [], nil}
+
+      assert ExpressionBuilder.detect_block_type(ast) == :single_expr
+    end
+
+    test "detect_block_type identifies literal as single expression" do
+      # 42 (not a block)
+      ast = 42
+
+      assert ExpressionBuilder.detect_block_type(ast) == :single_expr
+    end
+
+    test "detect_block_type identifies empty block as do_block" do
+      # Empty __block__ is still a do_block type
+      ast = {:__block__, [], []}
+
+      assert ExpressionBuilder.detect_block_type(ast) == :do_block
+    end
+  end
+
+  describe "block structure analysis" do
+    test "analyze_block_structure for do block with multiple expressions" do
+      # do
+      #   :a
+      #   :b
+      # end
+      ast = {:__block__, [], [:a, :b]}
+
+      structure = ExpressionBuilder.analyze_block_structure(ast)
+
+      assert structure.type == :do_block
+      assert structure.expressions == [:a, :b]
+      assert structure.empty? == false
+      assert structure.metadata == []
+    end
+
+    test "analyze_block_structure for empty do block" do
+      # do (empty) end
+      ast = {:__block__, [], []}
+
+      structure = ExpressionBuilder.analyze_block_structure(ast)
+
+      assert structure.type == :do_block
+      assert structure.expressions == []
+      assert structure.empty? == true
+    end
+
+    test "analyze_block_structure for fn block" do
+      # fn x -> x + 1 end
+      ast =
+        {:fn, [], [{:->, [], [[{:x, [], nil}], {:+, [], [{:x, [], nil}, 1]}]}]}
+
+      structure = ExpressionBuilder.analyze_block_structure(ast)
+
+      assert structure.type == :fn_block
+      assert length(structure.expressions) == 1
+      assert structure.empty? == false
+    end
+
+    test "analyze_block_structure for fn block with multiple clauses" do
+      # fn
+      #   x -> x + 1
+      #   y -> y * 2
+      # end
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{:x, [], nil}], {:+, [], [{:x, [], nil}, 1]}]},
+           {:->, [], [[{:y, [], nil}], {:*, [], [{:y, [], nil}, 2]}]}
+         ]}
+
+      structure = ExpressionBuilder.analyze_block_structure(ast)
+
+      assert structure.type == :fn_block
+      assert length(structure.expressions) == 2
+      assert structure.empty? == false
+    end
+
+    test "analyze_block_structure for single expression" do
+      # x + 1
+      ast = {:+, [], [{:x, [], nil}, 1]}
+
+      structure = ExpressionBuilder.analyze_block_structure(ast)
+
+      assert structure.type == :single_expr
+      assert structure.expressions == [{:+, [], [{:x, [], nil}, 1]}]
+      assert structure.empty? == false
+    end
+
+    test "analyze_block_structure captures metadata from AST" do
+      # Block with metadata (line numbers)
+      ast = {:__block__, [line: 10], [:a, :b]}
+
+      structure = ExpressionBuilder.analyze_block_structure(ast)
+
+      assert structure.metadata == [line: 10]
+    end
+
+    test "analyze_block_structure captures column metadata from AST" do
+      # Block with column metadata
+      ast = {:__block__, [line: 10, column: 5], [:a, :b]}
+
+      structure = ExpressionBuilder.analyze_block_structure(ast)
+
+      assert structure.metadata == [line: 10, column: 5]
+    end
+  end
 end
