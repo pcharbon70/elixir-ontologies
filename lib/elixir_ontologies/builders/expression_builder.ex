@@ -91,16 +91,6 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   The `expression_iri/3`, `fresh_iri/2`, and `get_or_create_iri/3` functions
   provide flexible IRI generation patterns for different use cases.
-
-  ## Limitations
-
-  The following builder functions currently only record the call signature:
-  - `build_remote_call/5` - Records `Module.function` but doesn't build argument expressions
-  - `build_local_call/4` - Records `function` but doesn't build argument expressions
-
-  Full argument expression building is planned for a future phase. The current
-  implementation captures the function call identity but does not recursively
-  build the argument ASTs into expression triples.
   """
 
   alias ElixirOntologies.Builders.{Context, Helpers}
@@ -595,7 +585,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Remote call: Module.function(args)
-  defp build_remote_call(module, function, _args, expr_iri, _context) do
+  defp build_remote_call(module, function, args, expr_iri, context) do
     # Extract module name from aliases AST
     module_name =
       case module do
@@ -611,18 +601,60 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
         _ -> inspect(function)
       end
 
-    [
+    # Build base triples for the RemoteCall
+    base_triples = [
       Helpers.type_triple(expr_iri, Core.RemoteCall),
       Helpers.datatype_property(expr_iri, Core.name(), "#{module_name}.#{function_name}", RDF.XSD.String)
     ]
+
+    # Build argument expressions recursively
+    # We use build_expression_triples/3 instead of build/3 here because:
+    # 1. The expr_iri for each argument is already known (generated below)
+    # 2. Mode checking was already done by the parent build/3 call
+    # 3. We don't need additional IRI counter management (child IRIs are relative)
+    # 4. We need direct access to the triples list for concatenation
+    arg_triples =
+      Enum.with_index(args)
+      |> Enum.flat_map(fn {arg_ast, index} ->
+        arg_iri = fresh_iri(expr_iri, "arg-#{index}")
+
+        arg_expr_triples = build_expression_triples(arg_ast, arg_iri, context)
+        link_triple = Helpers.object_property(expr_iri, Core.hasArgument(), arg_iri)
+
+        arg_expr_triples ++ [link_triple]
+      end)
+
+    # Combine base triples with argument triples
+    base_triples ++ arg_triples
   end
 
   # Local call: function(args)
-  defp build_local_call(function, _args, expr_iri, _context) do
-    [
+  defp build_local_call(function, args, expr_iri, context) do
+    # Build base triples for the LocalCall
+    base_triples = [
       Helpers.type_triple(expr_iri, Core.LocalCall),
       Helpers.datatype_property(expr_iri, Core.name(), to_string(function), RDF.XSD.String)
     ]
+
+    # Build argument expressions recursively
+    # We use build_expression_triples/3 instead of build/3 here because:
+    # 1. The expr_iri for each argument is already known (generated below)
+    # 2. Mode checking was already done by the parent build/3 call
+    # 3. We don't need additional IRI counter management (child IRIs are relative)
+    # 4. We need direct access to the triples list for concatenation
+    arg_triples =
+      Enum.with_index(args)
+      |> Enum.flat_map(fn {arg_ast, index} ->
+        arg_iri = fresh_iri(expr_iri, "arg-#{index}")
+
+        arg_expr_triples = build_expression_triples(arg_ast, arg_iri, context)
+        link_triple = Helpers.object_property(expr_iri, Core.hasArgument(), arg_iri)
+
+        arg_expr_triples ++ [link_triple]
+      end)
+
+    # Combine base triples with argument triples
+    base_triples ++ arg_triples
   end
 
   # Variable: {name, meta, ctx}

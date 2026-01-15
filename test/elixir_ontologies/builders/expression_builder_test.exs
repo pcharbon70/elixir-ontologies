@@ -1261,6 +1261,165 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
         p == Core.name() and RDF.Literal.value(o) == "MyApp.Users.get"
       end)
     end
+
+    test "builds argument expressions for remote calls" do
+      context = full_mode_context()
+
+      # AST for is_integer(x) - a guard built-in
+      ast =
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_integer]}, [],
+         [{:x, [], nil}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create RemoteCall type
+      assert has_type?(triples, Core.RemoteCall)
+
+      # Should create argument child IRI
+      arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+
+      # Argument should be a Variable
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.Variable end)
+
+      # Should link argument via hasArgument property
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasArgument() and o == arg_iri
+      end)
+    end
+
+    test "builds multiple argument expressions" do
+      context = full_mode_context()
+
+      # AST for Some.func(a, b) - two arguments
+      ast =
+        {{:., [], [{:__aliases__, [], [:Some]}, :func]}, [],
+         [{:a, [], nil}, {:b, [], nil}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create RemoteCall type
+      assert has_type?(triples, Core.RemoteCall)
+
+      # Should create two argument child IRIs
+      arg0_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+      arg1_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-1")
+
+      # Both arguments should be Variables
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg0_iri and o == Core.Variable end)
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg1_iri and o == Core.Variable end)
+
+      # Should link both arguments via hasArgument property
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasArgument() and o == arg0_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasArgument() and o == arg1_iri
+      end)
+    end
+
+    test "builds complex argument expressions" do
+      context = full_mode_context()
+
+      # AST for Kernel.is_integer(x + 1) - argument is an arithmetic expression
+      add_ast = {:+, [], [{:x, [], nil}, 1]}
+      ast = {{:., [], [{:__aliases__, [], [:Kernel]}, :is_integer]}, [], [add_ast]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create RemoteCall type
+      assert has_type?(triples, Core.RemoteCall)
+
+      # Argument should be an ArithmeticOperator
+      arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.ArithmeticOperator end)
+    end
+
+    test "guard built-in: is_binary/1 with variable argument" do
+      context = full_mode_context()
+
+      # AST for is_binary(x)
+      ast =
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_binary]}, [],
+         [{:x, [], nil}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.RemoteCall)
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.name() and RDF.Literal.value(o) == "Kernel.is_binary"
+      end)
+
+      arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.Variable end)
+    end
+
+    test "guard built-in: is_list/1 with variable argument" do
+      context = full_mode_context()
+
+      # AST for is_list(items)
+      ast =
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_list]}, [],
+         [{:items, [], nil}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.RemoteCall)
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.name() and RDF.Literal.value(o) == "Kernel.is_list"
+      end)
+
+      arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.Variable end)
+    end
+
+    test "guard built-in: is_atom/1" do
+      context = full_mode_context()
+
+      # AST for is_atom(x)
+      ast =
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_atom]}, [],
+         [{:x, [], nil}]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.RemoteCall)
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.name() and RDF.Literal.value(o) == "Kernel.is_atom"
+      end)
+    end
+
+    test "guard built-in: is_map/1" do
+      context = full_mode_context()
+
+      # AST for is_map(x)
+      ast =
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_map]}, [],
+         [{:x, [], nil}]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.RemoteCall)
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.name() and RDF.Literal.value(o) == "Kernel.is_map"
+      end)
+    end
+
+    test "guard built-in: is_tuple/1" do
+      context = full_mode_context()
+
+      # AST for is_tuple(x)
+      ast =
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_tuple]}, [],
+         [{:x, [], nil}]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      assert has_type?(triples, Core.RemoteCall)
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.name() and RDF.Literal.value(o) == "Kernel.is_tuple"
+      end)
+    end
   end
 
   describe "local calls" do
@@ -1275,6 +1434,75 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert Enum.any?(triples, fn {_s, p, o} ->
         p == Core.name() and RDF.Literal.value(o) == "foo"
       end)
+    end
+
+    test "builds argument expressions for local calls" do
+      context = full_mode_context()
+
+      # AST for foo(x) - local function call
+      ast = {:foo, [], [{:x, [], nil}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create LocalCall type
+      assert has_type?(triples, Core.LocalCall)
+
+      # Should create argument child IRI
+      arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+
+      # Argument should be a Variable
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.Variable end)
+
+      # Should link argument via hasArgument property
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasArgument() and o == arg_iri
+      end)
+    end
+
+    test "builds multiple argument expressions for local calls" do
+      context = full_mode_context()
+
+      # AST for bar(a, b) - two arguments
+      ast = {:bar, [], [{:a, [], nil}, {:b, [], nil}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create LocalCall type
+      assert has_type?(triples, Core.LocalCall)
+
+      # Should create two argument child IRIs
+      arg0_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+      arg1_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-1")
+
+      # Both arguments should be Variables
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg0_iri and o == Core.Variable end)
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg1_iri and o == Core.Variable end)
+
+      # Should link both arguments via hasArgument property
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasArgument() and o == arg0_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasArgument() and o == arg1_iri
+      end)
+    end
+
+    test "builds complex argument expressions for local calls" do
+      context = full_mode_context()
+
+      # AST for my_func(x > 0) - argument is a comparison expression
+      comp_ast = {:>, [], [{:x, [], nil}, 0]}
+      ast = {:my_func, [], [comp_ast]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create LocalCall type
+      assert has_type?(triples, Core.LocalCall)
+
+      # Argument should be a ComparisonOperator
+      arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.ComparisonOperator end)
     end
   end
 
