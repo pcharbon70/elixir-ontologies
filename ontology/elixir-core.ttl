@@ -572,6 +572,13 @@
     rdfs:domain :UnaryOperator ;
     rdfs:range :Expression .
 
+:hasArgument a owl:ObjectProperty ;
+    rdfs:label "has argument"@en ;
+    rdfs:comment "Links a function call (RemoteCall or LocalCall) to its argument expressions."@en ;
+    rdfs:subPropertyOf :hasChild ;
+    rdfs:domain :Expression ;
+    rdfs:range :Expression .
+
 # =============================================================================
 # Capture Operator Properties
 # =============================================================================

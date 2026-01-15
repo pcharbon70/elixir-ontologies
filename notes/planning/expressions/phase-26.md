@@ -68,38 +68,40 @@ This section implements support for guards combined with `and` and `or` operator
 This section implements extraction for guard built-in functions like `is_binary/1`, `is_integer/1`, `is_list/1`, etc.
 
 ### 26.3.1 Detect Guard Built-in Calls
-- [ ] 26.3.1.1 Detect remote calls starting with `is_` prefix
-- [ ] 26.3.1.2 Match `{:., _, [{:is_, _, _}, function]}` pattern
-- [ ] 26.3.1.3 Match other allowed guard functions
-- [ ] 26.3.1.4 Identify function name: `is_binary`, `is_integer`, etc.
-- [ ] 26.3.1.5 Identify arity (number of arguments)
-- [ ] 26.3.1.6 Extract function arguments as expressions
+- [x] 26.3.1.1 Detect remote calls starting with `is_` prefix
+- [x] 26.3.1.2 Match `{:., _, [{:is_, _, _}, function]}` pattern
+- [x] 26.3.1.3 Match other allowed guard functions
+- [x] 26.3.1.4 Identify function name: `is_binary`, `is_integer`, etc.
+- [x] 26.3.1.5 Identify arity (number of arguments)
+- [x] 26.3.1.6 Extract function arguments as expressions
 
 ### 26.3.2 Build Guard Function Calls
-- [ ] 26.3.2.1 Create type triple: `expr_iri a Core.RemoteCall` (or specific type)
-- [ ] 26.3.2.2 Extract function name and store in `functionName` property
-- [ ] 26.3.2.3 Extract module name (often implicit as `:erlang` or `Kernel`)
-- [ ] 26.3.2.4 Link module via `refersToModule` or similar
-- [ ] 26.3.2.5 Extract each argument recursively
-- [ ] 26.3.2.6 Link arguments via `hasArgument` property
-- [ ] 26.3.2.7 Handle common guard functions: `is_binary/1`, `is_integer/1`, `is_list/1`, `is_atom/1`, `is_map/1`, `is_tuple/1`, `is_number/1`, `is_bitstring/1`, `is_float/1`, `is_function/1`, `is_function/2`, `is_pid/1`, `is_port/1`, `is_reference/1`, `is_alive/1`, `is_process_alive/1`
+- [x] 26.3.2.1 Create type triple: `expr_iri a Core.RemoteCall` (or specific type)
+- [x] 26.3.2.2 Extract function name and store in `name` property
+- [x] 26.3.2.3 Extract module name (often implicit as `:erlang` or `Kernel`)
+- [x] 26.3.2.4 Link module via `name` property (e.g., "Kernel.is_binary")
+- [x] 26.3.2.5 Extract each argument recursively
+- [x] 26.3.2.6 Link arguments via `hasArgument` property
+- [x] 26.3.2.7 Handle common guard functions: `is_binary/1`, `is_integer/1`, `is_list/1`, `is_atom/1`, `is_map/1`, `is_tuple/1`, `is_number/1`, `is_bitstring/1`, `is_float/1`, `is_function/1`, `is_function/2`, `is_pid/1`, `is_port/1`, `is_reference/1`, `is_alive/1`, `is_process_alive/1`
 
 ### 26.3.3 Guard Comparison Operators
-- [ ] 26.3.3.1 Detect comparison operators within guards: `==`, `!=`, `===`, `!==`, `<`, `>`, `<=`, `>=`
-- [ ] 26.3.3.2 Extract using existing comparison operator builder
-- [ ] 26.3.3.3 Ensure operator type is `Core.ComparisonOperator`
-- [ ] 26.3.3.4 Link operands correctly
+- [x] 26.3.3.1 Detect comparison operators within guards: `==`, `!=`, `===`, `!==`, `<`, `>`, `<=`, `>=`
+- [x] 26.3.3.2 Extract using existing comparison operator builder
+- [x] 26.3.3.3 Ensure operator type is `Core.ComparisonOperator`
+- [x] 26.3.3.4 Link operands correctly
 
 **Section 26.3 Unit Tests:**
-- [ ] Test guard extraction for is_binary/1
-- [ ] Test guard extraction for is_integer/1
-- [ ] Test guard extraction for is_list/1
-- [ ] Test guard extraction for is_atom/1
-- [ ] Test guard extraction for is_map/1
-- [ ] Test guard extraction for is_tuple/1
-- [ ] Test guard extraction for comparison in guard
-- [ ] Test guard extraction for complex guard with built-ins
-- [ ] Test guard extraction for guard with multiple arguments
+- [x] Test guard extraction for is_binary/1
+- [x] Test guard extraction for is_integer/1
+- [x] Test guard extraction for is_list/1
+- [x] Test guard extraction for is_atom/1
+- [x] Test guard extraction for is_map/1
+- [x] Test guard extraction for is_tuple/1
+- [x] Test guard extraction for comparison in guard
+- [x] Test guard extraction for complex guard with built-ins
+- [x] Test guard extraction for guard with multiple arguments
+
+**Status:** ✅ COMPLETE (Implemented 2026-01-15)
 
 ## 26.4 Guard Context and Semantics
 
