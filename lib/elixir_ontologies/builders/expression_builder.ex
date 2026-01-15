@@ -317,6 +317,47 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     }
   end
 
+  @spec build_do_block(list(), RDF.IRI.t(), Context.t(), non_neg_integer(), non_neg_integer()) :: [RDF.Triple.t()]
+  defp build_do_block(expressions, block_iri, context, depth \\ 0, max_depth \\ 100)
+
+  defp build_do_block(_expressions, block_iri, _context, depth, max_depth)
+      when depth >= max_depth do
+    # Block too deep - return only type triple
+    [Helpers.type_triple(block_iri, Core.DoBlock)]
+  end
+
+  defp build_do_block([], block_iri, _context, _depth, _max_depth) do
+    # Empty block - return only type triple
+    [Helpers.type_triple(block_iri, Core.DoBlock)]
+  end
+
+  defp build_do_block(expressions, block_iri, context, _depth, _max_depth) do
+    # Create type triple for the DoBlock
+    type_triple = Helpers.type_triple(block_iri, Core.DoBlock)
+
+    # Build child expression triples
+    # Each child gets a relative IRI: block_iri/child/{index}
+    child_triples =
+      expressions
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {expr_ast, index} ->
+        child_iri = fresh_iri(block_iri, "child/#{index}")
+
+        # Use build_expression_triples recursively for child expressions
+        # We don't use build/3 here to avoid managing IRI counters
+        expr_triples = build_expression_triples(expr_ast, child_iri, context)
+
+        # Link child to block via hasChild property
+        link_triple = Helpers.object_property(block_iri, Core.hasChild(), child_iri)
+
+        # Combine expression triples with link triple
+        expr_triples ++ [link_triple]
+      end)
+
+    # Combine type triple with all child triples
+    [type_triple | child_triples]
+  end
+
   # ===========================================================================
   # Expression Dispatch
   # ===========================================================================
@@ -584,6 +625,13 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   def build_expression_triples({:"..//", _meta, [first, last, step]}, expr_iri, context) do
     build_range_literal(first, last, step, expr_iri, context)
+  end
+
+  # Do blocks: {:__block__, meta, expressions}
+  # Multi-expression blocks from do..end or begin..end
+  # Must come before local call handler to avoid being matched as :__block__ call
+  def build_expression_triples({:__block__, _meta, expressions}, expr_iri, context) do
+    build_do_block(expressions, expr_iri, context)
   end
 
   # Local call: function(args) - must come before variable pattern

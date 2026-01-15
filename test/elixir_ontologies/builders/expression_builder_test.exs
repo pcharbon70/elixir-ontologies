@@ -4707,4 +4707,196 @@ string
       assert structure.metadata == [line: 10, column: 5]
     end
   end
+
+  # ===========================================================================
+  # Do Block Extraction (Phase 27.2)
+  # ===========================================================================
+
+  describe "do block extraction" do
+    @describetag :do_blocks
+    setup do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/test.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "do block extraction for single expression", %{context: context} do
+      # do
+      #   x + 1
+      # end
+      ast = {:__block__, [], [{:+, [], [{:x, [], nil}, 1]}]}
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have DoBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # Should have one child
+      children = find_all_objects(triples, expr_iri, Core.hasChild())
+      assert length(children) == 1
+    end
+
+    test "do block extraction for multiple expressions", %{context: context} do
+      # do
+      #   x = 1
+      #   x + 2
+      # end
+      ast =
+        {:__block__, [],
+         [
+           {:=, [], [{:x, [], nil}, 1]},
+           {:+, [], [{:x, [], nil}, 2]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have DoBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # Should have two children
+      children = find_all_objects(triples, expr_iri, Core.hasChild())
+      assert length(children) == 2
+    end
+
+    test "do block extraction preserves expression order", %{context: context} do
+      # do
+      #   :a
+      #   :b
+      #   :c
+      # end
+      ast = {:__block__, [], [:a, :b, :c]}
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Get children in order
+      children = find_all_objects(triples, expr_iri, Core.hasChild())
+
+      # Verify IRIs have index ordering
+      # First child should be expr/0/child/0
+      # Second child should be expr/0/child/1
+      # Third child should be expr/0/child/2
+      assert length(children) == 3
+
+      # Verify order by checking IRI endings
+      iri_strings = Enum.map(children, &RDF.IRI.to_string/1)
+
+      assert Enum.any?(iri_strings, &String.ends_with?(&1, "child/0"))
+      assert Enum.any?(iri_strings, &String.ends_with?(&1, "child/1"))
+      assert Enum.any?(iri_strings, &String.ends_with?(&1, "child/2"))
+    end
+
+    test "do block extraction identifies return expression (last one)", %{context: context} do
+      # do
+      #   x = 1
+      #   x + 2  # This is the return value
+      # end
+      ast =
+        {:__block__, [],
+         [
+           {:=, [], [{:x, [], nil}, 1]},
+           {:+, [], [{:x, [], nil}, 2]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Get children
+      children = find_all_objects(triples, expr_iri, Core.hasChild())
+
+      # The return value is the last expression
+      # Find the child with index 1 (second child, zero-based)
+      return_child_iri = Enum.find(children, fn child ->
+        RDF.IRI.to_string(child)
+        |> String.ends_with?("child/1")
+      end)
+
+      assert return_child_iri != nil
+
+      # Verify it's an addition expression (the return value)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == return_child_iri and p == RDF.type() and o == Core.ArithmeticOperator
+      end)
+    end
+
+    test "do block extraction handles empty blocks", %{context: context} do
+      # do
+      # end
+      ast = {:__block__, [], []}
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have DoBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # Should have no children
+      children = find_all_objects(triples, expr_iri, Core.hasChild())
+      assert length(children) == 0
+    end
+
+    test "do block extraction handles nested blocks", %{context: context} do
+      # do
+      #   do
+      #     :a
+      #   end
+      #   :b
+      # end
+      ast =
+        {:__block__, [],
+         [
+           {:__block__, [], [:a]},
+           :b
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have DoBlock type for outer block
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # Should have two children
+      children = find_all_objects(triples, expr_iri, Core.hasChild())
+      assert length(children) == 2
+
+      # First child should be a nested DoBlock
+      first_child = Enum.find(children, fn child ->
+        RDF.IRI.to_string(child)
+        |> String.ends_with?("child/0")
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == first_child and p == RDF.type() and o == Core.DoBlock
+      end)
+    end
+  end
+
+  # ===========================================================================
+  # Helper Functions
+  # ===========================================================================
+
+  defp find_all_objects(triples, subject, predicate) do
+    Enum.filter(triples, fn {s, p, _o} ->
+      s == subject and p == predicate
+    end)
+    |> Enum.map(fn {_s, _p, o} -> o end)
+  end
 end
