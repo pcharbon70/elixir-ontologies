@@ -5278,6 +5278,358 @@ string
   end
 
   # ===========================================================================
+  # Nested Block Tests (Phase 27.6)
+  # ===========================================================================
+
+  describe "nested block extraction" do
+    @describetag :nested_blocks
+    setup do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/test.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "do block extraction handles deeply nested do blocks (3 levels)", %{context: context} do
+      # do
+      #   do
+      #     do
+      #       :a
+      #     end
+      #     :b
+      #   end
+      #   :c
+      # end
+      ast =
+        {:__block__, [],
+         [
+           {:__block__, [],
+            [
+              {:__block__, [], [:a]},
+              :b
+            ]},
+           :c
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have DoBlock type for outer block
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # Get children of outer block
+      outer_children = find_all_objects(triples, expr_iri, Core.hasChild())
+      assert length(outer_children) == 2
+
+      # First child should be middle DoBlock
+      middle_block = Enum.find(outer_children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/child/0$|
+      end)
+
+      assert middle_block != nil
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == middle_block and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # Middle block should have two children
+      middle_children = find_all_objects(triples, middle_block, Core.hasChild())
+      assert length(middle_children) == 2
+
+      # First child of middle should be inner DoBlock
+      inner_block = Enum.find(middle_children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/child/0$|
+      end)
+
+      assert inner_block != nil
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == inner_block and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # Verify IRI hierarchy
+      # Outer: expr/0
+      # Middle: expr/0/child/0
+      # Inner: expr/0/child/0/child/0
+      middle_iri_str = RDF.IRI.to_string(middle_block)
+      inner_iri_str = RDF.IRI.to_string(inner_block)
+
+      assert middle_iri_str =~ ~r|/child/0$|
+      assert inner_iri_str =~ ~r|/child/0/child/0$|
+    end
+
+    test "do block extraction handles fn within do", %{context: context} do
+      # do
+      #   fn x -> x + 1 end
+      #   :b
+      # end
+      ast =
+        {:__block__, [],
+         [
+           {:fn, [], [{:->, [], [[{:x, [], nil}], {:+, [], [{:x, [], nil}, 1]}]}]},
+           :b
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have DoBlock type for outer block
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # Should have two children
+      children = find_all_objects(triples, expr_iri, Core.hasChild())
+      assert length(children) == 2
+
+      # First child should be FnBlock
+      fn_block = Enum.find(children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/child/0$|
+      end)
+
+      assert fn_block != nil
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == fn_block and p == RDF.type() and o == Core.FnBlock
+      end)
+    end
+
+    test "fn block extraction handles do block as body", %{context: context} do
+      # fn x do
+      #   :a
+      #   x + 1
+      # end
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{:x, [], nil}], {:__block__, [], [:a, {:+, [], [{:x, [], nil}, 1]}]}]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Get clause
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      first_clause = Enum.at(clauses, 0)
+
+      # Get children (param + body)
+      children = find_all_objects(triples, first_clause, Core.hasChild())
+      assert length(children) == 2
+
+      # Find the body
+      body = Enum.find(children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/body$|
+      end)
+
+      # Body should be a DoBlock
+      assert body != nil
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == body and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # DoBlock should have two children
+      body_children = find_all_objects(triples, body, Core.hasChild())
+      assert length(body_children) == 2
+
+      # DoBlock should have return expression
+      return_expr = find_object(triples, body, Core.hasReturnExpression())
+      assert return_expr != nil
+    end
+
+    test "fn block extraction handles nested fn (closures)", %{context: context} do
+      # fn x -> fn y -> x + y end end
+      inner_fn =
+        {:fn, [], [{:->, [], [[{:y, [], nil}], {:+, [], [{:x, [], nil}, {:y, [], nil}]}]}]}
+
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{:x, [], nil}], inner_fn]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Outer fn should be FnBlock
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Get outer clause
+      outer_clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      outer_clause = Enum.at(outer_clauses, 0)
+
+      # Get outer clause children (param + body)
+      outer_children = find_all_objects(triples, outer_clause, Core.hasChild())
+      assert length(outer_children) == 2
+
+      # Find the body (should be inner FnBlock)
+      inner_fn_body = Enum.find(outer_children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/body$|
+      end)
+
+      assert inner_fn_body != nil
+
+      # Body should be an inner FnBlock
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == inner_fn_body and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Verify IRI hierarchy
+      # Outer fn: expr/0
+      # Outer clause: expr/0/clause/0
+      # Inner fn (body): expr/0/clause/0/body
+      inner_fn_iri_str = RDF.IRI.to_string(inner_fn_body)
+      assert inner_fn_iri_str =~ ~r|/clause/0/body$|
+    end
+
+    test "mixed nesting preserves IRI hierarchy", %{context: context} do
+      # Complex nesting: do block containing fn containing do block
+      # do
+      #   fn x do
+      #     y = x * 2
+      #     do
+      #       z = y + 1
+      #       z
+      #     end
+      #   end
+      #   :outer_result
+      # end
+
+      innermost_do = {:__block__, [], [
+        {:=, [], [{:z, [], nil}, {:+, [], [{:y, [], nil}, 1]}]},
+        {:z, [], nil}
+      ]}
+
+      fn_body = {:__block__, [], [
+        {:=, [], [{:y, [], nil}, {:*, [], [{:x, [], nil}, 2]}]},
+        innermost_do
+      ]}
+
+      fn_ast = {:fn, [], [{:->, [], [[{:x, [], nil}], fn_body]}]}
+
+      outer_do = {:__block__, [], [fn_ast, :outer_result]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(outer_do, expr_iri, context)
+
+      # Verify outer do block
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # Get outer children (fn + atom)
+      outer_children = find_all_objects(triples, expr_iri, Core.hasChild())
+      assert length(outer_children) == 2
+
+      # Get fn block (first child)
+      fn_block = Enum.find(outer_children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/child/0$|
+      end)
+
+      assert fn_block != nil
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == fn_block and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Get fn clause
+      fn_clauses = find_all_objects(triples, fn_block, Core.hasClause())
+      fn_clause = Enum.at(fn_clauses, 0)
+
+      # Get fn clause body (middle do block)
+      fn_children = find_all_objects(triples, fn_clause, Core.hasChild())
+      fn_body_do = Enum.find(fn_children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/body$|
+      end)
+
+      assert fn_body_do != nil
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == fn_body_do and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # Get innermost do block
+      middle_do_children = find_all_objects(triples, fn_body_do, Core.hasChild())
+      assert length(middle_do_children) == 2
+
+      innermost_do_block = Enum.find(middle_do_children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/child/1$|
+      end)
+
+      assert innermost_do_block != nil
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == innermost_do_block and p == RDF.type() and o == Core.DoBlock
+      end)
+
+      # Verify complete IRI hierarchy
+      # Outer do: expr/0
+      # Fn block: expr/0/child/0
+      # Fn clause: expr/0/child/0/clause/0
+      # Fn body (middle do): expr/0/child/0/clause/0/body
+      # Innermost do: expr/0/child/0/clause/0/body/child/1
+
+      outer_iri = RDF.IRI.to_string(expr_iri)
+      fn_iri = RDF.IRI.to_string(fn_block)
+      fn_clause_iri = RDF.IRI.to_string(fn_clause)
+      middle_do_iri = RDF.IRI.to_string(fn_body_do)
+      innermost_do_iri = RDF.IRI.to_string(innermost_do_block)
+
+      # Verify IRI hierarchy (fresh_iri adds "/" separator)
+      assert fn_iri == "#{outer_iri}/child/0"
+      assert fn_clause_iri == "#{fn_iri}/clause/0"
+      assert middle_do_iri == "#{fn_clause_iri}/body"
+      assert innermost_do_iri == "#{middle_do_iri}/child/1"
+    end
+
+    test "nested blocks each have their own return expression", %{context: context} do
+      # do
+      #   do
+      #     :a
+      #     :b  # Return of inner block
+      #   end
+      #   :c  # Return of outer block
+      # end
+      ast =
+        {:__block__, [],
+         [
+           {:__block__, [], [:a, :b]},
+           :c
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Get outer block children
+      outer_children = find_all_objects(triples, expr_iri, Core.hasChild())
+      inner_block = Enum.find(outer_children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/child/0$|
+      end)
+
+      # Outer block should return :c (child/1)
+      outer_return = find_object(triples, expr_iri, Core.hasReturnExpression())
+      assert RDF.IRI.to_string(outer_return) =~ ~r|/child/1$|
+
+      # Inner block should return :b (child/0)
+      inner_return = find_object(triples, inner_block, Core.hasReturnExpression())
+      assert inner_return != nil
+      assert RDF.IRI.to_string(inner_return) =~ ~r|/child/1$|
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 
