@@ -278,8 +278,8 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
 
       guard_ast ->
         if build_expressions? do
-          # Build full expression triples for the guard
-          case expression_builder.build(guard_ast, context, suffix: "guard") do
+          # Build full expression triples for the guard with guard context marking
+          case expression_builder.build(guard_ast, context, suffix: "guard", guard_context?: true) do
             {:ok, {guard_iri, guard_triples}} ->
               # Link to the guard expression
               link_triple = Helpers.object_property(head_bnode, Core.hasGuard(), guard_iri)

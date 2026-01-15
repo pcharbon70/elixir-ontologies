@@ -178,6 +178,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Build expression triples
     triples = build_expression_triples(ast, expr_iri, updated_context)
 
+    # Add inGuardContext property if building guard context expression
+    triples =
+      if Keyword.get(opts, :guard_context?) do
+        [Helpers.datatype_property(expr_iri, Core.inGuardContext(), true, RDF.XSD.Boolean) | triples]
+      else
+        triples
+      end
+
     {:ok, {expr_iri, triples, updated_context}}
   end
 

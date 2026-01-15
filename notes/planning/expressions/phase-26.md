@@ -108,26 +108,23 @@ This section implements extraction for guard built-in functions like `is_binary/
 This section ensures that guard expressions preserve their semantic meaning and can be distinguished from regular expressions.
 
 ### 26.4.1 Guard Context Marking
-- [ ] 26.4.1.1 Ensure guard expressions are marked with guard context
-- [ ] 26.4.1.2 Create `inGuardContext` property or annotation
-- [ ] 26.4.1.3 Distinguish guard expressions from body expressions
-- [ ] 26.4.1.4 Document guard limitations (only certain expressions allowed)
-- [ ] 26.4.1.5 Note: guard-friendly expressions are a subset of all expressions
+- [x] 26.4.1.1 Ensure guard expressions are marked with guard context
+- [x] 26.4.1.2 Create `inGuardContext` property or annotation
+- [x] 26.4.1.3 Distinguish guard expressions from body expressions
+- [x] 26.4.1.4 Document guard limitations (only certain expressions allowed)
+- [x] 26.4.1.5 Note: guard-friendly expressions are a subset of all expressions
 
 ### 26.4.2 Guard Expression Validation
-- [ ] 26.4.2.1 Optionally validate that guard expressions are guard-safe
-- [ ] 26.4.2.2 Create list of allowed guard operations
-- [ ] 26.4.2.3 Create list of allowed guard functions
-- [ ] 26.4.2.4 Add validation helper: `guard_safe?/1`
-- [ ] 26.4.2.5 Optionally warn about non-guard-safe expressions
-- [ ] 26.4.2.6 Document that Elixir compiler validates guards
+- [x] 26.4.2.6 Document that Elixir compiler validates guards
+- [-] 26.4.2.1-26.4.2.5 Skipped - `guard_safe?/1` validation not needed (compiler validates)
 
 **Section 26.4 Unit Tests:**
-- [ ] Test guard context marking works correctly
-- [ ] Test guard expressions are distinguished from body expressions
-- [ ] Test guard_safe?/1 identifies allowed guard operations
-- [ ] Test guard_safe?/1 rejects non-guard-safe operations
-- [ ] Test guard_safe?/1 handles nested expressions
+- [x] Test guard context marking works correctly
+- [x] Test guard expressions are distinguished from body expressions
+- [x] Test guard with and/or operators has inGuardContext
+- [x] Test guard with remote calls has inGuardContext
+
+**Status:** ✅ COMPLETE (Implemented 2026-01-15)
 
 ## 26.5 Multi-Clause Function Guards
 
