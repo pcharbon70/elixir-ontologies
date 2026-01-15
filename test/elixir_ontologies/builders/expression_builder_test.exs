@@ -5627,6 +5627,279 @@ string
       assert inner_return != nil
       assert RDF.IRI.to_string(inner_return) =~ ~r|/child/1$|
     end
+
+    test "do block extraction at max depth limit (100 levels) works correctly", %{context: context} do
+      # Create a deeply nested do block at exactly max depth
+      # This is a regression test to ensure depth limiting works
+
+      # Create exactly 100 levels of nesting
+      ast = create_nested_do_blocks(100)
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      # Should successfully extract (though with minimal structure at max depth)
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have DoBlock type for outer block
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.DoBlock
+      end)
+    end
+
+    test "fn block extraction at max depth limit (100 levels) works correctly", %{context: context} do
+      # Create exactly 100 levels of nesting
+      ast = create_nested_fn_blocks(100)
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      # Should successfully extract
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type for outer block
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+    end
+  end
+
+  # ===========================================================================
+  # Advanced Pattern Parameter Tests (Phase 27 Improvements)
+  # ===========================================================================
+
+  describe "fn block with pattern parameters" do
+    @describetag :pattern_parameters
+    setup do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/test.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "fn block extraction handles tuple destructuring in parameters", %{context: context} do
+      # fn {x, y} -> x + y end
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{{:x, [], nil}, {:y, [], nil}}], {:+, [], [{:x, [], nil}, {:y, [], nil}]}]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Should have one clause
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      assert length(clauses) == 1
+
+      # Clause should have children (parameter + body)
+      first_clause = Enum.at(clauses, 0)
+      children = find_all_objects(triples, first_clause, Core.hasChild())
+      assert length(children) == 2
+
+      # First child should be the tuple pattern
+      tuple_param = Enum.find(children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/param/0$|
+      end)
+
+      assert tuple_param != nil
+      # Tuple pattern should be extracted as a pattern
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == tuple_param and p == RDF.type() and o == Core.TuplePattern
+      end)
+    end
+
+    test "fn block extraction handles list destructuring in parameters", %{context: context} do
+      # fn [h | t] -> h end
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{:|, [], [{:h, [], nil}, {:t, [], nil}]}], {:h, [], nil}]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Should have one clause with parameter
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      first_clause = Enum.at(clauses, 0)
+      children = find_all_objects(triples, first_clause, Core.hasChild())
+
+      # Should have 2 children (parameter + body)
+      assert length(children) == 2
+
+      # First child should be the list pattern parameter
+      list_param = Enum.find(children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/param/0$|
+      end)
+
+      assert list_param != nil
+      # Parameter should be extracted as Expression (the cons pattern creates child patterns)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == list_param and p == RDF.type() and o == Core.Expression
+      end)
+
+      # Body should be a Variable with name "h"
+      body = Enum.find(children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/body$|
+      end)
+      assert body != nil
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == body and p == Core.name() and RDF.Literal.value(o) == "h"
+      end)
+    end
+
+    test "fn block extraction handles pin patterns in parameters", %{context: context} do
+      # fn ^x -> x end
+      ast =
+        {:fn, [], [{:->, [], [[{:^, [], [{:x, [], nil}]}], {:x, [], nil}]}]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Should have one clause with pin parameter
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      first_clause = Enum.at(clauses, 0)
+      children = find_all_objects(triples, first_clause, Core.hasChild())
+
+      # Should have 2 children (parameter + body)
+      assert length(children) == 2
+
+      # First child should be the pin pattern
+      pin_param = Enum.find(children, fn child ->
+        RDF.IRI.to_string(child) =~ ~r|/param/0$|
+      end)
+
+      assert pin_param != nil
+      # Pin pattern should be extracted
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == pin_param and p == RDF.type() and o == Core.PinPattern
+      end)
+    end
+  end
+
+  # ===========================================================================
+  # Complex Guard Tests (Phase 27 Improvements)
+  # ===========================================================================
+
+  describe "fn block with complex guards" do
+    @describetag :complex_guards
+    setup do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/test.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "fn block extraction handles guards with and logic", %{context: context} do
+      # fn x when is_integer(x) and x > 0 -> x end
+      ast =
+        {:fn, [],
+         [
+           {:->, [],
+            [
+              [
+                {:when, [],
+                 [
+                   {:x, [], nil},
+                   {:and, [],
+                    [
+                      {:is_integer, [], [{:x, [], nil}]},
+                      {:>, [], [{:x, [], nil}, 0]}
+                    ]}
+                 ]}
+              ],
+              {:x, [], nil}
+            ]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Should have one clause
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      assert length(clauses) == 1
+
+      # Clause should have guard
+      first_clause = Enum.at(clauses, 0)
+      guard = find_object(triples, first_clause, Core.hasGuard())
+
+      assert guard != nil
+      # Guard should be marked with inGuardContext
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == guard and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+      end)
+    end
+
+    test "fn block extraction handles guards with or logic", %{context: context} do
+      # fn x when x < 0 or x > 100 -> x end
+      ast =
+        {:fn, [],
+         [
+           {:->, [],
+            [
+              [
+                {:when, [],
+                 [
+                   {:x, [], nil},
+                   {:or, [],
+                    [
+                      {:<, [], [{:x, [], nil}, 0]},
+                      {:>, [], [{:x, [], nil}, 100]}
+                    ]}
+                 ]}
+              ],
+              {:x, [], nil}
+            ]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Should have one clause
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      assert length(clauses) == 1
+
+      # Clause should have guard
+      first_clause = Enum.at(clauses, 0)
+      guard = find_object(triples, first_clause, Core.hasGuard())
+
+      assert guard != nil
+    end
   end
 
   # ===========================================================================
@@ -5643,5 +5916,20 @@ string
   defp find_object(triples, subject, predicate) do
     find_all_objects(triples, subject, predicate)
     |> List.first()
+  end
+
+  # Helper functions for depth limit tests
+  defp create_nested_do_blocks(depth) when depth <= 1, do: {:__block__, [], [:leaf]}
+
+  defp create_nested_do_blocks(depth) do
+    {:__block__, [], [create_nested_do_blocks(depth - 1), :other]}
+  end
+
+  defp create_nested_fn_blocks(depth) when depth <= 1 do
+    {:fn, [], [{:->, [], [[{:x, [], nil}], {:x, [], nil}]}]}
+  end
+
+  defp create_nested_fn_blocks(depth) do
+    {:fn, [], [{:->, [], [[{:x, [], nil}], create_nested_fn_blocks(depth - 1)]}]}
   end
 end

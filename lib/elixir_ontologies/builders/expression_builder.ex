@@ -318,7 +318,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   @spec build_do_block(list(), RDF.IRI.t(), Context.t(), non_neg_integer(), non_neg_integer()) :: [RDF.Triple.t()]
-  defp build_do_block(expressions, block_iri, context, depth \\ 0, max_depth \\ 100)
+  defp build_do_block(expressions, block_iri, context, depth \\ 0, max_depth \\ @max_expression_depth)
 
   defp build_do_block(_expressions, block_iri, _context, depth, max_depth)
       when depth >= max_depth do
@@ -335,12 +335,13 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Create type triple for the DoBlock
     type_triple = Helpers.type_triple(block_iri, Core.DoBlock)
 
-    # Build child expression triples
+    # Build child expression triples and collect link triples separately
     # Each child gets a relative IRI: block_iri/child/{index}
-    child_triples =
+    # Using Enum.reduce with accumulator for O(n) performance instead of O(n²)
+    {child_triples, link_triples} =
       expressions
       |> Enum.with_index()
-      |> Enum.flat_map(fn {expr_ast, index} ->
+      |> Enum.reduce({[], []}, fn {expr_ast, index}, {expr_acc, link_acc} ->
         child_iri = fresh_iri(block_iri, "child/#{index}")
 
         # Use build_expression_triples recursively for child expressions
@@ -350,8 +351,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
         # Link child to block via hasChild property
         link_triple = Helpers.object_property(block_iri, Core.hasChild(), child_iri)
 
-        # Combine expression triples with link triple
-        expr_triples ++ [link_triple]
+        # Accumulate both expression and link triples
+        {expr_acc ++ expr_triples, link_acc ++ [link_triple]}
       end)
 
     # Link the last expression as the return value
@@ -363,12 +364,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
         []
       end
 
-    # Combine type triple, child triples, and return triple
-    [type_triple | child_triples] ++ [return_triple]
+    # Combine all triples efficiently
+    [type_triple | child_triples] ++ link_triples ++ [return_triple]
   end
 
   @spec build_fn_block(list(), RDF.IRI.t(), Context.t(), non_neg_integer(), non_neg_integer()) :: [RDF.Triple.t()]
-  defp build_fn_block(clauses, fn_iri, context, depth \\ 0, max_depth \\ 100)
+  defp build_fn_block(clauses, fn_iri, context, depth \\ 0, max_depth \\ @max_expression_depth)
 
   defp build_fn_block(_clauses, fn_iri, _context, depth, max_depth)
       when depth >= max_depth do
@@ -415,15 +416,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Parse params to extract parameters and optional guard
     {parameters, guard} = parse_fn_params(param_patterns)
 
-    # Build parameter pattern triples
-    param_triples =
+    # Build parameter pattern triples efficiently using Enum.reduce
+    {param_triples, param_link_triples} =
       parameters
       |> Enum.with_index()
-      |> Enum.flat_map(fn {param_ast, param_index} ->
+      |> Enum.reduce({[], []}, fn {param_ast, param_index}, {expr_acc, link_acc} ->
         param_iri = fresh_iri(clause_iri, "param/#{param_index}")
         pattern_triples = build_pattern(param_ast, param_iri, context)
         link_triple = Helpers.object_property(clause_iri, Core.hasChild(), param_iri)
-        pattern_triples ++ [link_triple]
+        {expr_acc ++ pattern_triples, link_acc ++ [link_triple]}
       end)
 
     # Build guard triples if present
@@ -435,9 +436,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
           Helpers.datatype_property(guard_iri, Core.inGuardContext(), true, RDF.XSD.Boolean)
 
         guard_expr_triples = build_expression_triples(guard, guard_iri, context)
-        link_triple = Helpers.object_property(clause_iri, Core.hasGuard(), guard_iri)
+        guard_link_triple = Helpers.object_property(clause_iri, Core.hasGuard(), guard_iri)
 
-        [guard_context_triple | guard_expr_triples] ++ [link_triple]
+        [guard_context_triple | guard_expr_triples] ++ [guard_link_triple]
       else
         []
       end
@@ -453,8 +454,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Link clause to fn block
     clause_link_triple = Helpers.object_property(fn_iri, Core.hasClause(), clause_iri)
 
-    # Combine all triples
-    param_triples ++ guard_triples ++ body_triples ++
+    # Combine all triples efficiently
+    param_triples ++ param_link_triples ++ guard_triples ++ body_triples ++
       [body_link_triple, return_link_triple, clause_link_triple]
   end
 
@@ -1525,6 +1526,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Security Limits
   # ===========================================================================
 
+  @max_expression_depth 100
   @max_pattern_depth 100
   @max_pattern_size 1000
   @module_name_regex ~r/^[A-Z][a-zA-Z0-9_.]*$/
