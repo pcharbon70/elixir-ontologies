@@ -358,6 +358,122 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     [type_triple | child_triples]
   end
 
+  @spec build_fn_block(list(), RDF.IRI.t(), Context.t(), non_neg_integer(), non_neg_integer()) :: [RDF.Triple.t()]
+  defp build_fn_block(clauses, fn_iri, context, depth \\ 0, max_depth \\ 100)
+
+  defp build_fn_block(_clauses, fn_iri, _context, depth, max_depth)
+      when depth >= max_depth do
+    # Fn block too deep - return only type triple
+    [Helpers.type_triple(fn_iri, Core.FnBlock)]
+  end
+
+  defp build_fn_block([], fn_iri, _context, _depth, _max_depth) do
+    # Empty fn block (no clauses) - return only type triple
+    [Helpers.type_triple(fn_iri, Core.FnBlock)]
+  end
+
+  defp build_fn_block(clauses, fn_iri, context, _depth, _max_depth) do
+    # Create type triple for the FnBlock
+    type_triple = Helpers.type_triple(fn_iri, Core.FnBlock)
+
+    # Build clause triples
+    # Each clause gets a relative IRI: fn_iri/clause/{index}
+    clause_triples =
+      clauses
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {clause_ast, index} ->
+        build_fn_clause(clause_ast, fn_iri, index, context)
+      end)
+
+    # Combine type triple with all clause triples
+    [type_triple | clause_triples]
+  end
+
+  # Build a single fn clause
+  # Clause AST: {:->, meta, [params, body]}
+  # Params is a list containing one element which is a list of parameter patterns
+  # Examples:
+  #   - Single param: [[{:x, [], ctx}]]
+  #   - Multiple params: [[{:x, [], ctx}, {:y, [], ctx}]]
+  #   - With guard: [[{:when, [], [{:x, [], ctx}, {:y, [], ctx}, guard_ast]}]]
+  defp build_fn_clause({:->, _meta, [params, body]}, fn_iri, clause_index, context) do
+    clause_iri = fresh_iri(fn_iri, "clause/#{clause_index}")
+
+    # Extract the actual parameter patterns from the wrapper list
+    # params is [[...]] so we need to flatten one level
+    param_patterns = List.flatten(params)
+
+    # Parse params to extract parameters and optional guard
+    {parameters, guard} = parse_fn_params(param_patterns)
+
+    # Build parameter pattern triples
+    param_triples =
+      parameters
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {param_ast, param_index} ->
+        param_iri = fresh_iri(clause_iri, "param/#{param_index}")
+        pattern_triples = build_pattern(param_ast, param_iri, context)
+        link_triple = Helpers.object_property(clause_iri, Core.hasChild(), param_iri)
+        pattern_triples ++ [link_triple]
+      end)
+
+    # Build guard triples if present
+    guard_triples =
+      if guard do
+        guard_iri = fresh_iri(clause_iri, "guard")
+        # Mark guard context
+        guard_context_triple =
+          Helpers.datatype_property(guard_iri, Core.inGuardContext(), true, RDF.XSD.Boolean)
+
+        guard_expr_triples = build_expression_triples(guard, guard_iri, context)
+        link_triple = Helpers.object_property(clause_iri, Core.hasGuard(), guard_iri)
+
+        [guard_context_triple | guard_expr_triples] ++ [link_triple]
+      else
+        []
+      end
+
+    # Build body triples
+    body_iri = fresh_iri(clause_iri, "body")
+    body_triples = build_expression_triples(body, body_iri, context)
+    body_link_triple = Helpers.object_property(clause_iri, Core.hasChild(), body_iri)
+
+    # Link clause to fn block
+    clause_link_triple = Helpers.object_property(fn_iri, Core.hasClause(), clause_iri)
+
+    # Combine all triples
+    param_triples ++ guard_triples ++ body_triples ++
+      [body_link_triple, clause_link_triple]
+  end
+
+  # Parse fn parameters to extract parameters and optional guard
+  # Returns: {parameters_list, guard_ast | nil}
+  # The input is a flat list of parameter patterns
+  # If there's a guard, one of the patterns will be {:when, meta, [param1, param2, ..., guard_ast]}
+  defp parse_fn_params(param_patterns) do
+    # Find if any param is a :when pattern (contains guard)
+    case Enum.find_index(param_patterns, fn
+      {:when, _, _} -> true
+      _ -> false
+    end) do
+      nil ->
+        # No guard
+        {param_patterns, nil}
+
+      index ->
+        # Found guard in param at index
+        {:when, _, when_args} = Enum.at(param_patterns, index)
+        # when_args is [param1, param2, ..., guard_ast]
+        {guard_ast, params_without_guard} = List.pop_at(when_args, -1)
+
+        # Build the full params list: params before guard + params after guard
+        before_guard = Enum.take(param_patterns, index)
+        after_guard = Enum.drop(param_patterns, index + 1)
+
+        {before_guard ++ params_without_guard ++ after_guard, guard_ast}
+    end
+  end
+
   # ===========================================================================
   # Expression Dispatch
   # ===========================================================================
@@ -632,6 +748,13 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Must come before local call handler to avoid being matched as :__block__ call
   def build_expression_triples({:__block__, _meta, expressions}, expr_iri, context) do
     build_do_block(expressions, expr_iri, context)
+  end
+
+  # Fn blocks: {:fn, meta, clauses}
+  # Anonymous functions with fn...end syntax
+  # Must come before local call handler to avoid being matched as :fn call
+  def build_expression_triples({:fn, _meta, clauses}, expr_iri, context) do
+    build_fn_block(clauses, expr_iri, context)
   end
 
   # Local call: function(args) - must come before variable pattern

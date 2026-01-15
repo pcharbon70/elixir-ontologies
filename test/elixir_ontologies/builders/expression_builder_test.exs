@@ -4890,6 +4890,281 @@ string
   end
 
   # ===========================================================================
+  # Fn Block Extraction (Phase 27.3)
+  # ===========================================================================
+
+  describe "fn block extraction" do
+    @describetag :fn_blocks
+    setup do
+      context =
+        Context.new(
+          base_iri: "https://example.org/code#",
+          config: %{include_expressions: true},
+          file_path: "lib/test.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "fn block extraction for single clause", %{context: context} do
+      # fn x -> x + 1 end
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{:x, [], nil}], {:+, [], [{:x, [], nil}, 1]}]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Should have one clause
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      assert length(clauses) == 1
+    end
+
+    test "fn block extraction for multiple clauses", %{context: context} do
+      # fn
+      #   x -> x + 1
+      #   y -> y * 2
+      # end
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{:x, [], nil}], {:+, [], [{:x, [], nil}, 1]}]},
+           {:->, [], [[{:y, [], nil}], {:*, [], [{:y, [], nil}, 2]}]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Should have two clauses
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      assert length(clauses) == 2
+    end
+
+    test "fn block extraction with parameters", %{context: context} do
+      # fn x, y -> x + y end
+      ast =
+        {:fn, [],
+         [
+           {:->, [],
+            [[{:x, [], nil}, {:y, [], nil}], {:+, [], [{:x, [], nil}, {:y, [], nil}]}]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have clause with two parameters
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      assert length(clauses) == 1
+
+      first_clause = Enum.at(clauses, 0)
+      children = find_all_objects(triples, first_clause, Core.hasChild())
+
+      # We expect 3 children: 2 params + 1 body
+      assert length(children) == 3
+
+      # Find the params (ending with "/param/0" and "/param/1")
+      param_0 = Enum.find(children, fn child ->
+        RDF.IRI.to_string(child)
+        |> String.ends_with?("param/0")
+      end)
+
+      param_1 = Enum.find(children, fn child ->
+        RDF.IRI.to_string(child)
+        |> String.ends_with?("param/1")
+      end)
+
+      assert param_0 != nil
+      assert param_1 != nil
+    end
+
+    test "fn block extraction with guards", %{context: context} do
+      # fn x when is_integer(x) -> x + 1 end
+      ast =
+        {:fn, [],
+         [
+           {:->, [],
+            [
+              [{:when, [], [{:x, [], nil}, {:is_integer, [], [{:x, [], nil}]}]}],
+              {:+, [], [{:x, [], nil}, 1]}
+            ]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Should have one clause
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      assert length(clauses) == 1
+
+      # Should have guard with inGuardContext property
+      first_clause = Enum.at(clauses, 0)
+      guards = find_all_objects(triples, first_clause, Core.hasGuard())
+      assert length(guards) == 1
+
+      guard = Enum.at(guards, 0)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == guard and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+      end)
+    end
+
+    test "fn block extraction with multiple body expressions", %{context: context} do
+      # fn x do
+      #   :a
+      #   :b
+      # end
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{:x, [], nil}], {:__block__, [], [:a, :b]}]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have clause with body (do block)
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      first_clause = Enum.at(clauses, 0)
+
+      # Get all children (param + body)
+      children = find_all_objects(triples, first_clause, Core.hasChild())
+
+      # We expect 2 children: 1 param + 1 body
+      assert length(children) == 2
+
+      # Find the body (should end with "/body")
+      body = Enum.find(children, fn child ->
+        RDF.IRI.to_string(child)
+        |> String.ends_with?("body")
+      end)
+
+      # Body should be a DoBlock
+      assert body != nil
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == body and p == RDF.type() and o == Core.DoBlock
+      end)
+    end
+
+    test "fn block extraction preserves clause order", %{context: context} do
+      # fn
+      #   :a -> :first
+      #   :b -> :second
+      #   :c -> :third
+      # end
+      ast =
+        {:fn, [],
+         [
+           {:->, [], [[{:a, [], nil}], :first]},
+           {:->, [], [[{:b, [], nil}], :second]},
+           {:->, [], [[{:c, [], nil}], :third]}
+         ]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Get clauses in order
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      assert length(clauses) == 3
+
+      # Verify order by checking IRI endings
+      iri_strings = Enum.map(clauses, &RDF.IRI.to_string/1)
+
+      assert Enum.any?(iri_strings, &String.ends_with?(&1, "clause/0"))
+      assert Enum.any?(iri_strings, &String.ends_with?(&1, "clause/1"))
+      assert Enum.any?(iri_strings, &String.ends_with?(&1, "clause/2"))
+    end
+
+    test "fn block extraction handles empty parameter list", %{context: context} do
+      # fn -> :ok end
+      ast = {:fn, [], [{:->, [], [[], :ok]}]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Should have one clause
+      clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      assert length(clauses) == 1
+
+      # Clause should have 1 child (the body, no params)
+      first_clause = Enum.at(clauses, 0)
+      children = find_all_objects(triples, first_clause, Core.hasChild())
+      assert length(children) == 1
+
+      # The only child should be the body
+      body = Enum.at(children, 0)
+      body_iri_str = RDF.IRI.to_string(body)
+      assert String.ends_with?(body_iri_str, "/body")
+    end
+
+    test "fn block extraction handles nested fn blocks", %{context: context} do
+      # fn x -> fn y -> x + y end end
+      inner_fn =
+        {:fn, [], [{:->, [], [[{:y, [], nil}], {:+, [], [{:x, [], nil}, {:y, [], nil}]}]}]}
+
+      ast =
+        {:fn, [], [{:->, [], [[{:x, [], nil}], inner_fn]}]}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have FnBlock type for outer fn
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.FnBlock
+      end)
+
+      # Outer fn should have one clause
+      outer_clauses = find_all_objects(triples, expr_iri, Core.hasClause())
+      assert length(outer_clauses) == 1
+
+      # Outer clause's children should include param and body
+      outer_clause = Enum.at(outer_clauses, 0)
+      outer_children = find_all_objects(triples, outer_clause, Core.hasChild())
+      assert length(outer_children) == 2
+
+      # Find the body (ends with "/body")
+      outer_body = Enum.find(outer_children, fn child ->
+        RDF.IRI.to_string(child)
+        |> String.ends_with?("body")
+      end)
+
+      # Body should be an inner FnBlock
+      assert outer_body != nil
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == outer_body and p == RDF.type() and o == Core.FnBlock
+      end)
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 
