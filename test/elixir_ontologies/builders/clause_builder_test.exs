@@ -1191,5 +1191,153 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       assert guard_triple == nil
     end
+
+    test "guard expression has inGuardContext property" do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      clause_info =
+        build_test_clause(
+          order: 1,
+          head: %{
+            parameters: [{:x, [], nil}],
+            guard: {:is_integer, [], [{:x, [], nil}]}
+          }
+        )
+
+      function_iri = ~I<https://example.org/code#MyApp/test/1>
+
+      {_clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find the guard expression IRI
+      guard_iri =
+        Enum.find_value(triples, fn {s, p, o} ->
+          if p == Core.hasGuard() do
+            o
+          else
+            nil
+          end
+        end)
+
+      assert guard_iri != nil
+
+      # Verify guard expression has inGuardContext property set to true
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+      end)
+    end
+
+    test "guard expression with and/or has inGuardContext property" do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      clause_info =
+        build_test_clause(
+          order: 1,
+          head: %{
+            parameters: [{:x, [], nil}],
+            guard: {:and, [], [{:is_integer, [], [{:x, [], nil}]}, {:>, [], [{:x, [], nil}, 0]}]}
+          }
+        )
+
+      function_iri = ~I<https://example.org/code#MyApp/test/1>
+
+      {_clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find the guard expression IRI (the LogicalOperator for 'and')
+      guard_iri =
+        Enum.find_value(triples, fn {s, p, o} ->
+          if p == Core.hasGuard() do
+            o
+          else
+            nil
+          end
+        end)
+
+      assert guard_iri != nil
+
+      # Verify guard expression has inGuardContext property set to true
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+      end)
+    end
+
+    test "regular expression does not have inGuardContext property" do
+      # Test that regular (non-guard) expressions don't get inGuardContext
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+        |> Context.with_expression_counter()
+
+      # Build a regular expression (not in guard context)
+      ast = {:==, [], [{:x, [], nil}, 1]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Verify regular expression does NOT have inGuardContext property
+      refute Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.inGuardContext()
+      end)
+    end
+
+    test "guard with remote call has inGuardContext property on call" do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      clause_info =
+        build_test_clause(
+          order: 1,
+          head: %{
+            parameters: [{:x, [], nil}],
+            guard: {:is_binary, [], [{:x, [], nil}]}
+          }
+        )
+
+      function_iri = ~I<https://example.org/code#MyApp/test/1>
+
+      {_clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find the guard expression IRI (the RemoteCall)
+      guard_iri =
+        Enum.find_value(triples, fn {s, p, o} ->
+          if p == Core.hasGuard() do
+            o
+          else
+            nil
+          end
+        end)
+
+      assert guard_iri != nil
+
+      # Verify guard expression has inGuardContext property set to true
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+      end)
+    end
   end
 end

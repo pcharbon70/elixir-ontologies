@@ -579,6 +579,12 @@
     rdfs:domain :Expression ;
     rdfs:range :Expression .
 
+:inGuardContext a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "in guard context"@en ;
+    rdfs:comment "Marks an expression as being within a guard clause. Guard expressions have restricted semantics - only certain operations and functions are allowed."@en ;
+    rdfs:domain :Expression ;
+    rdfs:range xsd:boolean .
+
 # =============================================================================
 # Capture Operator Properties
 # =============================================================================
