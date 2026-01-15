@@ -7,57 +7,61 @@ This phase integrates the ExpressionBuilder into ClauseBuilder to extract full g
 This section updates the guard detection and extraction in ClauseBuilder to support full expression trees.
 
 ### 26.1.1 Update build_guard_triples for Full Mode
-- [ ] 26.1.1.1 Modify `build_guard_triples/3` in ClauseBuilder to accept context
-- [ ] 26.1.1.2 Check `context.config.include_expressions` flag
-- [ ] 26.1.1.3 When `false`: use existing blank node approach (light mode)
-- [ ] 26.1.1.4 When `true`: generate named guard IRI instead of blank node
-- [ ] 26.1.1.5 Generate guard IRI: `{head_bnode}/guard`
-- [ ] 26.1.1.6 Call `ExpressionBuilder.build/3` with guard AST
-- [ ] 26.1.1.7 Pass `base_iri: head_bnode, suffix: "guard"` to ExpressionBuilder
-- [ ] 26.1.1.8 Handle `:skip` return gracefully (shouldn't happen in full mode)
-- [ ] 26.1.1.9 Return guard triples including expression tree
+- [x] 26.1.1.1 Modify `build_guard_triples/3` in ClauseBuilder to accept context
+- [x] 26.1.1.2 Check `context.config.include_expressions` flag
+- [x] 26.1.1.3 When `false`: use existing blank node approach (light mode)
+- [x] 26.1.1.4 When `true`: generate named guard IRI instead of blank node
+- [x] 26.1.1.5 Generate guard IRI: `{head_bnode}/guard`
+- [x] 26.1.1.6 Call `ExpressionBuilder.build/3` with guard AST
+- [x] 26.1.1.7 Pass `base_iri: head_bnode, suffix: "guard"` to ExpressionBuilder
+- [x] 26.1.1.8 Handle `:skip` return gracefully (shouldn't happen in full mode)
+- [x] 26.1.1.9 Return guard triples including expression tree
 
 ### 26.1.2 Guard Clause Type Assignment
-- [ ] 26.1.2.1 Create type triple: `guard_iri a Core.GuardClause`
-- [ ] 26.1.2.2 Link from function head via `core:hasGuard guard_iri`
-- [ ] 26.1.2.3 Preserve existing guard structure in light mode
-- [ ] 26.1.2.4 Ensure guard IRI is queryable via SPARQL
+- [x] 26.1.2.1 Create type triple: `guard_iri a Core.GuardClause`
+- [x] 26.1.2.2 Link from function head via `core:hasGuard guard_iri`
+- [x] 26.1.2.3 Preserve existing guard structure in light mode
+- [x] 26.1.2.4 Ensure guard IRI is queryable via SPARQL
 
 **Section 26.1 Unit Tests:**
-- [ ] Test guard extraction in light mode (blank node)
-- [ ] Test guard extraction in full mode (named IRI with expression)
-- [ ] Test guard extraction creates GuardClause type
-- [ ] Test guard extraction links from function head
-- [ ] Test guard extraction handles simple guard: `when x > 0`
-- [ ] Test guard extraction handles complex guard
+- [x] Test guard extraction in light mode (blank node)
+- [x] Test guard extraction in full mode (named IRI with expression)
+- [x] Test guard extraction creates GuardClause type
+- [x] Test guard extraction links from function head
+- [x] Test guard extraction handles simple guard: `when x > 0`
+- [x] Test guard extraction handles complex guard
+
+**Status:** ✅ COMPLETE (Already implemented in Phase 21)
 
 ## 26.2 Compound Guard Expression Support
 
 This section implements support for guards combined with `and` and `or` operators.
 
 ### 26.2.1 And-Combined Guards
-- [ ] 26.2.1.1 Detect `:and` in guard AST
-- [ ] 26.2.1.2 Extract left guard expression recursively
-- [ ] 26.2.1.3 Extract right guard expression recursively
-- [ ] 26.2.1.4 Build as `Core.LogicalOperator` with operator "and"
-- [ ] 26.2.1.5 Link sub-guards via `hasLeftOperand` and `hasRightOperand`
-- [ ] 26.2.1.6 Ensure guard expression tree is preserved
-- [ ] 26.2.1.7 Handle 3+ combined guards: `a and b and c` (nested structure)
+- [x] 26.2.1.1 Detect `:and` in guard AST
+- [x] 26.2.1.2 Extract left guard expression recursively
+- [x] 26.2.1.3 Extract right guard expression recursively
+- [x] 26.2.1.4 Build as `Core.LogicalOperator` with operator "and"
+- [x] 26.2.1.5 Link sub-guards via `hasLeftOperand` and `hasRightOperand`
+- [x] 26.2.1.6 Ensure guard expression tree is preserved
+- [x] 26.2.1.7 Handle 3+ combined guards: `a and b and c` (nested structure)
 
 ### 26.2.2 Or-Combined Guards
-- [ ] 26.2.2.1 Detect `:or` in guard AST
-- [ ] 26.2.2.2 Extract left guard expression recursively
-- [ ] 26.2.2.3 Extract right guard expression recursively
-- [ ] 26.2.2.4 Build as `Core.LogicalOperator` with operator "or"
-- [ ] 26.2.2.5 Link sub-guards via `hasLeftOperand` and `hasRightOperand`
-- [ ] 26.2.2.6 Handle 3+ combined guards: `a or b or c` (nested structure)
+- [x] 26.2.2.1 Detect `:or` in guard AST
+- [x] 26.2.2.2 Extract left guard expression recursively
+- [x] 26.2.2.3 Extract right guard expression recursively
+- [x] 26.2.2.4 Build as `Core.LogicalOperator` with operator "or"
+- [x] 26.2.2.5 Link sub-guards via `hasLeftOperand` and `hasRightOperand`
+- [x] 26.2.2.6 Handle 3+ combined guards: `a or b or c` (nested structure)
 
 **Section 26.2 Unit Tests:**
-- [ ] Test guard extraction with and combination
-- [ ] Test guard extraction with or combination
-- [ ] Test guard extraction with mixed and/or
-- [ ] Test guard extraction with multiple and/or
-- [ ] Test guard extraction preserves guard structure
+- [x] Test guard extraction with and combination
+- [x] Test guard extraction with or combination
+- [x] Test guard extraction with mixed and/or
+- [x] Test guard extraction with multiple and/or
+- [x] Test guard extraction preserves guard structure
+
+**Status:** ✅ COMPLETE (Already implemented in Phase 23 - Operator Expressions)
 
 ## 26.3 Guard Built-in Function Extraction
 
