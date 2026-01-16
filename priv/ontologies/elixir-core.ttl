@@ -965,8 +965,8 @@
 
 :moduleName a owl:DatatypeProperty, owl:FunctionalProperty ;
     rdfs:label "module name"@en ;
-    rdfs:comment "The module name for a remote function call (e.g., 'String', 'MyApp.Users')."@en ;
-    rdfs:domain :RemoteCall ;
+    rdfs:comment "The module name for a remote function call or module reference (e.g., 'String', 'MyApp.Users')."@en ;
+    rdfs:domain :RemoteCall, :ModuleReference ;
     rdfs:range xsd:string .
 
 :functionName a owl:DatatypeProperty, owl:FunctionalProperty ;

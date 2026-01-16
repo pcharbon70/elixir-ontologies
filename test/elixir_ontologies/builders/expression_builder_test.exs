@@ -1757,6 +1757,106 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "module references" do
+    test "dispatches module alias to ModuleReference" do
+      context = full_mode_context()
+
+      # AST for MyApp
+      ast = {:__aliases__, [], [:MyApp]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create ModuleReference type
+      assert has_type?(triples, Core.ModuleReference)
+    end
+
+    test "extracts module name from simple alias" do
+      context = full_mode_context()
+
+      # AST for String
+      ast = {:__aliases__, [], [:String]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have moduleName property
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.moduleName() and RDF.Literal.value(o) == "String"
+      end)
+    end
+
+    test "extracts module name from nested alias" do
+      context = full_mode_context()
+
+      # AST for MyApp.Users
+      ast = {:__aliases__, [], [:MyApp, :Users]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have moduleName with dot-joined name
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.moduleName() and RDF.Literal.value(o) == "MyApp.Users"
+      end)
+    end
+
+    test "extracts module name from deeply nested alias" do
+      context = full_mode_context()
+
+      # AST for MyApp.Accounts.User
+      ast = {:__aliases__, [], [:MyApp, :Accounts, :User]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have moduleName with all parts joined
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.moduleName() and RDF.Literal.value(o) == "MyApp.Accounts.User"
+      end)
+    end
+
+    test "handles Elixir prefix in module name" do
+      context = full_mode_context()
+
+      # AST for Elixir.String
+      ast = {:__aliases__, [], [:Elixir, :String]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have moduleName with Elixir prefix preserved
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.moduleName() and RDF.Literal.value(o) == "Elixir.String"
+      end)
+    end
+
+    test "links to module IRI via refersToModule" do
+      context = full_mode_context()
+
+      # AST for MyApp
+      ast = {:__aliases__, [], [:MyApp]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have refersToModule property
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.refersToModule()
+      end)
+    end
+
+    test "module IRI is correctly formatted" do
+      context = full_mode_context()
+
+      # AST for MyApp.Users
+      ast = {:__aliases__, [], [:MyApp, :Users]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should link to correct module IRI
+      expected_iri = "https://example.org/code#module/MyApp.Users"
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.refersToModule() and o.value == expected_iri
+      end)
+    end
+  end
+
   describe "literals" do
     # Table-driven tests for simple numeric and string literals
     @numeric_literal_tests [

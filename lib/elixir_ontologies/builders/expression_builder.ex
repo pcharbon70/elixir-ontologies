@@ -658,6 +658,13 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     build_binary_operator(:in, left, right, expr_iri, context, Core.InOperator)
   end
 
+  # Module alias reference: MyApp, MyApp.Users, etc.
+  # AST: {:__aliases__, _, parts} where parts is [:MyApp] or [:MyApp, :Users]
+  # Must come BEFORE literal handlers (atoms would also match some aliases)
+  def build_expression_triples({:__aliases__, _, parts}, expr_iri, context) do
+    build_module_reference(parts, expr_iri, context)
+  end
+
   # Integer literals
   def build_expression_triples(int, expr_iri, _context) when is_integer(int) do
     build_literal(int, expr_iri, Core.IntegerLiteral, Core.integerValue(), RDF.XSD.Integer)
@@ -1023,6 +1030,26 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Wildcard pattern: _
   defp build_wildcard(expr_iri) do
     [Helpers.type_triple(expr_iri, Core.WildcardPattern)]
+  end
+
+  # Module reference: MyApp, MyApp.Users, etc.
+  @spec build_module_reference(list(), RDF.IRI.t(), Context.t()) :: list()
+  defp build_module_reference(parts, expr_iri, context) do
+    # Extract module name from alias parts
+    module_name = Enum.join(parts, ".")
+
+    # Build base triples for the ModuleReference
+    base_triples = [
+      Helpers.type_triple(expr_iri, Core.ModuleReference),
+      Helpers.datatype_property(expr_iri, Core.moduleName(), module_name, RDF.XSD.String)
+    ]
+
+    # Create refersToModule with module IRI
+    module_iri = RDF.iri("#{context.base_iri}module/#{module_name}")
+    refers_to_module_triple = Helpers.object_property(expr_iri, Core.refersToModule(), module_iri)
+
+    # Combine all triples
+    base_triples ++ [refers_to_module_triple]
   end
 
   # ===========================================================================
