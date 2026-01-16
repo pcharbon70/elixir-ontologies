@@ -9,7 +9,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
 
   use ExUnit.Case, async: true
 
-  alias ElixirOntologies.Builders.{ControlFlowBuilder, Context}
+  alias ElixirOntologies.Builders.{ControlFlowBuilder, Context, ExpressionBuilder}
   alias ElixirOntologies.Extractors.Conditional.{Conditional, Branch}
 
   alias ElixirOntologies.Extractors.CaseWith.{
@@ -835,6 +835,227 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       line_triple = find_triple(triples, expr_iri, Core.startLine())
       assert line_triple != nil
       assert RDF.Literal.value(elem(line_triple, 2)) == 50
+    end
+  end
+
+  # ===========================================================================
+  # Phase 28.1: Generator Pattern Extraction Tests (Full Mode)
+  # ===========================================================================
+
+  describe "generator pattern extraction in full mode" do
+    setup do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "extracts generator pattern with variable pattern", %{context: context} do
+      # for x <- xs, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], Elixir},
+        enumerable: {:xs, [], Elixir}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], Elixir},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/map/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator individual
+      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == gen_iri and p == RDF.type() and o == Core.Generator
+      end)
+
+      # Should have pattern linked via hasPattern
+      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      pattern_link = find_triple(triples, gen_iri, Core.hasPattern())
+      assert pattern_link != nil
+      assert elem(pattern_link, 2) == pattern_iri
+
+      # Pattern should be a VariablePattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.VariablePattern
+    end
+
+    test "extracts generator pattern with tuple pattern", %{context: context} do
+      # for {x, y} <- tuples, do: x + y
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:{}, [], [{:x, [], Elixir}, {:y, [], Elixir}]},
+        enumerable: {:tuples, [], Elixir}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:+, [], [{:x, [], Elixir}, {:y, [], Elixir}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/tuples/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator with pattern
+      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+
+      # Pattern should be a TuplePattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.TuplePattern
+    end
+
+    test "extracts multiple generators with patterns in order", %{context: context} do
+      # for x <- xs, y <- ys, do: {x, y}
+      gen1 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], Elixir},
+        enumerable: {:xs, [], Elixir}
+      }
+
+      gen2 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:y, [], Elixir},
+        enumerable: {:ys, [], Elixir}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen1, gen2],
+        filters: [],
+        body: {:{}, [], [{:x, [], Elixir}, {:y, [], Elixir}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/product/2",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have two generators
+      gen_links = Enum.filter(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.hasGenerator()
+      end)
+      assert length(gen_links) == 2
+
+      # First generator should have pattern
+      gen_iri_0 = RDF.iri("#{expr_iri.value}-gen-0")
+      pattern_iri_0 = RDF.iri("#{gen_iri_0.value}-pattern")
+      pattern_link_0 = find_triple(triples, gen_iri_0, Core.hasPattern())
+      assert pattern_link_0 != nil
+
+      # Second generator should have pattern
+      gen_iri_1 = RDF.iri("#{expr_iri.value}-gen-1")
+      pattern_iri_1 = RDF.iri("#{gen_iri_1.value}-pattern")
+      pattern_link_1 = find_triple(triples, gen_iri_1, Core.hasPattern())
+      assert pattern_link_1 != nil
+    end
+
+    test "extracts generator pattern with list pattern", %{context: context} do
+      # for [h | t] <- lists, do: h
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:|, [], [{:h, [], Elixir}, {:t, [], Elixir}]},
+        enumerable: {:lists, [], Elixir}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:h, [], Elixir},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/heads/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Pattern should be extracted (list pattern)
+      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      pattern_link = find_triple(triples, gen_iri, Core.hasPattern())
+      assert pattern_link != nil
+    end
+
+    test "light mode does not extract patterns (backward compatibility)" do
+      context = Context.new(base_iri: @base_iri)
+
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], Elixir},
+        enumerable: {:xs, [], Elixir}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], Elixir},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/map/1",
+          index: 0
+        )
+
+      # Light mode: should only have boolean flag
+      generator_triple = find_triple(triples, expr_iri, Core.hasGenerator())
+      assert generator_triple != nil
+      assert RDF.Literal.value(elem(generator_triple, 2)) == true
+
+      # Should NOT have individual generator IRIs
+      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      refute Enum.any?(triples, fn {s, _, _} -> s == gen_iri end)
+
+      # Should NOT have pattern IRIs
+      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      refute Enum.any?(triples, fn {s, _, _} -> s == pattern_iri end)
     end
   end
 

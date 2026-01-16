@@ -1464,15 +1464,18 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   defp add_generator_triples(triples, expr_iri, generators, expression_builder, build_expressions?, context, containing_function, comprehension_index)
        when is_list(generators) and generators != [] do
     if build_expressions? do
-      # Build full expression triples for each generator's enumerable
+      # Build full expression triples for each generator's enumerable and pattern
       {all_generator_triples, _} =
         Enum.map_reduce(generators, 0, fn gen, idx ->
           gen_iri = RDF.iri("#{expr_iri.value}-gen-#{idx}")
+          pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
 
           gen_triples =
             []
             |> add_type_triple(gen_iri, Core.Generator)
+            |> add_generator_pattern_triple(pattern_iri, gen.pattern, expression_builder, context)
             |> add_generator_enumerable_triple(gen_iri, gen.enumerable, expression_builder, context, containing_function, comprehension_index, idx)
+            |> add_pattern_link_triple(gen_iri, pattern_iri)
 
           link_triple = Helpers.object_property(expr_iri, Core.hasGenerator(), gen_iri)
           {gen_triples ++ [link_triple], idx + 1}
@@ -1502,6 +1505,18 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
       :skip ->
         triples
     end
+  end
+
+  # Add pattern triples for a generator
+  defp add_generator_pattern_triple(triples, pattern_iri, pattern_ast, expression_builder, context) do
+    pattern_triples = expression_builder.build_pattern(pattern_ast, pattern_iri, context)
+    pattern_triples ++ triples
+  end
+
+  # Link generator to its pattern
+  defp add_pattern_link_triple(triples, gen_iri, pattern_iri) do
+    link_triple = Helpers.object_property(gen_iri, Core.hasPattern(), pattern_iri)
+    [link_triple | triples]
   end
 
   # Add filter triples with optional expression building
