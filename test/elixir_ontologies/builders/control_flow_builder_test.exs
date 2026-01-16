@@ -1060,6 +1060,254 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # Phase 28.2: Bitstring Comprehension Tests (Full Mode)
+  # ===========================================================================
+
+  describe "bitstring comprehension in full mode" do
+    setup do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "bitstring comprehension creates ForComprehension type", %{context: context} do
+      # for <<byte>> <- binary, do: byte
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern: {:<<>>, [], [{:byte, [], nil}]},
+        enumerable: {:binary, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:byte, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/process_bytes/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have ForComprehension type (same as list comprehensions)
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ForComprehension
+    end
+
+    test "bitstring comprehension extracts generator pattern", %{context: context} do
+      # for <<byte>> <- binary, do: byte
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern: {:<<>>, [], [{:byte, [], nil}]},
+        enumerable: {:binary, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:byte, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/process_bytes/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator individual
+      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == gen_iri and p == RDF.type() and o == Core.Generator
+      end)
+
+      # Should have pattern linked via hasPattern
+      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      pattern_link = find_triple(triples, gen_iri, Core.hasPattern())
+      assert pattern_link != nil
+      assert elem(pattern_link, 2) == pattern_iri
+
+      # Pattern should be a BinaryPattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.BinaryPattern
+    end
+
+    test "bitstring comprehension handles size modifiers", %{context: context} do
+      # for <<x::8>> <- data, do: x
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern: {:<<>>, [], [{:"::", [], [{:x, [], nil}, 8]}]},
+        enumerable: {:data, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/parse_bytes/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator with BinaryPattern
+      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+
+      # Pattern should be a BinaryPattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.BinaryPattern
+    end
+
+    test "bitstring comprehension handles type modifiers", %{context: context} do
+      # for <<head::binary>> <- data, do: head
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern:
+          {:<<>>, [],
+           [{:"::", [], [{:head, [], nil}, {:binary, [], nil}]}]},
+        enumerable: {:data, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:head, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/get_head/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator with BinaryPattern
+      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+
+      # Pattern should be a BinaryPattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.BinaryPattern
+    end
+
+    test "bitstring comprehension handles complex patterns", %{context: context} do
+      # for <<head::8, rest::binary>> <- data, do: {head, rest}
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern:
+          {:<<>>, [], [
+            {:"::", [], [{:head, [], nil}, 8]},
+            {:"::", [], [{:rest, [], nil}, {:binary, [], nil}]}
+          ]},
+        enumerable: {:data, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:{}, [], [{:head, [], nil}, {:rest, [], nil}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/parse_packet/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator with BinaryPattern
+      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+
+      # Pattern should be a BinaryPattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.BinaryPattern
+    end
+
+    test "light mode does not extract bitstring patterns (backward compatibility)" do
+      context = Context.new(base_iri: @base_iri)
+
+      # for <<byte>> <- binary, do: byte
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern: {:<<>>, [], [{:byte, [], nil}]},
+        enumerable: {:binary, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:byte, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/process_bytes/1",
+          index: 0
+        )
+
+      # Light mode: should only have boolean flag
+      generator_triple = find_triple(triples, expr_iri, Core.hasGenerator())
+      assert generator_triple != nil
+      assert RDF.Literal.value(elem(generator_triple, 2)) == true
+
+      # Should NOT have individual generator IRIs
+      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      refute Enum.any?(triples, fn {s, _, _} -> s == gen_iri end)
+
+      # Should NOT have pattern IRIs
+      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      refute Enum.any?(triples, fn {s, _, _} -> s == pattern_iri end)
+    end
+  end
+
+  # ===========================================================================
   # Location Handling Tests
   # ===========================================================================
 
