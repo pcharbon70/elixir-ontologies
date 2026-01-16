@@ -1566,6 +1566,18 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # Add comprehension body triple
   defp add_comprehension_body_triple(triples, _expr_iri, nil, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
 
+  defp add_comprehension_body_triple(triples, expr_iri, %Comprehension{} = body_comprehension, expression_builder, build_expressions?, context, containing_function, comprehension_index) do
+    if build_expressions? do
+      # Nested comprehension - recursively build it with updated index
+      nested_index = comprehension_index * 100 + 99
+      {body_iri, body_triples} = build_comprehension(body_comprehension, context, containing_function: containing_function, index: nested_index, expression_builder: expression_builder)
+      link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), body_iri)
+      body_triples ++ [link_triple | triples]
+    else
+      triples
+    end
+  end
+
   defp add_comprehension_body_triple(triples, expr_iri, body, expression_builder, build_expressions?, context, containing_function, comprehension_index) do
     if build_expressions? and body != nil do
       case expression_builder.build(body, context, containing_function: containing_function, index: comprehension_index * 100 + 99) do

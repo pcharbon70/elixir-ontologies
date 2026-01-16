@@ -2157,11 +2157,112 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         s == gen_iri and p == RDF.type() and o == Core.Generator
       end)
 
-      # Should have body expression (inner comprehension is handled by ExpressionBuilder)
+      # Should have inner comprehension as body (now properly extracted as ForComprehension)
       body_link = find_triple(triples, expr_iri, Core.hasCondition())
       assert body_link != nil
-      # The body IRI points to some expression created by ExpressionBuilder
-      assert match?(%RDF.IRI{}, elem(body_link, 2))
+      inner_iri = elem(body_link, 2)
+
+      # Inner should also be a ForComprehension (the fix!)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == inner_iri and p == RDF.type() and o == Core.ForComprehension
+      end)
+
+      # Inner comprehension should have its own generator
+      inner_gen_iri = RDF.iri("#{inner_iri.value}-gen-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == inner_gen_iri and p == RDF.type() and o == Core.Generator
+      end)
+    end
+
+    test "handles deeply nested comprehensions (3 levels)", %{context: context} do
+      # for x <- xs, do: for y <- ys, do: for z <- zs, do: {x, y, z}
+      gen1 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      # Inner-most comprehension (level 3)
+      gen3 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:z, [], nil},
+        enumerable: {:zs, [], nil}
+      }
+
+      innermost_comprehension = %Comprehension{
+        type: :for,
+        generators: [gen3],
+        filters: [],
+        body: {:{}, [], [{:x, [], nil}, {:y, [], nil}, {:z, [], nil}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      # Middle comprehension (level 2)
+      gen2 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:y, [], nil},
+        enumerable: {:ys, [], nil}
+      }
+
+      middle_comprehension = %Comprehension{
+        type: :for,
+        generators: [gen2],
+        filters: [],
+        body: innermost_comprehension,
+        options: %{},
+        metadata: %{}
+      }
+
+      # Outer comprehension (level 1)
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen1],
+        filters: [],
+        body: middle_comprehension,
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/deeply_nested/2",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have outer comprehension as ForComprehension
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.ForComprehension
+      end)
+
+      # Get middle comprehension IRI (level 2)
+      middle_link = find_triple(triples, expr_iri, Core.hasCondition())
+      assert middle_link != nil
+      middle_iri = elem(middle_link, 2)
+
+      # Middle should be a ForComprehension
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == middle_iri and p == RDF.type() and o == Core.ForComprehension
+      end)
+
+      # Get innermost comprehension IRI (level 3)
+      innermost_link = find_triple(triples, middle_iri, Core.hasCondition())
+      assert innermost_link != nil
+      innermost_iri = elem(innermost_link, 2)
+
+      # Innermost should also be a ForComprehension
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == innermost_iri and p == RDF.type() and o == Core.ForComprehension
+      end)
+
+      # Innermost should have its own generator
+      innermost_gen_iri = RDF.iri("#{innermost_iri.value}-gen-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == innermost_gen_iri and p == RDF.type() and o == Core.Generator
+      end)
     end
 
     test "handles comprehension with all components", %{context: context} do
