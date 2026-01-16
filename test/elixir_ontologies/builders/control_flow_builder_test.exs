@@ -1604,6 +1604,230 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # Phase 28.4: Collect Expression Extraction Tests (Full Mode)
+  # ===========================================================================
+
+  describe "collect expression extraction in full mode" do
+    setup do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "extracts collect expression with simple multiplication", %{context: context} do
+      # for x <- xs, do: x * 2
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:*, [], [{:x, [], nil}, 2]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/doubled/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have a condition expression for the body (collect expression)
+      body_links =
+        Enum.filter(triples, fn {s, p, _o} ->
+          s == expr_iri and p == Core.hasCondition()
+        end)
+
+      # Should have at least one hasCondition link for the body
+      assert length(body_links) >= 1
+
+      # The linked expression should be an IRI
+      [{_, _, body_iri} | _] = body_links
+      assert match?(%RDF.IRI{}, body_iri)
+    end
+
+    test "extracts collect expression with tuple pattern", %{context: context} do
+      # for {k, v} <- map, do: {k, v * 2}
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:{}, [], [{:k, [], nil}, {:v, [], nil}]},
+        enumerable: {:map, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:{}, [], [{:k, [], nil}, {:*, [], [{:v, [], nil}, 2]}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/scaled_map/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have body expression
+      body_link = find_triple(triples, expr_iri, Core.hasCondition())
+      assert body_link != nil
+      assert match?(%RDF.IRI{}, elem(body_link, 2))
+    end
+
+    test "extracts collect expression with struct literal", %{context: context} do
+      # for x <- xs, do: %{value: x}
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {%{}, [], [{:value, [], {:x, [], nil}}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/to_structs/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have body expression
+      body_link = find_triple(triples, expr_iri, Core.hasCondition())
+      assert body_link != nil
+      assert match?(%RDF.IRI{}, elem(body_link, 2))
+    end
+
+    test "extracts collect expression with list construction", %{context: context} do
+      # for x <- xs, do: [x, x * 2]
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: [ {:x, [], nil}, {:*, [], [{:x, [], nil}, 2]}],
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/duplicate/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have body expression
+      body_link = find_triple(triples, expr_iri, Core.hasCondition())
+      assert body_link != nil
+      assert match?(%RDF.IRI{}, elem(body_link, 2))
+    end
+
+    test "extracts collect expression with function call", %{context: context} do
+      # for x <- xs, do: process(x)
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {{:., [], [{:process, [], nil}, {:x, [], nil}]}, [], []},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/processed/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have body expression
+      body_link = find_triple(triples, expr_iri, Core.hasCondition())
+      assert body_link != nil
+      assert match?(%RDF.IRI{}, elem(body_link, 2))
+    end
+
+    test "light mode does not extract collect expressions (backward compatibility)", %{context: _context} do
+      # Light mode - no expression_builder option
+      light_context = Context.new(base_iri: @base_iri)
+
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:*, [], [{:x, [], nil}, 2]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          light_context,
+          containing_function: "MyApp/light_doubled/1",
+          index: 0
+        )
+
+      # Should NOT have hasCondition for body in light mode
+      body_links =
+        Enum.filter(triples, fn {s, p, _o} ->
+          s == expr_iri and p == Core.hasCondition()
+        end)
+
+      # In light mode, no expression extraction should occur
+      # (Generators still use hasCondition for enumerable, so we need to check specifically)
+      # The key is that we shouldn't have body/collect expression IRIs
+      assert length(Enum.filter(body_links, fn {_, _, o} -> match?(%RDF.IRI{}, o) end)) == 0
+    end
+  end
+
+  # ===========================================================================
   # Location Handling Tests
   # ===========================================================================
 
