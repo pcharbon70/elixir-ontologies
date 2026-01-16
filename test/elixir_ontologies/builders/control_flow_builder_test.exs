@@ -1828,6 +1828,267 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # Phase 28.5: Comprehension Option Expression Extraction Tests (Full Mode)
+  # ===========================================================================
+
+  describe "comprehension option extraction in full mode" do
+    setup do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "extracts into option expression for literal map", %{context: context} do
+      # for {k, v} <- pairs, into: %{}, do: {k, v * 2}
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:{}, [], [{:k, [], nil}, {:v, [], nil}]},
+        enumerable: {:pairs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:{}, [], [{:k, [], nil}, {:*, [], [{:v, [], nil}, 2]}]},
+        options: %{into: {%{}, [], []}},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/to_map/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasIntoOption link
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link != nil
+      # Should link to an expression IRI, not a boolean literal
+      assert match?(%RDF.IRI{}, elem(into_link, 2))
+    end
+
+    test "extracts into option expression for function call", %{context: context} do
+      # for x <- xs, into: MapSet.new(), do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{into: {{:., [], [{:MapSet, [], nil}, {:new, [], nil}]}, [], []}},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/to_set/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasIntoOption link
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link != nil
+      # Should link to an expression IRI
+      assert match?(%RDF.IRI{}, elem(into_link, 2))
+    end
+
+    test "extracts reduce option expression", %{context: context} do
+      # for x <- xs, reduce: 0 do
+      #   acc -> acc + x
+      # end
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:+, [], [:acc, :x]},
+        options: %{reduce: 0},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/sum/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasReduceOption link
+      reduce_link = find_triple(triples, expr_iri, Core.hasReduceOption())
+      assert reduce_link != nil
+      # Should link to an expression IRI
+      assert match?(%RDF.IRI{}, elem(reduce_link, 2))
+    end
+
+    test "extracts uniq option expression as boolean", %{context: context} do
+      # for x <- xs, uniq: true, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{uniq: true},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/unique/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasUniqOption link
+      uniq_link = find_triple(triples, expr_iri, Core.hasUniqOption())
+      assert uniq_link != nil
+      # uniq: true is stored as boolean literal
+      assert RDF.Literal.value(elem(uniq_link, 2)) == true
+    end
+
+    test "extracts comprehension with multiple options", %{context: context} do
+      # for x <- xs, into: %{}, uniq: true, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{into: {%{}, [], []}, uniq: true},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/unique_map/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have both options
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link != nil
+      assert match?(%RDF.IRI{}, elem(into_link, 2))
+
+      uniq_link = find_triple(triples, expr_iri, Core.hasUniqOption())
+      assert uniq_link != nil
+      assert RDF.Literal.value(elem(uniq_link, 2)) == true
+    end
+
+    test "handles comprehension with no options", %{context: context} do
+      # for x <- xs, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/identity/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should NOT have option links
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link == nil
+
+      reduce_link = find_triple(triples, expr_iri, Core.hasReduceOption())
+      assert reduce_link == nil
+
+      uniq_link = find_triple(triples, expr_iri, Core.hasUniqOption())
+      assert uniq_link == nil
+    end
+
+    test "light mode does not extract option expressions (backward compatibility)", %{context: _context} do
+      # Light mode - no expression_builder option
+      light_context = Context.new(base_iri: @base_iri)
+
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{into: {%{}, [], []}, uniq: true},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          light_context,
+          containing_function: "MyApp/light_options/1",
+          index: 0
+        )
+
+      # Should have boolean flags in light mode
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link != nil
+      assert RDF.Literal.value(elem(into_link, 2)) == true
+
+      uniq_link = find_triple(triples, expr_iri, Core.hasUniqOption())
+      assert uniq_link != nil
+      assert RDF.Literal.value(elem(uniq_link, 2)) == true
+    end
+  end
+
+  # ===========================================================================
   # Location Handling Tests
   # ===========================================================================
 
