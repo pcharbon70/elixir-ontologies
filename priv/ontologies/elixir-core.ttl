@@ -720,11 +720,13 @@
 # Reference properties
 :refersToModule a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:label "refers to module"@en ;
-    rdfs:domain :ModuleReference .
+    rdfs:domain :ModuleReference, :RemoteCall ;
+    rdfs:range :Module .
 
 :refersToFunction a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:label "refers to function"@en ;
-    rdfs:domain :FunctionReference .
+    rdfs:domain :FunctionReference, :RemoteCall, :LocalCall ;
+    rdfs:range :Function .
 
 :refersToVariable a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:label "refers to variable"@en ;
@@ -951,6 +953,28 @@
     whether elements are included in the comprehension result."""@en ;
     rdfs:domain :Filter ;
     rdfs:range :Expression .
+
+# =============================================================================
+# Function Call Properties
+# =============================================================================
+
+:moduleName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "module name"@en ;
+    rdfs:comment "The module name for a remote function call (e.g., 'String', 'MyApp.Users')."@en ;
+    rdfs:domain :RemoteCall ;
+    rdfs:range xsd:string .
+
+:functionName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "function name"@en ;
+    rdfs:comment "The function name for a function call."@en ;
+    rdfs:domain :RemoteCall, :LocalCall ;
+    rdfs:range xsd:string .
+
+:arity a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "arity"@en ;
+    rdfs:comment "The number of arguments in a function call."@en ;
+    rdfs:domain :RemoteCall, :LocalCall ;
+    rdfs:range xsd:integer .
 
 # =============================================================================
 # OWL Axioms

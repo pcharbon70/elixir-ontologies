@@ -1504,6 +1504,147 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
       assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.ComparisonOperator end)
     end
+
+    test "builds functionName property for local calls" do
+      context = full_mode_context()
+      ast = {:my_func, [], [1, 2]}
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have functionName property
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.functionName() and RDF.Literal.value(o) == "my_func"
+      end)
+    end
+
+    test "builds arity property for local calls" do
+      context = full_mode_context()
+      ast = {:my_func, [], [1, 2, 3]}
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have arity property with value 3
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.arity() and RDF.Literal.value(o) == 3
+      end)
+    end
+
+    test "builds refersToFunction property for local calls" do
+      context = full_mode_context()
+      ast = {:my_func, [], [1]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have refersToFunction property
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.refersToFunction()
+      end)
+    end
+  end
+
+  describe "remote call properties" do
+    test "builds moduleName property for remote calls" do
+      context = full_mode_context()
+
+      # AST for String.to_integer("123")
+      ast =
+        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [],
+         ["123"]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have moduleName property
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.moduleName() and RDF.Literal.value(o) == "String"
+      end)
+    end
+
+    test "builds functionName property for remote calls" do
+      context = full_mode_context()
+
+      # AST for String.to_integer("123")
+      ast =
+        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [],
+         ["123"]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have functionName property
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.functionName() and RDF.Literal.value(o) == "to_integer"
+      end)
+    end
+
+    test "builds arity property for remote calls" do
+      context = full_mode_context()
+
+      # AST for MyApp.Users.get(1, "admin")
+      ast =
+        {{:., [], [{:__aliases__, [], [:MyApp, :Users]}, :get]}, [],
+         [1, "admin"]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have arity property with value 2
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.arity() and RDF.Literal.value(o) == 2
+      end)
+    end
+
+    test "builds refersToModule property for remote calls" do
+      context = full_mode_context()
+
+      # AST for String.to_integer("123")
+      ast =
+        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [],
+         ["123"]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have refersToModule property
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.refersToModule()
+      end)
+    end
+
+    test "builds refersToFunction property for remote calls" do
+      context = full_mode_context()
+
+      # AST for String.to_integer("123")
+      ast =
+        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [],
+         ["123"]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have refersToFunction property
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.refersToFunction()
+      end)
+    end
+
+    test "builds nested module name correctly" do
+      context = full_mode_context()
+
+      # AST for MyApp.Users.get(1)
+      ast =
+        {{:., [], [{:__aliases__, [], [:MyApp, :Users]}, :get]}, [],
+         [1]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have moduleName with nested module
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.moduleName() and RDF.Literal.value(o) == "MyApp.Users"
+      end)
+
+      # Should have functionName
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.functionName() and RDF.Literal.value(o) == "get"
+      end)
+
+      # Should have arity 1
+      assert Enum.any?(triples, fn {_s, p, o} ->
+        p == Core.arity() and RDF.Literal.value(o) == 1
+      end)
+    end
   end
 
   describe "literals" do

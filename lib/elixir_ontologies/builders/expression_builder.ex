@@ -919,33 +919,58 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
         _ -> inspect(function)
       end
 
+    arity = length(args)
+
     # Build base triples for the RemoteCall
     base_triples = [
       Helpers.type_triple(expr_iri, Core.RemoteCall),
-      Helpers.datatype_property(expr_iri, Core.name(), "#{module_name}.#{function_name}", RDF.XSD.String)
+      Helpers.datatype_property(expr_iri, Core.name(), "#{module_name}.#{function_name}", RDF.XSD.String),
+      Helpers.datatype_property(expr_iri, Core.moduleName(), to_string(module_name), RDF.XSD.String),
+      Helpers.datatype_property(expr_iri, Core.functionName(), to_string(function_name), RDF.XSD.String),
+      Helpers.datatype_property(expr_iri, Core.arity(), arity, RDF.XSD.Integer)
     ]
+
+    # Add refersToModule with placeholder IRI
+    # TODO: Resolve actual module IRI from module registry when available
+    module_iri = RDF.iri("#{context.base_iri}module/#{module_name}")
+    refers_to_module_triple = Helpers.object_property(expr_iri, Core.refersToModule(), module_iri)
+
+    # Add refersToFunction with placeholder IRI
+    # TODO: Resolve actual function IRI from function registry when available
+    function_iri = RDF.iri("#{module_iri.value}#function/#{function_name}/#{arity}")
+    refers_to_function_triple = Helpers.object_property(expr_iri, Core.refersToFunction(), function_iri)
 
     # Build argument expressions recursively
     arg_triples = build_call_arguments(args, expr_iri, context)
 
-    # Combine base triples with argument triples
-    base_triples ++ arg_triples
+    # Combine all triples
+    base_triples ++ [refers_to_module_triple, refers_to_function_triple] ++ arg_triples
   end
 
   # Local call: function(args)
   @spec build_local_call(term(), list(), RDF.IRI.t(), Context.t()) :: list()
   defp build_local_call(function, args, expr_iri, context) do
+    arity = length(args)
+
     # Build base triples for the LocalCall
     base_triples = [
       Helpers.type_triple(expr_iri, Core.LocalCall),
-      Helpers.datatype_property(expr_iri, Core.name(), to_string(function), RDF.XSD.String)
+      Helpers.datatype_property(expr_iri, Core.name(), to_string(function), RDF.XSD.String),
+      Helpers.datatype_property(expr_iri, Core.functionName(), to_string(function), RDF.XSD.String),
+      Helpers.datatype_property(expr_iri, Core.arity(), arity, RDF.XSD.Integer)
     ]
+
+    # Add refersToFunction with placeholder IRI
+    # TODO: Resolve actual function IRI from function registry when available
+    # For local calls, we don't know the module at this point, so use a generic placeholder
+    function_iri = RDF.iri("#{context.base_iri}function/#{function}/#{arity}")
+    refers_to_function_triple = Helpers.object_property(expr_iri, Core.refersToFunction(), function_iri)
 
     # Build argument expressions recursively
     arg_triples = build_call_arguments(args, expr_iri, context)
 
-    # Combine base triples with argument triples
-    base_triples ++ arg_triples
+    # Combine all triples
+    base_triples ++ [refers_to_function_triple] ++ arg_triples
   end
 
   # Variable: {name, meta, ctx}
