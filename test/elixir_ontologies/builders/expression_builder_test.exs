@@ -1647,6 +1647,116 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "anonymous function calls" do
+    test "dispatches variable.(args) to AnonymousFunctionCall" do
+      context = full_mode_context()
+
+      # AST for my_fun.(1, 2)
+      ast =
+        {{:., [], [{:my_fun, [], Elixir}]}, [], [1, 2]}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create AnonymousFunctionCall type
+      assert has_type?(triples, Core.AnonymousFunctionCall)
+    end
+
+    test "extracts function variable for anonymous function call" do
+      context = full_mode_context()
+
+      # AST for fun.(x)
+      ast =
+        {{:., [], [{:fun, [], Elixir}]}, [], [{:x, [], nil}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create a function variable expression
+      fun_var_iri = ExpressionBuilder.fresh_iri(expr_iri, "fun_var")
+
+      # Function variable should be a Variable
+      assert Enum.any?(triples, fn {s, _p, o} -> s == fun_var_iri and o == Core.Variable end)
+
+      # Function variable should have name property
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == fun_var_iri and p == Core.name() and RDF.Literal.value(o) == "fun"
+      end)
+    end
+
+    test "links function variable via hasFunctionExpression" do
+      context = full_mode_context()
+
+      # AST for handler.(data)
+      ast =
+        {{:., [], [{:handler, [], Elixir}]}, [], [{:data, [], nil}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have hasFunctionExpression property
+      fun_var_iri = ExpressionBuilder.fresh_iri(expr_iri, "fun_var")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasFunctionExpression() and o == fun_var_iri
+      end)
+    end
+
+    test "builds argument expressions for anonymous function calls" do
+      context = full_mode_context()
+
+      # AST for fun.(a, b)
+      ast =
+        {{:., [], [{:fun, [], Elixir}]}, [], [{:a, [], nil}, {:b, [], nil}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create two argument child IRIs
+      arg0_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+      arg1_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-1")
+
+      # Both arguments should be Variables
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg0_iri and o == Core.Variable end)
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg1_iri and o == Core.Variable end)
+
+      # Should link both arguments via hasArgument property
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasArgument() and o == arg0_iri
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasArgument() and o == arg1_iri
+      end)
+    end
+
+    test "handles anonymous function call with no arguments" do
+      context = full_mode_context()
+
+      # AST for fun.()
+      ast =
+        {{:., [], [{:fun, [], Elixir}]}, [], []}
+
+      {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create AnonymousFunctionCall type
+      assert has_type?(triples, Core.AnonymousFunctionCall)
+    end
+
+    test "handles complex argument expressions in anonymous function calls" do
+      context = full_mode_context()
+
+      # AST for fun.(x + 1)
+      add_ast = {:+, [], [{:x, [], nil}, 1]}
+      ast = {{:., [], [{:fun, [], Elixir}]}, [], [add_ast]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should create AnonymousFunctionCall type
+      assert has_type?(triples, Core.AnonymousFunctionCall)
+
+      # Argument should be an ArithmeticOperator
+      arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+      assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.ArithmeticOperator end)
+    end
+  end
+
   describe "literals" do
     # Table-driven tests for simple numeric and string literals
     @numeric_literal_tests [

@@ -465,6 +465,11 @@
     rdfs:comment "A function call within the current module scope."@en ;
     rdfs:subClassOf :Expression .
 
+:AnonymousFunctionCall a owl:Class ;
+    rdfs:label "Anonymous Function Call"@en ;
+    rdfs:comment "A call to an anonymous function stored in a variable, using dot syntax (e.g., fun.(args))."@en ;
+    rdfs:subClassOf :Expression .
+
 # =============================================================================
 # Scope and Environment
 # =============================================================================
@@ -975,6 +980,12 @@
     rdfs:comment "The number of arguments in a function call."@en ;
     rdfs:domain :RemoteCall, :LocalCall ;
     rdfs:range xsd:integer .
+
+:hasFunctionExpression a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has function expression"@en ;
+    rdfs:comment "Links an anonymous function call to the variable expression holding the function."@en ;
+    rdfs:domain :AnonymousFunctionCall ;
+    rdfs:range :Expression .
 
 # =============================================================================
 # OWL Axioms

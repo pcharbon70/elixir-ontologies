@@ -785,6 +785,21 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     end
   end
 
+  # Anonymous function call: variable.(args)
+  # Must come BEFORE remote call handler to match the more specific pattern
+  # AST: {{:., _, [{var, [], Elixir}], _, args}
+  # The key identifier is ctx = Elixir (not nil) in the variable tuple
+  # This is distinct from remote calls which have [module, function] as 2 elements
+  def build_expression_triples(
+        {{:., _, [{var, [], Elixir}]}, _, args},
+        expr_iri,
+        context
+      ) do
+    # Reconstruct the variable tuple for build_variable
+    var_ast = {var, [], Elixir}
+    build_anon_call(var_ast, args, expr_iri, context)
+  end
+
   # Remote call: Module.function(args)
   def build_expression_triples(
         {{:., _, [module, function]}, _, args},
@@ -971,6 +986,30 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
     # Combine all triples
     base_triples ++ [refers_to_function_triple] ++ arg_triples
+  end
+
+  # Anonymous function call: variable.(args)
+  @spec build_anon_call(term(), list(), RDF.IRI.t(), Context.t()) :: list()
+  defp build_anon_call(var_ast, args, expr_iri, context) do
+    # Generate IRI for the function variable expression
+    fun_var_iri = fresh_iri(expr_iri, "fun_var")
+
+    # Build the function variable as a Variable expression
+    fun_var_triples = build_variable(var_ast, fun_var_iri, context)
+
+    # Build base triples for the AnonymousFunctionCall
+    base_triples = [
+      Helpers.type_triple(expr_iri, Core.AnonymousFunctionCall)
+    ]
+
+    # Link to the function variable expression
+    has_function_triple = Helpers.object_property(expr_iri, Core.hasFunctionExpression(), fun_var_iri)
+
+    # Build argument expressions recursively
+    arg_triples = build_call_arguments(args, expr_iri, context)
+
+    # Combine all triples
+    base_triples ++ fun_var_triples ++ [has_function_triple] ++ arg_triples
   end
 
   # Variable: {name, meta, ctx}
