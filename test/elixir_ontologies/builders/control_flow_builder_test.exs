@@ -1308,6 +1308,302 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # Phase 28.3: Filter Expression Extraction Tests (Full Mode)
+  # ===========================================================================
+
+  describe "filter expression extraction in full mode" do
+    setup do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "extracts filter expression with comparison operator", %{context: context} do
+      # for x <- xs, x > 0, do: x * 2
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression: {:>, [], [{:x, [], nil}, 0]}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter],
+        body: {:*, [], [{:x, [], nil}, 2]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/positive/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Filter individual
+      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == filter_iri and p == RDF.type() and o == Core.Filter
+      end)
+
+      # Comprehension should link to filter via hasFilter
+      filter_link = find_triple(triples, expr_iri, Core.hasFilter())
+      assert filter_link != nil
+      assert elem(filter_link, 2) == filter_iri
+
+      # Filter should have a condition expression (the filter expression)
+      cond_link = find_triple(triples, filter_iri, Core.hasCondition())
+      assert cond_link != nil
+      assert match?(%RDF.IRI{}, elem(cond_link, 2))
+    end
+
+    test "extracts multiple filter expressions in order", %{context: context} do
+      # for x <- xs, x > 0, x < 100, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      filter1 = %Comprehension.Filter{
+        expression: {:>, [], [{:x, [], nil}, 0]}
+      }
+
+      filter2 = %Comprehension.Filter{
+        expression: {:<, [], [{:x, [], nil}, 100]}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter1, filter2],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/range/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have two filter individuals
+      filter_iri_0 = RDF.iri("#{expr_iri.value}-filter-0")
+      filter_iri_1 = RDF.iri("#{expr_iri.value}-filter-1")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == filter_iri_0 and p == RDF.type() and o == Core.Filter
+      end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == filter_iri_1 and p == RDF.type() and o == Core.Filter
+      end)
+
+      # Both should be linked via hasFilter
+      filter_links =
+        Enum.filter(triples, fn {s, p, _o} ->
+          s == expr_iri and p == Core.hasFilter()
+        end)
+
+      assert length(filter_links) == 2
+
+      # Check order - filter-0 should come before filter-1
+      linked_filters =
+        filter_links
+        |> Enum.map(fn {_, _, o} -> o end)
+        |> Enum.sort()
+
+      assert linked_filters == [filter_iri_0, filter_iri_1]
+    end
+
+    test "extracts filter expression with boolean and", %{context: context} do
+      # for x <- xs, is_binary(x) and byte_size(x) > 0, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression:
+          {:and, [],
+           [
+             {{:., [], [{:is_binary, [], nil}, {:x, [], nil}]}, [], []},
+             {:>, [], [{{:., [], [{:byte_size, [], nil}, {:x, [], nil}]}, [], []}, 0]}
+           ]}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/non_empty_binaries/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Filter individual
+      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == filter_iri and p == RDF.type() and o == Core.Filter
+      end)
+
+      # Filter should have condition expression
+      cond_link = find_triple(triples, filter_iri, Core.hasCondition())
+      assert cond_link != nil
+    end
+
+    test "extracts filter expression with function call", %{context: context} do
+      # for x <- xs, valid?(x), do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression: {{:., [], [{:valid?, [], nil}, {:x, [], nil}]}, [], []}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/valid_only/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Filter individual
+      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == filter_iri and p == RDF.type() and o == Core.Filter
+      end)
+
+      # Filter should have condition expression
+      cond_link = find_triple(triples, filter_iri, Core.hasCondition())
+      assert cond_link != nil
+    end
+
+    test "extracts filter expression with guard", %{context: context} do
+      # for {k, v} <- map, is_atom(k), do: {k, v}
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:{}, [], [{:k, [], nil}, {:v, [], nil}]},
+        enumerable: {:map, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression: {{:., [], [{:is_atom, [], nil}, {:k, [], nil}]}, [], []}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter],
+        body: {:{}, [], [{:k, [], nil}, {:v, [], nil}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/atom_keys/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Filter individual
+      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == filter_iri and p == RDF.type() and o == Core.Filter
+      end)
+
+      # Filter should have condition expression
+      cond_link = find_triple(triples, filter_iri, Core.hasCondition())
+      assert cond_link != nil
+    end
+
+    test "light mode does not extract filter expressions (backward compatibility)", %{context: _context} do
+      # Light mode - no expression_builder option
+      light_context = Context.new(base_iri: @base_iri)
+
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression: {:>, [], [{:x, [], nil}, 0]}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          light_context,
+          containing_function: "MyMap/light/1",
+          index: 0
+        )
+
+      # Should have boolean flag for filter
+      filter_triple = find_triple(triples, expr_iri, Core.hasFilter())
+      assert filter_triple != nil
+      assert RDF.Literal.value(elem(filter_triple, 2)) == true
+
+      # Should NOT have individual filter IRI
+      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      refute Enum.any?(triples, fn {s, _, _} -> s == filter_iri end)
+    end
+  end
+
+  # ===========================================================================
   # Location Handling Tests
   # ===========================================================================
 
