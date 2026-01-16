@@ -881,13 +881,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have Generator individual
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == gen_iri and p == RDF.type() and o == Core.Generator
       end)
 
       # Should have pattern linked via hasPattern
-      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
       pattern_link = find_triple(triples, gen_iri, Core.hasPattern())
       assert pattern_link != nil
       assert elem(pattern_link, 2) == pattern_iri
@@ -925,8 +925,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have Generator with pattern
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
-      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
 
       # Pattern should be a TuplePattern
       pattern_type = find_triple(triples, pattern_iri, RDF.type())
@@ -973,14 +973,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       assert length(gen_links) == 2
 
       # First generator should have pattern
-      gen_iri_0 = RDF.iri("#{expr_iri.value}-gen-0")
-      pattern_iri_0 = RDF.iri("#{gen_iri_0.value}-pattern")
+      gen_iri_0 = RDF.iri("#{expr_iri.value}/gen/0")
+      _pattern_iri_0 = RDF.iri("#{gen_iri_0.value}/pattern")
       pattern_link_0 = find_triple(triples, gen_iri_0, Core.hasPattern())
       assert pattern_link_0 != nil
 
       # Second generator should have pattern
-      gen_iri_1 = RDF.iri("#{expr_iri.value}-gen-1")
-      pattern_iri_1 = RDF.iri("#{gen_iri_1.value}-pattern")
+      gen_iri_1 = RDF.iri("#{expr_iri.value}/gen/1")
+      _pattern_iri_1 = RDF.iri("#{gen_iri_1.value}/pattern")
       pattern_link_1 = find_triple(triples, gen_iri_1, Core.hasPattern())
       assert pattern_link_1 != nil
     end
@@ -1012,8 +1012,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Pattern should be extracted (list pattern)
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
-      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      _pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
       pattern_link = find_triple(triples, gen_iri, Core.hasPattern())
       assert pattern_link != nil
     end
@@ -1050,11 +1050,11 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       assert RDF.Literal.value(elem(generator_triple, 2)) == true
 
       # Should NOT have individual generator IRIs
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
       refute Enum.any?(triples, fn {s, _, _} -> s == gen_iri end)
 
       # Should NOT have pattern IRIs
-      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
       refute Enum.any?(triples, fn {s, _, _} -> s == pattern_iri end)
     end
   end
@@ -1134,13 +1134,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have Generator individual
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == gen_iri and p == RDF.type() and o == Core.Generator
       end)
 
       # Should have pattern linked via hasPattern
-      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
       pattern_link = find_triple(triples, gen_iri, Core.hasPattern())
       assert pattern_link != nil
       assert elem(pattern_link, 2) == pattern_iri
@@ -1178,8 +1178,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have Generator with BinaryPattern
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
-      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
 
       # Pattern should be a BinaryPattern
       pattern_type = find_triple(triples, pattern_iri, RDF.type())
@@ -1216,8 +1216,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have Generator with BinaryPattern
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
-      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
 
       # Pattern should be a BinaryPattern
       pattern_type = find_triple(triples, pattern_iri, RDF.type())
@@ -1256,8 +1256,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have Generator with BinaryPattern
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
-      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
 
       # Pattern should be a BinaryPattern
       pattern_type = find_triple(triples, pattern_iri, RDF.type())
@@ -1298,11 +1298,11 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       assert RDF.Literal.value(elem(generator_triple, 2)) == true
 
       # Should NOT have individual generator IRIs
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
       refute Enum.any?(triples, fn {s, _, _} -> s == gen_iri end)
 
       # Should NOT have pattern IRIs
-      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
       refute Enum.any?(triples, fn {s, _, _} -> s == pattern_iri end)
     end
   end
@@ -1354,7 +1354,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have Filter individual
-      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == filter_iri and p == RDF.type() and o == Core.Filter
       end)
@@ -1364,10 +1364,10 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       assert filter_link != nil
       assert elem(filter_link, 2) == filter_iri
 
-      # Filter should have a condition expression (the filter expression)
-      cond_link = find_triple(triples, filter_iri, Core.hasCondition())
-      assert cond_link != nil
-      assert match?(%RDF.IRI{}, elem(cond_link, 2))
+      # Filter should have a filter expression (the filter expression)
+      filter_expr_link = find_triple(triples, filter_iri, Core.hasFilterExpression())
+      assert filter_expr_link != nil
+      assert match?(%RDF.IRI{}, elem(filter_expr_link, 2))
     end
 
     test "extracts multiple filter expressions in order", %{context: context} do
@@ -1405,8 +1405,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have two filter individuals
-      filter_iri_0 = RDF.iri("#{expr_iri.value}-filter-0")
-      filter_iri_1 = RDF.iri("#{expr_iri.value}-filter-1")
+      filter_iri_0 = RDF.iri("#{expr_iri.value}/filter/0")
+      filter_iri_1 = RDF.iri("#{expr_iri.value}/filter/1")
 
       assert Enum.any?(triples, fn {s, p, o} ->
         s == filter_iri_0 and p == RDF.type() and o == Core.Filter
@@ -1469,13 +1469,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have Filter individual
-      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == filter_iri and p == RDF.type() and o == Core.Filter
       end)
 
       # Filter should have condition expression
-      cond_link = find_triple(triples, filter_iri, Core.hasCondition())
+      cond_link = find_triple(triples, filter_iri, Core.hasFilterExpression())
       assert cond_link != nil
     end
 
@@ -1510,13 +1510,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have Filter individual
-      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == filter_iri and p == RDF.type() and o == Core.Filter
       end)
 
       # Filter should have condition expression
-      cond_link = find_triple(triples, filter_iri, Core.hasCondition())
+      cond_link = find_triple(triples, filter_iri, Core.hasFilterExpression())
       assert cond_link != nil
     end
 
@@ -1551,13 +1551,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have Filter individual
-      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == filter_iri and p == RDF.type() and o == Core.Filter
       end)
 
       # Filter should have condition expression
-      cond_link = find_triple(triples, filter_iri, Core.hasCondition())
+      cond_link = find_triple(triples, filter_iri, Core.hasFilterExpression())
       assert cond_link != nil
     end
 
@@ -1598,7 +1598,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       assert RDF.Literal.value(elem(filter_triple, 2)) == true
 
       # Should NOT have individual filter IRI
-      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
       refute Enum.any?(triples, fn {s, _, _} -> s == filter_iri end)
     end
   end
@@ -1645,13 +1645,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
           expression_builder: ExpressionBuilder
         )
 
-      # Should have a condition expression for the body (collect expression)
+      # Should have a collect expression for the body (collect expression)
       body_links =
         Enum.filter(triples, fn {s, p, _o} ->
-          s == expr_iri and p == Core.hasCondition()
+          s == expr_iri and p == Core.hasCollectExpression()
         end)
 
-      # Should have at least one hasCondition link for the body
+      # Should have at least one hasCollectExpression link for the body
       assert length(body_links) >= 1
 
       # The linked expression should be an IRI
@@ -1686,7 +1686,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have body expression
-      body_link = find_triple(triples, expr_iri, Core.hasCondition())
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
       assert body_link != nil
       assert match?(%RDF.IRI{}, elem(body_link, 2))
     end
@@ -1718,7 +1718,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have body expression
-      body_link = find_triple(triples, expr_iri, Core.hasCondition())
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
       assert body_link != nil
       assert match?(%RDF.IRI{}, elem(body_link, 2))
     end
@@ -1750,7 +1750,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have body expression
-      body_link = find_triple(triples, expr_iri, Core.hasCondition())
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
       assert body_link != nil
       assert match?(%RDF.IRI{}, elem(body_link, 2))
     end
@@ -1782,7 +1782,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have body expression
-      body_link = find_triple(triples, expr_iri, Core.hasCondition())
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
       assert body_link != nil
       assert match?(%RDF.IRI{}, elem(body_link, 2))
     end
@@ -2152,13 +2152,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       end)
 
       # Should have generator for outer comprehension
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == gen_iri and p == RDF.type() and o == Core.Generator
       end)
 
       # Should have inner comprehension as body (now properly extracted as ForComprehension)
-      body_link = find_triple(triples, expr_iri, Core.hasCondition())
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
       assert body_link != nil
       inner_iri = elem(body_link, 2)
 
@@ -2168,7 +2168,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       end)
 
       # Inner comprehension should have its own generator
-      inner_gen_iri = RDF.iri("#{inner_iri.value}-gen-0")
+      inner_gen_iri = RDF.iri("#{inner_iri.value}/gen/0")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == inner_gen_iri and p == RDF.type() and o == Core.Generator
       end)
@@ -2239,7 +2239,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       end)
 
       # Get middle comprehension IRI (level 2)
-      middle_link = find_triple(triples, expr_iri, Core.hasCondition())
+      middle_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
       assert middle_link != nil
       middle_iri = elem(middle_link, 2)
 
@@ -2249,7 +2249,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       end)
 
       # Get innermost comprehension IRI (level 3)
-      innermost_link = find_triple(triples, middle_iri, Core.hasCondition())
+      innermost_link = find_triple(triples, middle_iri, Core.hasCollectExpression())
       assert innermost_link != nil
       innermost_iri = elem(innermost_link, 2)
 
@@ -2259,7 +2259,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       end)
 
       # Innermost should have its own generator
-      innermost_gen_iri = RDF.iri("#{innermost_iri.value}-gen-0")
+      innermost_gen_iri = RDF.iri("#{innermost_iri.value}/gen/0")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == innermost_gen_iri and p == RDF.type() and o == Core.Generator
       end)
@@ -2311,8 +2311,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       end)
 
       # Should have two generators
-      gen_iri_0 = RDF.iri("#{expr_iri.value}-gen-0")
-      gen_iri_1 = RDF.iri("#{expr_iri.value}-gen-1")
+      gen_iri_0 = RDF.iri("#{expr_iri.value}/gen/0")
+      gen_iri_1 = RDF.iri("#{expr_iri.value}/gen/1")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == gen_iri_0 and p == RDF.type() and o == Core.Generator
       end)
@@ -2321,8 +2321,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       end)
 
       # Should have two filters
-      filter_iri_0 = RDF.iri("#{expr_iri.value}-filter-0")
-      filter_iri_1 = RDF.iri("#{expr_iri.value}-filter-1")
+      filter_iri_0 = RDF.iri("#{expr_iri.value}/filter/0")
+      filter_iri_1 = RDF.iri("#{expr_iri.value}/filter/1")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == filter_iri_0 and p == RDF.type() and o == Core.Filter
       end)
@@ -2336,7 +2336,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       assert match?(%RDF.IRI{}, elem(into_link, 2))
 
       # Should have body expression
-      body_link = find_triple(triples, expr_iri, Core.hasCondition())
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
       assert body_link != nil
     end
 
@@ -2372,8 +2372,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have generator with complex pattern
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
-      pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
 
       # Pattern should be extracted
       pattern_link = find_triple(triples, gen_iri, Core.hasPattern())
@@ -2426,13 +2426,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
         )
 
       # Should have filter
-      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
       assert Enum.any?(triples, fn {s, p, o} ->
         s == filter_iri and p == RDF.type() and o == Core.Filter
       end)
 
       # Filter should have condition expression
-      cond_link = find_triple(triples, filter_iri, Core.hasCondition())
+      cond_link = find_triple(triples, filter_iri, Core.hasFilterExpression())
       assert cond_link != nil
       assert match?(%RDF.IRI{}, elem(cond_link, 2))
     end
@@ -2523,10 +2523,10 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       assert RDF.Literal.value(elem(into_link, 2)) == true
 
       # Should NOT have individual generator/filter IRIs
-      gen_iri = RDF.iri("#{expr_iri.value}-gen-0")
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
       refute Enum.any?(triples, fn {s, _, _} -> s == gen_iri end)
 
-      filter_iri = RDF.iri("#{expr_iri.value}-filter-0")
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
       refute Enum.any?(triples, fn {s, _, _} -> s == filter_iri end)
     end
   end
@@ -3842,8 +3842,6 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
           expression_builder: ExpressionBuilder
         )
 
-      # Should have hasPattern linking to else pattern
-      pattern_triple = find_triple(triples, expr_iri, Core.hasPattern())
       # Find the else pattern (there should be at least 2 patterns - one for with clause, one for else)
       pattern_iris =
         triples

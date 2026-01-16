@@ -930,6 +930,28 @@
     rdfs:domain :ForComprehension ;
     rdfs:range xsd:boolean .
 
+# Additional comprehension properties for semantic clarity
+:hasEnumerable a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has enumerable"@en ;
+    rdfs:comment """Links a generator to the enumerable expression it iterates over.
+    The enumerable is the data source (list, map, stream, etc.) being traversed."""@en ;
+    rdfs:domain :Generator ;
+    rdfs:range :Expression .
+
+:hasCollectExpression a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has collect expression"@en ;
+    rdfs:comment """Links a comprehension to its body/collect expression.
+    This is the expression evaluated for each filtered element to produce the result."""@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range :Expression .
+
+:hasFilterExpression a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has filter expression"@en ;
+    rdfs:comment """Links a filter to the boolean expression that determines
+    whether elements are included in the comprehension result."""@en ;
+    rdfs:domain :Filter ;
+    rdfs:range :Expression .
+
 # =============================================================================
 # OWL Axioms
 # =============================================================================

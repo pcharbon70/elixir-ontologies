@@ -1460,6 +1460,22 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # Private - Comprehension Helpers
   # ===========================================================================
 
+  # Maximum nesting depth for comprehensions to prevent stack overflow
+  @max_comprehension_depth 50
+
+  # IRI helper functions for comprehensions
+  defp generator_iri(comprehension_iri, index) do
+    RDF.iri("#{comprehension_iri.value}/gen/#{index}")
+  end
+
+  defp pattern_iri(generator_iri) do
+    RDF.iri("#{generator_iri}/pattern")
+  end
+
+  defp filter_iri(comprehension_iri, index) do
+    RDF.iri("#{comprehension_iri.value}/filter/#{index}")
+  end
+
   # Add generator triples with optional expression building
   defp add_generator_triples(triples, expr_iri, generators, expression_builder, build_expressions?, context, containing_function, comprehension_index)
        when is_list(generators) and generators != [] do
@@ -1467,8 +1483,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
       # Build full expression triples for each generator's enumerable and pattern
       {all_generator_triples, _} =
         Enum.map_reduce(generators, 0, fn gen, idx ->
-          gen_iri = RDF.iri("#{expr_iri.value}-gen-#{idx}")
-          pattern_iri = RDF.iri("#{gen_iri.value}-pattern")
+          gen_iri = generator_iri(expr_iri, idx)
+          pattern_iri = pattern_iri(gen_iri)
 
           gen_triples =
             []
@@ -1495,11 +1511,11 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   defp add_generator_enumerable_triple(triples, gen_iri, enumerable, expression_builder, context, containing_function, comp_index, gen_index) do
     case expression_builder.build(enumerable, context, containing_function: containing_function, index: comp_index * 100 + gen_index) do
       {:ok, {enum_iri, enum_triples}} ->
-        link_triple = Helpers.object_property(gen_iri, Core.hasCondition(), enum_iri)
+        link_triple = Helpers.object_property(gen_iri, Core.hasEnumerable(), enum_iri)
         enum_triples ++ [link_triple | triples]
 
       {:ok, {enum_iri, enum_triples, _updated_context}} ->
-        link_triple = Helpers.object_property(gen_iri, Core.hasCondition(), enum_iri)
+        link_triple = Helpers.object_property(gen_iri, Core.hasEnumerable(), enum_iri)
         enum_triples ++ [link_triple | triples]
 
       :skip ->
@@ -1526,7 +1542,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
       # Build full expression triples for each filter
       {all_filter_triples, _} =
         Enum.map_reduce(filters, 0, fn filter, idx ->
-          filter_iri = RDF.iri("#{expr_iri.value}-filter-#{idx}")
+          filter_iri = filter_iri(expr_iri, idx)
 
           filter_triples =
             []
@@ -1551,11 +1567,11 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   defp add_filter_expression_triple(triples, filter_iri, expression, expression_builder, context, containing_function, comp_index, filter_index) do
     case expression_builder.build(expression, context, containing_function: containing_function, index: comp_index * 100 + filter_index + 50) do
       {:ok, {expr_iri, expr_triples}} ->
-        link_triple = Helpers.object_property(filter_iri, Core.hasCondition(), expr_iri)
+        link_triple = Helpers.object_property(filter_iri, Core.hasFilterExpression(), expr_iri)
         expr_triples ++ [link_triple | triples]
 
       {:ok, {expr_iri, expr_triples, _updated_context}} ->
-        link_triple = Helpers.object_property(filter_iri, Core.hasCondition(), expr_iri)
+        link_triple = Helpers.object_property(filter_iri, Core.hasFilterExpression(), expr_iri)
         expr_triples ++ [link_triple | triples]
 
       :skip ->
@@ -1567,26 +1583,32 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   defp add_comprehension_body_triple(triples, _expr_iri, nil, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
 
   defp add_comprehension_body_triple(triples, expr_iri, %Comprehension{} = body_comprehension, expression_builder, build_expressions?, context, containing_function, comprehension_index) do
-    if build_expressions? do
+    if build_expressions? and comprehension_depth_level(comprehension_index) < @max_comprehension_depth do
       # Nested comprehension - recursively build it with updated index
       nested_index = comprehension_index * 100 + 99
       {body_iri, body_triples} = build_comprehension(body_comprehension, context, containing_function: containing_function, index: nested_index, expression_builder: expression_builder)
-      link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), body_iri)
+      link_triple = Helpers.object_property(expr_iri, Core.hasCollectExpression(), body_iri)
       body_triples ++ [link_triple | triples]
     else
+      # Skip nested comprehension if depth exceeded or not in full mode
       triples
     end
   end
+
+  # Calculate the nesting depth level from the comprehension index
+  # Index 0 -> level 0, Index 99 -> level 1, Index 9999 -> level 2, etc.
+  defp comprehension_depth_level(index) when index < 100, do: 0
+  defp comprehension_depth_level(index), do: 1 + comprehension_depth_level(div(index, 100))
 
   defp add_comprehension_body_triple(triples, expr_iri, body, expression_builder, build_expressions?, context, containing_function, comprehension_index) do
     if build_expressions? and body != nil do
       case expression_builder.build(body, context, containing_function: containing_function, index: comprehension_index * 100 + 99) do
         {:ok, {body_iri, body_triples}} ->
-          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), body_iri)
+          link_triple = Helpers.object_property(expr_iri, Core.hasCollectExpression(), body_iri)
           body_triples ++ [link_triple | triples]
 
         {:ok, {body_iri, body_triples, _updated_context}} ->
-          link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), body_iri)
+          link_triple = Helpers.object_property(expr_iri, Core.hasCollectExpression(), body_iri)
           body_triples ++ [link_triple | triples]
 
         :skip ->
