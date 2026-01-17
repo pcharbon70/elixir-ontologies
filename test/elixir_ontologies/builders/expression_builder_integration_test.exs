@@ -30,7 +30,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderIntegrationTest do
       {:ok, context: context}
     end
 
-    test "build and track multiple independent expressions with context threading", %{context: context} do
+    test "build and track multiple independent expressions with context threading", %{
+      context: context
+    } do
       # Build multiple independent expressions, threading the context
       {:ok, {_expr_iri1, triples1, context1}} =
         ExpressionBuilder.build({:+, [], [1, 2]}, context, [])
@@ -81,34 +83,37 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderIntegrationTest do
 
       # Verify root is comparison operator
       assert Enum.any?(triples, fn {s, p, o} ->
-        p == RDF.type() and o == Core.ComparisonOperator and
-          Enum.any?(triples, fn {s2, p2, o2} ->
-            s2 == s and p2 == Core.operatorSymbol() and RDF.Literal.value(o2) == "=="
-          end)
-      end)
+               p == RDF.type() and o == Core.ComparisonOperator and
+                 Enum.any?(triples, fn {s2, p2, o2} ->
+                   s2 == s and p2 == Core.operatorSymbol() and RDF.Literal.value(o2) == "=="
+                 end)
+             end)
 
       # Verify left operand is addition
       assert Enum.any?(triples, fn {s, p, o} ->
-        p == RDF.type() and o == Core.ArithmeticOperator and
-          Enum.any?(triples, fn {s2, p2, o2} ->
-            s2 == s and p2 == Core.operatorSymbol() and RDF.Literal.value(o2) == "+"
-          end)
-      end)
+               p == RDF.type() and o == Core.ArithmeticOperator and
+                 Enum.any?(triples, fn {s2, p2, o2} ->
+                   s2 == s and p2 == Core.operatorSymbol() and RDF.Literal.value(o2) == "+"
+                 end)
+             end)
 
       # Verify right operand is multiplication
       assert Enum.any?(triples, fn {s, p, o} ->
-        p == RDF.type() and o == Core.ArithmeticOperator and
-          Enum.any?(triples, fn {s2, p2, o2} ->
-            s2 == s and p2 == Core.operatorSymbol() and RDF.Literal.value(o2) == "*"
-          end)
-      end)
+               p == RDF.type() and o == Core.ArithmeticOperator and
+                 Enum.any?(triples, fn {s2, p2, o2} ->
+                   s2 == s and p2 == Core.operatorSymbol() and RDF.Literal.value(o2) == "*"
+                 end)
+             end)
     end
 
     test "query expression types across multiple builds", %{context: context} do
       # Build various expression types, threading context
       {:ok, {_, triples1, context1}} = ExpressionBuilder.build({:+, [], [1, 2]}, context, [])
       {:ok, {_, triples2, context2}} = ExpressionBuilder.build({:==, [], [1, 2]}, context1, [])
-      {:ok, {_, triples3, context3}} = ExpressionBuilder.build({:and, [], [true, false]}, context2, [])
+
+      {:ok, {_, triples3, context3}} =
+        ExpressionBuilder.build({:and, [], [true, false]}, context2, [])
+
       {:ok, {_, triples4, _context4}} = ExpressionBuilder.build({:&, [], [1]}, context3, [])
 
       all_triples = triples1 ++ triples2 ++ triples3 ++ triples4
@@ -228,31 +233,40 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderIntegrationTest do
 
     test "function reference capture operators", %{context: context} do
       # Build &Enum.map/2
+      # Note: &Module.fun/arity creates a FunctionReference, not CaptureOperator
+      # CaptureOperator is only for &1, &2, etc. (argument index captures)
       function_ref = {{:., [], [{:__aliases__, [], [:Enum]}, :map]}, [], []}
       ast = {:&, [], [{:/, [], [function_ref, 2]}]}
 
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
-      # Find the capture operator
-      [capture_op_iri] =
-        Enum.filter(triples, fn {_s, p, o} -> p == RDF.type() and o == Core.CaptureOperator end)
+      # Find the function reference (not capture operator)
+      [fun_ref_iri] =
+        Enum.filter(triples, fn {_s, p, o} -> p == RDF.type() and o == Core.FunctionReference end)
         |> Enum.map(fn {s, _p, _o} -> s end)
+
+      # Verify operator symbol
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == fun_ref_iri and p == Core.operatorSymbol() and
+                 RDF.Literal.value(o) == "&"
+             end)
 
       # Verify module name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == capture_op_iri and p == Core.captureModuleName() and RDF.Literal.value(o) == "Enum"
-      end)
+               s == fun_ref_iri and p == Core.moduleName() and
+                 RDF.Literal.value(o) == "Enum"
+             end)
 
       # Verify function name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == capture_op_iri and p == Core.captureFunctionName() and
-          RDF.Literal.value(o) == "map"
-      end)
+               s == fun_ref_iri and p == Core.functionName() and
+                 RDF.Literal.value(o) == "map"
+             end)
 
       # Verify arity
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == capture_op_iri and p == Core.captureArity() and RDF.Literal.value(o) == 2
-      end)
+               s == fun_ref_iri and p == Core.arity() and RDF.Literal.value(o) == 2
+             end)
     end
   end
 
@@ -281,7 +295,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderIntegrationTest do
 
       # Verify all comparison operators were created
       comparison_exprs =
-        Enum.filter(all_triples, fn {_s, p, o} -> p == RDF.type() and o == Core.ComparisonOperator end)
+        Enum.filter(all_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.ComparisonOperator
+        end)
 
       assert length(comparison_exprs) == length(comparison_ops)
     end
@@ -297,7 +313,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderIntegrationTest do
 
       # Verify all arithmetic operators were created
       arithmetic_exprs =
-        Enum.filter(all_triples, fn {_s, p, o} -> p == RDF.type() and o == Core.ArithmeticOperator end)
+        Enum.filter(all_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.ArithmeticOperator
+        end)
 
       assert length(arithmetic_exprs) == length(arithmetic_ops)
     end
@@ -321,7 +339,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderIntegrationTest do
 
       # Verify all logical operators were created
       logical_exprs =
-        Enum.filter(all_triples, fn {_s, p, o} -> p == RDF.type() and o == Core.LogicalOperator end)
+        Enum.filter(all_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.LogicalOperator
+        end)
 
       assert length(logical_exprs) == 3
     end
@@ -347,13 +367,13 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderIntegrationTest do
 
       # Verify StringConcatOperator type
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.StringConcatOperator
-      end)
+               p == RDF.type() and o == Core.StringConcatOperator
+             end)
 
       # Verify operator symbol
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.operatorSymbol() and RDF.Literal.value(o) == "<>"
-      end)
+               p == Core.operatorSymbol() and RDF.Literal.value(o) == "<>"
+             end)
     end
 
     test "in operator", %{context: context} do
@@ -365,8 +385,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderIntegrationTest do
 
       # Verify operator symbol
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.operatorSymbol() and RDF.Literal.value(o) == "in"
-      end)
+               p == Core.operatorSymbol() and RDF.Literal.value(o) == "in"
+             end)
     end
 
     test "unary plus operator", %{context: context} do
@@ -374,17 +394,19 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderIntegrationTest do
         ExpressionBuilder.build({:+, [], [5]}, context, [])
 
       # Verify ArithmeticOperator type (unary plus is typed as arithmetic)
-      assert Enum.any?(triples, fn {_s, p, o} -> p == RDF.type() and o == Core.ArithmeticOperator end)
+      assert Enum.any?(triples, fn {_s, p, o} ->
+               p == RDF.type() and o == Core.ArithmeticOperator
+             end)
 
       # Verify operator symbol
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.operatorSymbol() and RDF.Literal.value(o) == "+"
-      end)
+               p == Core.operatorSymbol() and RDF.Literal.value(o) == "+"
+             end)
 
       # Verify unary operators have hasOperand property (not hasLeftOperand/hasRightOperand)
       assert Enum.any?(triples, fn {s, p, _o} ->
-        p == Core.hasOperand()
-      end)
+               p == Core.hasOperand()
+             end)
     end
 
     test "unary minus operator", %{context: context} do
@@ -392,12 +414,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderIntegrationTest do
         ExpressionBuilder.build({:-, [], [5]}, context, [])
 
       # Verify ArithmeticOperator type (unary minus is typed as arithmetic)
-      assert Enum.any?(triples, fn {_s, p, o} -> p == RDF.type() and o == Core.ArithmeticOperator end)
+      assert Enum.any?(triples, fn {_s, p, o} ->
+               p == RDF.type() and o == Core.ArithmeticOperator
+             end)
 
       # Verify operator symbol
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.operatorSymbol() and RDF.Literal.value(o) == "-"
-      end)
+               p == Core.operatorSymbol() and RDF.Literal.value(o) == "-"
+             end)
     end
   end
 

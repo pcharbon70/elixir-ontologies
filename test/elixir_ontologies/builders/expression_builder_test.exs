@@ -28,7 +28,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
         )
         |> Context.with_expression_counter()
 
-      assert {:ok, {expr_iri, triples, _updated_context}} = ExpressionBuilder.build(nil, context, [])
+      assert {:ok, {expr_iri, triples, _updated_context}} =
+               ExpressionBuilder.build(nil, context, [])
+
       assert has_type?(triples, Core.NilLiteral)
       assert has_literal_value?(triples, expr_iri, Core.atomValue(), "nil")
     end
@@ -90,7 +92,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
         |> Context.with_expression_counter()
 
       ast = {:==, [], [{:x, [], nil}, 1]}
-      {:ok, {expr_iri, _triples, _context}} = ExpressionBuilder.build(ast, context, suffix: "my_expr")
+
+      {:ok, {expr_iri, _triples, _context}} =
+        ExpressionBuilder.build(ast, context, suffix: "my_expr")
 
       iri_string = RDF.IRI.to_string(expr_iri)
       assert iri_string == "https://example.org/code#expr/my_expr"
@@ -152,14 +156,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
         # Check for ComparisonOperator type
         assert Enum.any?(triples, fn {_s, p, o} ->
-          p == RDF.type() and o == Core.ComparisonOperator
-        end)
+                 p == RDF.type() and o == Core.ComparisonOperator
+               end)
 
         # Check for operator symbol
         assert Enum.any?(triples, fn {_s, p, o} ->
-          p == Core.operatorSymbol() and
-            RDF.Literal.value(o) == to_string(@op)
-        end)
+                 p == Core.operatorSymbol() and
+                   RDF.Literal.value(o) == to_string(@op)
+               end)
       end
     end
 
@@ -176,12 +180,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
+               s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
+               s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+             end)
 
       # Left operand is a Variable
       assert has_type?(triples, Core.Variable)
@@ -201,7 +205,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Right operand should be an ArithmeticOperator (the nested addition)
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ArithmeticOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == right_iri and o == Core.ArithmeticOperator
+             end)
 
       # The nested arithmetic operator should have its own operator symbol
       assert has_operator_symbol_for_iri?(triples, right_iri, "+")
@@ -221,11 +228,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Left operand should be an ArithmeticOperator
       left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ArithmeticOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == left_iri and o == Core.ArithmeticOperator
+             end)
 
       # Right operand should be an ArithmeticOperator
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ArithmeticOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == right_iri and o == Core.ArithmeticOperator
+             end)
 
       # Both nested operators should have their symbols
       assert has_operator_symbol_for_iri?(triples, left_iri, "+")
@@ -301,12 +314,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
+               s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
+               s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+             end)
 
       # Both operands are BooleanLiterals
       assert has_type?(triples, Core.BooleanLiteral)
@@ -326,11 +339,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Left operand should be a ComparisonOperator
       left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ComparisonOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == left_iri and o == Core.ComparisonOperator
+             end)
 
       # Right operand should be a ComparisonOperator
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ComparisonOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == right_iri and o == Core.ComparisonOperator
+             end)
 
       # Both nested operators should have their symbols
       assert has_operator_symbol_for_iri?(triples, left_iri, ">")
@@ -349,12 +368,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should have operand
       operand_iri = ExpressionBuilder.fresh_iri(expr_iri, "operand")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasOperand() and o == operand_iri
-      end)
+               s == expr_iri and p == Core.hasOperand() and o == operand_iri
+             end)
 
       # Operand should be a ComparisonOperator
-      assert Enum.any?(triples, fn {s, _p, o} -> s == operand_iri and o == Core.ComparisonOperator end)
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == operand_iri and o == Core.ComparisonOperator
+             end)
 
       # The nested comparison should have its symbol
       assert has_operator_symbol_for_iri?(triples, operand_iri, "==")
@@ -388,12 +410,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
+               s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
+               s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+             end)
 
       # Both operands are IntegerLiterals
       assert has_type?(triples, Core.IntegerLiteral)
@@ -410,7 +432,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Right operand should be an ArithmeticOperator (the nested multiplication)
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ArithmeticOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == right_iri and o == Core.ArithmeticOperator
+             end)
 
       # The nested arithmetic operator should have its own operator symbol
       assert has_operator_symbol_for_iri?(triples, right_iri, "*")
@@ -430,11 +455,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Left operand should be an ArithmeticOperator
       left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ArithmeticOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == left_iri and o == Core.ArithmeticOperator
+             end)
 
       # Right operand should be an ArithmeticOperator
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ArithmeticOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == right_iri and o == Core.ArithmeticOperator
+             end)
 
       # Both nested operators should have their symbols
       assert has_operator_symbol_for_iri?(triples, left_iri, "+")
@@ -454,7 +485,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Left operand should be another ArithmeticOperator (the inner addition)
       left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ArithmeticOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == left_iri and o == Core.ArithmeticOperator
+             end)
 
       # The inner operator should have operator symbol "+"
       assert has_operator_symbol_for_iri?(triples, left_iri, "+")
@@ -478,7 +512,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Right operand should be an ArithmeticOperator (the inner addition)
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.ArithmeticOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == right_iri and o == Core.ArithmeticOperator
+             end)
 
       # The inner operator should have operator symbol "+"
       assert has_operator_symbol_for_iri?(triples, right_iri, "+")
@@ -587,12 +624,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
+               s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
+               s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+             end)
 
       # Left operand is Variable "x"
       assert has_type?(triples, Core.Variable)
@@ -603,10 +640,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       context = full_mode_context()
       # f(x) |> g(y) as AST
       ast =
-        {:|>, [], [
-          {{:., [], [{:__aliases__, [], [:F]}, :f]}, [], [{:x, [], nil}]},
-          {{:., [], [{:__aliases__, [], [:G]}, :g]}, [], [{:y, [], nil}]}
-        ]}
+        {:|>, [],
+         [
+           {{:., [], [{:__aliases__, [], [:F]}, :f]}, [], [{:x, [], nil}]},
+           {{:., [], [{:__aliases__, [], [:G]}, :g]}, [], [{:y, [], nil}]}
+         ]}
 
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
@@ -652,9 +690,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Left operand should be captured
       left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
+               s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+             end)
 
       # Left operand should be a ListLiteral
       assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ListLiteral end)
@@ -670,14 +709,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Right operand should be captured
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
+               s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+             end)
 
       # Right operand should be a RemoteCall (module function calls)
       assert Enum.any?(triples, fn {s, _p, o} ->
-        s == right_iri and o == Core.RemoteCall
-      end)
+               s == right_iri and o == Core.RemoteCall
+             end)
     end
 
     test "pipe operator with complex nested expressions" do
@@ -698,9 +738,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # The inner pipe's left operand is an ArithmeticOperator
       inner_left_iri = ExpressionBuilder.fresh_iri(left_iri, "left")
+
       assert Enum.any?(triples, fn {s, _p, o} ->
-        s == inner_left_iri and o == Core.ArithmeticOperator
-      end)
+               s == inner_left_iri and o == Core.ArithmeticOperator
+             end)
     end
   end
 
@@ -729,12 +770,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
+               s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
+               s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+             end)
 
       # Left operand is Variable "x"
       assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.Variable end)
@@ -774,7 +815,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Right operand should be another StringConcatOperator
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == right_iri and o == Core.StringConcatOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == right_iri and o == Core.StringConcatOperator
+             end)
 
       # The inner concat should also have operator symbol "<>"
       assert has_operator_symbol_for_iri?(triples, right_iri, "<>")
@@ -903,19 +947,19 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
+               s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
+               s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+             end)
     end
   end
 
   describe "match operator" do
     test "dispatches = to MatchOperator" do
       context = full_mode_context()
-      ast = {:"=", [], [{:x, [], nil}, 1]}
+      ast = {:=, [], [{:x, [], nil}, 1]}
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.MatchOperator)
@@ -934,8 +978,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for capture index using dedicated captureIndex property
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 1
-      end)
+               s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 1
+             end)
     end
 
     test "dispatches &2 to CaptureOperator" do
@@ -948,8 +992,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for capture index
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 2
-      end)
+               s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 2
+             end)
     end
 
     test "dispatches &3 to CaptureOperator" do
@@ -962,8 +1006,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for capture index
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 3
-      end)
+               s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 3
+             end)
     end
 
     test "dispatches &Mod.fun/arity to FunctionReference" do
@@ -979,23 +1023,23 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for module name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "Enum"
-      end)
+               s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "Enum"
+             end)
 
       # Check for function name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "map"
-      end)
+               s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "map"
+             end)
 
       # Check for arity
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
-      end)
+               s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
+             end)
 
       # Check for refersToFunction
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.refersToFunction()
-      end)
+               s == expr_iri and p == Core.refersToFunction()
+             end)
     end
 
     test "dispatches &Mod.fun to FunctionReference without arity" do
@@ -1011,23 +1055,23 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for module name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "IO"
-      end)
+               s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "IO"
+             end)
 
       # Check for function name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "inspect"
-      end)
+               s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "inspect"
+             end)
 
       # Should NOT have arity property
       refute Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.arity()
-      end)
+               s == expr_iri and p == Core.arity()
+             end)
 
       # Should NOT have refersToFunction without arity
       refute Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.refersToFunction()
-      end)
+               s == expr_iri and p == Core.refersToFunction()
+             end)
     end
 
     test "dispatches &4 to CaptureOperator" do
@@ -1040,8 +1084,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for capture index
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 4
-      end)
+               s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 4
+             end)
     end
 
     test "dispatches &5 to CaptureOperator" do
@@ -1054,8 +1098,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for capture index
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 5
-      end)
+               s == expr_iri and p == Core.captureIndex() and RDF.Literal.value(o) == 5
+             end)
     end
 
     test "capture operator distinguishes argument index from function reference" do
@@ -1067,8 +1111,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Has captureIndex property for argument index
       assert Enum.any?(triples1, fn {_s, p, o} ->
-        p == Core.captureIndex() and RDF.Literal.value(o) == 1
-      end)
+               p == Core.captureIndex() and RDF.Literal.value(o) == 1
+             end)
 
       # Function reference (&Enum.map/2)
       function_ref = {{:., [], [{:__aliases__, [], [:Enum]}, :map]}, [], []}
@@ -1077,28 +1121,28 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Has FunctionReference type
       assert Enum.any?(triples2, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.FunctionReference
-      end)
+               p == RDF.type() and o == Core.FunctionReference
+             end)
 
       # Has moduleName property
       assert Enum.any?(triples2, fn {s, p, o} ->
-        s == expr_iri2 and p == Core.moduleName() and RDF.Literal.value(o) == "Enum"
-      end)
+               s == expr_iri2 and p == Core.moduleName() and RDF.Literal.value(o) == "Enum"
+             end)
 
       # Has functionName property
       assert Enum.any?(triples2, fn {s, p, o} ->
-        s == expr_iri2 and p == Core.functionName() and RDF.Literal.value(o) == "map"
-      end)
+               s == expr_iri2 and p == Core.functionName() and RDF.Literal.value(o) == "map"
+             end)
 
       # Has arity property
       assert Enum.any?(triples2, fn {s, p, o} ->
-        s == expr_iri2 and p == Core.arity() and RDF.Literal.value(o) == 2
-      end)
+               s == expr_iri2 and p == Core.arity() and RDF.Literal.value(o) == 2
+             end)
 
       # Has refersToFunction property linking to function IRI
       assert Enum.any?(triples2, fn {s, p, o} ->
-        s == expr_iri2 and p == Core.refersToFunction()
-      end)
+               s == expr_iri2 and p == Core.refersToFunction()
+             end)
     end
   end
 
@@ -1150,9 +1194,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should have left operand property
       left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
+               s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+             end)
 
       # Left operand is Variable "x"
       assert has_literal_value?(triples, left_iri, Core.name(), "x")
@@ -1166,9 +1211,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should have right operand property
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
+               s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+             end)
 
       # Right operand is Variable "list"
       assert has_literal_value?(triples, right_iri, Core.name(), "list")
@@ -1187,7 +1233,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Left operand is an ArithmeticOperator
       left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
-      assert Enum.any?(triples, fn {s, _p, o} -> s == left_iri and o == Core.ArithmeticOperator end)
+
+      assert Enum.any?(triples, fn {s, _p, o} ->
+               s == left_iri and o == Core.ArithmeticOperator
+             end)
 
       # Right operand is a Variable
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
@@ -1220,8 +1269,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for name property
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and RDF.Literal.value(o) == "x"
-      end)
+               p == Core.name() and RDF.Literal.value(o) == "x"
+             end)
     end
 
     test "handles variables with different names" do
@@ -1232,9 +1281,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
         {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
         assert has_type?(triples, Core.Variable)
+
         assert Enum.any?(triples, fn {_s, p, o} ->
-          p == Core.name() and RDF.Literal.value(o) == to_string(var_name)
-        end)
+                 p == Core.name() and RDF.Literal.value(o) == to_string(var_name)
+               end)
       end
     end
   end
@@ -1255,8 +1305,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for String.to_integer("123")
       ast =
-        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [],
-         ["123"]}
+        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [], ["123"]}
 
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
@@ -1264,9 +1313,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for name property with module and function
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and
-          RDF.Literal.value(o) == "String.to_integer"
-      end)
+               p == Core.name() and
+                 RDF.Literal.value(o) == "String.to_integer"
+             end)
     end
 
     test "handles nested module names" do
@@ -1279,9 +1328,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.RemoteCall)
+
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and RDF.Literal.value(o) == "MyApp.Users.get"
-      end)
+               p == Core.name() and RDF.Literal.value(o) == "MyApp.Users.get"
+             end)
     end
 
     test "builds argument expressions for remote calls" do
@@ -1289,8 +1339,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for is_integer(x) - a guard built-in
       ast =
-        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_integer]}, [],
-         [{:x, [], nil}]}
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_integer]}, [], [{:x, [], nil}]}
 
       {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
@@ -1305,8 +1354,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should link argument via hasArgument property
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasArgument() and o == arg_iri
-      end)
+               s == expr_iri and p == Core.hasArgument() and o == arg_iri
+             end)
     end
 
     test "builds multiple argument expressions" do
@@ -1314,8 +1363,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for Some.func(a, b) - two arguments
       ast =
-        {{:., [], [{:__aliases__, [], [:Some]}, :func]}, [],
-         [{:a, [], nil}, {:b, [], nil}]}
+        {{:., [], [{:__aliases__, [], [:Some]}, :func]}, [], [{:a, [], nil}, {:b, [], nil}]}
 
       {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
@@ -1332,12 +1380,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should link both arguments via hasArgument property
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasArgument() and o == arg0_iri
-      end)
+               s == expr_iri and p == Core.hasArgument() and o == arg0_iri
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasArgument() and o == arg1_iri
-      end)
+               s == expr_iri and p == Core.hasArgument() and o == arg1_iri
+             end)
     end
 
     test "builds complex argument expressions" do
@@ -1354,6 +1402,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Argument should be an ArithmeticOperator
       arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+
       assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.ArithmeticOperator end)
     end
 
@@ -1362,15 +1411,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for is_binary(x)
       ast =
-        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_binary]}, [],
-         [{:x, [], nil}]}
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_binary]}, [], [{:x, [], nil}]}
 
       {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.RemoteCall)
+
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and RDF.Literal.value(o) == "Kernel.is_binary"
-      end)
+               p == Core.name() and RDF.Literal.value(o) == "Kernel.is_binary"
+             end)
 
       arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
       assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.Variable end)
@@ -1381,15 +1430,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for is_list(items)
       ast =
-        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_list]}, [],
-         [{:items, [], nil}]}
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_list]}, [], [{:items, [], nil}]}
 
       {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.RemoteCall)
+
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and RDF.Literal.value(o) == "Kernel.is_list"
-      end)
+               p == Core.name() and RDF.Literal.value(o) == "Kernel.is_list"
+             end)
 
       arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
       assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.Variable end)
@@ -1400,15 +1449,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for is_atom(x)
       ast =
-        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_atom]}, [],
-         [{:x, [], nil}]}
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_atom]}, [], [{:x, [], nil}]}
 
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.RemoteCall)
+
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and RDF.Literal.value(o) == "Kernel.is_atom"
-      end)
+               p == Core.name() and RDF.Literal.value(o) == "Kernel.is_atom"
+             end)
     end
 
     test "guard built-in: is_map/1" do
@@ -1416,15 +1465,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for is_map(x)
       ast =
-        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_map]}, [],
-         [{:x, [], nil}]}
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_map]}, [], [{:x, [], nil}]}
 
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.RemoteCall)
+
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and RDF.Literal.value(o) == "Kernel.is_map"
-      end)
+               p == Core.name() and RDF.Literal.value(o) == "Kernel.is_map"
+             end)
     end
 
     test "guard built-in: is_tuple/1" do
@@ -1432,15 +1481,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for is_tuple(x)
       ast =
-        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_tuple]}, [],
-         [{:x, [], nil}]}
+        {{:., [], [{:__aliases__, [], [:Kernel]}, :is_tuple]}, [], [{:x, [], nil}]}
 
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       assert has_type?(triples, Core.RemoteCall)
+
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and RDF.Literal.value(o) == "Kernel.is_tuple"
-      end)
+               p == Core.name() and RDF.Literal.value(o) == "Kernel.is_tuple"
+             end)
     end
   end
 
@@ -1454,8 +1503,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Check for name property
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.name() and RDF.Literal.value(o) == "foo"
-      end)
+               p == Core.name() and RDF.Literal.value(o) == "foo"
+             end)
     end
 
     test "builds argument expressions for local calls" do
@@ -1477,8 +1526,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should link argument via hasArgument property
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasArgument() and o == arg_iri
-      end)
+               s == expr_iri and p == Core.hasArgument() and o == arg_iri
+             end)
     end
 
     test "builds multiple argument expressions for local calls" do
@@ -1502,12 +1551,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should link both arguments via hasArgument property
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasArgument() and o == arg0_iri
-      end)
+               s == expr_iri and p == Core.hasArgument() and o == arg0_iri
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasArgument() and o == arg1_iri
-      end)
+               s == expr_iri and p == Core.hasArgument() and o == arg1_iri
+             end)
     end
 
     test "builds complex argument expressions for local calls" do
@@ -1524,6 +1573,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Argument should be a ComparisonOperator
       arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+
       assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.ComparisonOperator end)
     end
 
@@ -1534,8 +1584,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should have functionName property
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.functionName() and RDF.Literal.value(o) == "my_func"
-      end)
+               p == Core.functionName() and RDF.Literal.value(o) == "my_func"
+             end)
     end
 
     test "builds arity property for local calls" do
@@ -1545,8 +1595,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should have arity property with value 3
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.arity() and RDF.Literal.value(o) == 3
-      end)
+               p == Core.arity() and RDF.Literal.value(o) == 3
+             end)
     end
 
     test "builds refersToFunction property for local calls" do
@@ -1556,8 +1606,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should have refersToFunction property
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.refersToFunction()
-      end)
+               s == expr_iri and p == Core.refersToFunction()
+             end)
     end
   end
 
@@ -1567,15 +1617,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for String.to_integer("123")
       ast =
-        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [],
-         ["123"]}
+        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [], ["123"]}
 
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       # Should have moduleName property
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.moduleName() and RDF.Literal.value(o) == "String"
-      end)
+               p == Core.moduleName() and RDF.Literal.value(o) == "String"
+             end)
     end
 
     test "builds functionName property for remote calls" do
@@ -1583,15 +1632,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for String.to_integer("123")
       ast =
-        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [],
-         ["123"]}
+        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [], ["123"]}
 
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       # Should have functionName property
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.functionName() and RDF.Literal.value(o) == "to_integer"
-      end)
+               p == Core.functionName() and RDF.Literal.value(o) == "to_integer"
+             end)
     end
 
     test "builds arity property for remote calls" do
@@ -1599,15 +1647,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for MyApp.Users.get(1, "admin")
       ast =
-        {{:., [], [{:__aliases__, [], [:MyApp, :Users]}, :get]}, [],
-         [1, "admin"]}
+        {{:., [], [{:__aliases__, [], [:MyApp, :Users]}, :get]}, [], [1, "admin"]}
 
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       # Should have arity property with value 2
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.arity() and RDF.Literal.value(o) == 2
-      end)
+               p == Core.arity() and RDF.Literal.value(o) == 2
+             end)
     end
 
     test "builds refersToModule property for remote calls" do
@@ -1615,15 +1662,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for String.to_integer("123")
       ast =
-        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [],
-         ["123"]}
+        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [], ["123"]}
 
       {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       # Should have refersToModule property
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.refersToModule()
-      end)
+               s == expr_iri and p == Core.refersToModule()
+             end)
     end
 
     test "builds refersToFunction property for remote calls" do
@@ -1631,15 +1677,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for String.to_integer("123")
       ast =
-        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [],
-         ["123"]}
+        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [], ["123"]}
 
       {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       # Should have refersToFunction property
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.refersToFunction()
-      end)
+               s == expr_iri and p == Core.refersToFunction()
+             end)
     end
 
     test "builds nested module name correctly" do
@@ -1647,25 +1692,24 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # AST for MyApp.Users.get(1)
       ast =
-        {{:., [], [{:__aliases__, [], [:MyApp, :Users]}, :get]}, [],
-         [1]}
+        {{:., [], [{:__aliases__, [], [:MyApp, :Users]}, :get]}, [], [1]}
 
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       # Should have moduleName with nested module
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.moduleName() and RDF.Literal.value(o) == "MyApp.Users"
-      end)
+               p == Core.moduleName() and RDF.Literal.value(o) == "MyApp.Users"
+             end)
 
       # Should have functionName
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.functionName() and RDF.Literal.value(o) == "get"
-      end)
+               p == Core.functionName() and RDF.Literal.value(o) == "get"
+             end)
 
       # Should have arity 1
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.arity() and RDF.Literal.value(o) == 1
-      end)
+               p == Core.arity() and RDF.Literal.value(o) == 1
+             end)
     end
   end
 
@@ -1700,8 +1744,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Function variable should have name property
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == fun_var_iri and p == Core.name() and RDF.Literal.value(o) == "fun"
-      end)
+               s == fun_var_iri and p == Core.name() and RDF.Literal.value(o) == "fun"
+             end)
     end
 
     test "links function variable via hasFunctionExpression" do
@@ -1717,8 +1761,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       fun_var_iri = ExpressionBuilder.fresh_iri(expr_iri, "fun_var")
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasFunctionExpression() and o == fun_var_iri
-      end)
+               s == expr_iri and p == Core.hasFunctionExpression() and o == fun_var_iri
+             end)
     end
 
     test "builds argument expressions for anonymous function calls" do
@@ -1740,12 +1784,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should link both arguments via hasArgument property
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasArgument() and o == arg0_iri
-      end)
+               s == expr_iri and p == Core.hasArgument() and o == arg0_iri
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasArgument() and o == arg1_iri
-      end)
+               s == expr_iri and p == Core.hasArgument() and o == arg1_iri
+             end)
     end
 
     test "handles anonymous function call with no arguments" do
@@ -1775,6 +1819,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Argument should be an ArithmeticOperator
       arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+
       assert Enum.any?(triples, fn {s, _p, o} -> s == arg_iri and o == Core.ArithmeticOperator end)
     end
   end
@@ -1802,8 +1847,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should have moduleName property
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.moduleName() and RDF.Literal.value(o) == "String"
-      end)
+               p == Core.moduleName() and RDF.Literal.value(o) == "String"
+             end)
     end
 
     test "extracts module name from nested alias" do
@@ -1816,8 +1861,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should have moduleName with dot-joined name
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.moduleName() and RDF.Literal.value(o) == "MyApp.Users"
-      end)
+               p == Core.moduleName() and RDF.Literal.value(o) == "MyApp.Users"
+             end)
     end
 
     test "extracts module name from deeply nested alias" do
@@ -1830,22 +1875,22 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should have moduleName with all parts joined
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.moduleName() and RDF.Literal.value(o) == "MyApp.Accounts.User"
-      end)
+               p == Core.moduleName() and RDF.Literal.value(o) == "MyApp.Accounts.User"
+             end)
     end
 
     test "handles Elixir prefix in module name" do
       context = full_mode_context()
 
       # AST for Elixir.String
-      ast = {:__aliases__, [], [:Elixir, :String]}
+      ast = {:__aliases__, [], [:"Elixir", :String]}
 
       {:ok, {_expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
       # Should have moduleName with Elixir prefix preserved
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == Core.moduleName() and RDF.Literal.value(o) == "Elixir.String"
-      end)
+               p == Core.moduleName() and RDF.Literal.value(o) == "Elixir.String"
+             end)
     end
 
     test "links to module IRI via refersToModule" do
@@ -1858,8 +1903,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should have refersToModule property
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.refersToModule()
-      end)
+               s == expr_iri and p == Core.refersToModule()
+             end)
     end
 
     test "module IRI is correctly formatted" do
@@ -1874,8 +1919,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       expected_iri = "https://example.org/code#module/MyApp.Users"
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.refersToModule() and o.value == expected_iri
-      end)
+               s == expr_iri and p == Core.refersToModule() and o.value == expected_iri
+             end)
     end
   end
 
@@ -1893,55 +1938,57 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Outer call should be RemoteCall
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.RemoteCall
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.RemoteCall
+             end)
 
       # Outer call should have moduleName
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "String"
-      end)
+               s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "String"
+             end)
 
       # Outer call should have functionName
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "upcase"
-      end)
+               s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "upcase"
+             end)
 
       # Outer call should have arity 1
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 1
-      end)
+               s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 1
+             end)
 
       # Outer call should have an argument
       arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasArgument() and o == arg_iri
-      end)
+               s == expr_iri and p == Core.hasArgument() and o == arg_iri
+             end)
 
       # Argument should be a RemoteCall (the inner call)
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == arg_iri and p == RDF.type() and o == Core.RemoteCall
-      end)
+               s == arg_iri and p == RDF.type() and o == Core.RemoteCall
+             end)
 
       # Inner call should have moduleName Integer
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == arg_iri and p == Core.moduleName() and RDF.Literal.value(o) == "Integer"
-      end)
+               s == arg_iri and p == Core.moduleName() and RDF.Literal.value(o) == "Integer"
+             end)
 
       # Inner call should have functionName to_string
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == arg_iri and p == Core.functionName() and RDF.Literal.value(o) == "to_string"
-      end)
+               s == arg_iri and p == Core.functionName() and RDF.Literal.value(o) == "to_string"
+             end)
 
       # Inner call should have an argument (the integer 123)
       inner_arg_iri = ExpressionBuilder.fresh_iri(arg_iri, "arg-0")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == arg_iri and p == Core.hasArgument() and o == inner_arg_iri
-      end)
+               s == arg_iri and p == Core.hasArgument() and o == inner_arg_iri
+             end)
 
       # Inner argument should be IntegerLiteral
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == inner_arg_iri and p == RDF.type() and o == Core.IntegerLiteral
-      end)
+               s == inner_arg_iri and p == RDF.type() and o == Core.IntegerLiteral
+             end)
     end
 
     test "handles nested remote and local calls" do
@@ -1960,19 +2007,20 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Outer call should be LocalCall
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.LocalCall
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.LocalCall
+             end)
 
       # Outer call should have functionName
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "process"
-      end)
+               s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "process"
+             end)
 
       # Outer call argument should contain a RemoteCall
       arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == arg_iri and p == RDF.type() and o == Core.RemoteCall
-      end)
+               s == arg_iri and p == RDF.type() and o == Core.RemoteCall
+             end)
     end
 
     test "handles pipe operator chaining" do
@@ -1991,30 +2039,32 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should have PipeOperator type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.PipeOperator
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.PipeOperator
+             end)
 
       # Should have hasLeftOperand
       left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
+               s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+             end)
 
       # Left operand should be another PipeOperator
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == left_iri and p == RDF.type() and o == Core.PipeOperator
-      end)
+               s == left_iri and p == RDF.type() and o == Core.PipeOperator
+             end)
 
       # Should have hasRightOperand
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
+               s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+             end)
 
       # Right operand should be RemoteCall (String.upcase)
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == right_iri and p == RDF.type() and o == Core.RemoteCall
-      end)
+               s == right_iri and p == RDF.type() and o == Core.RemoteCall
+             end)
     end
 
     test "handles calls with complex argument expressions" do
@@ -2033,25 +2083,27 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should be LocalCall
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.LocalCall
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.LocalCall
+             end)
 
       # Should have arity 2
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
-      end)
+               s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
+             end)
 
       # First argument should be ArithmeticOperator (a + b)
       arg0_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == arg0_iri and p == RDF.type() and o == Core.ArithmeticOperator
-      end)
+               s == arg0_iri and p == RDF.type() and o == Core.ArithmeticOperator
+             end)
 
       # Second argument should be ArithmeticOperator (c * d)
       arg1_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-1")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == arg1_iri and p == RDF.type() and o == Core.ArithmeticOperator
-      end)
+               s == arg1_iri and p == RDF.type() and o == Core.ArithmeticOperator
+             end)
     end
 
     test "handles calls with keyword arguments" do
@@ -2071,20 +2123,21 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should be RemoteCall
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.RemoteCall
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.RemoteCall
+             end)
 
       # Should have arity 2
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
-      end)
+               s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
+             end)
 
       # Second argument should be some kind of expression
       # (The exact type depends on how keyword lists are represented)
       arg1_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-1")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasArgument() and o == arg1_iri
-      end)
+               s == expr_iri and p == Core.hasArgument() and o == arg1_iri
+             end)
     end
 
     test "anonymous function call via variable" do
@@ -2097,24 +2150,104 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Should be AnonymousFunctionCall
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.AnonymousFunctionCall
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.AnonymousFunctionCall
+             end)
 
       # Should have hasFunctionExpression
       fun_var_iri = ExpressionBuilder.fresh_iri(expr_iri, "fun_var")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasFunctionExpression() and o == fun_var_iri
-      end)
+               s == expr_iri and p == Core.hasFunctionExpression() and o == fun_var_iri
+             end)
 
       # Function variable should exist
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == fun_var_iri and p == RDF.type() and o == Core.Variable
-      end)
+               s == fun_var_iri and p == RDF.type() and o == Core.Variable
+             end)
 
       # Should have name "fun"
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == fun_var_iri and p == Core.name() and RDF.Literal.value(o) == "fun"
-      end)
+               s == fun_var_iri and p == Core.name() and RDF.Literal.value(o) == "fun"
+             end)
+    end
+
+    test "handles apply/3 for dynamic function calls" do
+      # apply/3 is a built-in Erlang function for dynamic function invocation
+      # It's represented as a remote call to :erlang.apply
+      context = full_mode_context()
+
+      # AST for apply(Module, :function, [arg1, arg2])
+      ast =
+        {{:., [], [{:__aliases__, [], [:Module]}, :apply]}, [],
+         [{:__aliases__, [], [:Module]}, :function, [{:arg1, [], Elixir}, {:arg2, [], Elixir}]]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should be RemoteCall to Module.apply
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.RemoteCall
+             end)
+
+      # Should have moduleName "Module"
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "Module"
+             end)
+
+      # Should have functionName "apply"
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "apply"
+             end)
+
+      # Should have arity 3
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 3
+             end)
+    end
+
+    test "handles call with variable as function name" do
+      # When a variable is used as the function in a call, it's treated as an anonymous function call
+      context = full_mode_context()
+
+      # AST for func.(args) where func is a variable
+      ast = {{:., [], [{:func, [], Elixir}]}, [], [{:arg, [], Elixir}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should be AnonymousFunctionCall
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.AnonymousFunctionCall
+             end)
+
+      # Should have hasFunctionExpression linking to variable
+      assert Enum.any?(triples, fn {s, p, _o} ->
+               s == expr_iri and p == Core.hasFunctionExpression()
+             end)
+    end
+
+    test "handles call with no arguments" do
+      # Some functions/0-arity functions are called with empty args list
+      context = full_mode_context()
+
+      # AST for System.monotonic_time()
+      ast =
+        {{:., [], [{:__aliases__, [], [:System]}, :monotonic_time]}, [], []}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should be RemoteCall
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.RemoteCall
+             end)
+
+      # Should have arity 0
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 0
+             end)
+
+      # Should have NO hasArgument triples
+      refute Enum.any?(triples, fn {s, p, _o} ->
+               s == expr_iri and p == Core.hasArgument()
+             end)
     end
   end
 
@@ -2134,7 +2267,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       {:float, 0.5, Core.FloatLiteral, Core.floatValue(), 0.5}
     ]
 
-    for {type_name, value, expected_type, value_property, expected_value} <- @numeric_literal_tests do
+    for {type_name, value, expected_type, value_property, expected_value} <-
+          @numeric_literal_tests do
       @type_name type_name
       @value value
       @expected_type expected_type
@@ -2354,9 +2488,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_type?(triples, Core.BinaryLiteral)
       # Verify the base64 value is set (we don't check exact value due to size)
       assert Enum.any?(triples, fn
-        {_, p, _} -> p == Core.binaryValue()
-        _ -> false
-      end)
+               {_, p, _} -> p == Core.binaryValue()
+               _ -> false
+             end)
     end
 
     test "treats binary with variables as generic expression" do
@@ -2432,7 +2566,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       context = full_mode_context()
 
       # Nested lists
-      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build([["a", "b"], ["c", "d"]], context, [])
+      {:ok, {_expr_iri, triples, _}} =
+        ExpressionBuilder.build([["a", "b"], ["c", "d"]], context, [])
 
       # Nested lists are treated as ListLiteral
       assert has_type?(triples, Core.ListLiteral)
@@ -2474,7 +2609,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       context = full_mode_context()
 
       # Charlist with ASCII characters
-      charlist = [104, 101, 108, 108, 111]  # "hello"
+      # "hello"
+      charlist = [104, 101, 108, 108, 111]
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(charlist, context, [])
 
       assert has_type?(triples, Core.CharlistLiteral)
@@ -2700,7 +2836,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       # Struct update: %Struct{} | struct
       # Note: This creates a complex update pattern that may not be fully handled
       original_struct = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], []}]}
-      updated_struct_ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], [{:|, [], [original_struct, [name: "Jane"]]}]}]}
+
+      updated_struct_ast =
+        {:%, [],
+         [{:__aliases__, [], [:User]}, {:%{}, [], [{:|, [], [original_struct, [name: "Jane"]]}]}]}
 
       result = ExpressionBuilder.build(updated_struct_ast, context, [])
 
@@ -2730,7 +2869,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       # Regular list: [1, 2, 3]
       regular_list_ast = quote do: [1, 2, 3]
-      {:ok, {_expr_iri, regular_triples, _}} = ExpressionBuilder.build(regular_list_ast, context, [])
+
+      {:ok, {_expr_iri, regular_triples, _}} =
+        ExpressionBuilder.build(regular_list_ast, context, [])
 
       # Keyword list creates KeywordListLiteral
       assert has_type?(kw_triples, Core.KeywordListLiteral)
@@ -2835,8 +2976,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert has_type?(triples, Core.SigilLiteral)
       # Should NOT have sigilModifiers triple (empty modifiers don't create a triple)
       refute Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.sigilModifiers()
-      end)
+               s == expr_iri and p == Core.sigilModifiers()
+             end)
     end
 
     test "handles charlist sigil" do
@@ -2859,11 +3000,13 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       # line
       # string
       # """
-      sigil_ast = quote do: ~s"""
-multi
-line
-string
-"""
+      sigil_ast =
+        quote do: ~s"""
+              multi
+              line
+              string
+              """
+
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(sigil_ast, context, [])
 
       assert has_type?(triples, Core.SigilLiteral)
@@ -2904,12 +3047,12 @@ string
 
       # Should have rangeStart and rangeEnd properties linking to child expressions
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.rangeStart()
-      end)
+               s == expr_iri and p == Core.rangeStart()
+             end)
 
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.rangeEnd()
-      end)
+               s == expr_iri and p == Core.rangeEnd()
+             end)
     end
 
     test "builds RangeLiteral for step range" do
@@ -2923,8 +3066,8 @@ string
 
       # Should have rangeStep property for step ranges
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.rangeStep()
-      end)
+               s == expr_iri and p == Core.rangeStep()
+             end)
     end
 
     test "range literal captures step value for step ranges" do
@@ -2936,16 +3079,16 @@ string
 
       # Should have rangeStart, rangeEnd, and rangeStep properties
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.rangeStart()
-      end)
+               s == expr_iri and p == Core.rangeStart()
+             end)
 
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.rangeEnd()
-      end)
+               s == expr_iri and p == Core.rangeEnd()
+             end)
 
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.rangeStep()
-      end)
+               s == expr_iri and p == Core.rangeStep()
+             end)
     end
 
     test "handles negative range" do
@@ -2969,12 +3112,12 @@ string
 
       # Start and end should be variables
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.rangeStart()
-      end)
+               s == expr_iri and p == Core.rangeStart()
+             end)
 
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.rangeEnd()
-      end)
+               s == expr_iri and p == Core.rangeEnd()
+             end)
 
       # Should have Variable child expressions
       assert has_type?(triples, Core.Variable)
@@ -3001,8 +3144,8 @@ string
 
       # Should link to arithmetic operator expressions
       assert Enum.any?(triples, fn {_s, _p, o} ->
-        o == Core.ArithmeticOperator
-      end)
+               o == Core.ArithmeticOperator
+             end)
     end
 
     test "simple range does not have rangeStep property" do
@@ -3014,8 +3157,8 @@ string
 
       # Should NOT have rangeStep property for simple ranges
       refute Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.rangeStep()
-      end)
+               s == expr_iri and p == Core.rangeStep()
+             end)
     end
   end
 
@@ -3042,7 +3185,8 @@ string
           metadata: %{expression_counter: 0}
         )
 
-      {iri, updated_context} = ExpressionBuilder.expression_iri("https://example.org/code#", context)
+      {iri, updated_context} =
+        ExpressionBuilder.expression_iri("https://example.org/code#", context)
 
       assert RDF.IRI.to_string(iri) == "https://example.org/code#expr/expr_0"
       assert Context.get_expression_counter(updated_context) == 1
@@ -3072,7 +3216,9 @@ string
         )
 
       {iri, updated_context} =
-        ExpressionBuilder.expression_iri("https://example.org/code#", context, suffix: "my_custom_expr")
+        ExpressionBuilder.expression_iri("https://example.org/code#", context,
+          suffix: "my_custom_expr"
+        )
 
       assert RDF.IRI.to_string(iri) == "https://example.org/code#expr/my_custom_expr"
       # Counter should not be incremented when custom suffix is used
@@ -3209,7 +3355,8 @@ string
       # Using AST structure as cache key
       ast_key1 = {:==, [], [{:x, [], nil}, 1]}
       ast_key2 = {:==, [], [{:y, [], nil}, 2]}
-      ast_key3 = {:==, [], [{:x, [], nil}, 1]} # Same as key1
+      # Same as key1
+      ast_key3 = {:==, [], [{:x, [], nil}, 1]}
 
       # Create unique generators for each key
       gen1 = fn -> RDF.IRI.new("https://example.org/expr/hash1") end
@@ -3269,7 +3416,8 @@ string
         )
 
       assert Context.get_expression_counter(context) == 10
-      assert Context.get_expression_counter(context) == 10 # Still 10
+      # Still 10
+      assert Context.get_expression_counter(context) == 10
     end
 
     test "get_expression_counter/1 defaults to 0 when not set" do
@@ -3348,6 +3496,7 @@ string
 
       # Different expression - creates new IRI
       different_expr = {:!=, [], [{:y, [], nil}, 2]}
+
       {iri3, _cache3} =
         ExpressionBuilder.get_or_create_iri(
           cache2,
@@ -3430,12 +3579,12 @@ string
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
+               s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
+               s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+             end)
 
       # Left operand should be a Variable
       assert has_type?(triples, Core.Variable)
@@ -3458,33 +3607,39 @@ string
 
       # Left child is a comparison operator
       left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+
       assert Enum.any?(triples, fn {s, _p, o} ->
-        s == left_iri and o == Core.ComparisonOperator
-      end)
+               s == left_iri and o == Core.ComparisonOperator
+             end)
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == left_iri and p == Core.operatorSymbol() and
-          RDF.Literal.value(o) == ">"
-      end)
+               s == left_iri and p == Core.operatorSymbol() and
+                 RDF.Literal.value(o) == ">"
+             end)
 
       # Left-left is Variable "x"
       left_left_iri = ExpressionBuilder.fresh_iri(left_iri, "left")
+
       assert Enum.any?(triples, fn {s, _p, o} ->
-        s == left_left_iri and o == Core.Variable
-      end)
+               s == left_left_iri and o == Core.Variable
+             end)
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == left_left_iri and p == Core.name() and
-          RDF.Literal.value(o) == "x"
-      end)
+               s == left_left_iri and p == Core.name() and
+                 RDF.Literal.value(o) == "x"
+             end)
 
       # Left-right is IntegerLiteral 5
       left_right_iri = ExpressionBuilder.fresh_iri(left_iri, "right")
+
       assert Enum.any?(triples, fn {s, _p, o} ->
-        s == left_right_iri and o == Core.IntegerLiteral
-      end)
+               s == left_right_iri and o == Core.IntegerLiteral
+             end)
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == left_right_iri and p == Core.integerValue() and
-          RDF.Literal.value(o) == 5
-      end)
+               s == left_right_iri and p == Core.integerValue() and
+                 RDF.Literal.value(o) == 5
+             end)
     end
 
     test "unary operator creates operand triples" do
@@ -3499,9 +3654,10 @@ string
 
       # Should link to operand
       operand_iri = ExpressionBuilder.fresh_iri(expr_iri, "operand")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasOperand() and o == operand_iri
-      end)
+               s == expr_iri and p == Core.hasOperand() and o == operand_iri
+             end)
 
       # Operand should be a Variable
       assert has_type?(triples, Core.Variable)
@@ -3520,13 +3676,15 @@ string
 
       # Right operand is another ArithmeticOperator (*)
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+
       assert Enum.any?(triples, fn {s, _p, o} ->
-        s == right_iri and o == Core.ArithmeticOperator
-      end)
+               s == right_iri and o == Core.ArithmeticOperator
+             end)
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == right_iri and p == Core.operatorSymbol() and
-          RDF.Literal.value(o) == "*"
-      end)
+               s == right_iri and p == Core.operatorSymbol() and
+                 RDF.Literal.value(o) == "*"
+             end)
     end
 
     test "match operator creates left and right expressions" do
@@ -3544,12 +3702,12 @@ string
       right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
-      end)
+               s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
-      end)
+               s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+             end)
 
       # Left is Variable "x"
       assert has_type?(triples, Core.Variable)
@@ -3680,7 +3838,7 @@ string
     test "detects binary pattern - with segments" do
       # Binary pattern with size specifier uses the :: operator in AST
       # The AST form is: {:<<>>, [], [{:::, [], [{:x, [], Elixir}, 8]}]}
-      segment = {:::, [], [{:x, [], Elixir}, 8]}
+      segment = {:"::", [], [{:x, [], Elixir}, 8]}
       ast = {:<<>>, [], [segment]}
       assert ExpressionBuilder.detect_pattern_type(ast) == :binary_pattern
     end
@@ -3717,9 +3875,10 @@ string
 
       # Using build_pattern directly should return VariablePattern
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
       assert Enum.any?(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.VariablePattern
-      end)
+               p == RDF.type() and o == Core.VariablePattern
+             end)
     end
 
     test "dispatches wildcard pattern to WildcardPattern via build_pattern" do
@@ -3729,9 +3888,10 @@ string
 
       # Using build_pattern directly should return WildcardPattern
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
       assert Enum.any?(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.WildcardPattern
-      end)
+               p == RDF.type() and o == Core.WildcardPattern
+             end)
     end
 
     test "dispatches pin pattern to PinPattern via build_pattern" do
@@ -3740,14 +3900,15 @@ string
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
       assert Enum.any?(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.PinPattern
-      end)
+               p == RDF.type() and o == Core.PinPattern
+             end)
 
       # Check variable name is captured
       assert Enum.any?(pattern_triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.name() and RDF.Literal.value(o) == "x"
-      end)
+               s == expr_iri and p == Core.name() and RDF.Literal.value(o) == "x"
+             end)
     end
 
     test "dispatches tuple pattern to TuplePattern via build_pattern" do
@@ -3756,9 +3917,10 @@ string
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
       assert Enum.any?(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.TuplePattern
-      end)
+               p == RDF.type() and o == Core.TuplePattern
+             end)
     end
 
     test "dispatches list pattern to ListPattern via build_pattern" do
@@ -3767,9 +3929,10 @@ string
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
       assert Enum.any?(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.ListPattern
-      end)
+               p == RDF.type() and o == Core.ListPattern
+             end)
     end
 
     test "dispatches map pattern to MapPattern via build_pattern" do
@@ -3779,9 +3942,10 @@ string
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
       assert Enum.any?(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.MapPattern
-      end)
+               p == RDF.type() and o == Core.MapPattern
+             end)
     end
 
     test "dispatches struct pattern to StructPattern via build_pattern" do
@@ -3792,22 +3956,24 @@ string
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
       assert Enum.any?(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.StructPattern
-      end)
+               p == RDF.type() and o == Core.StructPattern
+             end)
     end
 
     test "dispatches binary pattern to BinaryPattern via build_pattern" do
       context = full_mode_context()
       # Binary pattern with size specifier uses the :: operator in AST
-      segment = {:::, [], [{:x, [], Elixir}, 8]}
+      segment = {:"::", [], [{:x, [], Elixir}, 8]}
       ast = {:<<>>, [], [segment]}
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
       assert Enum.any?(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.BinaryPattern
-      end)
+               p == RDF.type() and o == Core.BinaryPattern
+             end)
     end
 
     test "dispatches as pattern to AsPattern via build_pattern" do
@@ -3818,9 +3984,10 @@ string
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
       assert Enum.any?(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.AsPattern
-      end)
+               p == RDF.type() and o == Core.AsPattern
+             end)
     end
 
     test "dispatches unknown pattern to generic Expression" do
@@ -3829,9 +3996,10 @@ string
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
+
       assert Enum.any?(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.Expression
-      end)
+               p == RDF.type() and o == Core.Expression
+             end)
     end
   end
 
@@ -4187,9 +4355,11 @@ string
       # Should have TuplePattern type
       assert has_type?(pattern_triples, Core.TuplePattern)
       # Nested tuples should create multiple TuplePattern instances
-      tuple_pattern_count = Enum.count(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.TuplePattern
-      end)
+      tuple_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.TuplePattern
+        end)
+
       assert tuple_pattern_count >= 2
     end
   end
@@ -4284,9 +4454,11 @@ string
       # Should have ListPattern type
       assert has_type?(pattern_triples, Core.ListPattern)
       # Nested lists should create multiple ListPattern instances
-      list_pattern_count = Enum.count(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.ListPattern
-      end)
+      list_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.ListPattern
+        end)
+
       assert list_pattern_count >= 2
     end
   end
@@ -4444,9 +4616,11 @@ string
       assert has_type?(pattern_triples, Core.MapPattern)
 
       # Nested maps should create multiple MapPattern instances
-      map_pattern_count = Enum.count(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.MapPattern
-      end)
+      map_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.MapPattern
+        end)
+
       assert map_pattern_count >= 2
     end
 
@@ -4483,8 +4657,8 @@ string
 
       # Should have module reference
       assert Enum.any?(pattern_triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.refersToModule()
-      end)
+               s == expr_iri and p == Core.refersToModule()
+             end)
 
       # Empty struct has type triple and module reference (no field patterns)
       assert length(pattern_triples) == 2
@@ -4505,9 +4679,9 @@ string
 
       # Module reference should point to "User"
       assert Enum.any?(pattern_triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.refersToModule() and
-          String.contains?(RDF.IRI.to_string(o), "User")
-      end)
+               s == expr_iri and p == Core.refersToModule() and
+                 String.contains?(RDF.IRI.to_string(o), "User")
+             end)
 
       # Should have nested VariablePattern
       assert has_type?(pattern_triples, Core.VariablePattern)
@@ -4528,9 +4702,9 @@ string
 
       # Module reference should point to "MyApp.User"
       assert Enum.any?(pattern_triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.refersToModule() and
-          String.contains?(RDF.IRI.to_string(o), "MyApp.User")
-      end)
+               s == expr_iri and p == Core.refersToModule() and
+                 String.contains?(RDF.IRI.to_string(o), "MyApp.User")
+             end)
     end
 
     test "builds StructPattern with __MODULE__" do
@@ -4548,20 +4722,24 @@ string
 
       # Module reference should point to "__MODULE__"
       assert Enum.any?(pattern_triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.refersToModule() and
-          String.contains?(RDF.IRI.to_string(o), "__MODULE__")
-      end)
+               s == expr_iri and p == Core.refersToModule() and
+                 String.contains?(RDF.IRI.to_string(o), "__MODULE__")
+             end)
     end
 
     test "builds StructPattern with multiple fields" do
       context = full_mode_context()
       # %User{name: name, age: age, email: email}
       module_ast = {:__aliases__, [], [:User]}
-      map_ast = {:%{}, [], [
-        name: {:name, [], Elixir},
-        age: {:age, [], Elixir},
-        email: {:email, [], Elixir}
-      ]}
+
+      map_ast =
+        {:%{}, [],
+         [
+           name: {:name, [], Elixir},
+           age: {:age, [], Elixir},
+           email: {:email, [], Elixir}
+         ]}
+
       ast = {:%, [], [module_ast, map_ast]}
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
@@ -4571,9 +4749,11 @@ string
       assert has_type?(pattern_triples, Core.StructPattern)
 
       # Should have multiple nested VariablePatterns
-      variable_pattern_count = Enum.count(pattern_triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.VariablePattern
-      end)
+      variable_pattern_count =
+        Enum.count(pattern_triples, fn {_s, p, o} ->
+          p == RDF.type() and o == Core.VariablePattern
+        end)
+
       assert variable_pattern_count == 3
     end
 
@@ -4788,8 +4968,8 @@ string
 
       # Should have hasPattern property
       assert Enum.any?(pattern_triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.hasPattern()
-      end)
+               s == expr_iri and p == Core.hasPattern()
+             end)
     end
 
     test "builds AsPattern for map pattern = var" do
@@ -4956,7 +5136,9 @@ string
     test "builds struct with nested struct fields" do
       context = full_mode_context()
       # %User{address: %Address{city: city}}
-      inner_struct = {:%, [], [{:__aliases__, [], [:Address]}, {:%{}, [], [city: {:city, [], Elixir}]}]}
+      inner_struct =
+        {:%, [], [{:__aliases__, [], [:Address]}, {:%{}, [], [city: {:city, [], Elixir}]}]}
+
       ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], [address: inner_struct]}]}
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
@@ -4978,7 +5160,10 @@ string
       # {%{a: b} => %User{name: name}}
       # Note: This uses list format for complex key
       key_map = {:%{}, [], [a: {:b, [], Elixir}]}
-      struct_val = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], [name: {:name, [], Elixir}]}]}
+
+      struct_val =
+        {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], [name: {:name, [], Elixir}]}]}
+
       ast = {:%{}, [], [[key_map, struct_val]]}
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
@@ -5067,7 +5252,10 @@ string
       binary_ast = {:<<>>, [], [{:f, [], Elixir}]}
       as_pattern = {:=, [], [{{:g, [], Elixir}}, {:h, [], Elixir}]}
 
-      ast = {:%{}, [], [tuple: tuple_ast, list: list_ast, map: map_ast, binary: binary_ast, as: as_pattern]}
+      ast =
+        {:%{}, [],
+         [tuple: tuple_ast, list: list_ast, map: map_ast, binary: binary_ast, as: as_pattern]}
+
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       pattern_triples = ExpressionBuilder.build_pattern(ast, expr_iri, context)
@@ -5348,8 +5536,8 @@ string
 
       # Should have DoBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # Should have one child
       children = find_all_objects(triples, expr_iri, Core.hasChild())
@@ -5374,8 +5562,8 @@ string
 
       # Should have DoBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # Should have two children
       children = find_all_objects(triples, expr_iri, Core.hasChild())
@@ -5436,8 +5624,8 @@ string
 
       # Verify it's an addition expression (the return value)
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == return_expr and p == RDF.type() and o == Core.ArithmeticOperator
-      end)
+               s == return_expr and p == RDF.type() and o == Core.ArithmeticOperator
+             end)
     end
 
     test "do block extraction with single expression has return expression", %{context: context} do
@@ -5482,8 +5670,8 @@ string
 
       # Should have DoBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # Should have no children
       children = find_all_objects(triples, expr_iri, Core.hasChild())
@@ -5510,22 +5698,23 @@ string
 
       # Should have DoBlock type for outer block
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # Should have two children
       children = find_all_objects(triples, expr_iri, Core.hasChild())
       assert length(children) == 2
 
       # First child should be a nested DoBlock
-      first_child = Enum.find(children, fn child ->
-        RDF.IRI.to_string(child)
-        |> String.ends_with?("child/0")
-      end)
+      first_child =
+        Enum.find(children, fn child ->
+          RDF.IRI.to_string(child)
+          |> String.ends_with?("child/0")
+        end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == first_child and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == first_child and p == RDF.type() and o == Core.DoBlock
+             end)
     end
   end
 
@@ -5560,8 +5749,8 @@ string
 
       # Should have FnBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Should have one clause
       clauses = find_all_objects(triples, expr_iri, Core.hasClause())
@@ -5586,8 +5775,8 @@ string
 
       # Should have FnBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Should have two clauses
       clauses = find_all_objects(triples, expr_iri, Core.hasClause())
@@ -5599,8 +5788,7 @@ string
       ast =
         {:fn, [],
          [
-           {:->, [],
-            [[{:x, [], nil}, {:y, [], nil}], {:+, [], [{:x, [], nil}, {:y, [], nil}]}]}
+           {:->, [], [[{:x, [], nil}, {:y, [], nil}], {:+, [], [{:x, [], nil}, {:y, [], nil}]}]}
          ]}
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
@@ -5618,15 +5806,17 @@ string
       assert length(children) == 3
 
       # Find the params (ending with "/param/0" and "/param/1")
-      param_0 = Enum.find(children, fn child ->
-        RDF.IRI.to_string(child)
-        |> String.ends_with?("param/0")
-      end)
+      param_0 =
+        Enum.find(children, fn child ->
+          RDF.IRI.to_string(child)
+          |> String.ends_with?("param/0")
+        end)
 
-      param_1 = Enum.find(children, fn child ->
-        RDF.IRI.to_string(child)
-        |> String.ends_with?("param/1")
-      end)
+      param_1 =
+        Enum.find(children, fn child ->
+          RDF.IRI.to_string(child)
+          |> String.ends_with?("param/1")
+        end)
 
       assert param_0 != nil
       assert param_1 != nil
@@ -5650,8 +5840,8 @@ string
 
       # Should have FnBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Should have one clause
       clauses = find_all_objects(triples, expr_iri, Core.hasClause())
@@ -5663,9 +5853,10 @@ string
       assert length(guards) == 1
 
       guard = Enum.at(guards, 0)
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard and p == Core.inGuardContext() and RDF.Literal.value(o) == true
-      end)
+               s == guard and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+             end)
     end
 
     test "fn block extraction with multiple body expressions", %{context: context} do
@@ -5694,16 +5885,18 @@ string
       assert length(children) == 2
 
       # Find the body (should end with "/body")
-      body = Enum.find(children, fn child ->
-        RDF.IRI.to_string(child)
-        |> String.ends_with?("body")
-      end)
+      body =
+        Enum.find(children, fn child ->
+          RDF.IRI.to_string(child)
+          |> String.ends_with?("body")
+        end)
 
       # Body should be a DoBlock
       assert body != nil
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == body and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == body and p == RDF.type() and o == Core.DoBlock
+             end)
     end
 
     test "fn block extraction preserves clause order", %{context: context} do
@@ -5746,8 +5939,8 @@ string
 
       # Should have FnBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Should have one clause
       clauses = find_all_objects(triples, expr_iri, Core.hasClause())
@@ -5778,8 +5971,8 @@ string
 
       # Should have FnBlock type for outer fn
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Outer fn should have one clause
       outer_clauses = find_all_objects(triples, expr_iri, Core.hasClause())
@@ -5791,16 +5984,18 @@ string
       assert length(outer_children) == 2
 
       # Find the body (ends with "/body")
-      outer_body = Enum.find(outer_children, fn child ->
-        RDF.IRI.to_string(child)
-        |> String.ends_with?("body")
-      end)
+      outer_body =
+        Enum.find(outer_children, fn child ->
+          RDF.IRI.to_string(child)
+          |> String.ends_with?("body")
+        end)
 
       # Body should be an inner FnBlock
       assert outer_body != nil
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == outer_body and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == outer_body and p == RDF.type() and o == Core.FnBlock
+             end)
     end
 
     test "fn block extraction has return expression link to body", %{context: context} do
@@ -5829,11 +6024,13 @@ string
 
       # The body should be an arithmetic operator (the return value)
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == return_expr and p == RDF.type() and o == Core.ArithmeticOperator
-      end)
+               s == return_expr and p == RDF.type() and o == Core.ArithmeticOperator
+             end)
     end
 
-    test "fn block extraction with multiple clauses each has return expression", %{context: context} do
+    test "fn block extraction with multiple clauses each has return expression", %{
+      context: context
+    } do
       # fn
       #   x -> x + 1
       #   y -> y * 2
@@ -5933,36 +6130,40 @@ string
 
       # Should have DoBlock type for outer block
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # Get children of outer block
       outer_children = find_all_objects(triples, expr_iri, Core.hasChild())
       assert length(outer_children) == 2
 
       # First child should be middle DoBlock
-      middle_block = Enum.find(outer_children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/child/0$|
-      end)
+      middle_block =
+        Enum.find(outer_children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/child/0$|
+        end)
 
       assert middle_block != nil
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == middle_block and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == middle_block and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # Middle block should have two children
       middle_children = find_all_objects(triples, middle_block, Core.hasChild())
       assert length(middle_children) == 2
 
       # First child of middle should be inner DoBlock
-      inner_block = Enum.find(middle_children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/child/0$|
-      end)
+      inner_block =
+        Enum.find(middle_children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/child/0$|
+        end)
 
       assert inner_block != nil
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == inner_block and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == inner_block and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # Verify IRI hierarchy
       # Outer: expr/0
@@ -5993,22 +6194,24 @@ string
 
       # Should have DoBlock type for outer block
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # Should have two children
       children = find_all_objects(triples, expr_iri, Core.hasChild())
       assert length(children) == 2
 
       # First child should be FnBlock
-      fn_block = Enum.find(children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/child/0$|
-      end)
+      fn_block =
+        Enum.find(children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/child/0$|
+        end)
 
       assert fn_block != nil
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == fn_block and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == fn_block and p == RDF.type() and o == Core.FnBlock
+             end)
     end
 
     test "fn block extraction handles do block as body", %{context: context} do
@@ -6028,8 +6231,8 @@ string
 
       # Should have FnBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Get clause
       clauses = find_all_objects(triples, expr_iri, Core.hasClause())
@@ -6040,15 +6243,17 @@ string
       assert length(children) == 2
 
       # Find the body
-      body = Enum.find(children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/body$|
-      end)
+      body =
+        Enum.find(children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/body$|
+        end)
 
       # Body should be a DoBlock
       assert body != nil
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == body and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == body and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # DoBlock should have two children
       body_children = find_all_objects(triples, body, Core.hasChild())
@@ -6076,8 +6281,8 @@ string
 
       # Outer fn should be FnBlock
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Get outer clause
       outer_clauses = find_all_objects(triples, expr_iri, Core.hasClause())
@@ -6088,16 +6293,17 @@ string
       assert length(outer_children) == 2
 
       # Find the body (should be inner FnBlock)
-      inner_fn_body = Enum.find(outer_children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/body$|
-      end)
+      inner_fn_body =
+        Enum.find(outer_children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/body$|
+        end)
 
       assert inner_fn_body != nil
 
       # Body should be an inner FnBlock
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == inner_fn_body and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == inner_fn_body and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Verify IRI hierarchy
       # Outer fn: expr/0
@@ -6120,15 +6326,19 @@ string
       #   :outer_result
       # end
 
-      innermost_do = {:__block__, [], [
-        {:=, [], [{:z, [], nil}, {:+, [], [{:y, [], nil}, 1]}]},
-        {:z, [], nil}
-      ]}
+      innermost_do =
+        {:__block__, [],
+         [
+           {:=, [], [{:z, [], nil}, {:+, [], [{:y, [], nil}, 1]}]},
+           {:z, [], nil}
+         ]}
 
-      fn_body = {:__block__, [], [
-        {:=, [], [{:y, [], nil}, {:*, [], [{:x, [], nil}, 2]}]},
-        innermost_do
-      ]}
+      fn_body =
+        {:__block__, [],
+         [
+           {:=, [], [{:y, [], nil}, {:*, [], [{:x, [], nil}, 2]}]},
+           innermost_do
+         ]}
 
       fn_ast = {:fn, [], [{:->, [], [[{:x, [], nil}], fn_body]}]}
 
@@ -6140,22 +6350,24 @@ string
 
       # Verify outer do block
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # Get outer children (fn + atom)
       outer_children = find_all_objects(triples, expr_iri, Core.hasChild())
       assert length(outer_children) == 2
 
       # Get fn block (first child)
-      fn_block = Enum.find(outer_children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/child/0$|
-      end)
+      fn_block =
+        Enum.find(outer_children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/child/0$|
+        end)
 
       assert fn_block != nil
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == fn_block and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == fn_block and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Get fn clause
       fn_clauses = find_all_objects(triples, fn_block, Core.hasClause())
@@ -6163,27 +6375,32 @@ string
 
       # Get fn clause body (middle do block)
       fn_children = find_all_objects(triples, fn_clause, Core.hasChild())
-      fn_body_do = Enum.find(fn_children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/body$|
-      end)
+
+      fn_body_do =
+        Enum.find(fn_children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/body$|
+        end)
 
       assert fn_body_do != nil
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == fn_body_do and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == fn_body_do and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # Get innermost do block
       middle_do_children = find_all_objects(triples, fn_body_do, Core.hasChild())
       assert length(middle_do_children) == 2
 
-      innermost_do_block = Enum.find(middle_do_children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/child/1$|
-      end)
+      innermost_do_block =
+        Enum.find(middle_do_children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/child/1$|
+        end)
 
       assert innermost_do_block != nil
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == innermost_do_block and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == innermost_do_block and p == RDF.type() and o == Core.DoBlock
+             end)
 
       # Verify complete IRI hierarchy
       # Outer do: expr/0
@@ -6226,9 +6443,11 @@ string
 
       # Get outer block children
       outer_children = find_all_objects(triples, expr_iri, Core.hasChild())
-      inner_block = Enum.find(outer_children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/child/0$|
-      end)
+
+      inner_block =
+        Enum.find(outer_children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/child/0$|
+        end)
 
       # Outer block should return :c (child/1)
       outer_return = find_object(triples, expr_iri, Core.hasReturnExpression())
@@ -6240,7 +6459,9 @@ string
       assert RDF.IRI.to_string(inner_return) =~ ~r|/child/1$|
     end
 
-    test "do block extraction at max depth limit (100 levels) works correctly", %{context: context} do
+    test "do block extraction at max depth limit (100 levels) works correctly", %{
+      context: context
+    } do
       # Create a deeply nested do block at exactly max depth
       # This is a regression test to ensure depth limiting works
 
@@ -6253,11 +6474,13 @@ string
 
       # Should have DoBlock type for outer block
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.DoBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.DoBlock
+             end)
     end
 
-    test "fn block extraction at max depth limit (100 levels) works correctly", %{context: context} do
+    test "fn block extraction at max depth limit (100 levels) works correctly", %{
+      context: context
+    } do
       # Create exactly 100 levels of nesting
       ast = create_nested_fn_blocks(100)
       expr_iri = RDF.iri("https://example.org/code#expr/0")
@@ -6267,8 +6490,8 @@ string
 
       # Should have FnBlock type for outer block
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
     end
   end
 
@@ -6303,8 +6526,8 @@ string
 
       # Should have FnBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Should have one clause
       clauses = find_all_objects(triples, expr_iri, Core.hasClause())
@@ -6316,15 +6539,16 @@ string
       assert length(children) == 2
 
       # First child should be the tuple pattern
-      tuple_param = Enum.find(children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/param/0$|
-      end)
+      tuple_param =
+        Enum.find(children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/param/0$|
+        end)
 
       assert tuple_param != nil
       # Tuple pattern should be extracted as a pattern
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == tuple_param and p == RDF.type() and o == Core.TuplePattern
-      end)
+               s == tuple_param and p == RDF.type() and o == Core.TuplePattern
+             end)
     end
 
     test "fn block extraction handles list destructuring in parameters", %{context: context} do
@@ -6341,8 +6565,8 @@ string
 
       # Should have FnBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Should have one clause with parameter
       clauses = find_all_objects(triples, expr_iri, Core.hasClause())
@@ -6353,24 +6577,28 @@ string
       assert length(children) == 2
 
       # First child should be the list pattern parameter
-      list_param = Enum.find(children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/param/0$|
-      end)
+      list_param =
+        Enum.find(children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/param/0$|
+        end)
 
       assert list_param != nil
       # Parameter should be extracted as Expression (the cons pattern creates child patterns)
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == list_param and p == RDF.type() and o == Core.Expression
-      end)
+               s == list_param and p == RDF.type() and o == Core.Expression
+             end)
 
       # Body should be a Variable with name "h"
-      body = Enum.find(children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/body$|
-      end)
+      body =
+        Enum.find(children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/body$|
+        end)
+
       assert body != nil
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == body and p == Core.name() and RDF.Literal.value(o) == "h"
-      end)
+               s == body and p == Core.name() and RDF.Literal.value(o) == "h"
+             end)
     end
 
     test "fn block extraction handles pin patterns in parameters", %{context: context} do
@@ -6384,8 +6612,8 @@ string
 
       # Should have FnBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Should have one clause with pin parameter
       clauses = find_all_objects(triples, expr_iri, Core.hasClause())
@@ -6396,15 +6624,16 @@ string
       assert length(children) == 2
 
       # First child should be the pin pattern
-      pin_param = Enum.find(children, fn child ->
-        RDF.IRI.to_string(child) =~ ~r|/param/0$|
-      end)
+      pin_param =
+        Enum.find(children, fn child ->
+          RDF.IRI.to_string(child) =~ ~r|/param/0$|
+        end)
 
       assert pin_param != nil
       # Pin pattern should be extracted
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == pin_param and p == RDF.type() and o == Core.PinPattern
-      end)
+               s == pin_param and p == RDF.type() and o == Core.PinPattern
+             end)
     end
   end
 
@@ -6453,8 +6682,8 @@ string
 
       # Should have FnBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Should have one clause
       clauses = find_all_objects(triples, expr_iri, Core.hasClause())
@@ -6467,8 +6696,8 @@ string
       assert guard != nil
       # Guard should be marked with inGuardContext
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard and p == Core.inGuardContext() and RDF.Literal.value(o) == true
-      end)
+               s == guard and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+             end)
     end
 
     test "fn block extraction handles guards with or logic", %{context: context} do
@@ -6499,8 +6728,8 @@ string
 
       # Should have FnBlock type
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.FnBlock
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.FnBlock
+             end)
 
       # Should have one clause
       clauses = find_all_objects(triples, expr_iri, Core.hasClause())
