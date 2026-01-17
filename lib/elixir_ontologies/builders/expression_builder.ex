@@ -95,6 +95,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   alias ElixirOntologies.Builders.{Context, Helpers}
   alias ElixirOntologies.NS.Core
+  alias ElixirOntologies.IRI
 
   # ===========================================================================
   # Public API
@@ -1511,23 +1512,35 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   @doc false
   # Build capture operator for function reference (&Mod.fun/arity)
-  # Uses dedicated captureModuleName, captureFunctionName, and captureArity properties
-  defp build_capture_function_ref(function_ref, arity, expr_iri, _context) do
+  # Uses FunctionReference type with moduleName, functionName, arity, and refersToFunction
+  defp build_capture_function_ref(function_ref, arity, expr_iri, context) do
     # Extract module and function name from function_ref AST
     {module, function} = extract_function_ref_parts(function_ref)
 
+    # Build base triples for the FunctionReference
     base_triples = [
-      {expr_iri, RDF.type(), Core.CaptureOperator},
+      {expr_iri, RDF.type(), Core.FunctionReference},
       {expr_iri, Core.operatorSymbol(), RDF.Literal.new("&")},
-      {expr_iri, Core.captureModuleName(), RDF.Literal.new(module)},
-      {expr_iri, Core.captureFunctionName(), RDF.Literal.new(function)}
+      {expr_iri, Core.moduleName(), RDF.Literal.new(module)},
+      {expr_iri, Core.functionName(), RDF.Literal.new(function)}
     ]
 
     # Add arity if specified
+    triples_with_arity =
+      if arity do
+        base_triples ++ [{expr_iri, Core.arity(), RDF.Literal.new(arity)}]
+      else
+        base_triples
+      end
+
+    # Add refersToFunction with function IRI if we have arity
+    # Function IRI requires module, function name, and arity
     if arity do
-      base_triples ++ [{expr_iri, Core.captureArity(), RDF.Literal.new(arity)}]
+      function_iri = IRI.for_function(context.base_iri, module, function, arity)
+      refers_to_function_triple = {expr_iri, Core.refersToFunction(), function_iri}
+      triples_with_arity ++ [refers_to_function_triple]
     else
-      base_triples
+      triples_with_arity
     end
   end
 

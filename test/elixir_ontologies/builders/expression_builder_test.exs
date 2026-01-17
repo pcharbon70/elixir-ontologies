@@ -966,7 +966,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       end)
     end
 
-    test "dispatches &Mod.fun/arity to CaptureOperator" do
+    test "dispatches &Mod.fun/arity to FunctionReference" do
       context = full_mode_context()
       # &Enum.map/2 as AST
       function_ref = {{:., [], [{:__aliases__, [], [:Enum]}, :map]}, [], []}
@@ -974,26 +974,31 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
-      assert has_type?(triples, Core.CaptureOperator)
+      assert has_type?(triples, Core.FunctionReference)
       assert has_operator_symbol?(triples, "&")
 
       # Check for module name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.captureModuleName() and RDF.Literal.value(o) == "Enum"
+        s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "Enum"
       end)
 
       # Check for function name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.captureFunctionName() and RDF.Literal.value(o) == "map"
+        s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "map"
       end)
 
       # Check for arity
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.captureArity() and RDF.Literal.value(o) == 2
+        s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
+      end)
+
+      # Check for refersToFunction
+      assert Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.refersToFunction()
       end)
     end
 
-    test "dispatches &Mod.fun to CaptureOperator without arity" do
+    test "dispatches &Mod.fun to FunctionReference without arity" do
       context = full_mode_context()
       # &IO.inspect as AST
       function_ref = {{:., [], [{:__aliases__, [], [:IO]}, :inspect]}, [], []}
@@ -1001,22 +1006,27 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
 
       {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
 
-      assert has_type?(triples, Core.CaptureOperator)
+      assert has_type?(triples, Core.FunctionReference)
       assert has_operator_symbol?(triples, "&")
 
       # Check for module name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.captureModuleName() and RDF.Literal.value(o) == "IO"
+        s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "IO"
       end)
 
       # Check for function name
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.captureFunctionName() and RDF.Literal.value(o) == "inspect"
+        s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "inspect"
       end)
 
       # Should NOT have arity property
       refute Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.captureArity()
+        s == expr_iri and p == Core.arity()
+      end)
+
+      # Should NOT have refersToFunction without arity
+      refute Enum.any?(triples, fn {s, p, _o} ->
+        s == expr_iri and p == Core.refersToFunction()
       end)
     end
 
@@ -1063,19 +1073,31 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       # Function reference (&Enum.map/2)
       function_ref = {{:., [], [{:__aliases__, [], [:Enum]}, :map]}, [], []}
       ast2 = {:&, [], [{:/, [], [function_ref, 2]}]}
-      {:ok, {_expr_iri2, triples2, _}} = ExpressionBuilder.build(ast2, context, [])
+      {:ok, {expr_iri2, triples2, _}} = ExpressionBuilder.build(ast2, context, [])
 
-      # Has moduleName, functionName, and arity for function reference
+      # Has FunctionReference type
       assert Enum.any?(triples2, fn {_s, p, o} ->
-        p == Core.captureModuleName() and RDF.Literal.value(o) == "Enum"
+        p == RDF.type() and o == Core.FunctionReference
       end)
 
-      assert Enum.any?(triples2, fn {_s, p, o} ->
-        p == Core.captureFunctionName() and RDF.Literal.value(o) == "map"
+      # Has moduleName property
+      assert Enum.any?(triples2, fn {s, p, o} ->
+        s == expr_iri2 and p == Core.moduleName() and RDF.Literal.value(o) == "Enum"
       end)
 
-      assert Enum.any?(triples2, fn {_s, p, o} ->
-        p == Core.captureArity() and RDF.Literal.value(o) == 2
+      # Has functionName property
+      assert Enum.any?(triples2, fn {s, p, o} ->
+        s == expr_iri2 and p == Core.functionName() and RDF.Literal.value(o) == "map"
+      end)
+
+      # Has arity property
+      assert Enum.any?(triples2, fn {s, p, o} ->
+        s == expr_iri2 and p == Core.arity() and RDF.Literal.value(o) == 2
+      end)
+
+      # Has refersToFunction property linking to function IRI
+      assert Enum.any?(triples2, fn {s, p, o} ->
+        s == expr_iri2 and p == Core.refersToFunction()
       end)
     end
   end
