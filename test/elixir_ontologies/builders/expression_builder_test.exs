@@ -6744,6 +6744,240 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   end
 
   # ===========================================================================
+  # Try Expression Tests (Phase 30.1)
+  # ===========================================================================
+
+  describe "try expression detection" do
+    setup do
+      context = full_mode_context()
+      {:ok, context: context}
+    end
+
+    test "detects simple try expression with just do block", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+    end
+
+    test "detects try expression with rescue block", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          _ -> :error
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should have try body linked via hasTryBody
+      body_iri = find_object(triples, expr_iri, Core.hasTryBody())
+      assert body_iri != nil
+    end
+
+    test "detects try expression with catch block", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        catch
+          :throw, x -> x
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+    end
+
+    test "detects try expression with after block", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        after
+          :cleanup
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+    end
+
+    test "detects try expression with else block (Elixir 1.11+)", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        else
+          x -> x
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+    end
+
+    test "detects complete try expression with all blocks", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          _ -> :error
+        catch
+          :throw, x -> x
+        after
+          :cleanup
+        else
+          x -> x
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+    end
+  end
+
+  describe "try expression body extraction" do
+    setup do
+      context = full_mode_context()
+      {:ok, context: context}
+    end
+
+    test "extracts single expression try body", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have try body linked via hasTryBody
+      body_iri = find_object(triples, expr_iri, Core.hasTryBody())
+      assert body_iri != nil
+
+      # Body should be an AtomLiteral with value :ok
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == body_iri and p == RDF.type() and o == Core.AtomLiteral
+             end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == body_iri and p == Core.atomValue() and RDF.Literal.value(o) == ":ok"
+             end)
+    end
+
+    test "extracts multi-expression try body as block", %{context: context} do
+      ast = quote do
+        try do
+          expr1()
+          expr2()
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have try body linked via hasTryBody
+      body_iri = find_object(triples, expr_iri, Core.hasTryBody())
+      assert body_iri != nil
+
+      # Body should be a DoBlock (for multiple expressions)
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == body_iri and p == RDF.type() and o == Core.DoBlock
+             end)
+    end
+
+    test "extracts complex try body with function call", %{context: context} do
+      ast = quote do
+        try do
+          Risky.operation()
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have try body linked via hasTryBody
+      body_iri = find_object(triples, expr_iri, Core.hasTryBody())
+      assert body_iri != nil
+
+      # Body should be a RemoteCall
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == body_iri and p == RDF.type() and o == Core.RemoteCall
+             end)
+    end
+  end
+
+  describe "try expression IRI structure" do
+    setup do
+      context = full_mode_context()
+      {:ok, context: context}
+    end
+
+    test "generates correct IRI hierarchy for try expression", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Try body IRI should be nested under try IRI
+      body_iri = find_object(triples, expr_iri, Core.hasTryBody())
+      assert body_iri != nil
+
+      # Body IRI should be expr_iri + "/body"
+      assert RDF.IRI.to_string(body_iri) == "https://example.org/code#expr/0/body"
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 

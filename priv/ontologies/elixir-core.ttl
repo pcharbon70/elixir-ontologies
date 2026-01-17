@@ -658,6 +658,12 @@
     rdfs:label "has clause"@en ;
     rdfs:comment "Links a case/cond/receive to its pattern clauses."@en .
 
+:hasTryBody a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has try body"@en ;
+    rdfs:comment "Links a try expression to its main body expression."@en ;
+    rdfs:domain :TryExpression ;
+    rdfs:range :Block .
+
 :hasRescueClause a owl:ObjectProperty ;
     rdfs:label "has rescue clause"@en ;
     rdfs:domain :TryExpression .

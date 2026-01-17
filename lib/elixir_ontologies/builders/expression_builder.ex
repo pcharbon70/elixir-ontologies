@@ -511,6 +511,77 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # ===========================================================================
+  # Try Expression Builder
+  # ===========================================================================
+
+  # Builds RDF triples for a try expression with rescue, catch, after, and else blocks.
+  #
+  # ## AST Pattern
+  #
+  # {:try, _, [[do: body], [rescue: rescue_clauses], [catch: catch_clauses],
+  #            [after: after_block], [else: else_block]]}
+  #
+  # Each clause is a separate keyword list element. The order may vary.
+  #
+  # ## Phase 30.1 Scope
+  #
+  # This implementation (Phase 30.1) handles:
+  # - Try body extraction and linking via `hasTryBody`
+  # - Detection of optional blocks (rescue, catch, after, else)
+  #
+  # Full extraction of these blocks will be implemented in later phases:
+  # - Phase 30.2: Rescue clauses
+  # - Phase 30.3: Catch clauses
+  # - Phase 30.4: After blocks
+  # - Phase 30.5: Else blocks
+  @spec build_try_expression(list(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  defp build_try_expression(blocks, try_iri, context) do
+    # Extract the try body (required)
+    # The do block is identified by keyword :do
+    do_block = Keyword.get(blocks, :do)
+
+    # Create type triple for TryExpression
+    type_triple = Helpers.type_triple(try_iri, Core.TryExpression)
+
+    # Build try body expression
+    body_iri = fresh_iri(try_iri, "body")
+    body_triples = build_try_body(do_block, body_iri, context)
+    has_try_body_triple = Helpers.object_property(try_iri, Core.hasTryBody(), body_iri)
+
+    # Phase 30.1: Only detect optional blocks, don't extract them yet
+    # Their full extraction will be in phases 30.2-30.5
+    optional_blocks_triples =
+      detect_optional_blocks(blocks, try_iri, context)
+
+    # Combine all triples
+    [type_triple] ++ body_triples ++ [has_try_body_triple] ++ optional_blocks_triples
+  end
+
+  # Builds the try body expression
+  # The do block may be a single expression or a list of expressions
+  defp build_try_body(do_block, body_iri, context) when is_list(do_block) do
+    # Multiple expressions - wrap in a block
+    build_do_block(do_block, body_iri, context)
+  end
+
+  defp build_try_body(do_block, body_iri, context) do
+    # Single expression - build directly
+    build_expression_triples(do_block, body_iri, context)
+  end
+
+  # Detects optional blocks in try expression (Phase 30.1)
+  # In later phases, these will be fully extracted
+  # For now, we just create placeholder IRIs to indicate their presence
+  defp detect_optional_blocks(_blocks, _try_iri, _context) do
+    []
+    # TODO: Future phases will extract:
+    # - rescue clauses (Phase 30.2)
+    # - catch clauses (Phase 30.3)
+    # - after block (Phase 30.4)
+    # - else block (Phase 30.5)
+  end
+
+  # ===========================================================================
   # Expression Dispatch
   # ===========================================================================
 
@@ -811,6 +882,13 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Must come before local call handler to avoid being matched as :fn call
   def build_expression_triples({:fn, _meta, clauses}, expr_iri, context) do
     build_fn_block(clauses, expr_iri, context)
+  end
+
+  # Try expressions: {:try, _, [blocks]}
+  # Exception handling with rescue, catch, after, and else blocks
+  # The blocks are in a single keyword list: [do: body, rescue: ..., ...]
+  def build_expression_triples({:try, _meta, [blocks]}, expr_iri, context) do
+    build_try_expression(blocks, expr_iri, context)
   end
 
   # Local call: function(args) - must come before variable pattern
