@@ -98,6 +98,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   alias ElixirOntologies.IRI
 
   # ===========================================================================
+  # Module Attributes
+  # ===========================================================================
+
+  @max_expression_depth 100
+
+  # ===========================================================================
   # Public API
   # ===========================================================================
 
@@ -182,7 +188,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Add inGuardContext property if building guard context expression
     triples =
       if Keyword.get(opts, :guard_context?) do
-        [Helpers.datatype_property(expr_iri, Core.inGuardContext(), true, RDF.XSD.Boolean) | triples]
+        [
+          Helpers.datatype_property(expr_iri, Core.inGuardContext(), true, RDF.XSD.Boolean)
+          | triples
+        ]
       else
         triples
       end
@@ -318,11 +327,18 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     }
   end
 
-  @spec build_do_block(list(), RDF.IRI.t(), Context.t(), non_neg_integer(), non_neg_integer()) :: [RDF.Triple.t()]
-  defp build_do_block(expressions, block_iri, context, depth \\ 0, max_depth \\ @max_expression_depth)
+  @spec build_do_block(list(), RDF.IRI.t(), Context.t(), non_neg_integer(), non_neg_integer()) ::
+          [RDF.Triple.t()]
+  defp build_do_block(
+         expressions,
+         block_iri,
+         context,
+         depth \\ 0,
+         max_depth \\ @max_expression_depth
+       )
 
   defp build_do_block(_expressions, block_iri, _context, depth, max_depth)
-      when depth >= max_depth do
+       when depth >= max_depth do
     # Block too deep - return only type triple
     [Helpers.type_triple(block_iri, Core.DoBlock)]
   end
@@ -358,22 +374,25 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
     # Link the last expression as the return value
     return_triple =
-      if length(expressions) > 0 do
-        last_child_iri = fresh_iri(block_iri, "child/#{length(expressions) - 1}")
-        Helpers.object_property(block_iri, Core.hasReturnExpression(), last_child_iri)
-      else
-        []
+      case expressions do
+        [] ->
+          []
+
+        _ ->
+          last_child_iri = fresh_iri(block_iri, "child/#{length(expressions) - 1}")
+          Helpers.object_property(block_iri, Core.hasReturnExpression(), last_child_iri)
       end
 
     # Combine all triples efficiently
     [type_triple | child_triples] ++ link_triples ++ [return_triple]
   end
 
-  @spec build_fn_block(list(), RDF.IRI.t(), Context.t(), non_neg_integer(), non_neg_integer()) :: [RDF.Triple.t()]
+  @spec build_fn_block(list(), RDF.IRI.t(), Context.t(), non_neg_integer(), non_neg_integer()) ::
+          [RDF.Triple.t()]
   defp build_fn_block(clauses, fn_iri, context, depth \\ 0, max_depth \\ @max_expression_depth)
 
   defp build_fn_block(_clauses, fn_iri, _context, depth, max_depth)
-      when depth >= max_depth do
+       when depth >= max_depth do
     # Fn block too deep - return only type triple
     [Helpers.type_triple(fn_iri, Core.FnBlock)]
   end
@@ -456,7 +475,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     clause_link_triple = Helpers.object_property(fn_iri, Core.hasClause(), clause_iri)
 
     # Combine all triples efficiently
-    param_triples ++ param_link_triples ++ guard_triples ++ body_triples ++
+    param_triples ++
+      param_link_triples ++
+      guard_triples ++
+      body_triples ++
       [body_link_triple, return_link_triple, clause_link_triple]
   end
 
@@ -467,9 +489,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   defp parse_fn_params(param_patterns) do
     # Find if any param is a :when pattern (contains guard)
     case Enum.find_index(param_patterns, fn
-      {:when, _, _} -> true
-      _ -> false
-    end) do
+           {:when, _, _} -> true
+           _ -> false
+         end) do
       nil ->
         # No guard
         {param_patterns, nil}
@@ -704,7 +726,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       # Otherwise, it's a charlist (all elements are valid Unicode codepoints)
       true ->
         string_value = List.to_string(list)
-        build_literal(string_value, expr_iri, Core.CharlistLiteral, Core.charlistValue(), RDF.XSD.String)
+
+        build_literal(
+          string_value,
+          expr_iri,
+          Core.CharlistLiteral,
+          Core.charlistValue(),
+          RDF.XSD.String
+        )
     end
   end
 
@@ -716,7 +745,13 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       # All segments are literal integers - we can construct the binary
       binary_value = construct_binary_from_literals(segments)
       # RDF.XSD.Base64Binary handles base64 encoding internally
-      build_literal(binary_value, expr_iri, Core.BinaryLiteral, Core.binaryValue(), RDF.XSD.Base64Binary)
+      build_literal(
+        binary_value,
+        expr_iri,
+        Core.BinaryLiteral,
+        Core.binaryValue(),
+        RDF.XSD.Base64Binary
+      )
     else
       # Binary contains variables or complex type specs
       # For now, treat as generic expression
@@ -760,7 +795,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     build_range_literal(first, last, expr_iri, context)
   end
 
-  def build_expression_triples({:"..//", _meta, [first, last, step]}, expr_iri, context) do
+  def build_expression_triples({:..//, _meta, [first, last, step]}, expr_iri, context) do
     build_range_literal(first, last, step, expr_iri, context)
   end
 
@@ -853,7 +888,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # ===========================================================================
 
   # Builds a binary operator with left and right operands
-  @spec build_binary_operator(atom(), term(), term(), RDF.IRI.t(), Context.t(), module()) :: list()
+  @spec build_binary_operator(atom(), term(), term(), RDF.IRI.t(), Context.t(), module()) ::
+          list()
   defp build_binary_operator(op, left_ast, right_ast, expr_iri, context, type_class) do
     # Generate relative IRIs for child expressions
     left_iri = fresh_iri(expr_iri, "left")
@@ -925,6 +961,38 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Remote call: Module.function(args)
+  @doc """
+  Builds RDF triples for a remote function call (Module.function(args)).
+
+  ## AST Pattern
+
+  {{:., _, [module_ast, function_ast]}, _, args}
+
+  ## Examples
+
+      iex> # AST for String.to_integer("42", 10)
+      iex> module = {:__aliases__, [], [:String]}
+      iex> function = :to_integer
+      iex> args = ["42", 10]
+      iex> build_remote_call(module, function, args, expr_iri, context)
+
+  ## Properties
+
+  - Creates RemoteCall type
+  - Sets name (e.g., "String.to_integer")
+  - Sets moduleName (extracted from module_ast)
+  - Sets functionName (extracted from function_ast)
+  - Sets arity (length of args)
+  - Sets refersToModule (placeholder IRI)
+  - Sets refersToFunction (placeholder IRI)
+  - Links argument expressions via hasArgument
+
+  ## Notes
+
+  Module and function IRIs use placeholder format until module/function registry is available.
+  The module name is extracted from aliases AST (e.g., {:__aliases__, _, [:String, :IO]}).
+  Supports __MODULE__ and dynamic module references via inspect/1 fallback.
+  """
   @spec build_remote_call(term(), term(), list(), RDF.IRI.t(), Context.t()) :: list()
   defp build_remote_call(module, function, args, expr_iri, context) do
     # Extract module name from aliases AST
@@ -947,21 +1015,36 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Build base triples for the RemoteCall
     base_triples = [
       Helpers.type_triple(expr_iri, Core.RemoteCall),
-      Helpers.datatype_property(expr_iri, Core.name(), "#{module_name}.#{function_name}", RDF.XSD.String),
-      Helpers.datatype_property(expr_iri, Core.moduleName(), to_string(module_name), RDF.XSD.String),
-      Helpers.datatype_property(expr_iri, Core.functionName(), to_string(function_name), RDF.XSD.String),
+      Helpers.datatype_property(
+        expr_iri,
+        Core.name(),
+        "#{module_name}.#{function_name}",
+        RDF.XSD.String
+      ),
+      Helpers.datatype_property(
+        expr_iri,
+        Core.moduleName(),
+        to_string(module_name),
+        RDF.XSD.String
+      ),
+      Helpers.datatype_property(
+        expr_iri,
+        Core.functionName(),
+        to_string(function_name),
+        RDF.XSD.String
+      ),
       Helpers.datatype_property(expr_iri, Core.arity(), arity, RDF.XSD.Integer)
     ]
 
     # Add refersToModule with placeholder IRI
-    # TODO: Resolve actual module IRI from module registry when available
     module_iri = RDF.iri("#{context.base_iri}module/#{module_name}")
     refers_to_module_triple = Helpers.object_property(expr_iri, Core.refersToModule(), module_iri)
 
     # Add refersToFunction with placeholder IRI
-    # TODO: Resolve actual function IRI from function registry when available
     function_iri = RDF.iri("#{module_iri.value}#function/#{function_name}/#{arity}")
-    refers_to_function_triple = Helpers.object_property(expr_iri, Core.refersToFunction(), function_iri)
+
+    refers_to_function_triple =
+      Helpers.object_property(expr_iri, Core.refersToFunction(), function_iri)
 
     # Build argument expressions recursively
     arg_triples = build_call_arguments(args, expr_iri, context)
@@ -971,6 +1054,35 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Local call: function(args)
+  @doc """
+  Builds RDF triples for a local function call (function(args)).
+
+  ## AST Pattern
+
+  {function_name, _, args}
+
+  ## Examples
+
+      iex> # AST for process_item(item)
+      iex> function = :process_item
+      iex> args = [{:item, [], Elixir}]
+      iex> build_local_call(function, args, expr_iri, context)
+
+  ## Properties
+
+  - Creates LocalCall type
+  - Sets name (function name as string)
+  - Sets functionName (extracted from function atom)
+  - Sets arity (length of args)
+  - Sets refersToFunction (placeholder IRI, module unknown at extraction time)
+  - Links argument expressions via hasArgument
+
+  ## Notes
+
+  For local calls, the module is not known at expression extraction time.
+  The refersToFunction IRI uses a generic placeholder format.
+  Arguments are built recursively to support nested expressions.
+  """
   @spec build_local_call(term(), list(), RDF.IRI.t(), Context.t()) :: list()
   defp build_local_call(function, args, expr_iri, context) do
     arity = length(args)
@@ -979,15 +1091,21 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     base_triples = [
       Helpers.type_triple(expr_iri, Core.LocalCall),
       Helpers.datatype_property(expr_iri, Core.name(), to_string(function), RDF.XSD.String),
-      Helpers.datatype_property(expr_iri, Core.functionName(), to_string(function), RDF.XSD.String),
+      Helpers.datatype_property(
+        expr_iri,
+        Core.functionName(),
+        to_string(function),
+        RDF.XSD.String
+      ),
       Helpers.datatype_property(expr_iri, Core.arity(), arity, RDF.XSD.Integer)
     ]
 
     # Add refersToFunction with placeholder IRI
-    # TODO: Resolve actual function IRI from function registry when available
     # For local calls, we don't know the module at this point, so use a generic placeholder
     function_iri = RDF.iri("#{context.base_iri}function/#{function}/#{arity}")
-    refers_to_function_triple = Helpers.object_property(expr_iri, Core.refersToFunction(), function_iri)
+
+    refers_to_function_triple =
+      Helpers.object_property(expr_iri, Core.refersToFunction(), function_iri)
 
     # Build argument expressions recursively
     arg_triples = build_call_arguments(args, expr_iri, context)
@@ -997,6 +1115,32 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Anonymous function call: variable.(args)
+  @doc """
+  Builds RDF triples for an anonymous function call (variable.(args)).
+
+  ## AST Pattern
+
+  {{:., _, [{var_ast, _, Elixir}]}, _, args}
+
+  ## Examples
+
+      iex> # AST for callback.(result)
+      iex> var_ast = {:callback, [], Elixir}
+      iex> args = [{:result, [], Elixir}]
+      iex> build_anon_call(var_ast, args, expr_iri, context)
+
+  ## Properties
+
+  - Creates AnonymousFunctionCall type
+  - Sets hasFunctionExpression (link to the variable expression)
+  - Links argument expressions via hasArgument
+
+  ## Notes
+
+  The function variable is built as a separate Variable expression.
+  The hasFunctionExpression property links the call to its function variable.
+  Arguments are built recursively to support nested expressions.
+  """
   @spec build_anon_call(term(), list(), RDF.IRI.t(), Context.t()) :: list()
   defp build_anon_call(var_ast, args, expr_iri, context) do
     # Generate IRI for the function variable expression
@@ -1011,7 +1155,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     ]
 
     # Link to the function variable expression
-    has_function_triple = Helpers.object_property(expr_iri, Core.hasFunctionExpression(), fun_var_iri)
+    has_function_triple =
+      Helpers.object_property(expr_iri, Core.hasFunctionExpression(), fun_var_iri)
 
     # Build argument expressions recursively
     arg_triples = build_call_arguments(args, expr_iri, context)
@@ -1034,6 +1179,31 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Module reference: MyApp, MyApp.Users, etc.
+  @doc """
+  Builds RDF triples for a module reference (MyApp, MyApp.Users, etc.).
+
+  ## AST Pattern
+
+  {:__aliases__, _, parts}
+
+  ## Examples
+
+      iex> # AST for MyApp.Users
+      iex> parts = [:MyApp, :Users]
+      iex> build_module_reference(parts, expr_iri, context)
+
+  ## Properties
+
+  - Creates ModuleReference type
+  - Sets moduleName (parts joined with ".")
+  - Sets refersToModule (IRI for the module)
+
+  ## Notes
+
+  Module name is reconstructed by joining alias parts with ".".
+  Supports nested aliases like MyApp.Accounts.User.
+  The refersToModule IRI points to the module in the ontology.
+  """
   @spec build_module_reference(list(), RDF.IRI.t(), Context.t()) :: list()
   defp build_module_reference(parts, expr_iri, context) do
     # Extract module name from alias parts
@@ -1078,7 +1248,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
     [
       Helpers.type_triple(expr_iri, type_class),
-      Helpers.datatype_property(expr_iri, Core.atomValue(), atom_to_string(atom_value), RDF.XSD.String)
+      Helpers.datatype_property(
+        expr_iri,
+        Core.atomValue(),
+        atom_to_string(atom_value),
+        RDF.XSD.String
+      )
     ]
   end
 
@@ -1237,10 +1412,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   defp build_map_entries(pairs, _expr_iri, context) do
     # Build expressions for each value (keys are literals, not expressions)
     # Filter out map update syntax {:|, ..., [...]} for now
-    regular_pairs = Enum.filter(pairs, fn
-      {:|, _, _} -> false
-      _ -> true
-    end)
+    regular_pairs =
+      Enum.filter(pairs, fn
+        {:|, _, _} -> false
+        _ -> true
+      end)
 
     # Extract values from pairs, handling both tuple and list formats
     # For list format [[key_ast, value_ast], ...], we need to check each element
@@ -1283,13 +1459,13 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
     # Build the RDF triples
     type_triple = Helpers.type_triple(expr_iri, Core.SigilLiteral)
-    char_triple = {expr_iri, Core.sigilChar, RDF.XSD.String.new(sigil_char)}
-    content_triple = {expr_iri, Core.sigilContent, RDF.XSD.String.new(sigil_content)}
+    char_triple = {expr_iri, Core.sigilChar(), RDF.XSD.String.new(sigil_char)}
+    content_triple = {expr_iri, Core.sigilContent(), RDF.XSD.String.new(sigil_content)}
 
     # Only add modifiers triple if non-empty
     modifiers_triples =
       if sigil_modifiers != "" do
-        [{expr_iri, Core.sigilModifiers, RDF.XSD.String.new(sigil_modifiers)}]
+        [{expr_iri, Core.sigilModifiers(), RDF.XSD.String.new(sigil_modifiers)}]
       else
         []
       end
@@ -1361,7 +1537,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     end_triple = {expr_iri, Core.rangeEnd(), last_iri}
     step_triple = {expr_iri, Core.rangeStep(), step_iri}
 
-    [type_triple, start_triple, end_triple, step_triple | first_triples ++ last_triples ++ step_triples]
+    [
+      type_triple,
+      start_triple,
+      end_triple,
+      step_triple | first_triples ++ last_triples ++ step_triples
+    ]
   end
 
   # ===========================================================================
@@ -1510,7 +1691,36 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     ]
   end
 
-  @doc false
+  @doc """
+  Builds RDF triples for a function reference capture (&Mod.fun/arity).
+
+  ## AST Pattern
+
+  {:&, _, [{:/, _, [function_ref, arity]}]}
+
+  ## Examples
+
+      iex> # AST for &Enum.map/2
+      iex> function_ref = {{:., _, [{:__aliases__, _, [:Enum]}, :map]}, _, []}
+      iex> arity = 2
+      iex> build_capture_function_ref(function_ref, arity, expr_iri, context)
+
+  ## Properties
+
+  - Creates FunctionReference type (NOT CaptureOperator)
+  - Sets operatorSymbol ("&")
+  - Sets moduleName (extracted from function_ref)
+  - Sets functionName (extracted from function_ref)
+  - Sets arity (if provided)
+  - Sets refersToFunction (IRI for the function, if arity provided)
+
+  ## Notes
+
+  This is for function reference captures like &Enum.map/2, NOT argument index captures like &1.
+  Argument index captures (&1, &2, etc.) use CaptureOperator type.
+  Function references use FunctionReference type with moduleName, functionName, and arity.
+  The refersToFunction IRI is only created when arity is provided (required for IRI construction).
+  """
   # Build capture operator for function reference (&Mod.fun/arity)
   # Uses FunctionReference type with moduleName, functionName, arity, and refersToFunction
   defp build_capture_function_ref(function_ref, arity, expr_iri, context) do
@@ -1630,10 +1840,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Security Limits
   # ===========================================================================
 
-  @max_expression_depth 100
   @max_pattern_depth 100
   @max_pattern_size 1000
-  @module_name_regex ~r/^[A-Z][a-zA-Z0-9_.]*$/
 
   # ===========================================================================
   # Pattern Type Detection
@@ -1658,11 +1866,16 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Variable pattern must come after all other tuple-based patterns
   # because {name, _, ctx} also matches {:{}, [], []}
   # Variables have Elixir as the third element, atoms have nil
-  def detect_pattern_type({name, _, Elixir}) when is_atom(name) and name != :{} and name != :_, do: :variable_pattern
+  def detect_pattern_type({name, _, Elixir}) when is_atom(name) and name != :{} and name != :_,
+    do: :variable_pattern
+
   # 2-tuple is a special case: {left, right} without the {:{}, _, _} wrapper
   # Must come after variable pattern to avoid conflicts
   # The guard checks that left is not an n-tuple's {:{}, _, _} marker
-  def detect_pattern_type({left, _right}) when not (is_tuple(left) and tuple_size(left) == 3 and elem(left, 0) == :{}), do: :tuple_pattern
+  def detect_pattern_type({left, _right})
+      when not (is_tuple(left) and tuple_size(left) == 3 and elem(left, 0) == :{}),
+      do: :tuple_pattern
+
   def detect_pattern_type(value) when is_integer(value), do: :literal_pattern
   def detect_pattern_type(value) when is_float(value), do: :literal_pattern
   def detect_pattern_type(value) when is_binary(value), do: :literal_pattern
@@ -1726,35 +1939,20 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     ]
   end
 
-  @doc """
-  Returns the value property, XSD type, and actual value for literal patterns.
+  defp literal_value_info({atom, _meta, nil}) when is_atom(atom),
+    do: {Core.atomValue(), RDF.XSD.String, atom_to_string(atom)}
 
-  For atoms, uses atom_to_string/1 to get the source representation.
-  For other literals, uses the raw value.
+  defp literal_value_info(int) when is_integer(int),
+    do: {Core.integerValue(), RDF.XSD.Integer, int}
 
-  ## Returns
+  defp literal_value_info(float) when is_float(float),
+    do: {Core.floatValue(), RDF.XSD.Double, float}
 
-  `{property_iri, xsd_type, value}` triple
-  """
-  defp literal_value_info({atom, _meta, nil}) when is_atom(atom), do: {Core.atomValue(), RDF.XSD.String, atom_to_string(atom)}
-  defp literal_value_info(int) when is_integer(int), do: {Core.integerValue(), RDF.XSD.Integer, int}
-  defp literal_value_info(float) when is_float(float), do: {Core.floatValue(), RDF.XSD.Double, float}
   defp literal_value_info(str) when is_binary(str), do: {Core.stringValue(), RDF.XSD.String, str}
-  defp literal_value_info(atom) when is_atom(atom), do: {Core.atomValue(), RDF.XSD.String, atom_to_string(atom)}
 
-  @doc """
-  Builds RDF triples for a variable pattern.
+  defp literal_value_info(atom) when is_atom(atom),
+    do: {Core.atomValue(), RDF.XSD.String, atom_to_string(atom)}
 
-  Variable patterns bind matched values to variable names.
-  This is distinct from Variable expressions (expression context).
-
-  ## Notes
-
-  - Variables with leading underscores (_name) are still variable patterns, not wildcards
-  - The single underscore (_) is a wildcard pattern, handled elsewhere
-  - Pin patterns (^x) are handled elsewhere
-  - For future scope analysis, this should link to a Core.Variable instance
-  """
   defp build_variable_pattern({name, _meta, _ctx}, expr_iri, _context) do
     [
       Helpers.type_triple(expr_iri, Core.VariablePattern),
@@ -1762,79 +1960,20 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     ]
   end
 
-  @doc """
-  Builds a wildcard pattern from AST.
-
-  The wildcard pattern (`_`) matches any value and discards it.
-  It is represented in AST as `{:_}` (a 2-tuple with atom `:_`).
-
-  ## Examples
-
-      iex> ast = {:_}
-      ...> expr_iri = RDF.iri("ex://pattern/1")
-      ...> build_wildcard_pattern(ast, expr_iri, %{})
-      ...> |> Enum.at(0)
-      {RDF.iri("ex://pattern/1"), RDF.type(), Core.WildcardPattern()}
-
-  """
   defp build_wildcard_pattern(_ast, expr_iri, _context) do
     [Helpers.type_triple(expr_iri, Core.WildcardPattern)]
   end
 
-  @doc """
-  Builds a pin pattern from AST.
-
-  The pin pattern (`^x`) matches against the existing value of a variable.
-  It is represented in AST as `{:^, _, [{:x, _, _}]}`.
-
-  The pin operator ensures pattern matching uses the already-bound value
-  of the variable rather than rebinding it.
-
-  ## Examples
-
-      iex> ast = {:^, [], [{:x, [], Elixir}]}
-      ...> expr_iri = RDF.iri("ex://pattern/1")
-      ...> build_pin_pattern(ast, expr_iri, %{})
-      ...> |> Enum.at(0)
-      {RDF.iri("ex://pattern/1"), RDF.type(), Core.PinPattern()}
-
-  """
   defp build_pin_pattern(ast, expr_iri, _context) do
     {:^, _, [{var, _, _}]} = ast
+
     [
       Helpers.type_triple(expr_iri, Core.PinPattern),
       Helpers.datatype_property(expr_iri, Core.name(), Atom.to_string(var), RDF.XSD.String)
     ]
   end
 
-  @doc """
-  Builds RDF triples for a tuple pattern.
-
-  Tuple patterns destructuring tuple values into nested patterns.
-
-  ## Parameters
-
-  - `ast` - The tuple pattern AST: {:{}, _, elements} or {left, right}
-  - `expr_iri` - The IRI for this pattern expression
-  - `context` - The builder context
-
-  ## Returns
-
-  A list of RDF triples with:
-  - Core.TuplePattern type triple
-  - Nested pattern triples for each element
-
-  ## Examples
-
-      iex> # 2-tuple: {x, y}
-      iex> ast = {{:x, [], Elixir}, {:y, [], Elixir}}
-      iex> expr_iri = RDF.iri("ex://pattern/1")
-      iex> build_tuple_pattern(ast, expr_iri, full_mode_context())
-      iex> |> Enum.at(0)
-      {RDF.iri("ex://pattern/1"), RDF.type(), Core.TuplePattern()}
-
-  """
-  defp build_tuple_pattern(ast, expr_iri, context, depth \\ 0) do
+  defp build_tuple_pattern(ast, expr_iri, context, depth) do
     # Extract elements from tuple AST
     elements = extract_tuple_elements(ast)
 
@@ -1854,41 +1993,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     end
   end
 
-  @doc """
-  Builds RDF triples for a list pattern.
-
-  List patterns destructuring list values, including head|tail cons patterns.
-
-  ## Parameters
-
-  - `ast` - The list pattern AST: [elements] or [{:|, _, [head, tail]}]
-  - `expr_iri` - The IRI for this pattern expression
-  - `context` - The builder context
-
-  ## Returns
-
-  A list of RDF triples with:
-  - Core.ListPattern type triple
-  - Nested pattern triples for elements
-
-  ## Examples
-
-      iex> # Flat list: [x, y, z]
-      iex> ast = [{:x, [], Elixir}, {:y, [], Elixir}, {:z, [], Elixir}]
-      iex> expr_iri = RDF.iri("ex://pattern/1")
-      iex> build_list_pattern(ast, expr_iri, full_mode_context())
-      iex> |> Enum.at(0)
-      {RDF.iri("ex://pattern/1"), RDF.type(), Core.ListPattern()}
-
-      iex> # Cons pattern: [head | tail]
-      iex> ast = [{:|, [], [{:head, [], Elixir}, {:tail, [], Elixir}]}]
-      iex> expr_iri = RDF.iri("ex://pattern/2")
-      iex> build_list_pattern(ast, expr_iri, full_mode_context())
-      iex> |> Enum.at(0)
-      {RDF.iri("ex://pattern/2"), RDF.type(), Core.ListPattern()}
-
-  """
-  defp build_list_pattern(ast, expr_iri, context, depth \\ 0) do
+  defp build_list_pattern(ast, expr_iri, context, depth) do
     # Create the ListPattern type triple
     type_triple = Helpers.type_triple(expr_iri, Core.ListPattern)
 
@@ -1919,12 +2024,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Similar to build_child_expressions but uses build_pattern/3
   # Returns {flat_triples_list, final_context}
   # Depth parameter tracks nesting level to prevent DoS attacks
-  defp build_child_patterns(items, context, depth \\ 0)
+  defp build_child_patterns(items, context, depth)
+
   defp build_child_patterns(_items, context, depth) when depth >= @max_pattern_depth do
     # Pattern too deep - return empty triples and unchanged context
     # This prevents stack overflow from maliciously deep nesting
     {[], context}
   end
+
   defp build_child_patterns(items, context, depth) do
     {triples_list, final_ctx} =
       Enum.map_reduce(items, context, fn item, ctx ->
@@ -1945,7 +2052,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   # Helper to build cons pattern [head | tail]
   # Builds head and tail as separate child patterns
-  defp build_cons_list_pattern([{:|, _, [head, tail]}], context, depth \\ 0) do
+  defp build_cons_list_pattern([{:|, _, [head, tail]}], context, depth) do
     # Build head pattern
     head_triples =
       case build(head, context, []) do
@@ -1970,35 +2077,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     head_triples ++ tail_triples
   end
 
-  @doc """
-  Builds RDF triples for a map pattern.
-
-  Map patterns match specific keys in a map, with values being any pattern.
-
-  ## Parameters
-
-  - `ast` - The map pattern AST: {:%{}, _, pairs}
-  - `expr_iri` - The IRI for this pattern expression
-  - `context` - The builder context
-
-  ## Returns
-
-  A list of RDF triples with:
-  - Core.MapPattern type triple
-  - Nested pattern triples for each complex key (e.g., pin patterns)
-  - Nested pattern triples for each value in the key-value pairs
-
-  ## Examples
-
-      iex> # %{a: x, b: y}
-      iex> ast = {:%{}, [], [a: {:x, [], Elixir}, b: {:y, [], Elixir}]}
-      iex> expr_iri = RDF.iri("ex://pattern/1")
-      iex> build_map_pattern(ast, expr_iri, full_mode_context())
-      iex> |> Enum.at(0)
-      {RDF.iri("ex://pattern/1"), RDF.type(), Core.MapPattern()}
-
-  """
-  defp build_map_pattern({:%{}, _meta, pairs}, expr_iri, context, depth \\ 0) do
+  defp build_map_pattern({:%{}, _meta, pairs}, expr_iri, context, depth) do
     # Create the MapPattern type triple
     type_triple = Helpers.type_triple(expr_iri, Core.MapPattern)
 
@@ -2021,37 +2100,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     end
   end
 
-  @doc """
-  Builds RDF triples for a struct pattern.
-
-  Struct patterns match a struct with specific field values.
-
-  ## Parameters
-
-  - `ast` - The struct pattern AST: {:%, _, [module_ast, map_ast]}
-  - `expr_iri` - The IRI for this pattern expression
-  - `context` - The builder context
-
-  ## Returns
-
-  A list of RDF triples with:
-  - Core.StructPattern type triple
-  - refersToModule property linking to the struct's module
-  - Nested pattern triples for each field value
-
-  ## Examples
-
-      iex> # %User{name: name}
-      iex> module_ast = {:__aliases__, [], [:User]}
-      iex> map_ast = {:%{}, [], [name: {:name, [], Elixir}]}
-      iex> ast = {:%, [], [module_ast, map_ast]}
-      iex> expr_iri = RDF.iri("ex://pattern/1")
-      iex> build_struct_pattern(ast, expr_iri, full_mode_context())
-      iex> |> Enum.at(0)
-      {RDF.iri("ex://pattern/1"), RDF.type(), Core.StructPattern()}
-
-  """
-  defp build_struct_pattern({:%, _meta, [module_ast, {:%{}, _map_meta, pairs}]}, expr_iri, context, depth \\ 0) do
+  defp build_struct_pattern(
+         {:%, _meta, [module_ast, {:%{}, _map_meta, pairs}]},
+         expr_iri,
+         context,
+         depth
+       ) do
     # Extract and validate module name from module AST
     module_name = extract_struct_module_name(module_ast)
 
@@ -2079,26 +2133,28 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Or for string keys: [{"key1", value1_ast}, {"key2", value2_ast}]
   # Or for complex keys (like pin patterns): [[key_ast, value_ast], ...]
   defp extract_map_pattern_pairs(pairs) when is_list(pairs) do
-    Enum.reduce(pairs, {[], []}, fn pair, {keys_acc, values_acc} ->
-      case pair do
-        # 2-element list format for complex keys: [key_ast, value_ast]
-        # where key_ast is a tuple (complex key like pin pattern)
-        [key_ast, value_ast] when is_tuple(key_ast) and tuple_size(key_ast) == 3 ->
-          # Include the complex key in the patterns list
-          {[key_ast | keys_acc], [value_ast | values_acc]}
-        # Tuple format for simple keys: {key, value_ast}
-        # Simple keys (atoms, strings) are literals, not patterns
-        {_key, value_ast} ->
-          {keys_acc, [value_ast | values_acc]}
-        # Handle non-tuple/non-list values (literals like integers, strings, etc.)
-        value ->
-          {keys_acc, [value | values_acc]}
-      end
-    end)
-    |> fn({keys_list, values_list}) ->
-      # Reverse and flatten the results
-      {Enum.reverse(keys_list), Enum.reverse(values_list)}
-    end.()
+    {keys_list, values_list} =
+      Enum.reduce(pairs, {[], []}, fn pair, {keys_acc, values_acc} ->
+        case pair do
+          # 2-element list format for complex keys: [key_ast, value_ast]
+          # where key_ast is a tuple (complex key like pin pattern)
+          [key_ast, value_ast] when is_tuple(key_ast) and tuple_size(key_ast) == 3 ->
+            # Include the complex key in the patterns list
+            {[key_ast | keys_acc], [value_ast | values_acc]}
+
+          # Tuple format for simple keys: {key, value_ast}
+          # Simple keys (atoms, strings) are literals, not patterns
+          {_key, value_ast} ->
+            {keys_acc, [value_ast | values_acc]}
+
+          # Handle non-tuple/non-list values (literals like integers, strings, etc.)
+          value ->
+            {keys_acc, [value | values_acc]}
+        end
+      end)
+
+    # Reverse the accumulated lists to maintain original order
+    {Enum.reverse(keys_list), Enum.reverse(values_list)}
   end
 
   # Extract value patterns from map pattern pairs
@@ -2113,10 +2169,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       entry when is_list(entry) and length(entry) == 2 ->
         [_key_ast, value_ast] = entry
         value_ast
+
       # Keyword list or string key tuple format: {key, value_ast}
-      {_key, value_ast} -> value_ast
+      {_key, value_ast} ->
+        value_ast
+
       # Handle non-tuple/non-list values (literals like integers, strings, etc.)
-      value -> value
+      value ->
+        value
     end)
   end
 
@@ -2134,11 +2194,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   defp extract_struct_module_name({:{}, _meta, parts}) when is_list(parts) do
     # Handle tuple form module reference
     module_name =
-      Enum.map(parts, fn
+      Enum.map_join(parts, ".", fn
         part when is_atom(part) -> Atom.to_string(part)
         part -> inspect(part, limit: 50)
       end)
-      |> Enum.join(".")
 
     validate_and_sanitize_module_name(module_name)
   end
@@ -2166,36 +2225,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     end
   end
 
-  @doc """
-  Builds RDF triples for a binary pattern.
-
-  Binary patterns match binary/bitstring data with size and type specifiers.
-
-  ## Parameters
-
-  - `ast` - The binary pattern AST: {:<<>>, _, segments}
-  - `expr_iri` - The IRI for this pattern expression
-  - `context` - The builder context
-
-  ## Returns
-
-  A list of RDF triples with:
-  - Core.BinaryPattern type triple
-  - Nested pattern triples for each segment
-
-  ## Examples
-
-      iex> # <<x::8, rest::binary>>
-      iex> seg1 = {:"::", [], [{:x, [], Elixir}, 8]}
-      iex> seg2 = {:"::", [], [{:rest, [], Elixir}, {:binary, [], Elixir}]}
-      iex> ast = {:<<>>, [], [seg1, seg2]}
-      iex> expr_iri = RDF.iri("ex://pattern/1")
-      iex> context = ElixirOntologies.Builders.Context.new(base_iri: "ex://", config: %{include_expressions: true}, file_path: "lib/my_app/users.ex") |> ElixirOntologies.Builders.Context.with_expression_counter()
-      iex> build_binary_pattern(ast, expr_iri, context)
-      iex> |> Enum.at(0)
-      {RDF.iri("ex://pattern/1"), RDF.type(), Core.BinaryPattern()}
-  """
-  defp build_binary_pattern({:<<>>, _meta, segments}, expr_iri, context, depth \\ 0) do
+  defp build_binary_pattern({:<<>>, _meta, segments}, expr_iri, context, depth) do
     # Create the BinaryPattern type triple
     type_triple = Helpers.type_triple(expr_iri, Core.BinaryPattern)
 
@@ -2226,38 +2256,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     end)
   end
 
-  @doc """
-  Builds RDF triples for an as-pattern (pattern aliasing).
-
-  As-patterns bind the entire matched value while also destructuring it.
-
-  ## Parameters
-
-  - `ast` - The as-pattern AST: {:=, _, [pattern, variable]}
-  - `expr_iri` - The IRI for this pattern expression
-  - `context` - The builder context
-
-  ## Returns
-
-  A list of RDF triples with:
-  - Core.AsPattern type triple
-  - Nested pattern triples for the left side (destructure)
-  - Variable pattern for the right side (binding)
-  - hasPattern property linking to inner pattern
-
-  ## Examples
-
-      iex> # {:ok, x} = result
-      iex> pattern_ast = {{:ok, [], Elixir}, {:x, [], Elixir}}
-      iex> var_ast = {:result, [], Elixir}
-      iex> ast = {:=, [], [pattern_ast, var_ast]}
-      iex> expr_iri = RDF.iri("ex://pattern/1")
-      iex> context = ElixirOntologies.Builders.Context.new(base_iri: "ex://", config: %{include_expressions: true}, file_path: "lib/my_app/users.ex") |> ElixirOntologies.Builders.Context.with_expression_counter()
-      iex> build_as_pattern(ast, expr_iri, context)
-      iex> |> Enum.at(0)
-      {RDF.iri("ex://pattern/1"), RDF.type(), Core.AsPattern()}
-  """
-  defp build_as_pattern({:=, _meta, [left, right]}, expr_iri, context, depth \\ 0) do
+  defp build_as_pattern({:=, _meta, [left, right]}, expr_iri, context, depth) do
     # Create the AsPattern type triple
     type_triple = Helpers.type_triple(expr_iri, Core.AsPattern)
 
@@ -2269,7 +2268,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     has_pattern_triple = {expr_iri, Core.hasPattern(), left_iri}
 
     # Build the right variable (binding variable) with depth tracking
-    {:ok, {_right_iri, _right_expr_triples, _context_after_right}} = build(right, context_after_left, [])
+    {:ok, {_right_iri, _right_expr_triples, _context_after_right}} =
+      build(right, context_after_left, [])
+
     right_pattern_triples = build_pattern(right, left_iri, context_after_left, depth)
 
     # Combine all triples: type, hasPattern link, left patterns, right patterns
