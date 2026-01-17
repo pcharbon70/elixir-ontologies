@@ -1232,8 +1232,8 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Verify guard expression has inGuardContext property set to true
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
-      end)
+               s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+             end)
     end
 
     test "guard expression with and/or has inGuardContext property" do
@@ -1274,8 +1274,8 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Verify guard expression has inGuardContext property set to true
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
-      end)
+               s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+             end)
     end
 
     test "regular expression does not have inGuardContext property" do
@@ -1296,8 +1296,8 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Verify regular expression does NOT have inGuardContext property
       refute Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.inGuardContext()
-      end)
+               s == expr_iri and p == Core.inGuardContext()
+             end)
     end
 
     test "guard with remote call has inGuardContext property on call" do
@@ -1338,8 +1338,8 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Verify guard expression has inGuardContext property set to true
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
-      end)
+               s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+             end)
     end
   end
 end

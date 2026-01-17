@@ -443,7 +443,8 @@ defmodule ElixirOntologies do
       )
   """
   @spec analyze_to_kg(Path.t(), Path.t(), keyword()) ::
-          {:ok, %{graph: Graph.t(), metadata: map(), errors: list(), triple_count: non_neg_integer()}}
+          {:ok,
+           %{graph: Graph.t(), metadata: map(), errors: list(), triple_count: non_neg_integer()}}
           | {:error, term()}
   def analyze_to_kg(project_path, kg_path, opts \\ []) do
     alias ElixirOntologies.KnowledgeGraph

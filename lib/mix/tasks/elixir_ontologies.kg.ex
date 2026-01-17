@@ -221,7 +221,10 @@ defmodule Mix.Tasks.ElixirOntologies.Kg do
 
       {:ok, %RDF.Graph{} = graph} ->
         Mix.shell().info(RDF.Turtle.write_string!(graph))
-        Mix.shell().info("\n#{RDF.Graph.triple_count(graph)} triple(s) in #{format_duration(elapsed)}")
+
+        Mix.shell().info(
+          "\n#{RDF.Graph.triple_count(graph)} triple(s) in #{format_duration(elapsed)}"
+        )
 
       {:error, reason} ->
         Mix.raise("Query failed: #{inspect(reason)}")

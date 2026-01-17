@@ -224,7 +224,9 @@ defmodule ElixirOntologies.Builders.CallGraphBuilder do
   # Add target module triple for remote calls (reuse structure:moduleName)
   defp add_module_triple(triples, call_iri, module, context) do
     case resolve_module(module, context) do
-      nil -> triples
+      nil ->
+        triples
+
       module_name ->
         triple = Helpers.datatype_property(call_iri, Structure.moduleName(), module_name)
         [triple | triples]
@@ -325,7 +327,8 @@ defmodule ElixirOntologies.Builders.CallGraphBuilder do
   defp resolve_module(_module, _context), do: nil
 
   # Get module from context as a list of atoms for joining
-  defp get_context_module_atoms(%Context{metadata: %{module: module}}) when is_atom(module) and not is_nil(module) do
+  defp get_context_module_atoms(%Context{metadata: %{module: module}})
+       when is_atom(module) and not is_nil(module) do
     module
     |> Atom.to_string()
     |> String.split(".")
@@ -339,11 +342,13 @@ defmodule ElixirOntologies.Builders.CallGraphBuilder do
   defp get_context_module_atoms(_context), do: []
 
   # Get module from context as a string
-  defp get_module_from_context(%Context{metadata: %{module: module}}) when is_atom(module) and not is_nil(module) do
+  defp get_module_from_context(%Context{metadata: %{module: module}})
+       when is_atom(module) and not is_nil(module) do
     Atom.to_string(module)
   end
 
-  defp get_module_from_context(%Context{metadata: %{module: module}}) when is_list(module) and module != [] do
+  defp get_module_from_context(%Context{metadata: %{module: module}})
+       when is_list(module) and module != [] do
     Enum.map_join(module, ".", &Atom.to_string/1)
   end
 

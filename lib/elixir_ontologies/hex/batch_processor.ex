@@ -99,7 +99,8 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
         delay_ms: Keyword.get(opts, :delay_ms, 100),
         api_delay_ms: Keyword.get(opts, :api_delay_ms, 50),
         timeout_minutes: Keyword.get(opts, :timeout_minutes, 5),
-        base_iri_template: Keyword.get(opts, :base_iri_template, "https://elixir-code.org/:name/:version/"),
+        base_iri_template:
+          Keyword.get(opts, :base_iri_template, "https://elixir-code.org/:name/:version/"),
         sort_by: Keyword.get(opts, :sort_by, :popularity),
         resume: Keyword.get(opts, :resume, true),
         dry_run: Keyword.get(opts, :dry_run, false),
@@ -461,10 +462,11 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
   defp save_analysis_output(graph, name, version, metadata, %State{} = state) do
     case OutputManager.save_graph(graph, state.config.output_dir, name, version) do
       {:ok, output_path} ->
-        {:ok, PackageResult.success(name, version,
-          output_path: output_path,
-          module_count: metadata.module_count
-        )}
+        {:ok,
+         PackageResult.success(name, version,
+           output_path: output_path,
+           module_count: metadata.module_count
+         )}
 
       {:error, reason} ->
         {:error, {:output_error, reason}}

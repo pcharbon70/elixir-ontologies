@@ -54,7 +54,9 @@ defmodule ElixirOntologies.Builders.PatternContextIntegrationTest do
       #   %User{name: name} -> {:ok, name}
       #   nil -> {:error, :not_found}
       # end
-      pattern_ast = {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], [name: {:name, [], Elixir}]}]}
+      pattern_ast =
+        {:%, [], [{:__aliases__, [], [:User]}, {:%{}, [], [name: {:name, [], Elixir}]}]}
+
       {:ok, {expr_iri, _triples, _}} = ExpressionBuilder.build(pattern_ast, context, [])
 
       pattern_triples = ExpressionBuilder.build_pattern(pattern_ast, expr_iri, context)

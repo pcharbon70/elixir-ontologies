@@ -73,7 +73,6 @@ defmodule ElixirOntologies.Hex.Api do
         updated_at: Utils.parse_datetime(json["updated_at"])
       }
     end
-
   end
 
   # ===========================================================================
@@ -216,7 +215,8 @@ defmodule ElixirOntologies.Hex.Api do
       {:ok, meta} = Api.get_release_meta(client, "phoenix", "1.7.14")
       # => %{"build_tools" => ["mix"], "elixir" => "~> 1.11", "app" => "phoenix"}
   """
-  @spec get_release_meta(Req.Request.t(), String.t(), String.t()) :: {:ok, map()} | {:error, term()}
+  @spec get_release_meta(Req.Request.t(), String.t(), String.t()) ::
+          {:ok, map()} | {:error, term()}
   def get_release_meta(client, name, version) when is_binary(name) and is_binary(version) do
     url = "#{@hex_api_url}/packages/#{URI.encode(name)}/releases/#{version}"
 
@@ -424,7 +424,14 @@ defmodule ElixirOntologies.Hex.Api do
         additional_delay = HttpClient.rate_limit_delay(rate_limit)
         if additional_delay > 0, do: Process.sleep(additional_delay)
 
-        fetch_all_packages(client, delay_ms, on_page, sort, page + 1, Enum.reverse(packages) ++ acc)
+        fetch_all_packages(
+          client,
+          delay_ms,
+          on_page,
+          sort,
+          page + 1,
+          Enum.reverse(packages) ++ acc
+        )
 
       {:error, :rate_limited} ->
         # Wait and retry the same page
@@ -450,16 +457,24 @@ defmodule ElixirOntologies.Hex.Api do
     b_recent = recent_downloads(b)
 
     cond do
-      a_recent > b_recent -> true
-      a_recent < b_recent -> false
+      a_recent > b_recent ->
+        true
+
+      a_recent < b_recent ->
+        false
+
       true ->
         # Recent downloads equal, compare total downloads
         a_total = total_downloads(a)
         b_total = total_downloads(b)
 
         cond do
-          a_total > b_total -> true
-          a_total < b_total -> false
+          a_total > b_total ->
+            true
+
+          a_total < b_total ->
+            false
+
           true ->
             # Total downloads also equal, compare by name (ascending)
             a.name <= b.name

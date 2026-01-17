@@ -117,7 +117,7 @@ defmodule ElixirOntologies.MixProject do
         guides/evolution.md
         guides/shapes.md
       ),
-      "Tools": ~w(
+      Tools: ~w(
         guides/knowledge-graph.md
         guides/users/triple-store-iex.md
       )

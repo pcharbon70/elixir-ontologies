@@ -81,7 +81,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   alias ElixirOntologies.Extractors.Conditional.{Conditional, Branch}
   alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, WithExpression, ReceiveExpression}
   alias ElixirOntologies.Extractors.{Comprehension, Exception}
-  alias ElixirOntologies.Extractors.Exception.{RescueClause, CatchClause, ElseClause, RaiseExpression, ThrowExpression}
+  alias ElixirOntologies.Extractors.Exception.{RaiseExpression, ThrowExpression}
 
   # ===========================================================================
   # Public API - Conditional Builder
@@ -232,8 +232,20 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     triples =
       []
       |> add_type_triple(expr_iri, Core.CaseExpression)
-      |> add_case_subject_triple(expr_iri, case_expr.subject, expression_builder, build_expressions?, context)
-      |> add_case_clause_triples(expr_iri, case_expr.clauses, expression_builder, build_expressions?, context)
+      |> add_case_subject_triple(
+        expr_iri,
+        case_expr.subject,
+        expression_builder,
+        build_expressions?,
+        context
+      )
+      |> add_case_clause_triples(
+        expr_iri,
+        case_expr.clauses,
+        expression_builder,
+        build_expressions?,
+        context
+      )
       |> add_location_triple(expr_iri, case_expr.location)
 
     {expr_iri, triples}
@@ -300,9 +312,27 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     triples =
       []
       |> add_type_triple(expr_iri, Core.WithExpression)
-      |> add_with_clause_triples(expr_iri, with_expr.clauses, expression_builder, build_expressions?, context)
-      |> add_with_body_triple(expr_iri, with_expr.body, expression_builder, build_expressions?, context)
-      |> add_with_else_triples(expr_iri, with_expr.else_clauses, expression_builder, build_expressions?, context)
+      |> add_with_clause_triples(
+        expr_iri,
+        with_expr.clauses,
+        expression_builder,
+        build_expressions?,
+        context
+      )
+      |> add_with_body_triple(
+        expr_iri,
+        with_expr.body,
+        expression_builder,
+        build_expressions?,
+        context
+      )
+      |> add_with_else_triples(
+        expr_iri,
+        with_expr.else_clauses,
+        expression_builder,
+        build_expressions?,
+        context
+      )
       |> add_location_triple(expr_iri, with_expr.location)
 
     {expr_iri, triples}
@@ -370,8 +400,20 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     triples =
       []
       |> add_type_triple(expr_iri, Core.ReceiveExpression)
-      |> add_receive_clause_triples(expr_iri, receive_expr.clauses, expression_builder, build_expressions?, context)
-      |> add_receive_after_triples(expr_iri, receive_expr.after_clause, expression_builder, build_expressions?, context)
+      |> add_receive_clause_triples(
+        expr_iri,
+        receive_expr.clauses,
+        expression_builder,
+        build_expressions?,
+        context
+      )
+      |> add_receive_after_triples(
+        expr_iri,
+        receive_expr.after_clause,
+        expression_builder,
+        build_expressions?,
+        context
+      )
       |> add_location_triple(expr_iri, receive_expr.location)
 
     {expr_iri, triples}
@@ -439,11 +481,41 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     triples =
       []
       |> add_type_triple(expr_iri, Core.TryExpression)
-      |> add_try_body_triple(expr_iri, try_expr.body, expression_builder, build_expressions?, context)
-      |> add_rescue_clause_triples(expr_iri, try_expr.rescue_clauses, expression_builder, build_expressions?, context)
-      |> add_catch_clause_triples(expr_iri, try_expr.catch_clauses, expression_builder, build_expressions?, context)
-      |> add_else_clause_triples(expr_iri, try_expr.else_clauses, expression_builder, build_expressions?, context)
-      |> add_try_after_triple(expr_iri, try_expr.after_body, expression_builder, build_expressions?, context)
+      |> add_try_body_triple(
+        expr_iri,
+        try_expr.body,
+        expression_builder,
+        build_expressions?,
+        context
+      )
+      |> add_rescue_clause_triples(
+        expr_iri,
+        try_expr.rescue_clauses,
+        expression_builder,
+        build_expressions?,
+        context
+      )
+      |> add_catch_clause_triples(
+        expr_iri,
+        try_expr.catch_clauses,
+        expression_builder,
+        build_expressions?,
+        context
+      )
+      |> add_else_clause_triples(
+        expr_iri,
+        try_expr.else_clauses,
+        expression_builder,
+        build_expressions?,
+        context
+      )
+      |> add_try_after_triple(
+        expr_iri,
+        try_expr.after_body,
+        expression_builder,
+        build_expressions?,
+        context
+      )
       |> add_location_triple(expr_iri, try_expr.location)
 
     {expr_iri, triples}
@@ -496,7 +568,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
       iex> to_string(iri)
       "https://example.org/code#raise/MyApp/raise/0/0"
   """
-  @spec build_raise(RaiseExpression.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  @spec build_raise(RaiseExpression.t(), Context.t(), keyword()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
   def build_raise(%RaiseExpression{} = raise_expr, %Context{} = context, opts \\ []) do
     containing_function = Keyword.get(opts, :containing_function, "unknown/0")
     index = Keyword.get(opts, :index, 0)
@@ -511,7 +584,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     triples =
       []
       |> add_type_triple(expr_iri, Core.RaiseExpression)
-      |> add_raise_argument_triple(expr_iri, raise_expr, expression_builder, build_expressions?, context)
+      |> add_raise_argument_triple(
+        expr_iri,
+        raise_expr,
+        expression_builder,
+        build_expressions?,
+        context
+      )
       |> add_location_triple(expr_iri, raise_expr.location)
 
     {expr_iri, triples}
@@ -564,7 +643,8 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
       iex> to_string(iri)
       "https://example.org/code#throw/MyApp/throw/0/0"
   """
-  @spec build_throw(ThrowExpression.t(), Context.t(), keyword()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
+  @spec build_throw(ThrowExpression.t(), Context.t(), keyword()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
   def build_throw(%ThrowExpression{} = throw_expr, %Context{} = context, opts \\ []) do
     containing_function = Keyword.get(opts, :containing_function, "unknown/0")
     index = Keyword.get(opts, :index, 0)
@@ -579,7 +659,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     triples =
       []
       |> add_type_triple(expr_iri, Core.ThrowExpression)
-      |> add_throw_value_triple(expr_iri, throw_expr.value, expression_builder, build_expressions?, context)
+      |> add_throw_value_triple(
+        expr_iri,
+        throw_expr.value,
+        expression_builder,
+        build_expressions?,
+        context
+      )
       |> add_location_triple(expr_iri, throw_expr.location)
 
     {expr_iri, triples}
@@ -660,10 +746,42 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     triples =
       []
       |> add_type_triple(expr_iri, Core.ForComprehension)
-      |> add_generator_triples(expr_iri, comprehension.generators, expression_builder, build_expressions?, context, containing_function, index)
-      |> add_filter_triples(expr_iri, comprehension.filters, expression_builder, build_expressions?, context, containing_function, index)
-      |> add_comprehension_body_triple(expr_iri, comprehension.body, expression_builder, build_expressions?, context, containing_function, index)
-      |> add_comprehension_options_triples(expr_iri, comprehension.options, expression_builder, build_expressions?, context, containing_function, index)
+      |> add_generator_triples(
+        expr_iri,
+        comprehension.generators,
+        expression_builder,
+        build_expressions?,
+        context,
+        containing_function,
+        index
+      )
+      |> add_filter_triples(
+        expr_iri,
+        comprehension.filters,
+        expression_builder,
+        build_expressions?,
+        context,
+        containing_function,
+        index
+      )
+      |> add_comprehension_body_triple(
+        expr_iri,
+        comprehension.body,
+        expression_builder,
+        build_expressions?,
+        context,
+        containing_function,
+        index
+      )
+      |> add_comprehension_options_triples(
+        expr_iri,
+        comprehension.options,
+        expression_builder,
+        build_expressions?,
+        context,
+        containing_function,
+        index
+      )
       |> add_location_triple(expr_iri, comprehension.location)
 
     {expr_iri, triples}
@@ -715,7 +833,15 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # Add condition triple for if/unless (cond has conditions per clause)
   # When build_expressions? is true, builds full expression triples
   # Otherwise, stores a boolean flag indicating condition presence
-  defp add_condition_triple(triples, expr_iri, condition, type, expression_builder, build_expressions?, context)
+  defp add_condition_triple(
+         triples,
+         expr_iri,
+         condition,
+         type,
+         expression_builder,
+         build_expressions?,
+         context
+       )
        when type in [:if, :unless] and not is_nil(condition) do
     if build_expressions? do
       # Build full expression triples for the condition
@@ -742,22 +868,60 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_condition_triple(triples, _expr_iri, _condition, _type, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_condition_triple(
+         triples,
+         _expr_iri,
+         _condition,
+         _type,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # Add branch triples for if/unless
-  defp add_branch_triples(triples, expr_iri, branches, type, expression_builder, build_expressions?, context)
+  defp add_branch_triples(
+         triples,
+         expr_iri,
+         branches,
+         type,
+         expression_builder,
+         build_expressions?,
+         context
+       )
        when type in [:if, :unless] do
     Enum.reduce(branches, triples, fn branch, acc ->
-      add_single_branch_triple(acc, expr_iri, branch, expression_builder, build_expressions?, context)
+      add_single_branch_triple(
+        acc,
+        expr_iri,
+        branch,
+        expression_builder,
+        build_expressions?,
+        context
+      )
     end)
   end
 
-  defp add_branch_triples(triples, _expr_iri, _branches, _type, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_branch_triples(
+         triples,
+         _expr_iri,
+         _branches,
+         _type,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # Add triples for a single branch (then or else)
-  defp add_single_branch_triple(triples, expr_iri, %Branch{type: :then, body: body}, expression_builder, build_expressions?, context) do
+  defp add_single_branch_triple(
+         triples,
+         expr_iri,
+         %Branch{type: :then, body: body},
+         expression_builder,
+         build_expressions?,
+         context
+       ) do
     if build_expressions? and body != nil do
       case expression_builder.build(body, context, suffix: "then") do
         {:ok, {body_iri, body_triples}} ->
@@ -769,7 +933,9 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
           body_triples ++ [link_triple | triples]
 
         :skip ->
-          triple = Helpers.datatype_property(expr_iri, Core.hasThenBranch(), true, RDF.XSD.Boolean)
+          triple =
+            Helpers.datatype_property(expr_iri, Core.hasThenBranch(), true, RDF.XSD.Boolean)
+
           [triple | triples]
       end
     else
@@ -778,7 +944,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_single_branch_triple(triples, expr_iri, %Branch{type: :else, body: body}, expression_builder, build_expressions?, context) do
+  defp add_single_branch_triple(
+         triples,
+         expr_iri,
+         %Branch{type: :else, body: body},
+         expression_builder,
+         build_expressions?,
+         context
+       ) do
     if build_expressions? and body != nil do
       case expression_builder.build(body, context, suffix: "else") do
         {:ok, {body_iri, body_triples}} ->
@@ -790,7 +963,9 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
           body_triples ++ [link_triple | triples]
 
         :skip ->
-          triple = Helpers.datatype_property(expr_iri, Core.hasElseBranch(), true, RDF.XSD.Boolean)
+          triple =
+            Helpers.datatype_property(expr_iri, Core.hasElseBranch(), true, RDF.XSD.Boolean)
+
           [triple | triples]
       end
     else
@@ -799,15 +974,30 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_single_branch_triple(triples, _expr_iri, _branch, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_single_branch_triple(
+         triples,
+         _expr_iri,
+         _branch,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # ===========================================================================
   # Private - Cond Clause Triples
   # ===========================================================================
 
   # For cond expressions, build expression triples for each clause
-  defp add_cond_clause_triples(triples, expr_iri, clauses, :cond, expression_builder, build_expressions?, context)
+  defp add_cond_clause_triples(
+         triples,
+         expr_iri,
+         clauses,
+         :cond,
+         expression_builder,
+         build_expressions?,
+         context
+       )
        when is_list(clauses) and clauses != [] do
     if build_expressions? do
       # Build full expression triples for each clause
@@ -822,14 +1012,24 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_cond_clause_triples(triples, _expr_iri, _clauses, _type, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_cond_clause_triples(
+         triples,
+         _expr_iri,
+         _clauses,
+         _type,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # Build expression triples for a single cond clause
   defp add_cond_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
     # Build condition expression
     cond_triples =
-      case expression_builder.build(clause.condition, context, suffix: "cond_#{clause.index}_condition") do
+      case expression_builder.build(clause.condition, context,
+             suffix: "cond_#{clause.index}_condition"
+           ) do
         {:ok, {condition_iri, condition_expr_triples}} ->
           link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), condition_iri)
           condition_expr_triples ++ [link_triple]
@@ -867,7 +1067,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # Build expression triples for the case subject expression
-  defp add_case_subject_triple(triples, expr_iri, subject, expression_builder, build_expressions?, context) do
+  defp add_case_subject_triple(
+         triples,
+         expr_iri,
+         subject,
+         expression_builder,
+         build_expressions?,
+         context
+       ) do
     if build_expressions? and not is_nil(subject) do
       case expression_builder.build(subject, context, suffix: "subject") do
         {:ok, {subject_iri, subject_triples}} ->
@@ -891,7 +1098,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # For case expressions, build clause patterns, guards, and bodies when in full mode
-  defp add_case_clause_triples(triples, expr_iri, clauses, expression_builder, build_expressions?, context)
+  defp add_case_clause_triples(
+         triples,
+         expr_iri,
+         clauses,
+         expression_builder,
+         build_expressions?,
+         context
+       )
        when is_list(clauses) and clauses != [] do
     if build_expressions? do
       # Build full expression triples for each clause
@@ -914,8 +1128,15 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_case_clause_triples(triples, _expr_iri, _clauses, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_case_clause_triples(
+         triples,
+         _expr_iri,
+         _clauses,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # Build expression triples for a single case clause (pattern, guard, body)
   defp add_case_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
@@ -966,7 +1187,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # For with expressions, build full clause pattern/expression triples in full mode
-  defp add_with_clause_triples(triples, expr_iri, clauses, expression_builder, build_expressions?, context)
+  defp add_with_clause_triples(
+         triples,
+         expr_iri,
+         clauses,
+         expression_builder,
+         build_expressions?,
+         context
+       )
        when is_list(clauses) and clauses != [] do
     if build_expressions? do
       # Build full expression triples for each clause
@@ -981,8 +1209,15 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_with_clause_triples(triples, _expr_iri, _clauses, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_with_clause_triples(
+         triples,
+         _expr_iri,
+         _clauses,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # Build pattern and expression triples for a single with clause
   defp add_with_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
@@ -995,7 +1230,9 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     # Use hasCondition to link the expression being matched to the with expression
     # (similar to how case expressions link the subject)
     expression_triples_with_link =
-      case expression_builder.build(clause.expression, context, suffix: "with_#{clause.index}_expression") do
+      case expression_builder.build(clause.expression, context,
+             suffix: "with_#{clause.index}_expression"
+           ) do
         {:ok, {expr_ast_iri, expr_ast_triples}} ->
           # Create hasCondition link from with expression to the expression being matched
           link_triple = Helpers.object_property(expr_iri, Core.hasCondition(), expr_ast_iri)
@@ -1013,7 +1250,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # Extract with body expression in full mode
-  defp add_with_body_triple(triples, expr_iri, body, expression_builder, build_expressions?, context) do
+  defp add_with_body_triple(
+         triples,
+         expr_iri,
+         body,
+         expression_builder,
+         build_expressions?,
+         context
+       ) do
     if build_expressions? and not is_nil(body) do
       case expression_builder.build(body, context, suffix: "body") do
         {:ok, {body_iri, body_triples}} ->
@@ -1033,7 +1277,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # Build else clause triples in full mode
-  defp add_with_else_triples(triples, expr_iri, else_clauses, expression_builder, build_expressions?, context)
+  defp add_with_else_triples(
+         triples,
+         expr_iri,
+         else_clauses,
+         expression_builder,
+         build_expressions?,
+         context
+       )
        when is_list(else_clauses) and else_clauses != [] do
     if build_expressions? do
       # Build expression triples for else clauses
@@ -1049,8 +1300,15 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_with_else_triples(triples, _expr_iri, _else_clauses, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_with_else_triples(
+         triples,
+         _expr_iri,
+         _else_clauses,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # Build expression triples for an else clause (similar to case clauses)
   defp add_else_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
@@ -1101,7 +1359,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # For receive expressions, build full clause pattern/guard/body triples in full mode
-  defp add_receive_clause_triples(triples, expr_iri, clauses, expression_builder, build_expressions?, context)
+  defp add_receive_clause_triples(
+         triples,
+         expr_iri,
+         clauses,
+         expression_builder,
+         build_expressions?,
+         context
+       )
        when is_list(clauses) and clauses != [] do
     if build_expressions? do
       # Build full expression triples for each clause
@@ -1116,11 +1381,24 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_receive_clause_triples(triples, _expr_iri, _clauses, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_receive_clause_triples(
+         triples,
+         _expr_iri,
+         _clauses,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # Build pattern, guard, and body triples for a single receive clause
-  defp add_receive_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
+  defp add_receive_clause_expression_triples(
+         triples,
+         expr_iri,
+         clause,
+         expression_builder,
+         context
+       ) do
     # 1. Build pattern triples
     pattern_iri = RDF.iri("#{expr_iri}/pattern/#{clause.index}")
     pattern_triples = ExpressionBuilder.build_pattern(clause.pattern, pattern_iri, context)
@@ -1129,7 +1407,9 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     # 2. Build guard expression if present
     guard_triples =
       if clause.guard != nil do
-        case expression_builder.build(clause.guard, context, suffix: "receive_#{clause.index}_guard") do
+        case expression_builder.build(clause.guard, context,
+               suffix: "receive_#{clause.index}_guard"
+             ) do
           {:ok, {guard_iri, guard_expr_triples}} ->
             link_triple = Helpers.object_property(expr_iri, Core.hasGuard(), guard_iri)
             guard_expr_triples ++ [link_triple]
@@ -1164,7 +1444,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # Build after clause triples (timeout and body) in full mode
-  defp add_receive_after_triples(triples, expr_iri, after_clause, expression_builder, build_expressions?, context)
+  defp add_receive_after_triples(
+         triples,
+         expr_iri,
+         after_clause,
+         expression_builder,
+         build_expressions?,
+         context
+       )
        when not is_nil(after_clause) do
     if build_expressions? do
       # Build full expression triples for after clause
@@ -1207,15 +1494,29 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_receive_after_triples(triples, _expr_iri, _after_clause, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_receive_after_triples(
+         triples,
+         _expr_iri,
+         _after_clause,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # ===========================================================================
   # Private - Try Expression Helpers
   # ===========================================================================
 
   # Extract try body expression
-  defp add_try_body_triple(triples, expr_iri, body, expression_builder, build_expressions?, context) do
+  defp add_try_body_triple(
+         triples,
+         expr_iri,
+         body,
+         expression_builder,
+         build_expressions?,
+         context
+       ) do
     if build_expressions? and not is_nil(body) do
       case expression_builder.build(body, context, suffix: "body") do
         {:ok, {body_iri, body_triples}} ->
@@ -1235,7 +1536,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # Extract rescue clauses
-  defp add_rescue_clause_triples(triples, expr_iri, clauses, expression_builder, build_expressions?, context)
+  defp add_rescue_clause_triples(
+         triples,
+         expr_iri,
+         clauses,
+         expression_builder,
+         build_expressions?,
+         context
+       )
        when is_list(clauses) and clauses != [] do
     if build_expressions? do
       Enum.reduce(clauses, triples, fn clause, acc ->
@@ -1247,11 +1555,24 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_rescue_clause_triples(triples, _expr_iri, _clauses, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_rescue_clause_triples(
+         triples,
+         _expr_iri,
+         _clauses,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # Rescue clause expression extraction
-  defp add_rescue_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
+  defp add_rescue_clause_expression_triples(
+         triples,
+         expr_iri,
+         clause,
+         expression_builder,
+         context
+       ) do
     # Create unique IRI for this rescue clause
     clause_index = :erlang.unique_integer([:positive, :monotonic])
     clause_iri = RDF.iri("#{expr_iri}/rescue/#{clause_index}")
@@ -1278,7 +1599,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # Extract catch clauses
-  defp add_catch_clause_triples(triples, expr_iri, clauses, expression_builder, build_expressions?, context)
+  defp add_catch_clause_triples(
+         triples,
+         expr_iri,
+         clauses,
+         expression_builder,
+         build_expressions?,
+         context
+       )
        when is_list(clauses) and clauses != [] do
     if build_expressions? do
       Enum.reduce(clauses, triples, fn clause, acc ->
@@ -1290,8 +1618,15 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_catch_clause_triples(triples, _expr_iri, _clauses, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_catch_clause_triples(
+         triples,
+         _expr_iri,
+         _clauses,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # Catch clause expression extraction
   defp add_catch_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
@@ -1319,11 +1654,19 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     # Link to clause via hasCatchClause
     clause_link_triple = Helpers.object_property(expr_iri, Core.hasCatchClause(), pattern_iri)
 
-    pattern_triples ++ [pattern_link_triple] ++ body_triples_with_link ++ [clause_link_triple] ++ triples
+    pattern_triples ++
+      [pattern_link_triple] ++ body_triples_with_link ++ [clause_link_triple] ++ triples
   end
 
   # Extract else clauses (similar to case else clauses)
-  defp add_else_clause_triples(triples, expr_iri, clauses, expression_builder, build_expressions?, context)
+  defp add_else_clause_triples(
+         triples,
+         expr_iri,
+         clauses,
+         expression_builder,
+         build_expressions?,
+         context
+       )
        when is_list(clauses) and clauses != [] do
     if build_expressions? do
       Enum.reduce(clauses, triples, fn clause, acc ->
@@ -1334,11 +1677,24 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_else_clause_triples(triples, _expr_iri, _clauses, _expression_builder, _build_expressions?, _context),
-    do: triples
+  defp add_else_clause_triples(
+         triples,
+         _expr_iri,
+         _clauses,
+         _expression_builder,
+         _build_expressions?,
+         _context
+       ),
+       do: triples
 
   # Else clause expression extraction (similar to case else clauses)
-  defp add_try_else_clause_expression_triples(triples, expr_iri, clause, expression_builder, context) do
+  defp add_try_else_clause_expression_triples(
+         triples,
+         expr_iri,
+         clause,
+         expression_builder,
+         context
+       ) do
     clause_index = :erlang.unique_integer([:positive, :monotonic])
 
     # Build pattern
@@ -1384,7 +1740,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # Extract after block
-  defp add_try_after_triple(triples, expr_iri, after_body, expression_builder, build_expressions?, context) do
+  defp add_try_after_triple(
+         triples,
+         expr_iri,
+         after_body,
+         expression_builder,
+         build_expressions?,
+         context
+       ) do
     if build_expressions? and not is_nil(after_body) do
       case expression_builder.build(after_body, context, suffix: "after") do
         {:ok, {after_iri, after_triples}} ->
@@ -1408,7 +1771,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   # ===========================================================================
 
   # Extract raise argument (message or exception expression)
-  defp add_raise_argument_triple(triples, expr_iri, raise_expr, expression_builder, build_expressions?, context) do
+  defp add_raise_argument_triple(
+         triples,
+         expr_iri,
+         raise_expr,
+         expression_builder,
+         build_expressions?,
+         context
+       ) do
     if build_expressions? do
       # For raise, we extract the message as the primary expression
       # If there's an exception module, we can add it as an atom
@@ -1437,7 +1807,14 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # Extract throw value
-  defp add_throw_value_triple(triples, expr_iri, value, expression_builder, build_expressions?, context) do
+  defp add_throw_value_triple(
+         triples,
+         expr_iri,
+         value,
+         expression_builder,
+         build_expressions?,
+         context
+       ) do
     if build_expressions? do
       case expression_builder.build(value, context, suffix: "value") do
         {:ok, {value_iri, value_triples}} ->
@@ -1477,7 +1854,16 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # Add generator triples with optional expression building
-  defp add_generator_triples(triples, expr_iri, generators, expression_builder, build_expressions?, context, containing_function, comprehension_index)
+  defp add_generator_triples(
+         triples,
+         expr_iri,
+         generators,
+         expression_builder,
+         build_expressions?,
+         context,
+         containing_function,
+         comprehension_index
+       )
        when is_list(generators) and generators != [] do
     if build_expressions? do
       # Build full expression triples for each generator's enumerable and pattern
@@ -1490,7 +1876,15 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
             []
             |> add_type_triple(gen_iri, Core.Generator)
             |> add_generator_pattern_triple(pattern_iri, gen.pattern, expression_builder, context)
-            |> add_generator_enumerable_triple(gen_iri, gen.enumerable, expression_builder, context, containing_function, comprehension_index, idx)
+            |> add_generator_enumerable_triple(
+              gen_iri,
+              gen.enumerable,
+              expression_builder,
+              context,
+              containing_function,
+              comprehension_index,
+              idx
+            )
             |> add_pattern_link_triple(gen_iri, pattern_iri)
 
           link_triple = Helpers.object_property(expr_iri, Core.hasGenerator(), gen_iri)
@@ -1505,11 +1899,33 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_generator_triples(triples, _expr_iri, _generators, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
+  defp add_generator_triples(
+         triples,
+         _expr_iri,
+         _generators,
+         _expression_builder,
+         _build_expressions?,
+         _context,
+         _containing_function,
+         _index
+       ),
+       do: triples
 
   # Add enumerable expression for a generator
-  defp add_generator_enumerable_triple(triples, gen_iri, enumerable, expression_builder, context, containing_function, comp_index, gen_index) do
-    case expression_builder.build(enumerable, context, containing_function: containing_function, index: comp_index * 100 + gen_index) do
+  defp add_generator_enumerable_triple(
+         triples,
+         gen_iri,
+         enumerable,
+         expression_builder,
+         context,
+         containing_function,
+         comp_index,
+         gen_index
+       ) do
+    case expression_builder.build(enumerable, context,
+           containing_function: containing_function,
+           index: comp_index * 100 + gen_index
+         ) do
       {:ok, {enum_iri, enum_triples}} ->
         link_triple = Helpers.object_property(gen_iri, Core.hasEnumerable(), enum_iri)
         enum_triples ++ [link_triple | triples]
@@ -1524,7 +1940,13 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # Add pattern triples for a generator
-  defp add_generator_pattern_triple(triples, pattern_iri, pattern_ast, expression_builder, context) do
+  defp add_generator_pattern_triple(
+         triples,
+         pattern_iri,
+         pattern_ast,
+         expression_builder,
+         context
+       ) do
     pattern_triples = expression_builder.build_pattern(pattern_ast, pattern_iri, context)
     pattern_triples ++ triples
   end
@@ -1536,7 +1958,16 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # Add filter triples with optional expression building
-  defp add_filter_triples(triples, expr_iri, filters, expression_builder, build_expressions?, context, containing_function, comprehension_index)
+  defp add_filter_triples(
+         triples,
+         expr_iri,
+         filters,
+         expression_builder,
+         build_expressions?,
+         context,
+         containing_function,
+         comprehension_index
+       )
        when is_list(filters) and filters != [] do
     if build_expressions? do
       # Build full expression triples for each filter
@@ -1547,7 +1978,15 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
           filter_triples =
             []
             |> add_type_triple(filter_iri, Core.Filter)
-            |> add_filter_expression_triple(filter_iri, filter.expression, expression_builder, context, containing_function, comprehension_index, idx)
+            |> add_filter_expression_triple(
+              filter_iri,
+              filter.expression,
+              expression_builder,
+              context,
+              containing_function,
+              comprehension_index,
+              idx
+            )
 
           link_triple = Helpers.object_property(expr_iri, Core.hasFilter(), filter_iri)
           {filter_triples ++ [link_triple], idx + 1}
@@ -1561,11 +2000,33 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_filter_triples(triples, _expr_iri, _filters, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
+  defp add_filter_triples(
+         triples,
+         _expr_iri,
+         _filters,
+         _expression_builder,
+         _build_expressions?,
+         _context,
+         _containing_function,
+         _index
+       ),
+       do: triples
 
   # Add filter expression
-  defp add_filter_expression_triple(triples, filter_iri, expression, expression_builder, context, containing_function, comp_index, filter_index) do
-    case expression_builder.build(expression, context, containing_function: containing_function, index: comp_index * 100 + filter_index + 50) do
+  defp add_filter_expression_triple(
+         triples,
+         filter_iri,
+         expression,
+         expression_builder,
+         context,
+         containing_function,
+         comp_index,
+         filter_index
+       ) do
+    case expression_builder.build(expression, context,
+           containing_function: containing_function,
+           index: comp_index * 100 + filter_index + 50
+         ) do
       {:ok, {expr_iri, expr_triples}} ->
         link_triple = Helpers.object_property(filter_iri, Core.hasFilterExpression(), expr_iri)
         expr_triples ++ [link_triple | triples]
@@ -1580,13 +2041,40 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
   end
 
   # Add comprehension body triple
-  defp add_comprehension_body_triple(triples, _expr_iri, nil, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
+  defp add_comprehension_body_triple(
+         triples,
+         _expr_iri,
+         nil,
+         _expression_builder,
+         _build_expressions?,
+         _context,
+         _containing_function,
+         _index
+       ),
+       do: triples
 
-  defp add_comprehension_body_triple(triples, expr_iri, %Comprehension{} = body_comprehension, expression_builder, build_expressions?, context, containing_function, comprehension_index) do
-    if build_expressions? and comprehension_depth_level(comprehension_index) < @max_comprehension_depth do
+  defp add_comprehension_body_triple(
+         triples,
+         expr_iri,
+         %Comprehension{} = body_comprehension,
+         expression_builder,
+         build_expressions?,
+         context,
+         containing_function,
+         comprehension_index
+       ) do
+    if build_expressions? and
+         comprehension_depth_level(comprehension_index) < @max_comprehension_depth do
       # Nested comprehension - recursively build it with updated index
       nested_index = comprehension_index * 100 + 99
-      {body_iri, body_triples} = build_comprehension(body_comprehension, context, containing_function: containing_function, index: nested_index, expression_builder: expression_builder)
+
+      {body_iri, body_triples} =
+        build_comprehension(body_comprehension, context,
+          containing_function: containing_function,
+          index: nested_index,
+          expression_builder: expression_builder
+        )
+
       link_triple = Helpers.object_property(expr_iri, Core.hasCollectExpression(), body_iri)
       body_triples ++ [link_triple | triples]
     else
@@ -1595,14 +2083,21 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  # Calculate the nesting depth level from the comprehension index
-  # Index 0 -> level 0, Index 99 -> level 1, Index 9999 -> level 2, etc.
-  defp comprehension_depth_level(index) when index < 100, do: 0
-  defp comprehension_depth_level(index), do: 1 + comprehension_depth_level(div(index, 100))
-
-  defp add_comprehension_body_triple(triples, expr_iri, body, expression_builder, build_expressions?, context, containing_function, comprehension_index) do
+  defp add_comprehension_body_triple(
+         triples,
+         expr_iri,
+         body,
+         expression_builder,
+         build_expressions?,
+         context,
+         containing_function,
+         comprehension_index
+       ) do
     if build_expressions? and body != nil do
-      case expression_builder.build(body, context, containing_function: containing_function, index: comprehension_index * 100 + 99) do
+      case expression_builder.build(body, context,
+             containing_function: containing_function,
+             index: comprehension_index * 100 + 99
+           ) do
         {:ok, {body_iri, body_triples}} ->
           link_triple = Helpers.object_property(expr_iri, Core.hasCollectExpression(), body_iri)
           body_triples ++ [link_triple | triples]
@@ -1619,20 +2114,73 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
+  # Calculate the nesting depth level from the comprehension index
+  # Index 0 -> level 0, Index 99 -> level 1, Index 9999 -> level 2, etc.
+  defp comprehension_depth_level(index) when index < 100, do: 0
+  defp comprehension_depth_level(index), do: 1 + comprehension_depth_level(div(index, 100))
+
   # Track comprehension options (into, reduce, uniq) with optional expression building
-  defp add_comprehension_options_triples(triples, expr_iri, options, expression_builder, build_expressions?, context, containing_function, comprehension_index)
+  defp add_comprehension_options_triples(
+         triples,
+         expr_iri,
+         options,
+         expression_builder,
+         build_expressions?,
+         context,
+         containing_function,
+         comprehension_index
+       )
        when is_map(options) do
     triples
-    |> add_into_option_triple(expr_iri, Map.get(options, :into), expression_builder, build_expressions?, context, containing_function, comprehension_index)
-    |> add_reduce_option_triple(expr_iri, Map.get(options, :reduce), expression_builder, build_expressions?, context, containing_function, comprehension_index)
+    |> add_into_option_triple(
+      expr_iri,
+      Map.get(options, :into),
+      expression_builder,
+      build_expressions?,
+      context,
+      containing_function,
+      comprehension_index
+    )
+    |> add_reduce_option_triple(
+      expr_iri,
+      Map.get(options, :reduce),
+      expression_builder,
+      build_expressions?,
+      context,
+      containing_function,
+      comprehension_index
+    )
     |> add_uniq_option_triple(expr_iri, Map.get(options, :uniq))
   end
 
-  defp add_comprehension_options_triples(triples, _expr_iri, _options, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
+  defp add_comprehension_options_triples(
+         triples,
+         _expr_iri,
+         _options,
+         _expression_builder,
+         _build_expressions?,
+         _context,
+         _containing_function,
+         _index
+       ),
+       do: triples
 
-  defp add_into_option_triple(triples, expr_iri, into, expression_builder, build_expressions?, context, containing_function, comprehension_index) when not is_nil(into) do
+  defp add_into_option_triple(
+         triples,
+         expr_iri,
+         into,
+         expression_builder,
+         build_expressions?,
+         context,
+         containing_function,
+         comprehension_index
+       )
+       when not is_nil(into) do
     if build_expressions? do
-      case expression_builder.build(into, context, containing_function: containing_function, index: comprehension_index * 100 + 10) do
+      case expression_builder.build(into, context,
+             containing_function: containing_function,
+             index: comprehension_index * 100 + 10
+           ) do
         {:ok, {into_iri, into_triples}} ->
           link_triple = Helpers.object_property(expr_iri, Core.hasIntoOption(), into_iri)
           into_triples ++ [link_triple | triples]
@@ -1642,7 +2190,9 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
           into_triples ++ [link_triple | triples]
 
         :skip ->
-          triple = Helpers.datatype_property(expr_iri, Core.hasIntoOption(), true, RDF.XSD.Boolean)
+          triple =
+            Helpers.datatype_property(expr_iri, Core.hasIntoOption(), true, RDF.XSD.Boolean)
+
           [triple | triples]
       end
     else
@@ -1651,11 +2201,34 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_into_option_triple(triples, _expr_iri, _into, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
+  defp add_into_option_triple(
+         triples,
+         _expr_iri,
+         _into,
+         _expression_builder,
+         _build_expressions?,
+         _context,
+         _containing_function,
+         _index
+       ),
+       do: triples
 
-  defp add_reduce_option_triple(triples, expr_iri, reduce, expression_builder, build_expressions?, context, containing_function, comprehension_index) when not is_nil(reduce) do
+  defp add_reduce_option_triple(
+         triples,
+         expr_iri,
+         reduce,
+         expression_builder,
+         build_expressions?,
+         context,
+         containing_function,
+         comprehension_index
+       )
+       when not is_nil(reduce) do
     if build_expressions? do
-      case expression_builder.build(reduce, context, containing_function: containing_function, index: comprehension_index * 100 + 20) do
+      case expression_builder.build(reduce, context,
+             containing_function: containing_function,
+             index: comprehension_index * 100 + 20
+           ) do
         {:ok, {reduce_iri, reduce_triples}} ->
           link_triple = Helpers.object_property(expr_iri, Core.hasReduceOption(), reduce_iri)
           reduce_triples ++ [link_triple | triples]
@@ -1665,7 +2238,9 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
           reduce_triples ++ [link_triple | triples]
 
         :skip ->
-          triple = Helpers.datatype_property(expr_iri, Core.hasReduceOption(), true, RDF.XSD.Boolean)
+          triple =
+            Helpers.datatype_property(expr_iri, Core.hasReduceOption(), true, RDF.XSD.Boolean)
+
           [triple | triples]
       end
     else
@@ -1674,7 +2249,17 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
     end
   end
 
-  defp add_reduce_option_triple(triples, _expr_iri, _reduce, _expression_builder, _build_expressions?, _context, _containing_function, _index), do: triples
+  defp add_reduce_option_triple(
+         triples,
+         _expr_iri,
+         _reduce,
+         _expression_builder,
+         _build_expressions?,
+         _context,
+         _containing_function,
+         _index
+       ),
+       do: triples
 
   defp add_uniq_option_triple(triples, expr_iri, true) do
     triple = Helpers.datatype_property(expr_iri, Core.hasUniqOption(), true, RDF.XSD.Boolean)
@@ -1689,33 +2274,6 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilder do
 
   # Helper for building expressions with the expression_builder.
   # Handles the 3-way return pattern: {:ok, {iri, triples}}, {:ok, {iri, triples, context}}, or :skip
-  #
-  # Returns: {updated_triples, updated_context_or_nil}
-  defp call_expression_builder(expression, expression_builder, context, opts) do
-    case expression_builder.build(expression, context, opts) do
-      {:ok, {expr_iri, expr_triples}} ->
-        {expr_triples, expr_iri}
-
-      {:ok, {expr_iri, expr_triples, _updated_context}} ->
-        {expr_triples, expr_iri}
-
-      :skip ->
-        {:skip, :skip}
-    end
-  end
-
-  # Link an expression IRI to a parent with a property, adding triples to accumulator
-  defp link_expression(triples, expr_triples, parent_iri, property, expr_iri) do
-    link_triple = Helpers.object_property(parent_iri, property, expr_iri)
-    expr_triples ++ [link_triple | triples]
-  end
-
-  # Link an expression IRI to a parent with a property, returning a new list (no accumulator)
-  defp link_expression_list(expr_triples, parent_iri, property, expr_iri) do
-    link_triple = Helpers.object_property(parent_iri, property, expr_iri)
-    expr_triples ++ [link_triple]
-  end
-
   defp add_location_triple(triples, expr_iri, %{line: line}) when is_integer(line) do
     triple = Helpers.datatype_property(expr_iri, Core.startLine(), line, RDF.XSD.PositiveInteger)
     [triple | triples]

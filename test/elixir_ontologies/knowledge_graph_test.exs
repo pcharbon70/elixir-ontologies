@@ -53,8 +53,7 @@ defmodule ElixirOntologies.KnowledgeGraphTest do
         RDF.Graph.new([
           {RDF.iri("http://example.org/alice"), RDF.iri("http://example.org/knows"),
            RDF.iri("http://example.org/bob")},
-          {RDF.iri("http://example.org/alice"), RDF.type(),
-           RDF.iri("http://example.org/Person")}
+          {RDF.iri("http://example.org/alice"), RDF.type(), RDF.iri("http://example.org/Person")}
         ])
 
       {:ok, count} = KnowledgeGraph.load_graph(store, graph)

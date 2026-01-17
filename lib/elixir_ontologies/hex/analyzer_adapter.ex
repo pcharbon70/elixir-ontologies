@@ -68,21 +68,24 @@ defmodule ElixirOntologies.Hex.AnalyzerAdapter do
   Returns `{:error, :timeout}` if the function exceeds the timeout.
   Returns `{:error, {:task_exit, reason}}` if the function crashes.
   """
-  @spec with_timeout(non_neg_integer(), (() -> term())) :: term()
+  @spec with_timeout(non_neg_integer(), (-> term())) :: term()
   def with_timeout(timeout_ms, fun) when is_function(fun, 0) do
     caller = self()
     ref = make_ref()
 
     # Spawn unlinked process to avoid crashing caller on exception
-    pid = spawn(fn ->
-      result = try do
-        {:ok, fun.()}
-      catch
-        kind, reason ->
-          {:error, {:task_exit, {kind, reason}}}
-      end
-      send(caller, {ref, result})
-    end)
+    pid =
+      spawn(fn ->
+        result =
+          try do
+            {:ok, fun.()}
+          catch
+            kind, reason ->
+              {:error, {:task_exit, {kind, reason}}}
+          end
+
+        send(caller, {ref, result})
+      end)
 
     receive do
       {^ref, {:ok, result}} ->

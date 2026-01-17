@@ -330,10 +330,11 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
         {:ok, graph, metadata} ->
           case OutputManager.save_graph(graph, config.output_dir, name, version) do
             {:ok, output_path} ->
-              {:ok, PackageResult.success(name, version,
-                output_path: output_path,
-                module_count: metadata.module_count
-              )}
+              {:ok,
+               PackageResult.success(name, version,
+                 output_path: output_path,
+                 module_count: metadata.module_count
+               )}
 
             {:error, reason} ->
               {:ok, PackageResult.failure(name, version, error: inspect(reason))}
@@ -363,7 +364,10 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
 
     packages =
       package_stream
-      |> Filter.filter_elixir_packages(http_client, delay_ms: config.api_delay_ms || 500, verbose: config.verbose)
+      |> Filter.filter_elixir_packages(http_client,
+        delay_ms: config.api_delay_ms || 500,
+        verbose: config.verbose
+      )
       |> maybe_limit(config.limit)
       |> Enum.with_index(1)
 
@@ -400,7 +404,10 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     # Collect packages with progress display
     packages =
       package_stream
-      |> Filter.filter_elixir_packages(http_client, delay_ms: config.api_delay_ms || 500, verbose: config.verbose)
+      |> Filter.filter_elixir_packages(http_client,
+        delay_ms: config.api_delay_ms || 500,
+        verbose: config.verbose
+      )
       |> maybe_limit(config.limit)
       |> Stream.with_index(1)
       |> Enum.map(fn {package, index} ->
@@ -432,9 +439,10 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
       "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
       "sort_by" => Atom.to_string(config.sort_by),
       "total_packages" => length(packages),
-      "packages" => Enum.map(packages, fn pkg ->
-        %{"name" => pkg.name, "version" => pkg.version, "downloads" => pkg.downloads}
-      end)
+      "packages" =>
+        Enum.map(packages, fn pkg ->
+          %{"name" => pkg.name, "version" => pkg.version, "downloads" => pkg.downloads}
+        end)
     }
 
     case File.write(pending_file, Jason.encode!(pending_data, pretty: true)) do

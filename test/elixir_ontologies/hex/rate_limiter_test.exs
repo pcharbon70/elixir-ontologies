@@ -272,7 +272,8 @@ defmodule ElixirOntologies.Hex.RateLimiterTest do
 
     test "uses reset time when available" do
       now = System.system_time(:second)
-      reset_time = now + 60  # 60 seconds from now
+      # 60 seconds from now
+      reset_time = now + 60
 
       state = %State{api_remaining: 5, api_reset: reset_time}
 

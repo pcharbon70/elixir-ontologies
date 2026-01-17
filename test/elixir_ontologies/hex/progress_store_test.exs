@@ -11,7 +11,8 @@ defmodule ElixirOntologies.Hex.ProgressStoreTest do
 
   describe "to_json/1" do
     test "serializes progress to JSON" do
-      progress = Progress.new(%{output_dir: "/tmp"})
+      progress =
+        Progress.new(%{output_dir: "/tmp"})
         |> Progress.add_result(PackageResult.success("phoenix", "1.7.10"))
 
       json = ProgressStore.to_json(progress)
@@ -32,7 +33,8 @@ defmodule ElixirOntologies.Hex.ProgressStoreTest do
 
   describe "from_json/1" do
     test "deserializes JSON to progress" do
-      original = Progress.new(%{output_dir: "/tmp"})
+      original =
+        Progress.new(%{output_dir: "/tmp"})
         |> Progress.add_result(PackageResult.success("phoenix", "1.7.10"))
 
       json = ProgressStore.to_json(original)
@@ -59,11 +61,12 @@ defmodule ElixirOntologies.Hex.ProgressStoreTest do
     end
 
     test "roundtrips PackageResult structs" do
-      result = PackageResult.failure("test", "1.0.0",
-        error: "Connection failed",
-        error_type: :download_error,
-        duration_ms: 500
-      )
+      result =
+        PackageResult.failure("test", "1.0.0",
+          error: "Connection failed",
+          error_type: :download_error,
+          duration_ms: 500
+        )
 
       original = Progress.new() |> Progress.add_result(result)
       json = ProgressStore.to_json(original)
@@ -190,8 +193,10 @@ defmodule ElixirOntologies.Hex.ProgressStoreTest do
     end
 
     test "resumes from existing file", %{test_file: file} do
-      original = Progress.new(%{"original" => true})
+      original =
+        Progress.new(%{"original" => true})
         |> Progress.add_result(PackageResult.success("pkg", "1.0.0"))
+
       :ok = ProgressStore.save(original, file)
 
       {:ok, progress, status} = ProgressStore.load_or_create(file, %{"new" => true})
@@ -220,17 +225,19 @@ defmodule ElixirOntologies.Hex.ProgressStoreTest do
   describe "should_checkpoint?/1" do
     test "returns true at checkpoint interval" do
       # Add exactly checkpoint_interval results
-      progress = Enum.reduce(1..10, Progress.new(), fn i, acc ->
-        Progress.add_result(acc, PackageResult.success("pkg#{i}", "1.0.0"))
-      end)
+      progress =
+        Enum.reduce(1..10, Progress.new(), fn i, acc ->
+          Progress.add_result(acc, PackageResult.success("pkg#{i}", "1.0.0"))
+        end)
 
       assert ProgressStore.should_checkpoint?(progress)
     end
 
     test "returns false between intervals" do
-      progress = Enum.reduce(1..5, Progress.new(), fn i, acc ->
-        Progress.add_result(acc, PackageResult.success("pkg#{i}", "1.0.0"))
-      end)
+      progress =
+        Enum.reduce(1..5, Progress.new(), fn i, acc ->
+          Progress.add_result(acc, PackageResult.success("pkg#{i}", "1.0.0"))
+        end)
 
       refute ProgressStore.should_checkpoint?(progress)
     end
@@ -277,9 +284,10 @@ defmodule ElixirOntologies.Hex.ProgressStoreTest do
     end
 
     test "saves when at interval", %{test_file: file} do
-      progress = Enum.reduce(1..10, Progress.new(), fn i, acc ->
-        Progress.add_result(acc, PackageResult.success("pkg#{i}", "1.0.0"))
-      end)
+      progress =
+        Enum.reduce(1..10, Progress.new(), fn i, acc ->
+          Progress.add_result(acc, PackageResult.success("pkg#{i}", "1.0.0"))
+        end)
 
       {:ok, _} = ProgressStore.maybe_checkpoint(progress, file)
 
@@ -287,9 +295,10 @@ defmodule ElixirOntologies.Hex.ProgressStoreTest do
     end
 
     test "skips when not at interval", %{test_file: file} do
-      progress = Enum.reduce(1..5, Progress.new(), fn i, acc ->
-        Progress.add_result(acc, PackageResult.success("pkg#{i}", "1.0.0"))
-      end)
+      progress =
+        Enum.reduce(1..5, Progress.new(), fn i, acc ->
+          Progress.add_result(acc, PackageResult.success("pkg#{i}", "1.0.0"))
+        end)
 
       {:ok, _} = ProgressStore.maybe_checkpoint(progress, file)
 

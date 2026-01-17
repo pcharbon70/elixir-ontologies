@@ -31,9 +31,11 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
       }
 
       function_iri = ~I<https://example.org/code#MyApp/process/1>
-      {clause_iri, triples} = ClauseBuilder.build_clause(clause_info, function_iri, context,
-        expression_builder: ExpressionBuilder
-      )
+
+      {clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
 
       # Verify guard exists
       guard_iri = find_guard_iri(clause_iri, triples)
@@ -41,21 +43,21 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
 
       # Verify guard has inGuardContext property
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
-      end)
+               s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+             end)
 
       # Verify guard is a LocalCall (is_integer is imported from Kernel)
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard_iri and
-          p == RDF.type() and
-          o == Core.LocalCall
-      end)
+               s == guard_iri and
+                 p == RDF.type() and
+                 o == Core.LocalCall
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard_iri and
-          p == Core.name() and
-          RDF.Literal.value(o) == "is_integer"
-      end)
+               s == guard_iri and
+                 p == Core.name() and
+                 RDF.Literal.value(o) == "is_integer"
+             end)
     end
 
     test "extracts compound guard with and" do
@@ -77,9 +79,11 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
       }
 
       function_iri = ~I<https://example.org/code#MyApp/process_positive/1>
-      {clause_iri, triples} = ClauseBuilder.build_clause(clause_info, function_iri, context,
-        expression_builder: ExpressionBuilder
-      )
+
+      {clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
 
       # Verify guard exists
       guard_iri = find_guard_iri(clause_iri, triples)
@@ -87,19 +91,19 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
 
       # Verify guard is a LogicalOperator with operator "and"
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard_iri and p == RDF.type() and o == Core.LogicalOperator
-      end)
+               s == guard_iri and p == RDF.type() and o == Core.LogicalOperator
+             end)
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard_iri and
-          p == Core.operatorSymbol() and
-          RDF.Literal.value(o) == "and"
-      end)
+               s == guard_iri and
+                 p == Core.operatorSymbol() and
+                 RDF.Literal.value(o) == "and"
+             end)
 
       # Verify guard has inGuardContext
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
-      end)
+               s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+             end)
 
       # Verify hasLeftOperand and hasRightOperand
       left_iri = find_object(triples, guard_iri, Core.hasLeftOperand())
@@ -134,19 +138,21 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
       }
 
       function_iri = ~I<https://example.org/code#MyApp/process_value/1>
-      {clause_iri, triples} = ClauseBuilder.build_clause(clause_info, function_iri, context,
-        expression_builder: ExpressionBuilder
-      )
+
+      {clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
 
       # Verify top-level or guard
       guard_iri = find_guard_iri(clause_iri, triples)
       assert guard_iri != nil
 
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard_iri and
-          p == Core.operatorSymbol() and
-          RDF.Literal.value(o) == "or"
-      end)
+               s == guard_iri and
+                 p == Core.operatorSymbol() and
+                 RDF.Literal.value(o) == "or"
+             end)
     end
 
     test "extracts guard with comparison operator" do
@@ -168,17 +174,19 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
       }
 
       function_iri = ~I<https://example.org/code#MyApp/positive/1>
-      {clause_iri, triples} = ClauseBuilder.build_clause(clause_info, function_iri, context,
-        expression_builder: ExpressionBuilder
-      )
+
+      {clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
 
       guard_iri = find_guard_iri(clause_iri, triples)
       assert guard_iri != nil
 
       # Verify it's a ComparisonOperator
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == guard_iri and p == RDF.type() and o == Core.ComparisonOperator
-      end)
+               s == guard_iri and p == RDF.type() and o == Core.ComparisonOperator
+             end)
     end
   end
 
@@ -240,12 +248,12 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
       guard2_iri = find_guard_iri(clause2_iri, triples2)
 
       assert Enum.any?(triples1, fn {s, p, o} ->
-        s == guard1_iri and p == Core.name() and RDF.Literal.value(o) == "is_integer"
-      end)
+               s == guard1_iri and p == Core.name() and RDF.Literal.value(o) == "is_integer"
+             end)
 
       assert Enum.any?(triples2, fn {s, p, o} ->
-        s == guard2_iri and p == Core.name() and RDF.Literal.value(o) == "is_binary"
-      end)
+               s == guard2_iri and p == Core.name() and RDF.Literal.value(o) == "is_binary"
+             end)
     end
 
     test "handles mixed guarded and unguarded clauses" do
@@ -391,9 +399,11 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
       }
 
       function_iri = ~I<https://example.org/code#MyApp/range_check/1>
-      {clause_iri, triples} = ClauseBuilder.build_clause(clause_info, function_iri, context,
-        expression_builder: ExpressionBuilder
-      )
+
+      {clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
 
       # Verify nested structure exists
       guard_iri = find_guard_iri(clause_iri, triples)
@@ -425,9 +435,11 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
       }
 
       function_iri = ~I<https://example.org/code#MyApp/check_function/1>
-      {clause_iri, triples} = ClauseBuilder.build_clause(clause_info, function_iri, context,
-        expression_builder: ExpressionBuilder
-      )
+
+      {clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
 
       guard_iri = find_guard_iri(clause_iri, triples)
 
@@ -460,9 +472,11 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
       }
 
       function_iri = ~I<https://example.org/code#MyApp/process/1>
-      {clause_iri, triples} = ClauseBuilder.build_clause(clause_info, function_iri, context,
-        expression_builder: ExpressionBuilder
-      )
+
+      {clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
 
       # Simulate SPARQL query: Find all expressions with inGuardContext = true
       guard_expressions =
@@ -493,9 +507,11 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
       }
 
       function_iri = ~I<https://example.org/code#MyApp/process/1>
-      {_clause_iri, triples} = ClauseBuilder.build_clause(clause_info, function_iri, context,
-        expression_builder: ExpressionBuilder
-      )
+
+      {_clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
 
       # Simulate SPARQL: Find all LocalCalls with name "is_binary"
       is_binary_calls =

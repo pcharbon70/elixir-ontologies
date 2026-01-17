@@ -189,7 +189,13 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
 
     # FunctionHead triples (includes parameters and guard)
     {head_bnode, head_triples} =
-      build_function_head(clause_iri, clause_info, context, expression_builder, build_expressions?)
+      build_function_head(
+        clause_iri,
+        clause_info,
+        context,
+        expression_builder,
+        build_expressions?
+      )
 
     triples =
       triples ++
@@ -242,7 +248,13 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
   # ===========================================================================
 
   # Build FunctionHead with parameters and optional guard
-  defp build_function_head(clause_iri, clause_info, context, expression_builder, build_expressions?) do
+  defp build_function_head(
+         clause_iri,
+         clause_info,
+         context,
+         expression_builder,
+         build_expressions?
+       ) do
     head_bnode = Helpers.blank_node("function_head")
 
     # Extract parameters
@@ -260,7 +272,13 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
         # struct:hasParameters <list_head>
         Helpers.object_property(head_bnode, Structure.hasParameters(), list_head)
       ] ++
-        build_guard_triples(head_bnode, clause_info, context, expression_builder, build_expressions?)
+        build_guard_triples(
+          head_bnode,
+          clause_info,
+          context,
+          expression_builder,
+          build_expressions?
+        )
 
     # Combine all triples
     all_triples = head_triples ++ parameter_triples ++ list_triples
@@ -271,7 +289,13 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
   # Build guard triples if guard is present
   # When build_expressions? is true, builds full expression triples for the guard
   # Otherwise, creates a GuardClause blank node only
-  defp build_guard_triples(head_bnode, clause_info, context, expression_builder, build_expressions?) do
+  defp build_guard_triples(
+         head_bnode,
+         clause_info,
+         context,
+         expression_builder,
+         build_expressions?
+       ) do
     case clause_info.head[:guard] do
       nil ->
         []

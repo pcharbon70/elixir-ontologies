@@ -194,7 +194,15 @@ defmodule ElixirOntologies.KnowledgeGraph do
     paths = Path.wildcard(pattern)
 
     if Enum.empty?(paths) do
-      {:ok, %{loaded: 0, failed: 0, triples: 0, errors: [], pattern: pattern, message: "No files matched"}}
+      {:ok,
+       %{
+         loaded: 0,
+         failed: 0,
+         triples: 0,
+         errors: [],
+         pattern: pattern,
+         message: "No files matched"
+       }}
     else
       load_files(store, paths, opts)
     end
@@ -314,7 +322,8 @@ defmodule ElixirOntologies.KnowledgeGraph do
     ensure_available!()
 
     # Get triple count via ASK or count query
-    with {:ok, count_result} <- TripleStore.query(store, "SELECT (COUNT(*) AS ?count) WHERE { ?s ?p ?o }") do
+    with {:ok, count_result} <-
+           TripleStore.query(store, "SELECT (COUNT(*) AS ?count) WHERE { ?s ?p ?o }") do
       count =
         case count_result do
           [%{"count" => c}] when is_integer(c) -> c

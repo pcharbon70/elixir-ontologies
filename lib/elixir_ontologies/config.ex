@@ -110,7 +110,13 @@ defmodule ElixirOntologies.Config do
   """
   @spec merge(t(), keyword()) :: t()
   def merge(%__MODULE__{} = config, opts) when is_list(opts) do
-    valid_keys = [:base_iri, :include_source_text, :include_git_info, :output_format, :include_expressions]
+    valid_keys = [
+      :base_iri,
+      :include_source_text,
+      :include_git_info,
+      :output_format,
+      :include_expressions
+    ]
 
     filtered_opts =
       opts

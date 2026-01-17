@@ -23,6 +23,7 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
   alias ElixirOntologies.Builders.{ControlFlowBuilder, Context, ExpressionBuilder}
   alias ElixirOntologies.Extractors.Conditional.{Conditional, Branch}
+
   alias ElixirOntologies.Extractors.CaseWith.{
     CaseExpression,
     CaseClause,
@@ -30,6 +31,7 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
     WithClause,
     ReceiveExpression
   }
+
   alias ElixirOntologies.Extractors.Exception
   alias ElixirOntologies.Extractors.Exception.{RaiseExpression, ThrowExpression}
   alias ElixirOntologies.NS.Core
@@ -73,23 +75,23 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have type triple
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.IfExpression
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.IfExpression
+             end)
 
       # Should have hasCondition linking to condition
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.hasCondition()
-      end)
+               s == expr_iri and p == Core.hasCondition()
+             end)
 
       # Should have hasThenBranch
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.hasThenBranch()
-      end)
+               s == expr_iri and p == Core.hasThenBranch()
+             end)
 
       # Should have hasElseBranch
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.hasElseBranch()
-      end)
+               s == expr_iri and p == Core.hasElseBranch()
+             end)
     end
 
     test "unless expression extraction in full mode", %{context: context} do
@@ -109,13 +111,13 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have type triple for UnlessExpression
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.UnlessExpression
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.UnlessExpression
+             end)
 
       # Should have hasCondition
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.hasCondition()
-      end)
+               s == expr_iri and p == Core.hasCondition()
+             end)
     end
 
     test "cond expression extraction in full mode", %{context: context} do
@@ -124,8 +126,18 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
         condition: nil,
         branches: [],
         clauses: [
-          %{condition: {:>, [], [{:x, [], nil}, 0]}, body: {:positive, [], []}, index: 0, is_catch_all: false},
-          %{condition: {:<, [], [{:x, [], nil}, 0]}, body: {:negative, [], []}, index: 1, is_catch_all: false},
+          %{
+            condition: {:>, [], [{:x, [], nil}, 0]},
+            body: {:positive, [], []},
+            index: 0,
+            is_catch_all: false
+          },
+          %{
+            condition: {:<, [], [{:x, [], nil}, 0]},
+            body: {:negative, [], []},
+            index: 1,
+            is_catch_all: false
+          },
           %{condition: true, body: {:zero, [], []}, index: 2, is_catch_all: true}
         ],
         metadata: %{}
@@ -140,8 +152,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have type triple for CondExpression
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.CondExpression
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.CondExpression
+             end)
 
       # Should have multiple hasCondition clauses
       condition_count =
@@ -170,13 +182,13 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have type triple for CaseExpression
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.CaseExpression
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.CaseExpression
+             end)
 
       # Should have hasCondition linking to subject
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.hasCondition()
-      end)
+               s == expr_iri and p == Core.hasCondition()
+             end)
 
       # Should have hasPattern for each clause
       pattern_count =
@@ -188,7 +200,12 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
     test "with expression extraction in full mode", %{context: context} do
       with_expr = %WithExpression{
         clauses: [
-          %WithClause{index: 0, type: :match, pattern: {:ok, [], [{:x, [], nil}]}, expression: {:fun, [], []}}
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], [{:x, [], nil}]},
+            expression: {:fun, [], []}
+          }
         ],
         body: :result,
         location: nil,
@@ -204,18 +221,18 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have type triple for WithExpression
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.WithExpression
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.WithExpression
+             end)
 
       # Should have hasPattern
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.hasPattern()
-      end)
+               s == expr_iri and p == Core.hasPattern()
+             end)
 
       # Should have hasBody
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == ElixirOntologies.NS.Structure.hasBody()
-      end)
+               s == expr_iri and p == ElixirOntologies.NS.Structure.hasBody()
+             end)
     end
 
     test "receive expression extraction in full mode", %{context: context} do
@@ -244,8 +261,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have type triple for ReceiveExpression
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.ReceiveExpression
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.ReceiveExpression
+             end)
 
       # Should have hasPattern for clause
       assert Enum.any?(triples, fn {_s, p, _o} -> p == Core.hasPattern() end)
@@ -274,8 +291,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
         )
 
       assert Enum.any?(try_triples, fn {s, p, o} ->
-        s == try_iri and p == RDF.type() and o == Core.TryExpression
-      end)
+               s == try_iri and p == RDF.type() and o == Core.TryExpression
+             end)
 
       # Test raise expression
       raise_expr = %RaiseExpression{
@@ -295,8 +312,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
         )
 
       assert Enum.any?(raise_triples, fn {s, p, o} ->
-        s == raise_iri and p == RDF.type() and o == Core.RaiseExpression
-      end)
+               s == raise_iri and p == RDF.type() and o == Core.RaiseExpression
+             end)
 
       # Test throw expression
       throw_expr = %ThrowExpression{
@@ -312,8 +329,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
         )
 
       assert Enum.any?(throw_triples, fn {s, p, o} ->
-        s == throw_iri and p == RDF.type() and o == Core.ThrowExpression
-      end)
+               s == throw_iri and p == RDF.type() and o == Core.ThrowExpression
+             end)
     end
   end
 
@@ -346,8 +363,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Light mode: only type triple, no expression trees
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == RDF.type() and o == Core.IfExpression
-      end)
+               s == expr_iri and p == RDF.type() and o == Core.IfExpression
+             end)
 
       # Light mode has hasCondition as boolean, not as expression link
       has_condition_triples =
@@ -389,8 +406,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have operator expression for >
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.ComparisonOperator
-      end)
+               p == RDF.type() and o == Core.ComparisonOperator
+             end)
     end
 
     test "mode setting affects all control flow types" do
@@ -439,8 +456,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Full mode: should have hasPattern linking to pattern expression
       assert Enum.any?(case_triples_full, fn {_s, p, _o} ->
-        p == Core.hasPattern()
-      end)
+               p == Core.hasPattern()
+             end)
     end
   end
 
@@ -497,9 +514,11 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
       if_iri_string = to_string(if_iri)
       case_iri_string = to_string(case_iri)
 
-      assert String.contains?(if_iri_string, "/0")  # index 0 for if
+      # index 0 for if
+      assert String.contains?(if_iri_string, "/0")
 
-      assert String.contains?(case_iri_string, "/1")  # index 1 for case
+      # index 1 for case
+      assert String.contains?(case_iri_string, "/1")
     end
 
     test "nested control flow conditions use expression builder", %{context: context} do
@@ -520,8 +539,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have LogicalOperator for the 'and' condition
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.LogicalOperator
-      end)
+               p == RDF.type() and o == Core.LogicalOperator
+             end)
     end
 
     test "control flow with complex body expressions", %{context: context} do
@@ -547,8 +566,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have TupleLiteral for the body
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.TupleLiteral
-      end)
+               p == RDF.type() and o == Core.TupleLiteral
+             end)
     end
   end
 
@@ -586,8 +605,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have LogicalOperator (and)
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.LogicalOperator
-      end)
+               p == RDF.type() and o == Core.LogicalOperator
+             end)
 
       # Should have two ComparisonOperator (>, <)
       comparison_count =
@@ -619,13 +638,13 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have TupleLiteral
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.TupleLiteral
-      end)
+               p == RDF.type() and o == Core.TupleLiteral
+             end)
 
       # Should have LocalCall (process)
       assert Enum.any?(triples, fn {_s, p, o} ->
-        p == RDF.type() and o == Core.LocalCall
-      end)
+               p == RDF.type() and o == Core.LocalCall
+             end)
     end
   end
 
@@ -707,9 +726,10 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # The condition should be a ComparisonOperator
       condition_iri = hd(result.results)["condition"]
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == condition_iri and p == RDF.type() and o == Core.ComparisonOperator
-      end)
+               s == condition_iri and p == RDF.type() and o == Core.ComparisonOperator
+             end)
     end
 
     test "find guards within clauses", %{context: context} do
@@ -790,13 +810,13 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have type triple for WithExpression
       assert Enum.any?(with_triples, fn {_s, _p, o} ->
-        o == Core.WithExpression
-      end)
+               o == Core.WithExpression
+             end)
 
       # Should have hasClause triple in light mode
       assert Enum.any?(with_triples, fn {_s, p, _o} ->
-        p == Core.hasClause()
-      end)
+               p == Core.hasClause()
+             end)
     end
 
     test "complex guard with multiple conditions", %{context: context} do
@@ -824,8 +844,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have hasGuard triple
       assert Enum.any?(triples, fn {_s, p, _o} ->
-        p == Core.hasGuard()
-      end)
+               p == Core.hasGuard()
+             end)
     end
 
     test "empty control flow structures", %{context: context} do
@@ -848,8 +868,8 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have type triple for CondExpression
       assert Enum.any?(triples, fn {_s, _p, o} ->
-        o == Core.CondExpression
-      end)
+               o == Core.CondExpression
+             end)
     end
 
     test "control flow with nil location", %{context: context} do
@@ -871,13 +891,13 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
 
       # Should have type triple
       assert Enum.any?(triples, fn {_s, _p, o} ->
-        o == Core.IfExpression
-      end)
+               o == Core.IfExpression
+             end)
 
       # Should not have location triples when location is nil
       refute Enum.any?(triples, fn {_s, p, _o} ->
-        p == Core.startLine()
-      end)
+               p == Core.startLine()
+             end)
     end
   end
 end

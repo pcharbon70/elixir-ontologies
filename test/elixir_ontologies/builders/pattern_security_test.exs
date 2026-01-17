@@ -131,9 +131,10 @@ defmodule ElixirOntologies.Builders.PatternSecurityTest do
       context = full_mode_context()
 
       # Create a 1001-segment binary (exceeds limit)
-      segments = for i <- 1..1001 do
-        {:"::", [], [{:"x#{i}", [], Elixir}, 8]}
-      end
+      segments =
+        for i <- 1..1001 do
+          {:"::", [], [{:"x#{i}", [], Elixir}, 8]}
+        end
 
       pattern = {:<<>>, [], segments}
 
@@ -232,9 +233,10 @@ defmodule ElixirOntologies.Builders.PatternSecurityTest do
       context = full_mode_context()
 
       # Large binary pattern with many segments
-      segments = for i <- 1..500 do
-        {:"::", [], [{:"byte#{i}", [], Elixir}, 8]}
-      end
+      segments =
+        for i <- 1..500 do
+          {:"::", [], [{:"byte#{i}", [], Elixir}, 8]}
+        end
 
       pattern = {:<<>>, [], segments}
 
@@ -253,10 +255,14 @@ defmodule ElixirOntologies.Builders.PatternSecurityTest do
 
       # Empty tuple, list, map, binary should all work
       patterns = [
-        {:{}, [], []},  # Empty tuple
-        [],             # Empty list
-        {:%{}, [], []}, # Empty map
-        {:<<>>, [], []} # Empty binary
+        # Empty tuple
+        {:{}, [], []},
+        # Empty list
+        [],
+        # Empty map
+        {:%{}, [], []},
+        # Empty binary
+        {:<<>>, [], []}
       ]
 
       for pattern <- patterns do

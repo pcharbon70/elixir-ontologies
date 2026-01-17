@@ -33,7 +33,15 @@ defmodule ElixirOntologies.Hex.Filter do
     # GitHub paths that suggest Elixir
     github_patterns: ["/elixir", "elixir-", "-ex", "_ex"],
     # Package name patterns common in Elixir
-    name_patterns: [~r/^ex_/, ~r/_ex$/, ~r/^phoenix/, ~r/^ecto/, ~r/^plug/, ~r/^nerves/, ~r/^absinthe/]
+    name_patterns: [
+      ~r/^ex_/,
+      ~r/_ex$/,
+      ~r/^phoenix/,
+      ~r/^ecto/,
+      ~r/^plug/,
+      ~r/^nerves/,
+      ~r/^absinthe/
+    ]
   }
 
   @erlang_indicators %{
@@ -51,32 +59,86 @@ defmodule ElixirOntologies.Hex.Filter do
     # Known Erlang-only packages (popular dependencies without Elixir code)
     known_erlang: [
       # HTTP/Network
-      "cowboy", "cowlib", "ranch", "gun", "hackney", "ssl_verify_fun",
-      "idna", "unicode_util_compat", "mimerl", "certifi", "parse_trans",
+      "cowboy",
+      "cowlib",
+      "ranch",
+      "gun",
+      "hackney",
+      "ssl_verify_fun",
+      "idna",
+      "unicode_util_compat",
+      "mimerl",
+      "certifi",
+      "parse_trans",
       # JSON
-      "jsx", "jiffy", "jsone", "jsonx",
+      "jsx",
+      "jiffy",
+      "jsone",
+      "jsonx",
       # Testing
-      "meck", "proper", "eunit_formatters",
+      "meck",
+      "proper",
+      "eunit_formatters",
       # Compression
-      "ezlib", "zstd",
+      "ezlib",
+      "zstd",
       # Database drivers
-      "epgsql", "eredis", "mysql", "emysql", "mongodb",
+      "epgsql",
+      "eredis",
+      "mysql",
+      "emysql",
+      "mongodb",
       # Parsing
-      "leex", "yecc", "neotoma", "abnf",
+      "leex",
+      "yecc",
+      "neotoma",
+      "abnf",
       # Crypto
-      "bcrypt", "pbkdf2", "fast_tls", "p1_utils",
+      "bcrypt",
+      "pbkdf2",
+      "fast_tls",
+      "p1_utils",
       # Utilities
-      "gproc", "poolboy", "worker_pool", "jobs", "recon", "observer_cli",
-      "bear", "folsom", "exometer_core", "lager", "goldrush",
+      "gproc",
+      "poolboy",
+      "worker_pool",
+      "jobs",
+      "recon",
+      "observer_cli",
+      "bear",
+      "folsom",
+      "exometer_core",
+      "lager",
+      "goldrush",
       # Misc
-      "cf", "edown", "getopt", "uuid", "base64url", "quickrand",
-      "erlware_commons", "providers", "relx", "bbmustache",
+      "cf",
+      "edown",
+      "getopt",
+      "uuid",
+      "base64url",
+      "quickrand",
+      "erlware_commons",
+      "providers",
+      "relx",
+      "bbmustache",
       # Format/Protocol
-      "gpb", "protobuffs", "msgpack", "bert", "erlfmt",
+      "gpb",
+      "protobuffs",
+      "msgpack",
+      "bert",
+      "erlfmt",
       # NIF wrappers
-      "asn1", "crypto", "public_key", "ssl", "inets", "xmerl",
+      "asn1",
+      "crypto",
+      "public_key",
+      "ssl",
+      "inets",
+      "xmerl",
       # OTP apps
-      "sasl", "stdlib", "kernel", "compiler"
+      "sasl",
+      "stdlib",
+      "kernel",
+      "compiler"
     ]
   }
 

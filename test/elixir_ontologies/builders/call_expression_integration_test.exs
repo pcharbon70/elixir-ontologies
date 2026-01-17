@@ -20,8 +20,7 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # AST for String.to_integer("42", 10)
       ast =
-        {{:., [], [{:__aliases__, [], [:"String"]}, :to_integer]}, [],
-         ["42", 10]}
+        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [], ["42", 10]}
 
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
@@ -30,33 +29,33 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # Verify moduleName
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "String"
-      end)
+               s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "String"
+             end)
 
       # Verify functionName
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "to_integer"
-      end)
+               s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "to_integer"
+             end)
 
       # Verify arity
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
-      end)
+               s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
+             end)
 
       # Verify refersToModule
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.refersToModule()
-      end)
+               s == expr_iri and p == Core.refersToModule()
+             end)
 
       # Verify refersToFunction
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.refersToFunction()
-      end)
+               s == expr_iri and p == Core.refersToFunction()
+             end)
 
       # Verify arguments are extracted
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.hasArgument()
-      end) == true
+               s == expr_iri and p == Core.hasArgument()
+             end) == true
     end
 
     test "local call within module context" do
@@ -72,18 +71,19 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # Verify functionName
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "process_item"
-      end)
+               s == expr_iri and p == Core.functionName() and
+                 RDF.Literal.value(o) == "process_item"
+             end)
 
       # Verify arity
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 1
-      end)
+               s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 1
+             end)
 
       # Verify refersToFunction exists (even if placeholder)
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.refersToFunction()
-      end)
+               s == expr_iri and p == Core.refersToFunction()
+             end)
     end
 
     test "anonymous function call extraction" do
@@ -99,20 +99,20 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # Verify hasFunctionExpression
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.hasFunctionExpression()
-      end)
+               s == expr_iri and p == Core.hasFunctionExpression()
+             end)
 
       # Verify hasArgument (callback was called with 1 argument)
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.hasArgument()
-      end)
+               s == expr_iri and p == Core.hasArgument()
+             end)
     end
 
     test "capture operator extraction for function reference" do
       context = full_mode_context()
 
       # AST for &Enum.map/2
-      function_ref = {{:., [], [{:__aliases__, [], [:"Enum"]}, :map]}, [], []}
+      function_ref = {{:., [], [{:__aliases__, [], [:Enum]}, :map]}, [], []}
       ast = {:&, [], [{:/, [], [function_ref, 2]}]}
 
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
@@ -122,23 +122,23 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # Verify moduleName
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "Enum"
-      end)
+               s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "Enum"
+             end)
 
       # Verify functionName
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "map"
-      end)
+               s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "map"
+             end)
 
       # Verify arity
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
-      end)
+               s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
+             end)
 
       # Verify refersToFunction
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.refersToFunction()
-      end)
+               s == expr_iri and p == Core.refersToFunction()
+             end)
     end
 
     test "module reference extraction" do
@@ -154,21 +154,21 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # Verify moduleName
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "MyApp.Users"
-      end)
+               s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "MyApp.Users"
+             end)
 
       # Verify refersToModule
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.refersToModule()
-      end)
+               s == expr_iri and p == Core.refersToModule()
+             end)
     end
 
     test "nested call scenario" do
       context = full_mode_context()
 
       # AST for String.upcase(Integer.to_string(123))
-      inner_call = {{:., [], [{:__aliases__, [], [:"Integer"]}, :to_string]}, [], [123]}
-      ast = {{:., [], [{:__aliases__, [], [:"String"]}, :upcase]}, [], [inner_call]}
+      inner_call = {{:., [], [{:__aliases__, [], [:Integer]}, :to_string]}, [], [123]}
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], [inner_call]}
 
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
@@ -177,15 +177,17 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # Verify inner call (as argument) is also RemoteCall
       arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == arg_iri and p == RDF.type() and o == Core.RemoteCall
-      end)
+               s == arg_iri and p == RDF.type() and o == Core.RemoteCall
+             end)
 
       # Verify nested argument's argument
       inner_arg_iri = ExpressionBuilder.fresh_iri(arg_iri, "arg-0")
+
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == inner_arg_iri and p == RDF.type() and o == Core.IntegerLiteral
-      end)
+               s == inner_arg_iri and p == RDF.type() and o == Core.IntegerLiteral
+             end)
     end
   end
 
@@ -195,7 +197,7 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # Create a mix of different call types
       remote_ast =
-        {{:., [], [{:__aliases__, [], [:"String"]}, :upcase]}, [], ["hello"]}
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
 
       local_ast = {:process, [], [{:x, [], Elixir}]}
 
@@ -219,7 +221,7 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # AST for String.upcase("hello")
       ast =
-        {{:., [], [{:__aliases__, [], [:"String"]}, :upcase]}, [], ["hello"]}
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
 
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
@@ -239,7 +241,7 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # AST for String.upcase("hello")
       ast =
-        {{:., [], [{:__aliases__, [], [:"String"]}, :upcase]}, [], ["hello"]}
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
 
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
@@ -259,8 +261,7 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # AST for String.to_integer("42", 10)
       ast =
-        {{:., [], [{:__aliases__, [], [:"String"]}, :to_integer]}, [],
-         ["42", 10]}
+        {{:., [], [{:__aliases__, [], [:String]}, :to_integer]}, [], ["42", 10]}
 
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
@@ -316,7 +317,7 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # AST for String.upcase("hello")
       ast =
-        {{:., [], [{:__aliases__, [], [:"String"]}, :upcase]}, [], ["hello"]}
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
 
       # Light mode should return :skip
       assert ExpressionBuilder.build(ast, context, []) == :skip
@@ -327,7 +328,7 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # AST for String.upcase("hello")
       ast =
-        {{:., [], [{:__aliases__, [], [:"String"]}, :upcase]}, [], ["hello"]}
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
 
       {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
@@ -340,13 +341,13 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # Should have moduleName
       assert Enum.any?(triples, fn {s, p, o} ->
-        s == expr_iri and p == Core.moduleName()
-      end)
+               s == expr_iri and p == Core.moduleName()
+             end)
 
       # Should have argument expression
       assert Enum.any?(triples, fn {s, p, _o} ->
-        s == expr_iri and p == Core.hasArgument()
-      end)
+               s == expr_iri and p == Core.hasArgument()
+             end)
     end
 
     test "full mode handles dependency files correctly" do
@@ -359,7 +360,7 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
 
       # AST for String.upcase("hello")
       ast =
-        {{:., [], [{:__aliases__, [], [:"String"]}, :upcase]}, [], ["hello"]}
+        {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], ["hello"]}
 
       # Dependency files should return :skip even with include_expressions: true
       assert ExpressionBuilder.build(ast, context, []) == :skip
