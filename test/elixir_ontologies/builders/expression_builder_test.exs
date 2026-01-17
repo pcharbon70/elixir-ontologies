@@ -1879,6 +1879,245 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "nested and complex calls" do
+    test "handles nested remote calls" do
+      context = full_mode_context()
+
+      # AST for String.upcase(Integer.to_string(123))
+      # Inner call: Integer.to_string(123)
+      # Outer call: String.upcase(result)
+      inner_call = {{:., [], [{:__aliases__, [], [:Integer]}, :to_string]}, [], [123]}
+      ast = {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], [inner_call]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Outer call should be RemoteCall
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.RemoteCall
+      end)
+
+      # Outer call should have moduleName
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.moduleName() and RDF.Literal.value(o) == "String"
+      end)
+
+      # Outer call should have functionName
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "upcase"
+      end)
+
+      # Outer call should have arity 1
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 1
+      end)
+
+      # Outer call should have an argument
+      arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasArgument() and o == arg_iri
+      end)
+
+      # Argument should be a RemoteCall (the inner call)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == arg_iri and p == RDF.type() and o == Core.RemoteCall
+      end)
+
+      # Inner call should have moduleName Integer
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == arg_iri and p == Core.moduleName() and RDF.Literal.value(o) == "Integer"
+      end)
+
+      # Inner call should have functionName to_string
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == arg_iri and p == Core.functionName() and RDF.Literal.value(o) == "to_string"
+      end)
+
+      # Inner call should have an argument (the integer 123)
+      inner_arg_iri = ExpressionBuilder.fresh_iri(arg_iri, "arg-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == arg_iri and p == Core.hasArgument() and o == inner_arg_iri
+      end)
+
+      # Inner argument should be IntegerLiteral
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == inner_arg_iri and p == RDF.type() and o == Core.IntegerLiteral
+      end)
+    end
+
+    test "handles nested remote and local calls" do
+      context = full_mode_context()
+
+      # AST for process(Enum.map(items, &process/1))
+      # Inner call: Enum.map(items, &process/1)
+      # Outer call: process(result)
+      inner_call =
+        {{:., [], [{:__aliases__, [], [:Enum]}, :map]}, [],
+         [{:items, [], nil}, {:&, [], [{:/, [], [{{:., [], [:process]}, [], []}, 1]}]}]}
+
+      ast = {:process, [], [inner_call]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Outer call should be LocalCall
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.LocalCall
+      end)
+
+      # Outer call should have functionName
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.functionName() and RDF.Literal.value(o) == "process"
+      end)
+
+      # Outer call argument should contain a RemoteCall
+      arg_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == arg_iri and p == RDF.type() and o == Core.RemoteCall
+      end)
+    end
+
+    test "handles pipe operator chaining" do
+      context = full_mode_context()
+
+      # AST for x |> Enum.map(& &1 * 2) |> Enum.sum()
+      # Simplified version: 1 |> Integer.to_string() |> String.upcase()
+      ast =
+        {:|>, [],
+         [
+           {:|>, [], [1, {{:., [], [{:__aliases__, [], [:Integer]}, :to_string]}, [], []}]},
+           {{:., [], [{:__aliases__, [], [:String]}, :upcase]}, [], []}
+         ]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should have PipeOperator type
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.PipeOperator
+      end)
+
+      # Should have hasLeftOperand
+      left_iri = ExpressionBuilder.fresh_iri(expr_iri, "left")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasLeftOperand() and o == left_iri
+      end)
+
+      # Left operand should be another PipeOperator
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == left_iri and p == RDF.type() and o == Core.PipeOperator
+      end)
+
+      # Should have hasRightOperand
+      right_iri = ExpressionBuilder.fresh_iri(expr_iri, "right")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasRightOperand() and o == right_iri
+      end)
+
+      # Right operand should be RemoteCall (String.upcase)
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == right_iri and p == RDF.type() and o == Core.RemoteCall
+      end)
+    end
+
+    test "handles calls with complex argument expressions" do
+      context = full_mode_context()
+
+      # AST for calc(a + b, c * d)
+      # calc is a local function with complex arithmetic arguments
+      ast =
+        {:calc, [],
+         [
+           {:+, [], [{:a, [], nil}, {:b, [], nil}]},
+           {:*, [], [{:c, [], nil}, {:d, [], nil}]}
+         ]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should be LocalCall
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.LocalCall
+      end)
+
+      # Should have arity 2
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
+      end)
+
+      # First argument should be ArithmeticOperator (a + b)
+      arg0_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-0")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == arg0_iri and p == RDF.type() and o == Core.ArithmeticOperator
+      end)
+
+      # Second argument should be ArithmeticOperator (c * d)
+      arg1_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-1")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == arg1_iri and p == RDF.type() and o == Core.ArithmeticOperator
+      end)
+    end
+
+    test "handles calls with keyword arguments" do
+      context = full_mode_context()
+
+      # AST for Repo.insert(changeset, returning: [:id, :name])
+      # Keyword lists are represented as list literals with two-element tuples
+      keyword_list = [
+        {:returning, [], [[{:id, [], nil}, {:name, [], nil}]]}
+      ]
+
+      ast =
+        {{:., [], [{:__aliases__, [], [:Repo]}, :insert]}, [],
+         [{:changeset, [], nil}, keyword_list]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should be RemoteCall
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.RemoteCall
+      end)
+
+      # Should have arity 2
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.arity() and RDF.Literal.value(o) == 2
+      end)
+
+      # Second argument should be some kind of expression
+      # (The exact type depends on how keyword lists are represented)
+      arg1_iri = ExpressionBuilder.fresh_iri(expr_iri, "arg-1")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasArgument() and o == arg1_iri
+      end)
+    end
+
+    test "anonymous function call via variable" do
+      context = full_mode_context()
+
+      # AST for fun.(x, y) where fun is a variable holding an anonymous function
+      ast = {{:., [], [{:fun, [], Elixir}]}, [], [{:x, [], Elixir}, {:y, [], Elixir}]}
+
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Should be AnonymousFunctionCall
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == RDF.type() and o == Core.AnonymousFunctionCall
+      end)
+
+      # Should have hasFunctionExpression
+      fun_var_iri = ExpressionBuilder.fresh_iri(expr_iri, "fun_var")
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == expr_iri and p == Core.hasFunctionExpression() and o == fun_var_iri
+      end)
+
+      # Function variable should exist
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == fun_var_iri and p == RDF.type() and o == Core.Variable
+      end)
+
+      # Should have name "fun"
+      assert Enum.any?(triples, fn {s, p, o} ->
+        s == fun_var_iri and p == Core.name() and RDF.Literal.value(o) == "fun"
+      end)
+    end
+  end
+
   describe "literals" do
     # Table-driven tests for simple numeric and string literals
     @numeric_literal_tests [
