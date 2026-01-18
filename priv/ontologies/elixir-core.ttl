@@ -664,9 +664,34 @@
     rdfs:domain :TryExpression ;
     rdfs:range :Block .
 
+:RescueClause a owl:Class ;
+    rdfs:label "Rescue Clause"@en ;
+    rdfs:comment "A clause in a try expression that catches and handles exceptions."@en ;
+    rdfs:subClassOf :Expression .
+
 :hasRescueClause a owl:ObjectProperty ;
     rdfs:label "has rescue clause"@en ;
-    rdfs:domain :TryExpression .
+    rdfs:comment "Links a try expression to its rescue clauses (ordered)."@en ;
+    rdfs:domain :TryExpression ;
+    rdfs:range :RescueClause .
+
+:hasRescueBody a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has rescue body"@en ;
+    rdfs:comment "Links a rescue clause to its handler body expression."@en ;
+    rdfs:domain :RescueClause ;
+    rdfs:range :Block .
+
+:hasExceptionPattern a owl:ObjectProperty ;
+    rdfs:label "has exception pattern"@en ;
+    rdfs:comment "Links a rescue clause to its exception matching pattern."@en ;
+    rdfs:domain :RescueClause ;
+    rdfs:range :Pattern .
+
+:refersToExceptionType a owl:ObjectProperty ;
+    rdfs:label "refers to exception type"@en ;
+    rdfs:comment "Links a rescue clause pattern to a specific exception type (struct)."@en ;
+    rdfs:domain :RescueClause ;
+    rdfs:range :Module .
 
 :hasCatchClause a owl:ObjectProperty ;
     rdfs:label "has catch clause"@en ;

@@ -569,16 +569,107 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     build_expression_triples(do_block, body_iri, context)
   end
 
-  # Detects optional blocks in try expression (Phase 30.1)
-  # In later phases, these will be fully extracted
-  # For now, we just create placeholder IRIs to indicate their presence
-  defp detect_optional_blocks(_blocks, _try_iri, _context) do
-    []
-    # TODO: Future phases will extract:
-    # - rescue clauses (Phase 30.2)
-    # - catch clauses (Phase 30.3)
-    # - after block (Phase 30.4)
-    # - else block (Phase 30.5)
+  # Detects and extracts optional blocks in try expression
+  # Phase 30.2: Rescue clauses
+  # Future phases: catch clauses (30.3), after block (30.4), else block (30.5)
+  defp detect_optional_blocks(blocks, try_iri, context) do
+    # Extract rescue clauses if present
+    rescue_clauses_triples = build_rescue_clauses(blocks, try_iri, context)
+
+    # Future phases will add: catch, after, else
+    rescue_clauses_triples
+  end
+
+  # Builds RDF triples for rescue clauses
+  # Rescue clauses are in the format: [{:->, _, [[pattern], body]}, ...]
+  @spec build_rescue_clauses(keyword(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  defp build_rescue_clauses(blocks, try_iri, context) do
+    case Keyword.get(blocks, :rescue) do
+      nil ->
+        []
+
+      rescue_clauses when is_list(rescue_clauses) ->
+        # Build each rescue clause
+        {clause_triples, clause_iris} =
+          rescue_clauses
+          |> Enum.with_index()
+          |> Enum.reduce({[], []}, fn {clause_ast, index}, {triples_acc, iris_acc} ->
+            clause_iri = fresh_iri(try_iri, "rescue/#{index}")
+
+            clause_triples =
+              build_rescue_clause(clause_ast, clause_iri, context, index)
+
+            {triples_acc ++ clause_triples, [clause_iri | iris_acc]}
+          end)
+
+        # Link clauses via hasRescueClause as an RDF list (preserves order)
+        link_triples = link_rescue_clauses(try_iri, Enum.reverse(clause_iris))
+
+        clause_triples ++ link_triples
+    end
+  end
+
+  # Builds RDF triples for a single rescue clause
+  # Clause format: {:->, _, [[pattern], body]}
+  @spec build_rescue_clause(Macro.t(), RDF.IRI.t(), Context.t(), non_neg_integer()) ::
+          [RDF.Triple.t()]
+  defp build_rescue_clause({:->, _meta, [[pattern_ast], body_ast]}, clause_iri, context, _index) do
+    # Create type triple for RescueClause
+    type_triple = Helpers.type_triple(clause_iri, Core.RescueClause)
+
+    # Build exception pattern
+    pattern_iri = fresh_iri(clause_iri, "pattern")
+    pattern_triples = build_pattern(pattern_ast, pattern_iri, context)
+    has_exception_pattern_triple = Helpers.object_property(clause_iri, Core.hasExceptionPattern(), pattern_iri)
+
+    # Add refersToExceptionType if it's a struct pattern
+    exception_type_triples = extract_exception_type(pattern_ast, clause_iri, context)
+
+    # Build rescue body
+    body_iri = fresh_iri(clause_iri, "body")
+    body_triples = build_rescue_body(body_ast, body_iri, context)
+    has_rescue_body_triple = Helpers.object_property(clause_iri, Core.hasRescueBody(), body_iri)
+
+    # Combine all triples
+    [type_triple] ++
+      pattern_triples ++ [has_exception_pattern_triple] ++
+      exception_type_triples ++ body_triples ++ [has_rescue_body_triple]
+  end
+
+  # Extracts exception type from struct pattern
+  # Returns triples with refersToExceptionType property
+  defp extract_exception_type({:%, _meta, [module_ast, {:%{}, _, _pairs}]}, clause_iri, context) do
+    module_name = extract_struct_module_name(module_ast)
+    module_iri_string = "#{context.base_iri}module/#{module_name}"
+    module_iri = RDF.IRI.new(module_iri_string)
+    [Helpers.object_property(clause_iri, Core.refersToExceptionType(), module_iri)]
+  end
+
+  defp extract_exception_type(_pattern_ast, _clause_iri, _context), do: []
+
+  # Builds the rescue body expression
+  defp build_rescue_body(body_ast, body_iri, context) when is_list(body_ast) do
+    # Multiple expressions - wrap in a block
+    build_do_block(body_ast, body_iri, context)
+  end
+
+  defp build_rescue_body(body_ast, body_iri, context) do
+    # Single expression - build directly
+    build_expression_triples(body_ast, body_iri, context)
+  end
+
+  # Links rescue clauses via hasRescueClause property as an RDF list
+  # Preserves clause order (important for pattern matching semantics)
+  defp link_rescue_clauses(_try_iri, []), do: []
+
+  defp link_rescue_clauses(try_iri, clause_iris) do
+    # Build RDF list for clause ordering
+    {list_head, list_triples} = Helpers.build_rdf_list(clause_iris)
+
+    # Link try expression to the list head
+    link_triple = Helpers.object_property(try_iri, Core.hasRescueClause(), list_head)
+
+    [link_triple | list_triples]
   end
 
   # ===========================================================================
@@ -1925,10 +2016,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Pattern Type Detection
   # ===========================================================================
 
-  @compile {:inline, detect_pattern_type: 1}
+  # Note: Removed inline directive to allow for easier updates
+  # @compile {:inline, detect_pattern_type: 1}
 
   @spec detect_pattern_type(Macro.t()) :: atom()
   def detect_pattern_type({:_}), do: :wildcard_pattern
+  # Note: Wildcard with metadata must come BEFORE variable pattern
+  # because variable pattern also matches {name, meta, ctx} format
+  def detect_pattern_type({:_, _, _ctx}) when is_atom(_ctx), do: :wildcard_pattern
   def detect_pattern_type({:^, _, [{_var, _, _}]}), do: :pin_pattern
   def detect_pattern_type({:=, _, [_, _]}), do: :as_pattern
   def detect_pattern_type({:{}, _, _}), do: :tuple_pattern
@@ -1944,7 +2039,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Variable pattern must come after all other tuple-based patterns
   # because {name, _, ctx} also matches {:{}, [], []}
   # Variables have Elixir as the third element, atoms have nil
-  def detect_pattern_type({name, _, Elixir}) when is_atom(name) and name != :{} and name != :_,
+  # Note: Also matches variables in test modules (non-Elixir ctx)
+  def detect_pattern_type({name, _, _ctx}) when is_atom(name) and name != :{} and name != :_,
     do: :variable_pattern
 
   # 2-tuple is a special case: {left, right} without the {:{}, _, _} wrapper
