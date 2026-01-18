@@ -7313,6 +7313,110 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   end
 
   # ===========================================================================
+  # Phase 30.5: Else Block Expression Extraction
+  # ===========================================================================
+
+  describe "else block extraction" do
+    setup do
+      context = full_mode_context()
+      {:ok, context: context}
+    end
+
+    test "extracts else block with single expression", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        else
+          :result
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the else block IRI via hasElseClause property
+      else_iri = find_object(triples, expr_iri, Core.hasElseClause())
+      assert else_iri != nil
+
+      # Verify else IRI structure
+      assert RDF.IRI.to_string(else_iri) == "https://example.org/code#expr/0/else"
+
+      # Verify else block is an AtomLiteral (for :result atom)
+      else_type = find_object(triples, else_iri, RDF.type())
+      assert else_type == Core.AtomLiteral
+    end
+
+    test "extracts else block with multiple expressions", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        else
+          :first
+          :second
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the else block IRI
+      else_iri = find_object(triples, expr_iri, Core.hasElseClause())
+      assert else_iri != nil
+
+      # Verify else block is a DoBlock (compiler wraps multiple expressions)
+      else_type = find_object(triples, else_iri, RDF.type())
+      assert else_type == Core.DoBlock
+    end
+
+    test "extracts try without else block", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Verify no else clause
+      else_iri = find_object(triples, expr_iri, Core.hasElseClause())
+      assert else_iri == nil
+    end
+
+    test "extracts try with all optional blocks (rescue, catch, after, else)", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          _ -> :rescued
+        catch
+          :throw, _ -> :caught
+        after
+          :cleanup
+        else
+          :result
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Verify all optional blocks are present
+      rescue_iri = find_object(triples, expr_iri, Core.hasRescueClause())
+      assert rescue_iri != nil
+
+      catch_iri = find_object(triples, expr_iri, Core.hasCatchClause())
+      assert catch_iri != nil
+
+      after_iri = find_object(triples, expr_iri, Core.hasAfterClause())
+      assert after_iri != nil
+
+      else_iri = find_object(triples, expr_iri, Core.hasElseClause())
+      assert else_iri != nil
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 

@@ -573,7 +573,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Phase 30.2: Rescue clauses
   # Phase 30.3: Catch clauses
   # Phase 30.4: After block
-  # Future phases: else block (30.5)
+  # Phase 30.5: Else block
   defp detect_optional_blocks(blocks, try_iri, context) do
     # Extract rescue clauses if present
     rescue_clauses_triples = build_rescue_clauses(blocks, try_iri, context)
@@ -584,8 +584,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Extract after block if present
     after_triples = build_after_block(blocks, try_iri, context)
 
-    # Future phases will add: else
-    rescue_clauses_triples ++ catch_clauses_triples ++ after_triples
+    # Extract else block if present
+    else_triples = build_else_block(blocks, try_iri, context)
+
+    rescue_clauses_triples ++ catch_clauses_triples ++ after_triples ++ else_triples
   end
 
   # Builds RDF triples for rescue clauses
@@ -835,6 +837,33 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
         link_triple = Helpers.object_property(try_iri, Core.hasAfterClause(), after_iri)
 
         after_triples ++ [link_triple]
+    end
+  end
+
+  # ===========================================================================
+  # Phase 30.5: Else Block
+  # ===========================================================================
+
+  # Builds RDF triples for the else block in try expression
+  # Else block is a single expression that only executes when no exception occurs
+  # The compiler wraps multiple expressions in a {:__block__, [], [...]} tuple
+  @spec build_else_block(keyword(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  defp build_else_block(blocks, try_iri, context) do
+    case Keyword.get(blocks, :else) do
+      nil ->
+        []
+
+      else_ast ->
+        # Generate else IRI
+        else_iri = fresh_iri(try_iri, "else")
+
+        # Build else block expression
+        else_triples = build_expression_triples(else_ast, else_iri, context)
+
+        # Link via hasElseClause property
+        link_triple = Helpers.object_property(try_iri, Core.hasElseClause(), else_iri)
+
+        else_triples ++ [link_triple]
     end
   end
 

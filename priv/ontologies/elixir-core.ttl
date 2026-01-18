@@ -727,8 +727,11 @@
     rdfs:domain :TryExpression ;
     rdfs:range :Block .
 
-:hasElseClause a owl:ObjectProperty ;
-    rdfs:label "has else clause"@en .
+:hasElseClause a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has else clause"@en ;
+    rdfs:comment "Links a try expression to its else clause (executes when no exception occurs)."@en ;
+    rdfs:domain :TryExpression ;
+    rdfs:range :Block .
 
 # Comprehension properties
 :hasGenerator a owl:ObjectProperty ;
