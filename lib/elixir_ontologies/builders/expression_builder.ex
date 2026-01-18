@@ -719,19 +719,30 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   # Builds RDF triples for a single catch clause
   # Clause format: {:->, _, [pattern_list, body]}
-  # where pattern_list is either [:throw, pattern] or [pattern]
+  # where pattern_list is:
+  #   - [:throw, pattern] or [:error, pattern] or [:exit, pattern] (typed catch)
+  #   - [pattern] (untyped catch with single variable)
+  #   - [var1, var2] (catch kind and value as two separate variables)
   @spec build_catch_clause(Macro.t(), RDF.IRI.t(), Context.t(), non_neg_integer()) ::
           [RDF.Triple.t()]
   defp build_catch_clause({:->, _meta, [pattern_list, body_ast]}, clause_iri, context, _index) do
-    # pattern_list is either [:throw, pattern] or [pattern]
     case pattern_list do
-      [catch_type | [value_pattern]] when is_atom(catch_type) ->
+      [catch_type | [value_pattern]] when is_atom(catch_type) and catch_type in [:throw, :error, :exit] ->
         # This is a typed catch: [:throw, pattern] or [:error, pattern] or [:exit, pattern]
         build_catch_clause_with_type(clause_iri, catch_type, value_pattern, body_ast, context)
 
       [pattern_ast] ->
         # This is an untyped catch: [pattern]
         build_catch_clause_untyped(clause_iri, pattern_ast, body_ast, context)
+
+      [kind_var, value_var] when is_tuple(kind_var) and is_tuple(value_var) ->
+        # This catches pattern like: kind, value -> body
+        # The catch type is not specified, so we capture both kind and value as variables
+        build_catch_clause_with_two_vars(clause_iri, kind_var, value_var, body_ast, context)
+
+      _ ->
+        # Fallback for any other pattern (shouldn't happen in valid Elixir code)
+        build_catch_clause_untyped(clause_iri, hd(pattern_list), body_ast, context)
     end
   end
 
@@ -785,6 +796,37 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Combine all triples
     [type_triple] ++
       pattern_triples ++ [has_catch_pattern_triple] ++
+      body_triples ++ [has_catch_body_triple]
+  end
+
+  # Builds a catch clause with two variables (kind, value)
+  # This handles pattern like: catch kind, value -> body
+  # The catch type is not specified, so we capture both as separate variables
+  defp build_catch_clause_with_two_vars(clause_iri, kind_var, value_var, body_ast, context) do
+    # Create type triple for CatchClause
+    type_triple = Helpers.type_triple(clause_iri, Core.CatchClause)
+
+    # Build kind pattern (first variable)
+    kind_pattern_iri = fresh_iri(clause_iri, "kind_pattern")
+    kind_pattern_triples = build_pattern(kind_var, kind_pattern_iri, context)
+    has_kind_pattern_triple = Helpers.object_property(clause_iri, Core.hasCatchPattern(), kind_pattern_iri)
+
+    # Build value pattern (second variable)
+    value_pattern_iri = fresh_iri(clause_iri, "value_pattern")
+    value_pattern_triples = build_pattern(value_var, value_pattern_iri, context)
+    # We link the value pattern to the kind pattern or the clause
+    # For simplicity, we'll link both patterns to the clause
+    has_value_pattern_triple = Helpers.object_property(clause_iri, Core.hasCatchPattern(), value_pattern_iri)
+
+    # Build catch body
+    body_iri = fresh_iri(clause_iri, "body")
+    body_triples = build_catch_body(body_ast, body_iri, context)
+    has_catch_body_triple = Helpers.object_property(clause_iri, Core.hasCatchBody(), body_iri)
+
+    # Combine all triples
+    [type_triple] ++
+      kind_pattern_triples ++ [has_kind_pattern_triple] ++
+      value_pattern_triples ++ [has_value_pattern_triple] ++
       body_triples ++ [has_catch_body_triple]
   end
 

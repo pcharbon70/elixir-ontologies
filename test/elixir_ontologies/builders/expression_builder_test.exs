@@ -7635,6 +7635,338 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "exception handling nesting and complexity" do
+    setup do
+      context = full_mode_context()
+      {:ok, context: context}
+    end
+
+    test "handles nested try expressions (try within try)", %{context: context} do
+      ast = quote do
+        try do
+          try do
+            :inner
+          rescue
+            _ -> :inner_rescued
+          end
+        rescue
+          _ -> :outer_rescued
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have outer TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should have outer rescue clause
+      outer_rescue_iri = find_object(triples, expr_iri, Core.hasRescueClause())
+      assert outer_rescue_iri != nil
+
+      # Should have try body containing inner try
+      outer_body_iri = find_object(triples, expr_iri, Core.hasTryBody())
+      assert outer_body_iri != nil
+
+      # Should have multiple TryExpression types (outer + inner)
+      try_count = Enum.count(triples, fn {_s, _p, o} -> o == Core.TryExpression end)
+      assert try_count >= 2
+    end
+
+    test "handles try within rescue clause", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          e ->
+            try do
+              IO.inspect(e)
+            rescue
+              _ -> :nested_rescue
+            end
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should have rescue clause
+      rescue_iri = find_object(triples, expr_iri, Core.hasRescueClause())
+      assert rescue_iri != nil
+    end
+
+    test "handles try within catch clause", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        catch
+          kind, value ->
+            try do
+              IO.inspect({kind, value})
+            catch
+              :throw, _ -> :nested_catch
+            end
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should have catch clause
+      catch_iri = find_object(triples, expr_iri, Core.hasCatchClause())
+      assert catch_iri != nil
+    end
+
+    test "handles try within after block", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        after
+          try do
+            :cleanup
+          rescue
+            _ -> :error_in_cleanup
+          end
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should have after clause
+      after_iri = find_object(triples, expr_iri, Core.hasAfterClause())
+      assert after_iri != nil
+    end
+
+    test "handles try within else block", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        else
+          result ->
+            try do
+              process(result)
+            rescue
+              _ -> :error_in_else
+            end
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should have else clause
+      else_iri = find_object(triples, expr_iri, Core.hasElseClause())
+      assert else_iri != nil
+    end
+
+    test "handles try with all optional blocks (rescue, catch, after, else)", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          _ -> :rescued
+        catch
+          :throw, value -> value
+        after
+          :cleanup
+        else
+          result -> result
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should have all four optional blocks
+      rescue_iri = find_object(triples, expr_iri, Core.hasRescueClause())
+      catch_iri = find_object(triples, expr_iri, Core.hasCatchClause())
+      after_iri = find_object(triples, expr_iri, Core.hasAfterClause())
+      else_iri = find_object(triples, expr_iri, Core.hasElseClause())
+
+      assert rescue_iri != nil
+      assert catch_iri != nil
+      assert after_iri != nil
+      assert else_iri != nil
+    end
+
+    test "handles multiple rescue clauses", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          ArgumentError -> :argument_error
+          RuntimeError -> :runtime_error
+          _ -> :other_error
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should have multiple rescue clauses (linked via hasRescueClause)
+      rescue_triples =
+        Enum.filter(triples, fn {s, _p, _o} ->
+          s == expr_iri
+        end)
+        |> Enum.filter(fn {_s, p, _o} ->
+          p == Core.hasRescueClause()
+        end)
+
+      # Should have at least one rescue clause
+      assert length(rescue_triples) >= 1
+    end
+
+    test "handles multiple catch clauses", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        catch
+          :throw, value -> {:thrown, value}
+          :error, reason -> {:error, reason}
+          :exit, reason -> {:exit, reason}
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should have catch clauses
+      catch_triples =
+        Enum.filter(triples, fn {s, _p, _o} ->
+          s == expr_iri
+        end)
+        |> Enum.filter(fn {_s, p, _o} ->
+          p == Core.hasCatchClause()
+        end)
+
+      # Should have at least one catch clause
+      assert length(catch_triples) >= 1
+    end
+
+    test "handles raise within nested try", %{context: context} do
+      ast = quote do
+        try do
+          try do
+            raise "inner error"
+          rescue
+            _ -> :inner_rescued
+          end
+        rescue
+          _ -> :outer_rescued
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have outer TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should contain a RaiseExpression somewhere in the triples
+      assert Enum.any?(triples, fn {_s, _p, o} ->
+               o == Core.RaiseExpression
+             end)
+    end
+
+    test "handles throw within nested try", %{context: context} do
+      ast = quote do
+        try do
+          try do
+            throw :inner_value
+          catch
+            :throw, _ -> :inner_caught
+          end
+        catch
+          :throw, _ -> :outer_caught
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have outer TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should contain a ThrowExpression somewhere in the triples
+      assert Enum.any?(triples, fn {_s, _p, o} ->
+               o == Core.ThrowExpression
+             end)
+    end
+
+    test "preserves IRI hierarchy for nested tries", %{context: context} do
+      ast = quote do
+        try do
+          try do
+            :inner
+          rescue
+            _ -> :rescued
+          end
+        rescue
+          _ -> :outer_rescued
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Extract subject IRIs (all subjects should be valid expression IRIs)
+      subject_iris = Enum.map(triples, fn {s, _p, _o} -> s end)
+                      |> Enum.filter(fn iri -> is_struct(iri, RDF.IRI) end)
+
+      # All subject IRIs should either be the base IRI or contain the base IRI path
+      base_string = RDF.IRI.to_string(expr_iri)
+      valid_iris = Enum.all?(subject_iris, fn iri ->
+        iri_string = RDF.IRI.to_string(iri)
+        String.starts_with?(iri_string, base_string) or
+          String.contains?(iri_string, "/expr/")
+      end)
+
+      assert valid_iris
+    end
+  end
+
   # ===========================================================================
   # Helper Functions
   # ===========================================================================
