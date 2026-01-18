@@ -7416,6 +7416,298 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "rescue clause extraction" do
+    setup do
+      context = full_mode_context()
+      {:ok, context: context}
+    end
+
+    # Helper to get first rescue clause from RDF list
+    defp find_first_rescue_clause(triples, try_iri) do
+      list_head = find_object(triples, try_iri, Core.hasRescueClause())
+      if list_head do
+        find_object(triples, list_head, RDF.first())
+      end
+    end
+
+    test "extracts wildcard rescue clause", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          _ -> :rescued
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the rescue clause IRI via hasRescueClause RDF list
+      rescue_clause_iri = find_first_rescue_clause(triples, expr_iri)
+      assert rescue_clause_iri != nil
+
+      # Should have RescueClause type
+      rescue_type = find_object(triples, rescue_clause_iri, RDF.type())
+      assert rescue_type == Core.RescueClause
+
+      # Should have WildcardPattern
+      pattern_iri = find_object(triples, rescue_clause_iri, Core.hasExceptionPattern())
+      assert pattern_iri != nil
+
+      pattern_type = find_object(triples, pattern_iri, RDF.type())
+      assert pattern_type == Core.WildcardPattern
+
+      # Verify rescue body exists
+      rescue_body_iri = find_object(triples, rescue_clause_iri, Core.hasRescueBody())
+      assert rescue_body_iri != nil
+    end
+
+    test "extracts variable rescue clause", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          e -> e
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the rescue clause IRI
+      rescue_clause_iri = find_first_rescue_clause(triples, expr_iri)
+      assert rescue_clause_iri != nil
+
+      # Should have RescueClause type
+      rescue_type = find_object(triples, rescue_clause_iri, RDF.type())
+      assert rescue_type == Core.RescueClause
+
+      # Should have VariablePattern
+      pattern_iri = find_object(triples, rescue_clause_iri, Core.hasExceptionPattern())
+      assert pattern_iri != nil
+
+      pattern_type = find_object(triples, pattern_iri, RDF.type())
+      assert pattern_type == Core.VariablePattern
+    end
+
+    test "extracts typed rescue with struct pattern", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          RuntimeError -> :runtime_error
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the rescue clause IRI
+      rescue_clause_iri = find_first_rescue_clause(triples, expr_iri)
+      assert rescue_clause_iri != nil
+
+      # Should have RescueClause type
+      rescue_type = find_object(triples, rescue_clause_iri, RDF.type())
+      assert rescue_type == Core.RescueClause
+
+      # Should have StructPattern
+      pattern_iri = find_object(triples, rescue_clause_iri, Core.hasExceptionPattern())
+      assert pattern_iri != nil
+
+      pattern_type = find_object(triples, pattern_iri, RDF.type())
+      assert pattern_type == Core.StructPattern
+
+      # Should refer to RuntimeError module via refersToModule on pattern
+      module_iri = find_object(triples, pattern_iri, Core.refersToModule())
+      assert module_iri != nil
+      assert RDF.IRI.to_string(module_iri) =~ "RuntimeError"
+
+      # Should refer to exception type via refersToExceptionType on clause
+      exception_iri = find_object(triples, rescue_clause_iri, Core.refersToExceptionType())
+      assert exception_iri != nil
+      assert RDF.IRI.to_string(exception_iri) =~ "RuntimeError"
+    end
+
+    test "extracts rescue with field binding", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          %ArgumentError{message: msg} -> msg
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the rescue clause IRI
+      rescue_clause_iri = find_first_rescue_clause(triples, expr_iri)
+      assert rescue_clause_iri != nil
+
+      # Should have RescueClause type
+      rescue_type = find_object(triples, rescue_clause_iri, RDF.type())
+      assert rescue_type == Core.RescueClause
+
+      # Should have StructPattern
+      pattern_iri = find_object(triples, rescue_clause_iri, Core.hasExceptionPattern())
+      assert pattern_iri != nil
+
+      pattern_type = find_object(triples, pattern_iri, RDF.type())
+      assert pattern_type == Core.StructPattern
+
+      # Should refer to ArgumentError module via refersToModule on pattern
+      module_iri = find_object(triples, pattern_iri, Core.refersToModule())
+      assert module_iri != nil
+      assert RDF.IRI.to_string(module_iri) =~ "ArgumentError"
+
+      # Should refer to exception type via refersToExceptionType on clause
+      exception_iri = find_object(triples, rescue_clause_iri, Core.refersToExceptionType())
+      assert exception_iri != nil
+      assert RDF.IRI.to_string(exception_iri) =~ "ArgumentError"
+    end
+
+    test "extracts multiple rescue clauses in order", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          ArgumentError -> :argument_error
+          RuntimeError -> :runtime_error
+          _ -> :other
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have hasRescueClause linking to RDF list
+      list_head = find_object(triples, expr_iri, Core.hasRescueClause())
+      assert list_head != nil
+
+      # Get all three clauses via RDF list traversal
+      first_clause = find_object(triples, list_head, RDF.first())
+      assert first_clause != nil
+
+      list_rest = find_object(triples, list_head, RDF.rest())
+      assert list_rest != nil
+
+      # Second clause
+      second_clause = find_object(triples, list_rest, RDF.first())
+      assert second_clause != nil
+
+      list_rest2 = find_object(triples, list_rest, RDF.rest())
+      assert list_rest2 != nil
+
+      # Third clause
+      third_clause = find_object(triples, list_rest2, RDF.first())
+      assert third_clause != nil
+
+      # All should be RescueClause type
+      assert find_object(triples, first_clause, RDF.type()) == Core.RescueClause
+      assert find_object(triples, second_clause, RDF.type()) == Core.RescueClause
+      assert find_object(triples, third_clause, RDF.type()) == Core.RescueClause
+    end
+
+    test "verifies hasExceptionPattern property", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          _ -> :rescued
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the rescue clause IRI
+      rescue_clause_iri = find_first_rescue_clause(triples, expr_iri)
+      assert rescue_clause_iri != nil
+
+      # Should have hasExceptionPattern property linking to pattern
+      exception_pattern_iri = find_object(triples, rescue_clause_iri, Core.hasExceptionPattern())
+      assert exception_pattern_iri != nil
+
+      # Pattern should have a type
+      pattern_type = find_object(triples, exception_pattern_iri, RDF.type())
+      assert pattern_type == Core.WildcardPattern
+    end
+
+    test "verifies refersToExceptionType property", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          ArgumentError -> :error
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the rescue clause IRI
+      rescue_clause_iri = find_first_rescue_clause(triples, expr_iri)
+      assert rescue_clause_iri != nil
+
+      pattern_iri = find_object(triples, rescue_clause_iri, Core.hasExceptionPattern())
+      assert pattern_iri != nil
+
+      # Should have refersToExceptionType property on the clause
+      exception_iri = find_object(triples, rescue_clause_iri, Core.refersToExceptionType())
+      assert exception_iri != nil
+      assert RDF.IRI.to_string(exception_iri) =~ "ArgumentError"
+    end
+
+    test "verifies hasRescueBody property", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          _ -> :rescued
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the rescue clause IRI
+      rescue_clause_iri = find_first_rescue_clause(triples, expr_iri)
+      assert rescue_clause_iri != nil
+
+      # Should have hasRescueBody property
+      rescue_body_iri = find_object(triples, rescue_clause_iri, Core.hasRescueBody())
+      assert rescue_body_iri != nil
+
+      # Rescue body should be an AtomLiteral
+      body_type = find_object(triples, rescue_body_iri, RDF.type())
+      assert body_type == Core.AtomLiteral
+    end
+
+    test "verifies RDF list ordering for multiple rescue clauses", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          ArgumentError -> :first
+          RuntimeError -> :second
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have hasRescueClause linking to RDF list
+      list_head = find_object(triples, expr_iri, Core.hasRescueClause())
+      assert list_head != nil
+
+      # Should be an RDF list (has rdf:first and rdf:rest)
+      list_first = find_object(triples, list_head, RDF.first())
+      list_rest = find_object(triples, list_head, RDF.rest())
+      assert list_first != nil
+      assert list_rest != nil
+    end
+  end
+
   describe "raise expression extraction" do
     setup do
       context = full_mode_context()
@@ -7632,6 +7924,80 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert Enum.any?(triples, fn {s, p, o} ->
                s == value_iri and p == RDF.type() and o == Core.IntegerLiteral
              end)
+    end
+
+    test "handles throw nil edge case", %{context: context} do
+      ast = quote do
+        throw nil
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have ThrowExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.ThrowExpression
+             end)
+
+      # Should have a thrown value
+      value_iri = find_object(triples, expr_iri, Core.hasThrownValue())
+      assert value_iri != nil
+    end
+  end
+
+  describe "exception handling edge cases" do
+    setup do
+      context = full_mode_context()
+      {:ok, context: context}
+    end
+
+    test "handles empty try body", %{context: context} do
+      ast = quote do
+        try do
+          nil
+        rescue
+          _ -> :rescued
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should have try body
+      body_iri = find_object(triples, expr_iri, Core.hasTryBody())
+      assert body_iri != nil
+    end
+
+    test "handles re-raise (raise with no arguments in rescue)", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        rescue
+          _ -> raise "re-raised"
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have TryExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.TryExpression
+             end)
+
+      # Should have rescue clause with body containing raise
+      rescue_clause_list = find_object(triples, expr_iri, Core.hasRescueClause())
+      assert rescue_clause_list != nil
+
+      # Verify rescue body exists
+      rescue_clause_iri = find_object(triples, rescue_clause_list, RDF.first())
+      rescue_body_iri = find_object(triples, rescue_clause_iri, Core.hasRescueBody())
+      assert rescue_body_iri != nil
     end
   end
 

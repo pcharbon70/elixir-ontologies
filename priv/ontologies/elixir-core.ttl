@@ -317,6 +317,42 @@
     rdfs:comment "Throws a value to be caught by a catch clause."@en ;
     rdfs:subClassOf :ControlFlowExpression .
 
+# Control flow expressions are disjoint - an expression cannot be multiple types
+:IfExpression owl:disjointWith :UnlessExpression,
+    :CaseExpression,
+    :CondExpression,
+    :WithExpression,
+    :TryExpression,
+    :RaiseExpression,
+    :ThrowExpression .
+
+:UnlessExpression owl:disjointWith :CaseExpression,
+    :CondExpression,
+    :WithExpression,
+    :TryExpression,
+    :RaiseExpression,
+    :ThrowExpression .
+
+:CaseExpression owl:disjointWith :CondExpression,
+    :WithExpression,
+    :TryExpression,
+    :RaiseExpression,
+    :ThrowExpression .
+
+:CondExpression owl:disjointWith :WithExpression,
+    :TryExpression,
+    :RaiseExpression,
+    :ThrowExpression .
+
+:WithExpression owl:disjointWith :TryExpression,
+    :RaiseExpression,
+    :ThrowExpression .
+
+:TryExpression owl:disjointWith :RaiseExpression,
+    :ThrowExpression .
+
+:RaiseExpression owl:disjointWith :ThrowExpression .
+
 :hasThrownValue a owl:ObjectProperty ;
     rdfs:label "has thrown value"@en ;
     rdfs:comment "Links a throw expression to the value being thrown."@en ;

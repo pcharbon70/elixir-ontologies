@@ -627,6 +627,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Create type triple for RescueClause
     type_triple = Helpers.type_triple(clause_iri, Core.RescueClause)
 
+    # In rescue clauses, a module alias (e.g., RuntimeError) is shorthand for
+    # %RuntimeError{}. Convert to struct pattern for consistent handling.
+    pattern_ast = normalize_rescue_pattern(pattern_ast)
+
     # Build exception pattern
     pattern_iri = fresh_iri(clause_iri, "pattern")
     pattern_triples = build_pattern(pattern_ast, pattern_iri, context)
@@ -646,10 +650,29 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       exception_type_triples ++ body_triples ++ [has_rescue_body_triple]
   end
 
+  # Normalizes rescue clause patterns:
+  # - Module alias (RuntimeError) -> struct pattern (%RuntimeError{})
+  # - Other patterns remain unchanged
+  defp normalize_rescue_pattern({:__aliases__, _meta, _name_parts} = alias_ast) do
+    {:%, [], [alias_ast, {:%{}, [], []}]}
+  end
+
+  defp normalize_rescue_pattern(pattern), do: pattern
+
   # Extracts exception type from struct pattern
   # Returns triples with refersToExceptionType property
+  # Handles both struct patterns (%RuntimeError{}) and module alias patterns (RuntimeError)
   defp extract_exception_type({:%, _meta, [module_ast, {:%{}, _, _pairs}]}, clause_iri, context) do
     module_name = extract_struct_module_name(module_ast)
+    module_iri_string = "#{context.base_iri}module/#{module_name}"
+    module_iri = RDF.IRI.new(module_iri_string)
+    [Helpers.object_property(clause_iri, Core.refersToExceptionType(), module_iri)]
+  end
+
+  # In rescue clauses, a module alias alone (e.g., RuntimeError -> ...) is shorthand
+  # for catching any exception of that type. Extract the exception type from the alias.
+  defp extract_exception_type({:__aliases__, _meta, _name_parts} = _alias_ast, clause_iri, context) do
+    module_name = extract_struct_module_name(_alias_ast)
     module_iri_string = "#{context.base_iri}module/#{module_name}"
     module_iri = RDF.IRI.new(module_iri_string)
     [Helpers.object_property(clause_iri, Core.refersToExceptionType(), module_iri)]
@@ -658,27 +681,33 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   defp extract_exception_type(_pattern_ast, _clause_iri, _context), do: []
 
   # Builds the rescue body expression
-  defp build_rescue_body(body_ast, body_iri, context) when is_list(body_ast) do
-    # Multiple expressions - wrap in a block
-    build_do_block(body_ast, body_iri, context)
-  end
-
   defp build_rescue_body(body_ast, body_iri, context) do
-    # Single expression - build directly
-    build_expression_triples(body_ast, body_iri, context)
+    build_clause_body(body_ast, body_iri, context)
   end
 
   # Links rescue clauses via hasRescueClause property as an RDF list
   # Preserves clause order (important for pattern matching semantics)
-  defp link_rescue_clauses(_try_iri, []), do: []
-
   defp link_rescue_clauses(try_iri, clause_iris) do
-    # Build RDF list for clause ordering
+    link_clauses(try_iri, clause_iris, Core.hasRescueClause())
+  end
+
+  # Unified helper for building clause bodies (rescue/catch/after/else)
+  # Handles both single expressions and multi-expression blocks
+  defp build_clause_body(body_ast, body_iri, context) when is_list(body_ast) do
+    build_do_block(body_ast, body_iri, context)
+  end
+
+  defp build_clause_body(body_ast, body_iri, context) do
+    build_expression_triples(body_ast, body_iri, context)
+  end
+
+  # Unified helper for linking clauses via RDF list
+  # Preserves clause order for rescue/catch clauses
+  defp link_clauses(_parent_iri, [], _property), do: []
+
+  defp link_clauses(parent_iri, clause_iris, property) do
     {list_head, list_triples} = Helpers.build_rdf_list(clause_iris)
-
-    # Link try expression to the list head
-    link_triple = Helpers.object_property(try_iri, Core.hasRescueClause(), list_head)
-
+    link_triple = Helpers.object_property(parent_iri, property, list_head)
     [link_triple | list_triples]
   end
 
@@ -831,28 +860,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Builds the catch body expression
-  defp build_catch_body(body_ast, body_iri, context) when is_list(body_ast) do
-    # Multiple expressions - wrap in a block
-    build_do_block(body_ast, body_iri, context)
-  end
-
   defp build_catch_body(body_ast, body_iri, context) do
-    # Single expression - build directly
-    build_expression_triples(body_ast, body_iri, context)
+    build_clause_body(body_ast, body_iri, context)
   end
 
   # Links catch clauses via hasCatchClause property as an RDF list
   # Preserves clause order (important for pattern matching semantics)
-  defp link_catch_clauses(_try_iri, []), do: []
-
   defp link_catch_clauses(try_iri, clause_iris) do
-    # Build RDF list for clause ordering
-    {list_head, list_triples} = Helpers.build_rdf_list(clause_iris)
-
-    # Link try expression to the list head
-    link_triple = Helpers.object_property(try_iri, Core.hasCatchClause(), list_head)
-
-    [link_triple | list_triples]
+    link_clauses(try_iri, clause_iris, Core.hasCatchClause())
   end
 
   # ===========================================================================
@@ -926,19 +941,38 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Process the args based on their structure
     {exception_triples, message_triples, argument_triples} = process_raise_args(args, expr_iri, context)
 
-    # Combine all triples - wrap lists to ensure proper concatenation
-    List.wrap(type_triple) ++ List.wrap(exception_triples) ++ List.wrap(message_triples) ++ List.wrap(argument_triples)
+    # Combine all triples
+    [type_triple] ++ exception_triples ++ message_triples ++ argument_triples
   end
 
   # Processes raise expression arguments
   # Returns {exception_triples, message_triples, argument_triples}
   # Order matters - more specific patterns must come first
-  defp process_raise_args([{:__aliases__, _, _module_path} = alias_ast], expr_iri, context) do
-    # raise Exception - raises specific exception with default message
+
+  # Helper: builds exception type triple for raise expression
+  defp build_exception_type_triple(alias_ast, expr_iri, context) do
     exception_module_name = extract_module_name(alias_ast)
     exception_module_iri = RDF.iri("#{context.base_iri}module/#{exception_module_name}")
-    exception_triple = Helpers.object_property(expr_iri, Core.refersToExceptionType(), exception_module_iri)
+    Helpers.object_property(expr_iri, Core.refersToExceptionType(), exception_module_iri)
+  end
 
+  # Helper: builds default RuntimeError exception triple
+  defp build_default_exception_triple(expr_iri, context) do
+    exception_module_iri = RDF.iri("#{context.base_iri}module/Elixir.RuntimeError")
+    Helpers.object_property(expr_iri, Core.refersToExceptionType(), exception_module_iri)
+  end
+
+  # Helper: builds message triples for raise expression
+  defp build_message_triples(message_ast, expr_iri, context) do
+    message_iri = fresh_iri(expr_iri, "message")
+    message_triples = build_expression_triples(message_ast, message_iri, context)
+    message_link_triple = Helpers.object_property(expr_iri, Core.hasMessage(), message_iri)
+    message_triples ++ [message_link_triple]
+  end
+
+  defp process_raise_args([{:__aliases__, _, _module_path} = alias_ast], expr_iri, context) do
+    # raise Exception - raises specific exception with default message
+    exception_triple = build_exception_type_triple(alias_ast, expr_iri, context)
     {[exception_triple], [], []}
   end
 
@@ -946,50 +980,33 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # raise "message" - raises RuntimeError with message
     # Default exception is RuntimeError
     # Note: This clause must come after the __aliases__ clause to avoid matching module aliases
-    exception_module_iri = RDF.iri("#{context.base_iri}module/Elixir.RuntimeError")
-    exception_triple = Helpers.object_property(expr_iri, Core.refersToExceptionType(), exception_module_iri)
-
-    # Message expression
-    message_iri = fresh_iri(expr_iri, "message")
-    message_triples = build_expression_triples(message_ast, message_iri, context)
-    message_link_triple = Helpers.object_property(expr_iri, Core.hasMessage(), message_iri)
-
-    {[exception_triple], message_triples ++ [message_link_triple], []}
+    exception_triple = build_default_exception_triple(expr_iri, context)
+    message_triples = build_message_triples(message_ast, expr_iri, context)
+    {[exception_triple], message_triples, []}
   end
 
   defp process_raise_args([{:__aliases__, _, _module_path} = alias_ast, keyword_args], expr_iri, context)
        when is_list(keyword_args) do
     # raise Exception, [key: value] - raises with keyword arguments
-    exception_module_name = extract_module_name(alias_ast)
-    exception_module_iri = RDF.iri("#{context.base_iri}module/#{exception_module_name}")
-    exception_triple = Helpers.object_property(expr_iri, Core.refersToExceptionType(), exception_module_iri)
-
+    exception_triple = build_exception_type_triple(alias_ast, expr_iri, context)
     # Process keyword arguments
     argument_triples = process_raise_keywords(keyword_args, expr_iri, 1, [])
-
     {[exception_triple], [], argument_triples}
   end
 
   defp process_raise_args([{:__aliases__, _, _module_path} = alias_ast, message_ast], expr_iri, context) do
     # raise Exception, "message" - raises specific exception with message
-    exception_module_name = extract_module_name(alias_ast)
-    exception_module_iri = RDF.iri("#{context.base_iri}module/#{exception_module_name}")
-    exception_triple = Helpers.object_property(expr_iri, Core.refersToExceptionType(), exception_module_iri)
-
-    # Message expression
-    message_iri = fresh_iri(expr_iri, "message")
-    message_triples = build_expression_triples(message_ast, message_iri, context)
-    message_link_triple = Helpers.object_property(expr_iri, Core.hasMessage(), message_iri)
-
-    {[exception_triple], message_triples ++ [message_link_triple], []}
+    exception_triple = build_exception_type_triple(alias_ast, expr_iri, context)
+    message_triples = build_message_triples(message_ast, expr_iri, context)
+    {[exception_triple], message_triples, []}
   end
 
   # Processes keyword arguments for raise expression
   defp process_raise_keywords([], _expr_iri, _index, acc), do: Enum.reverse(acc)
 
   defp process_raise_keywords([{key, value_ast} | rest], expr_iri, index, acc) do
-    # Create IRI for this argument
-    arg_iri = fresh_iri(expr_iri, "arg/#{index}")
+    # Create IRI for this argument (using arg-#{index} to match call expressions)
+    arg_iri = fresh_iri(expr_iri, "arg-#{index}")
 
     # Get the value as a string literal (for keyword arguments)
     arg_value = normalize_keyword_value(value_ast)
