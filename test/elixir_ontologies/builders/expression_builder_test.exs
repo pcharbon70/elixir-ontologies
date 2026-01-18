@@ -7416,6 +7416,123 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "raise expression extraction" do
+    setup do
+      context = full_mode_context()
+      {:ok, context: context}
+    end
+
+    test "extracts raise with message only", %{context: context} do
+      ast = quote do
+        raise "error message"
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have RaiseExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.RaiseExpression
+             end)
+
+      # Should refer to RuntimeError as the exception type
+      exception_iri = find_object(triples, expr_iri, Core.refersToExceptionType())
+      assert exception_iri != nil
+      assert RDF.IRI.to_string(exception_iri) =~ "Elixir.RuntimeError"
+
+      # Should have a message expression
+      message_iri = find_object(triples, expr_iri, Core.hasMessage())
+      assert message_iri != nil
+    end
+
+    test "extracts raise with exception type", %{context: context} do
+      ast = quote do
+        raise ArgumentError
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have RaiseExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.RaiseExpression
+             end)
+
+      # Should refer to ArgumentError as the exception type
+      exception_iri = find_object(triples, expr_iri, Core.refersToExceptionType())
+      assert exception_iri != nil
+      assert RDF.IRI.to_string(exception_iri) =~ "ArgumentError"
+    end
+
+    test "extracts raise with exception and message", %{context: context} do
+      ast = quote do
+        raise ArgumentError, "invalid input"
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have RaiseExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.RaiseExpression
+             end)
+
+      # Should refer to ArgumentError as the exception type
+      exception_iri = find_object(triples, expr_iri, Core.refersToExceptionType())
+      assert exception_iri != nil
+      assert RDF.IRI.to_string(exception_iri) =~ "ArgumentError"
+
+      # Should have a message expression
+      message_iri = find_object(triples, expr_iri, Core.hasMessage())
+      assert message_iri != nil
+    end
+
+    test "extracts raise with keyword arguments", %{context: context} do
+      ast = quote do
+        raise ArgumentError, message: "custom message"
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have RaiseExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.RaiseExpression
+             end)
+
+      # Should refer to ArgumentError as the exception type
+      exception_iri = find_object(triples, expr_iri, Core.refersToExceptionType())
+      assert exception_iri != nil
+
+      # Should have keyword argument
+      argument_triples =
+        Enum.filter(triples, fn {s, p, _o} ->
+          s == expr_iri and p == Core.hasArgument()
+        end)
+
+      assert length(argument_triples) > 0
+    end
+
+    test "captures exception type reference for custom exceptions", %{context: context} do
+      ast = quote do
+        raise CustomException
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have RaiseExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.RaiseExpression
+             end)
+
+      # Should refer to CustomException as the exception type
+      exception_iri = find_object(triples, expr_iri, Core.refersToExceptionType())
+      assert exception_iri != nil
+      assert RDF.IRI.to_string(exception_iri) =~ "CustomException"
+    end
+  end
+
   # ===========================================================================
   # Helper Functions
   # ===========================================================================

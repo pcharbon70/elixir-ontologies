@@ -868,6 +868,103 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # ===========================================================================
+  # Phase 30.6: Raise Expression
+  # ===========================================================================
+
+  # Builds RDF triples for a raise expression
+  # raise/1: raise "message" -> raises RuntimeError with message
+  # raise/2: raise Exception, "message" -> raises Exception with message
+  # raise/2: raise Exception, [keyword: value] -> raises with attributes
+  # raise/1: raise Exception -> raises Exception with default message
+  @spec build_raise(list(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  defp build_raise(args, expr_iri, context) do
+    # Create type triple for RaiseExpression
+    type_triple = Helpers.type_triple(expr_iri, Core.RaiseExpression)
+
+    # Process the args based on their structure
+    {exception_triples, message_triples, argument_triples} = process_raise_args(args, expr_iri, context)
+
+    # Combine all triples - wrap lists to ensure proper concatenation
+    List.wrap(type_triple) ++ List.wrap(exception_triples) ++ List.wrap(message_triples) ++ List.wrap(argument_triples)
+  end
+
+  # Processes raise expression arguments
+  # Returns {exception_triples, message_triples, argument_triples}
+  # Order matters - more specific patterns must come first
+  defp process_raise_args([{:__aliases__, _, _module_path} = alias_ast], expr_iri, context) do
+    # raise Exception - raises specific exception with default message
+    exception_module_name = extract_module_name(alias_ast)
+    exception_module_iri = RDF.iri("#{context.base_iri}module/#{exception_module_name}")
+    exception_triple = Helpers.object_property(expr_iri, Core.refersToExceptionType(), exception_module_iri)
+
+    {[exception_triple], [], []}
+  end
+
+  defp process_raise_args([message_ast], expr_iri, context) when is_binary(message_ast) or is_tuple(message_ast) do
+    # raise "message" - raises RuntimeError with message
+    # Default exception is RuntimeError
+    # Note: This clause must come after the __aliases__ clause to avoid matching module aliases
+    exception_module_iri = RDF.iri("#{context.base_iri}module/Elixir.RuntimeError")
+    exception_triple = Helpers.object_property(expr_iri, Core.refersToExceptionType(), exception_module_iri)
+
+    # Message expression
+    message_iri = fresh_iri(expr_iri, "message")
+    message_triples = build_expression_triples(message_ast, message_iri, context)
+    message_link_triple = Helpers.object_property(expr_iri, Core.hasMessage(), message_iri)
+
+    {[exception_triple], message_triples ++ [message_link_triple], []}
+  end
+
+  defp process_raise_args([{:__aliases__, _, _module_path} = alias_ast, keyword_args], expr_iri, context)
+       when is_list(keyword_args) do
+    # raise Exception, [key: value] - raises with keyword arguments
+    exception_module_name = extract_module_name(alias_ast)
+    exception_module_iri = RDF.iri("#{context.base_iri}module/#{exception_module_name}")
+    exception_triple = Helpers.object_property(expr_iri, Core.refersToExceptionType(), exception_module_iri)
+
+    # Process keyword arguments
+    argument_triples = process_raise_keywords(keyword_args, expr_iri, 1, [])
+
+    {[exception_triple], [], argument_triples}
+  end
+
+  defp process_raise_args([{:__aliases__, _, _module_path} = alias_ast, message_ast], expr_iri, context) do
+    # raise Exception, "message" - raises specific exception with message
+    exception_module_name = extract_module_name(alias_ast)
+    exception_module_iri = RDF.iri("#{context.base_iri}module/#{exception_module_name}")
+    exception_triple = Helpers.object_property(expr_iri, Core.refersToExceptionType(), exception_module_iri)
+
+    # Message expression
+    message_iri = fresh_iri(expr_iri, "message")
+    message_triples = build_expression_triples(message_ast, message_iri, context)
+    message_link_triple = Helpers.object_property(expr_iri, Core.hasMessage(), message_iri)
+
+    {[exception_triple], message_triples ++ [message_link_triple], []}
+  end
+
+  # Processes keyword arguments for raise expression
+  defp process_raise_keywords([], _expr_iri, _index, acc), do: Enum.reverse(acc)
+
+  defp process_raise_keywords([{key, value_ast} | rest], expr_iri, index, acc) do
+    # Create IRI for this argument
+    arg_iri = fresh_iri(expr_iri, "arg/#{index}")
+
+    # Get the value as a string literal (for keyword arguments)
+    arg_value = normalize_keyword_value(value_ast)
+    arg_triple = Helpers.datatype_property(expr_iri, Core.hasArgument(), arg_value, RDF.XSD.String)
+
+    # Add key annotation (we can't directly store the key, so we'll use a comment or skip)
+    # For now, we'll just store the value with hasArgument
+    process_raise_keywords(rest, expr_iri, index + 1, [arg_triple | acc])
+  end
+
+  # Normalizes keyword value to string
+  defp normalize_keyword_value(value_ast) when is_binary(value_ast), do: value_ast
+  defp normalize_keyword_value(value_ast) when is_atom(value_ast), do: Atom.to_string(value_ast)
+  defp normalize_keyword_value(value_ast) when is_number(value_ast), do: to_string(value_ast)
+  defp normalize_keyword_value(_), do: ""
+
+  # ===========================================================================
   # Expression Dispatch
   # ===========================================================================
 
@@ -1168,6 +1265,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Must come before local call handler to avoid being matched as :fn call
   def build_expression_triples({:fn, _meta, clauses}, expr_iri, context) do
     build_fn_block(clauses, expr_iri, context)
+  end
+
+  # Raise expressions: {:raise, _, args}
+  # Phase 30.6: Raise Expression Extraction
+  # Args can be:
+  # - [message] - raises RuntimeError with message
+  # - [exception] - raises specific exception with no message
+  # - [exception, message] - raises specific exception with message
+  # - [exception, [keyword: value]] - raises with keyword arguments
+  def build_expression_triples({:raise, _meta, args}, expr_iri, context) do
+    build_raise(args, expr_iri, context)
   end
 
   # Try expressions: {:try, _, [blocks]}

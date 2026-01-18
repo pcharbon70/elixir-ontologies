@@ -294,6 +294,24 @@
     rdfs:comment "Raises an exception."@en ;
     rdfs:subClassOf :ControlFlowExpression .
 
+:hasMessage a owl:ObjectProperty ;
+    rdfs:label "has message"@en ;
+    rdfs:comment "Links a raise expression to its message expression."@en ;
+    rdfs:domain :RaiseExpression ;
+    rdfs:range :Expression .
+
+:refersToExceptionType a owl:ObjectProperty ;
+    rdfs:label "refers to exception type"@en ;
+    rdfs:comment "Links a raise expression to the exception type (module) being raised."@en ;
+    rdfs:domain :RaiseExpression ;
+    rdfs:range :Module .
+
+:hasArgument a owl:ObjectProperty ;
+    rdfs:label "has argument"@en ;
+    rdfs:comment "Links a raise expression to a keyword argument."@en ;
+    rdfs:domain :RaiseExpression ;
+    rdfs:range :Literal .
+
 :ThrowExpression a owl:Class ;
     rdfs:label "Throw Expression"@en ;
     rdfs:comment "Throws a value to be caught by a catch clause."@en ;
