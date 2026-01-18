@@ -693,9 +693,34 @@
     rdfs:domain :RescueClause ;
     rdfs:range :Module .
 
+:CatchClause a owl:Class ;
+    rdfs:label "Catch Clause"@en ;
+    rdfs:comment "A clause in a try expression that catches thrown values, errors, or exits."@en ;
+    rdfs:subClassOf :Expression .
+
 :hasCatchClause a owl:ObjectProperty ;
     rdfs:label "has catch clause"@en ;
-    rdfs:domain :TryExpression .
+    rdfs:comment "Links a try expression to its catch clauses (ordered)."@en ;
+    rdfs:domain :TryExpression ;
+    rdfs:range :CatchClause .
+
+:hasCatchBody a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has catch body"@en ;
+    rdfs:comment "Links a catch clause to its handler body expression."@en ;
+    rdfs:domain :CatchClause ;
+    rdfs:range :Block .
+
+:hasCatchPattern a owl:ObjectProperty ;
+    rdfs:label "has catch pattern"@en ;
+    rdfs:comment "Links a catch clause to its value matching pattern."@en ;
+    rdfs:domain :CatchClause ;
+    rdfs:range :Pattern .
+
+:hasCatchType a owl:ObjectProperty ;
+    rdfs:label "has catch type"@en ;
+    rdfs:comment "Links a catch clause to the type of value being caught (:throw, :error, :exit)."@en ;
+    rdfs:domain :CatchClause ;
+    rdfs:range :Literal .
 
 :hasAfterClause a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:label "has after clause"@en ;

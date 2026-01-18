@@ -6978,6 +6978,248 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   end
 
   # ===========================================================================
+  # Phase 30.3: Catch Clause Expression Extraction
+  # ===========================================================================
+
+  describe "catch clause extraction" do
+    setup do
+      context = full_mode_context()
+      {:ok, context: context}
+    end
+
+    # Helper to get first catch clause from RDF list
+    defp find_first_catch_clause(triples, try_iri) do
+      list_head = find_object(triples, try_iri, Core.hasCatchClause())
+      if list_head do
+        find_object(triples, list_head, RDF.first())
+      end
+    end
+
+    test "extracts untyped wildcard catch clause", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        catch
+          _ -> :caught
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the catch clause IRI via hasCatchClause RDF list
+      catch_clause_iri = find_first_catch_clause(triples, expr_iri)
+      assert catch_clause_iri != nil
+
+      # Verify catch clause type
+      type = find_object(triples, catch_clause_iri, RDF.type())
+      assert type == Core.CatchClause
+
+      # Verify catch pattern is WildcardPattern
+      pattern_iri = find_object(triples, catch_clause_iri, Core.hasCatchPattern())
+      assert pattern_iri != nil
+
+      pattern_type = find_object(triples, pattern_iri, RDF.type())
+      assert pattern_type == Core.WildcardPattern
+
+      # Verify catch body exists
+      catch_body_iri = find_object(triples, catch_clause_iri, Core.hasCatchBody())
+      assert catch_body_iri != nil
+    end
+
+    test "extracts untyped variable catch clause", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        catch
+          value -> value
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the catch clause IRI
+      catch_clause_iri = find_first_catch_clause(triples, expr_iri)
+      assert catch_clause_iri != nil
+
+      # Verify catch clause type
+      type = find_object(triples, catch_clause_iri, RDF.type())
+      assert type == Core.CatchClause
+
+      # Verify catch pattern is VariablePattern
+      pattern_iri = find_object(triples, catch_clause_iri, Core.hasCatchPattern())
+      assert pattern_iri != nil
+
+      pattern_type = find_object(triples, pattern_iri, RDF.type())
+      assert pattern_type == Core.VariablePattern
+
+      # Verify no catch type for unyped catch
+      catch_type = find_object(triples, catch_clause_iri, Core.hasCatchType())
+      assert catch_type == nil
+    end
+
+    test "extracts typed throw catch clause", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        catch
+          :throw, value -> {:thrown, value}
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the catch clause IRI
+      catch_clause_iri = find_first_catch_clause(triples, expr_iri)
+      assert catch_clause_iri != nil
+
+      # Verify catch clause type
+      type = find_object(triples, catch_clause_iri, RDF.type())
+      assert type == Core.CatchClause
+
+      # Verify catch type is :throw
+      catch_type = find_object(triples, catch_clause_iri, Core.hasCatchType())
+      assert catch_type != nil
+
+      # Verify catch pattern is VariablePattern
+      pattern_iri = find_object(triples, catch_clause_iri, Core.hasCatchPattern())
+      assert pattern_iri != nil
+
+      pattern_type = find_object(triples, pattern_iri, RDF.type())
+      assert pattern_type == Core.VariablePattern
+
+      # Verify catch body exists
+      catch_body_iri = find_object(triples, catch_clause_iri, Core.hasCatchBody())
+      assert catch_body_iri != nil
+    end
+
+    test "extracts typed error catch clause", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        catch
+          :error, reason -> {:error, reason}
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the catch clause IRI
+      catch_clause_iri = find_first_catch_clause(triples, expr_iri)
+      assert catch_clause_iri != nil
+
+      # Verify catch type is :error
+      catch_type = find_object(triples, catch_clause_iri, Core.hasCatchType())
+      assert catch_type != nil
+    end
+
+    test "extracts typed exit catch clause", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        catch
+          :exit, reason -> {:exit, reason}
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the catch clause IRI
+      catch_clause_iri = find_first_catch_clause(triples, expr_iri)
+      assert catch_clause_iri != nil
+
+      # Verify catch type is :exit
+      catch_type = find_object(triples, catch_clause_iri, Core.hasCatchType())
+      assert catch_type != nil
+    end
+
+    test "extracts multiple catch clauses in order", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        catch
+          :throw, value -> {:thrown, value}
+          :error, reason -> {:error, reason}
+          :exit, reason -> {:exit, reason}
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the catch clause list head via hasCatchClause property
+      catch_list_head = find_object(triples, expr_iri, Core.hasCatchClause())
+      assert catch_list_head != nil
+
+      # RDF list should have first and rest
+      first_clause = find_object(triples, catch_list_head, RDF.first())
+      assert first_clause != nil
+
+      # Verify first clause is CatchClause
+      first_clause_type = find_object(triples, first_clause, RDF.type())
+      assert first_clause_type == Core.CatchClause
+
+      # Verify we have multiple clauses (via rest)
+      list_rest = find_object(triples, catch_list_head, RDF.rest())
+      assert list_rest != nil
+    end
+
+    test "extracts catch body with multiple expressions", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        catch
+          _ ->
+            :first
+            :second
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the catch clause IRI
+      catch_clause_iri = find_first_catch_clause(triples, expr_iri)
+      assert catch_clause_iri != nil
+
+      # Verify catch body is a DoBlock (multiple expressions)
+      catch_body_iri = find_object(triples, catch_clause_iri, Core.hasCatchBody())
+      assert catch_body_iri != nil
+
+      body_type = find_object(triples, catch_body_iri, RDF.type())
+      assert body_type == Core.DoBlock
+    end
+
+    test "extracts catch with complex pattern", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        catch
+          {:thrown, x} -> x
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the catch clause IRI
+      catch_clause_iri = find_first_catch_clause(triples, expr_iri)
+      assert catch_clause_iri != nil
+
+      # Verify catch pattern exists (should be TuplePattern for {:thrown, x})
+      pattern_iri = find_object(triples, catch_clause_iri, Core.hasCatchPattern())
+      assert pattern_iri != nil
+
+      pattern_type = find_object(triples, pattern_iri, RDF.type())
+      assert pattern_type == Core.TuplePattern
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 

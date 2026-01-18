@@ -571,13 +571,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   # Detects and extracts optional blocks in try expression
   # Phase 30.2: Rescue clauses
-  # Future phases: catch clauses (30.3), after block (30.4), else block (30.5)
+  # Phase 30.3: Catch clauses
+  # Future phases: after block (30.4), else block (30.5)
   defp detect_optional_blocks(blocks, try_iri, context) do
     # Extract rescue clauses if present
     rescue_clauses_triples = build_rescue_clauses(blocks, try_iri, context)
 
-    # Future phases will add: catch, after, else
-    rescue_clauses_triples
+    # Extract catch clauses if present
+    catch_clauses_triples = build_catch_clauses(blocks, try_iri, context)
+
+    # Future phases will add: after, else
+    rescue_clauses_triples ++ catch_clauses_triples
   end
 
   # Builds RDF triples for rescue clauses
@@ -668,6 +672,137 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
     # Link try expression to the list head
     link_triple = Helpers.object_property(try_iri, Core.hasRescueClause(), list_head)
+
+    [link_triple | list_triples]
+  end
+
+  # ===========================================================================
+  # Phase 30.3: Catch Clauses
+  # ===========================================================================
+
+  # Builds RDF triples for catch clauses
+  # Catch clauses are in the format: [{:->, _, [[catch_type, pattern] | [pattern]], body}, ...]
+  # Typed catch: [{:->, _, [[:throw, pattern]], body}]
+  # Untyped catch: [{:->, _, [[pattern]], body}]
+  @spec build_catch_clauses(keyword(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  defp build_catch_clauses(blocks, try_iri, context) do
+    case Keyword.get(blocks, :catch) do
+      nil ->
+        []
+
+      catch_clauses when is_list(catch_clauses) ->
+        # Build each catch clause
+        {clause_triples, clause_iris} =
+          catch_clauses
+          |> Enum.with_index()
+          |> Enum.reduce({[], []}, fn {clause_ast, index}, {triples_acc, iris_acc} ->
+            clause_iri = fresh_iri(try_iri, "catch/#{index}")
+
+            clause_triples =
+              build_catch_clause(clause_ast, clause_iri, context, index)
+
+            {triples_acc ++ clause_triples, [clause_iri | iris_acc]}
+          end)
+
+        # Link clauses via hasCatchClause as an RDF list (preserves order)
+        link_triples = link_catch_clauses(try_iri, Enum.reverse(clause_iris))
+
+        clause_triples ++ link_triples
+    end
+  end
+
+  # Builds RDF triples for a single catch clause
+  # Clause format: {:->, _, [pattern_list, body]}
+  # where pattern_list is either [:throw, pattern] or [pattern]
+  @spec build_catch_clause(Macro.t(), RDF.IRI.t(), Context.t(), non_neg_integer()) ::
+          [RDF.Triple.t()]
+  defp build_catch_clause({:->, _meta, [pattern_list, body_ast]}, clause_iri, context, _index) do
+    # pattern_list is either [:throw, pattern] or [pattern]
+    case pattern_list do
+      [catch_type | [value_pattern]] when is_atom(catch_type) ->
+        # This is a typed catch: [:throw, pattern] or [:error, pattern] or [:exit, pattern]
+        build_catch_clause_with_type(clause_iri, catch_type, value_pattern, body_ast, context)
+
+      [pattern_ast] ->
+        # This is an untyped catch: [pattern]
+        build_catch_clause_untyped(clause_iri, pattern_ast, body_ast, context)
+    end
+  end
+
+  # Builds a typed catch clause (catches :throw, :error, or :exit)
+  defp build_catch_clause_with_type(clause_iri, catch_type, value_pattern, body_ast, context) do
+    # Create type triple for CatchClause
+    type_triple = Helpers.type_triple(clause_iri, Core.CatchClause)
+
+    # Create catch type literal (atom value stored as string)
+    catch_type_value = ":" <> Atom.to_string(catch_type)
+    catch_type_triple =
+      Helpers.datatype_property(
+        clause_iri,
+        Core.hasCatchType(),
+        catch_type_value,
+        RDF.XSD.String
+      )
+
+    # Build catch value pattern
+    pattern_iri = fresh_iri(clause_iri, "pattern")
+    pattern_triples = build_pattern(value_pattern, pattern_iri, context)
+    has_catch_pattern_triple = Helpers.object_property(clause_iri, Core.hasCatchPattern(), pattern_iri)
+
+    # Build catch body
+    body_iri = fresh_iri(clause_iri, "body")
+    body_triples = build_catch_body(body_ast, body_iri, context)
+    has_catch_body_triple = Helpers.object_property(clause_iri, Core.hasCatchBody(), body_iri)
+
+    # Combine all triples
+    [type_triple] ++
+      [catch_type_triple] ++
+      pattern_triples ++ [has_catch_pattern_triple] ++
+      body_triples ++ [has_catch_body_triple]
+  end
+
+  # Builds an untyped catch clause (catches all types)
+  defp build_catch_clause_untyped(clause_iri, pattern_ast, body_ast, context) do
+    # Create type triple for CatchClause
+    type_triple = Helpers.type_triple(clause_iri, Core.CatchClause)
+
+    # Build catch value pattern
+    pattern_iri = fresh_iri(clause_iri, "pattern")
+    pattern_triples = build_pattern(pattern_ast, pattern_iri, context)
+    has_catch_pattern_triple = Helpers.object_property(clause_iri, Core.hasCatchPattern(), pattern_iri)
+
+    # Build catch body
+    body_iri = fresh_iri(clause_iri, "body")
+    body_triples = build_catch_body(body_ast, body_iri, context)
+    has_catch_body_triple = Helpers.object_property(clause_iri, Core.hasCatchBody(), body_iri)
+
+    # Combine all triples
+    [type_triple] ++
+      pattern_triples ++ [has_catch_pattern_triple] ++
+      body_triples ++ [has_catch_body_triple]
+  end
+
+  # Builds the catch body expression
+  defp build_catch_body(body_ast, body_iri, context) when is_list(body_ast) do
+    # Multiple expressions - wrap in a block
+    build_do_block(body_ast, body_iri, context)
+  end
+
+  defp build_catch_body(body_ast, body_iri, context) do
+    # Single expression - build directly
+    build_expression_triples(body_ast, body_iri, context)
+  end
+
+  # Links catch clauses via hasCatchClause property as an RDF list
+  # Preserves clause order (important for pattern matching semantics)
+  defp link_catch_clauses(_try_iri, []), do: []
+
+  defp link_catch_clauses(try_iri, clause_iris) do
+    # Build RDF list for clause ordering
+    {list_head, list_triples} = Helpers.build_rdf_list(clause_iris)
+
+    # Link try expression to the list head
+    link_triple = Helpers.object_property(try_iri, Core.hasCatchClause(), list_head)
 
     [link_triple | list_triples]
   end
