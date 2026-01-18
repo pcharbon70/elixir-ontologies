@@ -572,7 +572,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Detects and extracts optional blocks in try expression
   # Phase 30.2: Rescue clauses
   # Phase 30.3: Catch clauses
-  # Future phases: after block (30.4), else block (30.5)
+  # Phase 30.4: After block
+  # Future phases: else block (30.5)
   defp detect_optional_blocks(blocks, try_iri, context) do
     # Extract rescue clauses if present
     rescue_clauses_triples = build_rescue_clauses(blocks, try_iri, context)
@@ -580,8 +581,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Extract catch clauses if present
     catch_clauses_triples = build_catch_clauses(blocks, try_iri, context)
 
-    # Future phases will add: after, else
-    rescue_clauses_triples ++ catch_clauses_triples
+    # Extract after block if present
+    after_triples = build_after_block(blocks, try_iri, context)
+
+    # Future phases will add: else
+    rescue_clauses_triples ++ catch_clauses_triples ++ after_triples
   end
 
   # Builds RDF triples for rescue clauses
@@ -805,6 +809,33 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     link_triple = Helpers.object_property(try_iri, Core.hasCatchClause(), list_head)
 
     [link_triple | list_triples]
+  end
+
+  # ===========================================================================
+  # Phase 30.4: After Block
+  # ===========================================================================
+
+  # Builds RDF triples for the after block in try expression
+  # After block is a single expression that always executes
+  # The compiler wraps multiple expressions in a {:__block__, [], [...]} tuple
+  @spec build_after_block(keyword(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  defp build_after_block(blocks, try_iri, context) do
+    case Keyword.get(blocks, :after) do
+      nil ->
+        []
+
+      after_ast ->
+        # Generate after IRI
+        after_iri = fresh_iri(try_iri, "after")
+
+        # Build after block expression
+        after_triples = build_expression_triples(after_ast, after_iri, context)
+
+        # Link via hasAfterClause property
+        link_triple = Helpers.object_property(try_iri, Core.hasAfterClause(), after_iri)
+
+        after_triples ++ [link_triple]
+    end
   end
 
   # ===========================================================================

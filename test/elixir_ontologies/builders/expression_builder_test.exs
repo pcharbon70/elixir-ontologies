@@ -7220,6 +7220,99 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
   end
 
   # ===========================================================================
+  # Phase 30.4: After Block Expression Extraction
+  # ===========================================================================
+
+  describe "after block extraction" do
+    setup do
+      context = full_mode_context()
+      {:ok, context: context}
+    end
+
+    test "extracts after block with single expression", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        after
+          :cleanup
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the after block IRI via hasAfterClause property
+      after_iri = find_object(triples, expr_iri, Core.hasAfterClause())
+      assert after_iri != nil
+
+      # Verify after IRI structure
+      assert RDF.IRI.to_string(after_iri) == "https://example.org/code#expr/0/after"
+
+      # Verify after block is an AtomLiteral (for :cleanup atom)
+      after_type = find_object(triples, after_iri, RDF.type())
+      assert after_type == Core.AtomLiteral
+    end
+
+    test "extracts after block with multiple expressions", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        after
+          :first
+          :second
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the after block IRI
+      after_iri = find_object(triples, expr_iri, Core.hasAfterClause())
+      assert after_iri != nil
+
+      # Verify after block is a DoBlock (compiler wraps multiple expressions)
+      after_type = find_object(triples, after_iri, RDF.type())
+      assert after_type == Core.DoBlock
+    end
+
+    test "extracts try without after block", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        end
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Verify no after clause
+      after_iri = find_object(triples, expr_iri, Core.hasAfterClause())
+      assert after_iri == nil
+    end
+
+    test "extracts after block with function call", %{context: context} do
+      ast = quote do
+        try do
+          :ok
+        after
+          cleanup()
+        end
+      end
+
+      expr_iri = RDF.iri("https://example#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Find the after block IRI
+      after_iri = find_object(triples, expr_iri, Core.hasAfterClause())
+      assert after_iri != nil
+
+      # Verify after block is a LocalCall
+      after_type = find_object(triples, after_iri, RDF.type())
+      assert after_type == Core.LocalCall
+    end
+  end
+
+  # ===========================================================================
   # Helper Functions
   # ===========================================================================
 
