@@ -634,7 +634,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Build exception pattern
     pattern_iri = fresh_iri(clause_iri, "pattern")
     pattern_triples = build_pattern(pattern_ast, pattern_iri, context)
-    has_exception_pattern_triple = Helpers.object_property(clause_iri, Core.hasExceptionPattern(), pattern_iri)
+
+    has_exception_pattern_triple =
+      Helpers.object_property(clause_iri, Core.hasExceptionPattern(), pattern_iri)
 
     # Add refersToExceptionType if it's a struct pattern
     exception_type_triples = extract_exception_type(pattern_ast, clause_iri, context)
@@ -646,7 +648,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
     # Combine all triples
     [type_triple] ++
-      pattern_triples ++ [has_exception_pattern_triple] ++
+      pattern_triples ++
+      [has_exception_pattern_triple] ++
       exception_type_triples ++ body_triples ++ [has_rescue_body_triple]
   end
 
@@ -671,8 +674,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   # In rescue clauses, a module alias alone (e.g., RuntimeError -> ...) is shorthand
   # for catching any exception of that type. Extract the exception type from the alias.
-  defp extract_exception_type({:__aliases__, _meta, _name_parts} = _alias_ast, clause_iri, context) do
-    module_name = extract_struct_module_name(_alias_ast)
+  defp extract_exception_type({:__aliases__, _meta, _name_parts} = alias_ast, clause_iri, context) do
+    module_name = extract_struct_module_name(alias_ast)
     module_iri_string = "#{context.base_iri}module/#{module_name}"
     module_iri = RDF.IRI.new(module_iri_string)
     [Helpers.object_property(clause_iri, Core.refersToExceptionType(), module_iri)]
@@ -756,7 +759,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
           [RDF.Triple.t()]
   defp build_catch_clause({:->, _meta, [pattern_list, body_ast]}, clause_iri, context, _index) do
     case pattern_list do
-      [catch_type | [value_pattern]] when is_atom(catch_type) and catch_type in [:throw, :error, :exit] ->
+      [catch_type | [value_pattern]]
+      when is_atom(catch_type) and catch_type in [:throw, :error, :exit] ->
         # This is a typed catch: [:throw, pattern] or [:error, pattern] or [:exit, pattern]
         build_catch_clause_with_type(clause_iri, catch_type, value_pattern, body_ast, context)
 
@@ -782,6 +786,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
     # Create catch type literal (atom value stored as string)
     catch_type_value = ":" <> Atom.to_string(catch_type)
+
     catch_type_triple =
       Helpers.datatype_property(
         clause_iri,
@@ -793,7 +798,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Build catch value pattern
     pattern_iri = fresh_iri(clause_iri, "pattern")
     pattern_triples = build_pattern(value_pattern, pattern_iri, context)
-    has_catch_pattern_triple = Helpers.object_property(clause_iri, Core.hasCatchPattern(), pattern_iri)
+
+    has_catch_pattern_triple =
+      Helpers.object_property(clause_iri, Core.hasCatchPattern(), pattern_iri)
 
     # Build catch body
     body_iri = fresh_iri(clause_iri, "body")
@@ -803,7 +810,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Combine all triples
     [type_triple] ++
       [catch_type_triple] ++
-      pattern_triples ++ [has_catch_pattern_triple] ++
+      pattern_triples ++
+      [has_catch_pattern_triple] ++
       body_triples ++ [has_catch_body_triple]
   end
 
@@ -815,7 +823,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Build catch value pattern
     pattern_iri = fresh_iri(clause_iri, "pattern")
     pattern_triples = build_pattern(pattern_ast, pattern_iri, context)
-    has_catch_pattern_triple = Helpers.object_property(clause_iri, Core.hasCatchPattern(), pattern_iri)
+
+    has_catch_pattern_triple =
+      Helpers.object_property(clause_iri, Core.hasCatchPattern(), pattern_iri)
 
     # Build catch body
     body_iri = fresh_iri(clause_iri, "body")
@@ -824,7 +834,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
     # Combine all triples
     [type_triple] ++
-      pattern_triples ++ [has_catch_pattern_triple] ++
+      pattern_triples ++
+      [has_catch_pattern_triple] ++
       body_triples ++ [has_catch_body_triple]
   end
 
@@ -838,14 +849,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Build kind pattern (first variable)
     kind_pattern_iri = fresh_iri(clause_iri, "kind_pattern")
     kind_pattern_triples = build_pattern(kind_var, kind_pattern_iri, context)
-    has_kind_pattern_triple = Helpers.object_property(clause_iri, Core.hasCatchPattern(), kind_pattern_iri)
+
+    has_kind_pattern_triple =
+      Helpers.object_property(clause_iri, Core.hasCatchPattern(), kind_pattern_iri)
 
     # Build value pattern (second variable)
     value_pattern_iri = fresh_iri(clause_iri, "value_pattern")
     value_pattern_triples = build_pattern(value_var, value_pattern_iri, context)
     # We link the value pattern to the kind pattern or the clause
     # For simplicity, we'll link both patterns to the clause
-    has_value_pattern_triple = Helpers.object_property(clause_iri, Core.hasCatchPattern(), value_pattern_iri)
+    has_value_pattern_triple =
+      Helpers.object_property(clause_iri, Core.hasCatchPattern(), value_pattern_iri)
 
     # Build catch body
     body_iri = fresh_iri(clause_iri, "body")
@@ -854,8 +868,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
     # Combine all triples
     [type_triple] ++
-      kind_pattern_triples ++ [has_kind_pattern_triple] ++
-      value_pattern_triples ++ [has_value_pattern_triple] ++
+      kind_pattern_triples ++
+      [has_kind_pattern_triple] ++
+      value_pattern_triples ++
+      [has_value_pattern_triple] ++
       body_triples ++ [has_catch_body_triple]
   end
 
@@ -939,7 +955,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     type_triple = Helpers.type_triple(expr_iri, Core.RaiseExpression)
 
     # Process the args based on their structure
-    {exception_triples, message_triples, argument_triples} = process_raise_args(args, expr_iri, context)
+    {exception_triples, message_triples, argument_triples} =
+      process_raise_args(args, expr_iri, context)
 
     # Combine all triples
     [type_triple] ++ exception_triples ++ message_triples ++ argument_triples
@@ -976,7 +993,8 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     {[exception_triple], [], []}
   end
 
-  defp process_raise_args([message_ast], expr_iri, context) when is_binary(message_ast) or is_tuple(message_ast) do
+  defp process_raise_args([message_ast], expr_iri, context)
+       when is_binary(message_ast) or is_tuple(message_ast) do
     # raise "message" - raises RuntimeError with message
     # Default exception is RuntimeError
     # Note: This clause must come after the __aliases__ clause to avoid matching module aliases
@@ -985,7 +1003,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     {[exception_triple], message_triples, []}
   end
 
-  defp process_raise_args([{:__aliases__, _, _module_path} = alias_ast, keyword_args], expr_iri, context)
+  defp process_raise_args(
+         [{:__aliases__, _, _module_path} = alias_ast, keyword_args],
+         expr_iri,
+         context
+       )
        when is_list(keyword_args) do
     # raise Exception, [key: value] - raises with keyword arguments
     exception_triple = build_exception_type_triple(alias_ast, expr_iri, context)
@@ -994,7 +1016,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     {[exception_triple], [], argument_triples}
   end
 
-  defp process_raise_args([{:__aliases__, _, _module_path} = alias_ast, message_ast], expr_iri, context) do
+  defp process_raise_args(
+         [{:__aliases__, _, _module_path} = alias_ast, message_ast],
+         expr_iri,
+         context
+       ) do
     # raise Exception, "message" - raises specific exception with message
     exception_triple = build_exception_type_triple(alias_ast, expr_iri, context)
     message_triples = build_message_triples(message_ast, expr_iri, context)
@@ -1004,13 +1030,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Processes keyword arguments for raise expression
   defp process_raise_keywords([], _expr_iri, _index, acc), do: Enum.reverse(acc)
 
-  defp process_raise_keywords([{key, value_ast} | rest], expr_iri, index, acc) do
-    # Create IRI for this argument (using arg-#{index} to match call expressions)
-    arg_iri = fresh_iri(expr_iri, "arg-#{index}")
-
+  defp process_raise_keywords([{_key, value_ast} | rest], expr_iri, index, acc) do
     # Get the value as a string literal (for keyword arguments)
     arg_value = normalize_keyword_value(value_ast)
-    arg_triple = Helpers.datatype_property(expr_iri, Core.hasArgument(), arg_value, RDF.XSD.String)
+
+    arg_triple =
+      Helpers.datatype_property(expr_iri, Core.hasArgument(), arg_value, RDF.XSD.String)
 
     # Add key annotation (we can't directly store the key, so we'll use a comment or skip)
     # For now, we'll just store the value with hasArgument
@@ -1525,38 +1550,6 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Remote call: Module.function(args)
-  @doc """
-  Builds RDF triples for a remote function call (Module.function(args)).
-
-  ## AST Pattern
-
-  {{:., _, [module_ast, function_ast]}, _, args}
-
-  ## Examples
-
-      iex> # AST for String.to_integer("42", 10)
-      iex> module = {:__aliases__, [], [:String]}
-      iex> function = :to_integer
-      iex> args = ["42", 10]
-      iex> build_remote_call(module, function, args, expr_iri, context)
-
-  ## Properties
-
-  - Creates RemoteCall type
-  - Sets name (e.g., "String.to_integer")
-  - Sets moduleName (extracted from module_ast)
-  - Sets functionName (extracted from function_ast)
-  - Sets arity (length of args)
-  - Sets refersToModule (placeholder IRI)
-  - Sets refersToFunction (placeholder IRI)
-  - Links argument expressions via hasArgument
-
-  ## Notes
-
-  Module and function IRIs use placeholder format until module/function registry is available.
-  The module name is extracted from aliases AST (e.g., {:__aliases__, _, [:String, :IO]}).
-  Supports __MODULE__ and dynamic module references via inspect/1 fallback.
-  """
   @spec build_remote_call(term(), term(), list(), RDF.IRI.t(), Context.t()) :: list()
   defp build_remote_call(module, function, args, expr_iri, context) do
     # Extract module name from aliases AST
@@ -1618,35 +1611,6 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Local call: function(args)
-  @doc """
-  Builds RDF triples for a local function call (function(args)).
-
-  ## AST Pattern
-
-  {function_name, _, args}
-
-  ## Examples
-
-      iex> # AST for process_item(item)
-      iex> function = :process_item
-      iex> args = [{:item, [], Elixir}]
-      iex> build_local_call(function, args, expr_iri, context)
-
-  ## Properties
-
-  - Creates LocalCall type
-  - Sets name (function name as string)
-  - Sets functionName (extracted from function atom)
-  - Sets arity (length of args)
-  - Sets refersToFunction (placeholder IRI, module unknown at extraction time)
-  - Links argument expressions via hasArgument
-
-  ## Notes
-
-  For local calls, the module is not known at expression extraction time.
-  The refersToFunction IRI uses a generic placeholder format.
-  Arguments are built recursively to support nested expressions.
-  """
   @spec build_local_call(term(), list(), RDF.IRI.t(), Context.t()) :: list()
   defp build_local_call(function, args, expr_iri, context) do
     arity = length(args)
@@ -1679,32 +1643,6 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Anonymous function call: variable.(args)
-  @doc """
-  Builds RDF triples for an anonymous function call (variable.(args)).
-
-  ## AST Pattern
-
-  {{:., _, [{var_ast, _, Elixir}]}, _, args}
-
-  ## Examples
-
-      iex> # AST for callback.(result)
-      iex> var_ast = {:callback, [], Elixir}
-      iex> args = [{:result, [], Elixir}]
-      iex> build_anon_call(var_ast, args, expr_iri, context)
-
-  ## Properties
-
-  - Creates AnonymousFunctionCall type
-  - Sets hasFunctionExpression (link to the variable expression)
-  - Links argument expressions via hasArgument
-
-  ## Notes
-
-  The function variable is built as a separate Variable expression.
-  The hasFunctionExpression property links the call to its function variable.
-  Arguments are built recursively to support nested expressions.
-  """
   @spec build_anon_call(term(), list(), RDF.IRI.t(), Context.t()) :: list()
   defp build_anon_call(var_ast, args, expr_iri, context) do
     # Generate IRI for the function variable expression
@@ -1743,31 +1681,6 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Module reference: MyApp, MyApp.Users, etc.
-  @doc """
-  Builds RDF triples for a module reference (MyApp, MyApp.Users, etc.).
-
-  ## AST Pattern
-
-  {:__aliases__, _, parts}
-
-  ## Examples
-
-      iex> # AST for MyApp.Users
-      iex> parts = [:MyApp, :Users]
-      iex> build_module_reference(parts, expr_iri, context)
-
-  ## Properties
-
-  - Creates ModuleReference type
-  - Sets moduleName (parts joined with ".")
-  - Sets refersToModule (IRI for the module)
-
-  ## Notes
-
-  Module name is reconstructed by joining alias parts with ".".
-  Supports nested aliases like MyApp.Accounts.User.
-  The refersToModule IRI points to the module in the ontology.
-  """
   @spec build_module_reference(list(), RDF.IRI.t(), Context.t()) :: list()
   defp build_module_reference(parts, expr_iri, context) do
     # Extract module name from alias parts
@@ -2255,36 +2168,6 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     ]
   end
 
-  @doc """
-  Builds RDF triples for a function reference capture (&Mod.fun/arity).
-
-  ## AST Pattern
-
-  {:&, _, [{:/, _, [function_ref, arity]}]}
-
-  ## Examples
-
-      iex> # AST for &Enum.map/2
-      iex> function_ref = {{:., _, [{:__aliases__, _, [:Enum]}, :map]}, _, []}
-      iex> arity = 2
-      iex> build_capture_function_ref(function_ref, arity, expr_iri, context)
-
-  ## Properties
-
-  - Creates FunctionReference type (NOT CaptureOperator)
-  - Sets operatorSymbol ("&")
-  - Sets moduleName (extracted from function_ref)
-  - Sets functionName (extracted from function_ref)
-  - Sets arity (if provided)
-  - Sets refersToFunction (IRI for the function, if arity provided)
-
-  ## Notes
-
-  This is for function reference captures like &Enum.map/2, NOT argument index captures like &1.
-  Argument index captures (&1, &2, etc.) use CaptureOperator type.
-  Function references use FunctionReference type with moduleName, functionName, and arity.
-  The refersToFunction IRI is only created when arity is provided (required for IRI construction).
-  """
   # Build capture operator for function reference (&Mod.fun/arity)
   # Uses FunctionReference type with moduleName, functionName, arity, and refersToFunction
   defp build_capture_function_ref(function_ref, arity, expr_iri, context) do
@@ -2418,7 +2301,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   def detect_pattern_type({:_}), do: :wildcard_pattern
   # Note: Wildcard with metadata must come BEFORE variable pattern
   # because variable pattern also matches {name, meta, ctx} format
-  def detect_pattern_type({:_, _, _ctx}) when is_atom(_ctx), do: :wildcard_pattern
+  def detect_pattern_type({:_, _, ctx}) when is_atom(ctx), do: :wildcard_pattern
   def detect_pattern_type({:^, _, [{_var, _, _}]}), do: :pin_pattern
   def detect_pattern_type({:=, _, [_, _]}), do: :as_pattern
   def detect_pattern_type({:{}, _, _}), do: :tuple_pattern

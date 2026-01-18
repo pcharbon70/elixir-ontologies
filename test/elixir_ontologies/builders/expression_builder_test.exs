@@ -6754,11 +6754,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "detects simple try expression with just do block", %{context: context} do
-      ast = quote do
-        try do
-          :ok
+      ast =
+        quote do
+          try do
+            :ok
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
 
@@ -6771,13 +6772,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "detects try expression with rescue block", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          _ -> :error
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            _ -> :error
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
 
@@ -6794,13 +6796,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "detects try expression with catch block", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        catch
-          :throw, x -> x
+      ast =
+        quote do
+          try do
+            :ok
+          catch
+            :throw, x -> x
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
 
@@ -6813,13 +6816,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "detects try expression with after block", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        after
-          :cleanup
+      ast =
+        quote do
+          try do
+            :ok
+          after
+            :cleanup
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
 
@@ -6832,13 +6836,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "detects try expression with else block (Elixir 1.11+)", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        else
-          x -> x
+      ast =
+        quote do
+          try do
+            :ok
+          else
+            x -> x
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
 
@@ -6851,19 +6856,20 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "detects complete try expression with all blocks", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          _ -> :error
-        catch
-          :throw, x -> x
-        after
-          :cleanup
-        else
-          x -> x
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            _ -> :error
+          catch
+            :throw, x -> x
+          after
+            :cleanup
+          else
+            x -> x
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
 
@@ -6883,11 +6889,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts single expression try body", %{context: context} do
-      ast = quote do
-        try do
-          :ok
+      ast =
+        quote do
+          try do
+            :ok
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
 
@@ -6908,12 +6915,13 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts multi-expression try body as block", %{context: context} do
-      ast = quote do
-        try do
-          expr1()
-          expr2()
+      ast =
+        quote do
+          try do
+            expr1()
+            expr2()
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
 
@@ -6930,11 +6938,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts complex try body with function call", %{context: context} do
-      ast = quote do
-        try do
-          Risky.operation()
+      ast =
+        quote do
+          try do
+            Risky.operation()
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
 
@@ -6958,11 +6967,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "generates correct IRI hierarchy for try expression", %{context: context} do
-      ast = quote do
-        try do
-          :ok
+      ast =
+        quote do
+          try do
+            :ok
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
 
@@ -6990,19 +7000,21 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     # Helper to get first catch clause from RDF list
     defp find_first_catch_clause(triples, try_iri) do
       list_head = find_object(triples, try_iri, Core.hasCatchClause())
+
       if list_head do
         find_object(triples, list_head, RDF.first())
       end
     end
 
     test "extracts untyped wildcard catch clause", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        catch
-          _ -> :caught
+      ast =
+        quote do
+          try do
+            :ok
+          catch
+            _ -> :caught
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7028,13 +7040,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts untyped variable catch clause", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        catch
-          value -> value
+      ast =
+        quote do
+          try do
+            :ok
+          catch
+            value -> value
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7060,13 +7073,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts typed throw catch clause", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        catch
-          :throw, value -> {:thrown, value}
+      ast =
+        quote do
+          try do
+            :ok
+          catch
+            :throw, value -> {:thrown, value}
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7096,13 +7110,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts typed error catch clause", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        catch
-          :error, reason -> {:error, reason}
+      ast =
+        quote do
+          try do
+            :ok
+          catch
+            :error, reason -> {:error, reason}
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7117,13 +7132,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts typed exit catch clause", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        catch
-          :exit, reason -> {:exit, reason}
+      ast =
+        quote do
+          try do
+            :ok
+          catch
+            :exit, reason -> {:exit, reason}
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7138,15 +7154,16 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts multiple catch clauses in order", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        catch
-          :throw, value -> {:thrown, value}
-          :error, reason -> {:error, reason}
-          :exit, reason -> {:exit, reason}
+      ast =
+        quote do
+          try do
+            :ok
+          catch
+            :throw, value -> {:thrown, value}
+            :error, reason -> {:error, reason}
+            :exit, reason -> {:exit, reason}
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7169,15 +7186,16 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts catch body with multiple expressions", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        catch
-          _ ->
-            :first
-            :second
+      ast =
+        quote do
+          try do
+            :ok
+          catch
+            _ ->
+              :first
+              :second
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7195,13 +7213,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts catch with complex pattern", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        catch
-          {:thrown, x} -> x
+      ast =
+        quote do
+          try do
+            :ok
+          catch
+            {:thrown, x} -> x
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7230,13 +7249,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts after block with single expression", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        after
-          :cleanup
+      ast =
+        quote do
+          try do
+            :ok
+          after
+            :cleanup
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7254,14 +7274,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts after block with multiple expressions", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        after
-          :first
-          :second
+      ast =
+        quote do
+          try do
+            :ok
+          after
+            :first
+            :second
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7276,11 +7297,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts try without after block", %{context: context} do
-      ast = quote do
-        try do
-          :ok
+      ast =
+        quote do
+          try do
+            :ok
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7291,13 +7313,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts after block with function call", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        after
-          cleanup()
+      ast =
+        quote do
+          try do
+            :ok
+          after
+            cleanup()
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7323,13 +7346,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts else block with single expression", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        else
-          :result
+      ast =
+        quote do
+          try do
+            :ok
+          else
+            :result
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7347,14 +7371,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts else block with multiple expressions", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        else
-          :first
-          :second
+      ast =
+        quote do
+          try do
+            :ok
+          else
+            :first
+            :second
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7369,11 +7394,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts try without else block", %{context: context} do
-      ast = quote do
-        try do
-          :ok
+      ast =
+        quote do
+          try do
+            :ok
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7384,19 +7410,20 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts try with all optional blocks (rescue, catch, after, else)", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          _ -> :rescued
-        catch
-          :throw, _ -> :caught
-        after
-          :cleanup
-        else
-          :result
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            _ -> :rescued
+          catch
+            :throw, _ -> :caught
+          after
+            :cleanup
+          else
+            :result
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7425,19 +7452,21 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     # Helper to get first rescue clause from RDF list
     defp find_first_rescue_clause(triples, try_iri) do
       list_head = find_object(triples, try_iri, Core.hasRescueClause())
+
       if list_head do
         find_object(triples, list_head, RDF.first())
       end
     end
 
     test "extracts wildcard rescue clause", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          _ -> :rescued
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            _ -> :rescued
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7463,13 +7492,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts variable rescue clause", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          e -> e
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            e -> e
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7491,13 +7521,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts typed rescue with struct pattern", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          RuntimeError -> :runtime_error
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            RuntimeError -> :runtime_error
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7529,13 +7560,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts rescue with field binding", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          %ArgumentError{message: msg} -> msg
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            %ArgumentError{message: msg} -> msg
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7567,15 +7599,16 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts multiple rescue clauses in order", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          ArgumentError -> :argument_error
-          RuntimeError -> :runtime_error
-          _ -> :other
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            ArgumentError -> :argument_error
+            RuntimeError -> :runtime_error
+            _ -> :other
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7609,13 +7642,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "verifies hasExceptionPattern property", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          _ -> :rescued
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            _ -> :rescued
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7634,13 +7668,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "verifies refersToExceptionType property", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          ArgumentError -> :error
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            ArgumentError -> :error
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7659,13 +7694,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "verifies hasRescueBody property", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          _ -> :rescued
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            _ -> :rescued
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7684,14 +7720,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "verifies RDF list ordering for multiple rescue clauses", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          ArgumentError -> :first
-          RuntimeError -> :second
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            ArgumentError -> :first
+            RuntimeError -> :second
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7715,9 +7752,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts raise with message only", %{context: context} do
-      ast = quote do
-        raise "error message"
-      end
+      ast =
+        quote do
+          raise "error message"
+        end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7738,9 +7776,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts raise with exception type", %{context: context} do
-      ast = quote do
-        raise ArgumentError
-      end
+      ast =
+        quote do
+          raise ArgumentError
+        end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7757,9 +7796,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts raise with exception and message", %{context: context} do
-      ast = quote do
-        raise ArgumentError, "invalid input"
-      end
+      ast =
+        quote do
+          raise ArgumentError, "invalid input"
+        end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7780,9 +7820,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts raise with keyword arguments", %{context: context} do
-      ast = quote do
-        raise ArgumentError, message: "custom message"
-      end
+      ast =
+        quote do
+          raise ArgumentError, message: "custom message"
+        end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7806,9 +7847,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "captures exception type reference for custom exceptions", %{context: context} do
-      ast = quote do
-        raise CustomException
-      end
+      ast =
+        quote do
+          raise CustomException
+        end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7832,9 +7874,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts throw with literal atom", %{context: context} do
-      ast = quote do
-        throw :error
-      end
+      ast =
+        quote do
+          throw(:error)
+        end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7850,9 +7893,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts throw with variable", %{context: context} do
-      ast = quote do
-        throw result
-      end
+      ast =
+        quote do
+          throw(result)
+        end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7868,9 +7912,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts throw with function call", %{context: context} do
-      ast = quote do
-        throw compute_value()
-      end
+      ast =
+        quote do
+          throw(compute_value())
+        end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7886,9 +7931,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "extracts throw with tuple expression", %{context: context} do
-      ast = quote do
-        throw {:error, :some_reason}
-      end
+      ast =
+        quote do
+          throw({:error, :some_reason})
+        end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7904,9 +7950,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "captures thrown value expression", %{context: context} do
-      ast = quote do
-        throw 42
-      end
+      ast =
+        quote do
+          throw(42)
+        end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7927,9 +7974,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles throw nil edge case", %{context: context} do
-      ast = quote do
-        throw nil
-      end
+      ast =
+        quote do
+          throw(nil)
+        end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7952,13 +8000,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles empty try body", %{context: context} do
-      ast = quote do
-        try do
-          nil
-        rescue
-          _ -> :rescued
+      ast =
+        quote do
+          try do
+            nil
+          rescue
+            _ -> :rescued
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -7974,13 +8023,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles re-raise (raise with no arguments in rescue)", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          _ -> raise "re-raised"
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            _ -> raise "re-raised"
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -8008,17 +8058,18 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles nested try expressions (try within try)", %{context: context} do
-      ast = quote do
-        try do
+      ast =
+        quote do
           try do
-            :inner
+            try do
+              :inner
+            rescue
+              _ -> :inner_rescued
+            end
           rescue
-            _ -> :inner_rescued
+            _ -> :outer_rescued
           end
-        rescue
-          _ -> :outer_rescued
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -8042,18 +8093,19 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles try within rescue clause", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          e ->
-            try do
-              IO.inspect(e)
-            rescue
-              _ -> :nested_rescue
-            end
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            e ->
+              try do
+                IO.inspect(e)
+              rescue
+                _ -> :nested_rescue
+              end
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -8069,18 +8121,19 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles try within catch clause", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        catch
-          kind, value ->
-            try do
-              IO.inspect({kind, value})
-            catch
-              :throw, _ -> :nested_catch
-            end
+      ast =
+        quote do
+          try do
+            :ok
+          catch
+            kind, value ->
+              try do
+                IO.inspect({kind, value})
+              catch
+                :throw, _ -> :nested_catch
+              end
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -8096,17 +8149,18 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles try within after block", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        after
+      ast =
+        quote do
           try do
-            :cleanup
-          rescue
-            _ -> :error_in_cleanup
+            :ok
+          after
+            try do
+              :cleanup
+            rescue
+              _ -> :error_in_cleanup
+            end
           end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -8122,18 +8176,19 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles try within else block", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        else
-          result ->
-            try do
-              process(result)
-            rescue
-              _ -> :error_in_else
-            end
+      ast =
+        quote do
+          try do
+            :ok
+          else
+            result ->
+              try do
+                process(result)
+              rescue
+                _ -> :error_in_else
+              end
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -8149,19 +8204,20 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles try with all optional blocks (rescue, catch, after, else)", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          _ -> :rescued
-        catch
-          :throw, value -> value
-        after
-          :cleanup
-        else
-          result -> result
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            _ -> :rescued
+          catch
+            :throw, value -> value
+          after
+            :cleanup
+          else
+            result -> result
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -8184,15 +8240,16 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles multiple rescue clauses", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        rescue
-          ArgumentError -> :argument_error
-          RuntimeError -> :runtime_error
-          _ -> :other_error
+      ast =
+        quote do
+          try do
+            :ok
+          rescue
+            ArgumentError -> :argument_error
+            RuntimeError -> :runtime_error
+            _ -> :other_error
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -8216,15 +8273,16 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles multiple catch clauses", %{context: context} do
-      ast = quote do
-        try do
-          :ok
-        catch
-          :throw, value -> {:thrown, value}
-          :error, reason -> {:error, reason}
-          :exit, reason -> {:exit, reason}
+      ast =
+        quote do
+          try do
+            :ok
+          catch
+            :throw, value -> {:thrown, value}
+            :error, reason -> {:error, reason}
+            :exit, reason -> {:exit, reason}
+          end
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -8248,17 +8306,18 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles raise within nested try", %{context: context} do
-      ast = quote do
-        try do
+      ast =
+        quote do
           try do
-            raise "inner error"
+            try do
+              raise "inner error"
+            rescue
+              _ -> :inner_rescued
+            end
           rescue
-            _ -> :inner_rescued
+            _ -> :outer_rescued
           end
-        rescue
-          _ -> :outer_rescued
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -8275,17 +8334,18 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "handles throw within nested try", %{context: context} do
-      ast = quote do
-        try do
+      ast =
+        quote do
           try do
-            throw :inner_value
+            try do
+              throw(:inner_value)
+            catch
+              :throw, _ -> :inner_caught
+            end
           catch
-            :throw, _ -> :inner_caught
+            :throw, _ -> :outer_caught
           end
-        catch
-          :throw, _ -> :outer_caught
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
@@ -8302,32 +8362,37 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
 
     test "preserves IRI hierarchy for nested tries", %{context: context} do
-      ast = quote do
-        try do
+      ast =
+        quote do
           try do
-            :inner
+            try do
+              :inner
+            rescue
+              _ -> :rescued
+            end
           rescue
-            _ -> :rescued
+            _ -> :outer_rescued
           end
-        rescue
-          _ -> :outer_rescued
         end
-      end
 
       expr_iri = RDF.iri("https://example.org/code#expr/0")
       triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
 
       # Extract subject IRIs (all subjects should be valid expression IRIs)
-      subject_iris = Enum.map(triples, fn {s, _p, _o} -> s end)
-                      |> Enum.filter(fn iri -> is_struct(iri, RDF.IRI) end)
+      subject_iris =
+        Enum.map(triples, fn {s, _p, _o} -> s end)
+        |> Enum.filter(fn iri -> is_struct(iri, RDF.IRI) end)
 
       # All subject IRIs should either be the base IRI or contain the base IRI path
       base_string = RDF.IRI.to_string(expr_iri)
-      valid_iris = Enum.all?(subject_iris, fn iri ->
-        iri_string = RDF.IRI.to_string(iri)
-        String.starts_with?(iri_string, base_string) or
-          String.contains?(iri_string, "/expr/")
-      end)
+
+      valid_iris =
+        Enum.all?(subject_iris, fn iri ->
+          iri_string = RDF.IRI.to_string(iri)
+
+          String.starts_with?(iri_string, base_string) or
+            String.contains?(iri_string, "/expr/")
+        end)
 
       assert valid_iris
     end
