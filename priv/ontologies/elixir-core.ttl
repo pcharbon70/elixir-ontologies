@@ -317,6 +317,13 @@
     rdfs:comment "Throws a value to be caught by a catch clause."@en ;
     rdfs:subClassOf :ControlFlowExpression .
 
+:hasThrownValue a owl:ObjectProperty ;
+    rdfs:label "has thrown value"@en ;
+    rdfs:comment "Links a throw expression to the value being thrown."@en ;
+    rdfs:domain :ThrowExpression ;
+    rdfs:range :Expression ;
+    a owl:FunctionalProperty .
+
 :ReceiveExpression a owl:Class ;
     rdfs:label "Receive Expression"@en ;
     rdfs:comment """Waits for a message in the process mailbox, matching against

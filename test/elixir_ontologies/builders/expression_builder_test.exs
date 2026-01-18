@@ -7533,6 +7533,108 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     end
   end
 
+  describe "throw expression extraction" do
+    setup do
+      context = full_mode_context()
+      {:ok, context: context}
+    end
+
+    test "extracts throw with literal atom", %{context: context} do
+      ast = quote do
+        throw :error
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have ThrowExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.ThrowExpression
+             end)
+
+      # Should have a thrown value
+      value_iri = find_object(triples, expr_iri, Core.hasThrownValue())
+      assert value_iri != nil
+    end
+
+    test "extracts throw with variable", %{context: context} do
+      ast = quote do
+        throw result
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have ThrowExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.ThrowExpression
+             end)
+
+      # Should have a thrown value linked via hasThrownValue
+      value_iri = find_object(triples, expr_iri, Core.hasThrownValue())
+      assert value_iri != nil
+    end
+
+    test "extracts throw with function call", %{context: context} do
+      ast = quote do
+        throw compute_value()
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have ThrowExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.ThrowExpression
+             end)
+
+      # Should have a thrown value
+      value_iri = find_object(triples, expr_iri, Core.hasThrownValue())
+      assert value_iri != nil
+    end
+
+    test "extracts throw with tuple expression", %{context: context} do
+      ast = quote do
+        throw {:error, :some_reason}
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have ThrowExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.ThrowExpression
+             end)
+
+      # Should have a thrown value
+      value_iri = find_object(triples, expr_iri, Core.hasThrownValue())
+      assert value_iri != nil
+    end
+
+    test "captures thrown value expression", %{context: context} do
+      ast = quote do
+        throw 42
+      end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      # Should have ThrowExpression type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.ThrowExpression
+             end)
+
+      # Should have a thrown value
+      value_iri = find_object(triples, expr_iri, Core.hasThrownValue())
+      assert value_iri != nil
+
+      # The thrown value should be an IntegerLiteral
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == value_iri and p == RDF.type() and o == Core.IntegerLiteral
+             end)
+    end
+  end
+
   # ===========================================================================
   # Helper Functions
   # ===========================================================================

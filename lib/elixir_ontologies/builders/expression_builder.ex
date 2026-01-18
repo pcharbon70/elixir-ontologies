@@ -965,6 +965,31 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   defp normalize_keyword_value(_), do: ""
 
   # ===========================================================================
+  # Phase 30.7: Throw Expression
+  # ===========================================================================
+
+  # Builds RDF triples for a throw expression
+  # throw/1: throw value - throws any value to be caught by a catch clause
+  # Used for non-local returns, distinct from raise (exception handling)
+  @spec build_throw(any(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  defp build_throw(value_ast, expr_iri, context) do
+    # Create type triple for ThrowExpression
+    type_triple = Helpers.type_triple(expr_iri, Core.ThrowExpression)
+
+    # Create IRI for thrown value expression
+    value_iri = fresh_iri(expr_iri, "value")
+
+    # Recursively build the thrown value expression
+    value_triples = build_expression_triples(value_ast, value_iri, context)
+
+    # Link throw expression to its thrown value
+    has_thrown_value_triple = Helpers.object_property(expr_iri, Core.hasThrownValue(), value_iri)
+
+    # Combine all triples
+    List.wrap(type_triple) ++ value_triples ++ [has_thrown_value_triple]
+  end
+
+  # ===========================================================================
   # Expression Dispatch
   # ===========================================================================
 
@@ -1276,6 +1301,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # - [exception, [keyword: value]] - raises with keyword arguments
   def build_expression_triples({:raise, _meta, args}, expr_iri, context) do
     build_raise(args, expr_iri, context)
+  end
+
+  # Throw expressions: {:throw, _, [value]}
+  # Phase 30.7: Throw Expression Extraction
+  # Throws any value to be caught by a catch clause (non-local return)
+  # The args list contains exactly one element: the value being thrown
+  def build_expression_triples({:throw, _meta, [value_ast]}, expr_iri, context) do
+    build_throw(value_ast, expr_iri, context)
   end
 
   # Try expressions: {:try, _, [blocks]}
