@@ -14,9 +14,65 @@ Existing code ontologies (CodeOntology, SEON, GraphGen4Code) target object-orien
 
 This ontology fills that gap by modeling Elixir's unique semantics while aligning with established foundational ontologies (BFO, IAO) and provenance standards (PROV-O).
 
-## Ontology Modules
+## Features
 
-### ontology/elixir-core.ttl
+- **Parse Elixir source code** into RDF knowledge graphs
+- **Model functional programming constructs** (first-class functions, pattern matching, guards)
+- **Represent OTP runtime patterns** (GenServer, Supervisor, Agent, Task, ETS)
+- **Track code evolution** with git provenance and changesets
+- **Validate graphs** using SHACL constraints
+- **Export to multiple formats** (Turtle, N-Triples, JSON-LD)
+
+## Quick Start
+
+```bash
+# Add to your mix.exs
+def deps do
+  [
+    {:elixir_ontologies, "~> 1.0"}
+  ]
+end
+
+# Analyze your project
+mix elixir_ontologies.analyze --output my_project.ttl
+
+# Query the knowledge graph
+mix elixir_ontologies.kg load my_project.ttl
+mix elixir_ontologies.kg query "SELECT ?m WHERE { ?m a struct:Module }"
+```
+
+## Documentation
+
+### User Guides
+
+Comprehensive guides for using the Elixir Ontologies system:
+
+| Guide | Description |
+|-------|-------------|
+| [Getting Started](guides/users/getting-started.md) | Installation, usage, and configuration |
+| [Ontology Overview](guides/users/overview.md) | High-level ontology architecture |
+| [Core Ontology](guides/users/ontology/core.md) | AST primitives and foundational classes |
+| [Structure Ontology](guides/users/ontology/structure.md) | Modules, functions, protocols, structs |
+| [OTP Ontology](guides/users/ontology/otp.md) | GenServer, Supervisor, Agent, Task patterns |
+| [Evolution Ontology](guides/users/ontology/evolution.md) | Version tracking and provenance |
+| [Shapes Ontology](guides/users/ontology/shapes.md) | SHACL validation constraints |
+
+### Developer Guides
+
+For extending the system with new constructs:
+
+| Guide | Description |
+|-------|-------------|
+| [Architecture Overview](guides/developer/architecture.md) | System architecture and data flow |
+| [Getting Started](guides/developer/getting-started.md) | Adding new extractors, builders, and validation rules |
+| [Extractors Component](guides/developer/components/extractors.md) | Extractor patterns and implementation |
+| [Builders Component](guides/developer/components/builders.md) | Builder patterns and RDF generation |
+| [Validators Component](guides/developer/components/validators.md) | SHACL validation orchestration |
+| [SHACL Component](guides/developer/components/shacl.md) | SHACL model and serialization |
+
+## Ontology Components
+
+### elixir-core.ttl
 
 Language-agnostic foundation for representing source code. Provides:
 
@@ -29,7 +85,7 @@ Language-agnostic foundation for representing source code. Provides:
 
 Aligned with BFO (Basic Formal Ontology) - code elements are modeled as Generically Dependent Continuants.
 
-### ontology/elixir-structure.ttl
+### elixir-structure.ttl
 
 Elixir-specific code constructs. Imports `elixir-core`. Provides:
 
@@ -42,7 +98,7 @@ Elixir-specific code constructs. Imports `elixir-core`. Provides:
 - **Type system**: `@type`, `@spec`, `@callback` with full type expression modeling
 - **Module attributes**: documentation, deprecation, compile hooks
 
-### ontology/elixir-otp.ttl
+### elixir-otp.ttl
 
 OTP runtime patterns and BEAM VM abstractions. Imports `elixir-structure`. Provides:
 
@@ -55,7 +111,7 @@ OTP runtime patterns and BEAM VM abstractions. Imports `elixir-structure`. Provi
 - **Distribution**: `Node`, `Cluster`, remote calls
 - **Telemetry**: events, handlers, spans
 
-### ontology/elixir-evolution.ttl
+### elixir-evolution.ttl
 
 Temporal provenance layer for tracking code changes. Imports `elixir-structure` and PROV-O. Provides:
 
@@ -69,7 +125,7 @@ Temporal provenance layer for tracking code changes. Imports `elixir-structure` 
 
 Supports RDF-star for fine-grained statement-level provenance annotations.
 
-### ontology/elixir-shapes.ttl
+### elixir-shapes.ttl
 
 SHACL constraints for data validation. Provides closed-world validation complementing OWL's open-world semantics:
 
@@ -79,6 +135,65 @@ SHACL constraints for data validation. Provides closed-world validation compleme
 - **Value constraints**: arity 0-255, valid supervision strategies, valid restart policies
 - **Cross-entity consistency**: function arity matches parameter count, protocol implementations cover all functions
 
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Elixir Source                            │
+└─────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         Analysis Layer                           │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐                │
+│  │  Parser    │  │ AST Walker │  │ Matchers   │                │
+│  └────────────┘  └────────────┘  └────────────┘                │
+└─────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        Extraction Layer                          │
+│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌────────────┐     │
+│  │  Module   │ │ Function  │ │ Control   │ │    OTP     │     │
+│  │ Extractor │ │ Extractor │ │  Extract  │ │  Extractor │     │
+│  └───────────┘ └───────────┘ └───────────┘ └────────────┘     │
+└─────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         Building Layer                           │
+│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌────────────┐     │
+│  │  Module   │ │ Function  │ │ Expression│ │    Type    │     │
+│  │  Builder  │ │  Builder  │ │  Builder  │ │  System    │     │
+│  └───────────┘ └───────────┘ └───────────┘ └────────────┘     │
+└─────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        Validation Layer                          │
+│  ┌───────────┐ ┌──────────────────────────────────────────┐   │
+│  │   SHACL   │ │          Validation Report               │   │
+│  │ Validator │ └──────────────────────────────────────────┘   │
+│  └───────────┘                                                │
+└─────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                          RDF Knowledge Graph                     │
+│                 (Turtle / N-Triples / JSON-LD)                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Namespaces
+
+| Prefix | IRI | Ontology |
+|--------|-----|----------|
+| core | `https://w3id.org/elixir-code/core#` | [Core Ontology](priv/ontologies/elixir-core.ttl) |
+| struct | `https://w3id.org/elixir-code/structure#` | [Structure Ontology](priv/ontologies/elixir-structure.ttl) |
+| otp | `https://w3id.org/elixir-code/otp#` | [OTP Ontology](priv/ontologies/elixir-otp.ttl) |
+| evo | `https://w3id.org/elixir-code/evolution#` | [Evolution Ontology](priv/ontologies/elixir-evolution.ttl) |
+| shapes | `https://w3id.org/elixir-code/shapes#` | [Shapes Ontology](priv/ontologies/elixir-shapes.ttl) |
+
 ## Design Principles
 
 1. **Arity is identity**: `Enum.map/2` and `Enum.map/3` are distinct functions, not overloads
@@ -87,15 +202,36 @@ SHACL constraints for data validation. Provides closed-world validation compleme
 4. **Separation of concerns**: static structure vs runtime patterns vs temporal evolution
 5. **LLM-friendly**: Turtle serialization with human-readable labels and descriptive property names
 
-## Namespaces
+## Expression Modes
 
-| Prefix | IRI | Guide |
-|--------|-----|-------|
-| core | `https://w3id.org/elixir-code/core#` | [Core Guide](guides/core.md) |
-| struct | `https://w3id.org/elixir-code/structure#` | [Structure Guide](guides/structure.md) |
-| otp | `https://w3id.org/elixir-code/otp#` | [OTP Guide](guides/otp.md) |
-| evo | `https://w3id.org/elixir-code/evolution#` | [Evolution Guide](guides/evolution.md) |
-| shapes | `https://w3id.org/elixir-code/shapes#` | [Shapes Guide](guides/shapes.md) |
+### Light Mode (Default)
+
+Minimal storage (~500 KB per 100 functions). Only structural metadata:
+- Module declarations
+- Function signatures (name, arity, visibility)
+- Struct definitions
+- Protocol and behaviour declarations
+
+### Full Mode
+
+Complete AST representation (~5-20 MB per 100 functions):
+- Complete function body AST
+- Guard condition expressions
+- Control flow structures (if, case, cond, etc.)
+- All operators and literals
+- Pattern matching constructs
+
+```bash
+# Light mode (default)
+mix elixir_ontologies.analyze
+
+# Full mode
+mix elixir_ontologies.analyze --include-expressions
+```
+
+## Contributing
+
+See the [Developer Getting Started Guide](guides/developer/getting-started.md) for extending the system with new constructs.
 
 ## License
 
