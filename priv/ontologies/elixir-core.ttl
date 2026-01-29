@@ -317,6 +317,18 @@
     rdfs:comment "Throws a value to be caught by a catch clause."@en ;
     rdfs:subClassOf :ControlFlowExpression .
 
+:ExitExpression a owl:Class ;
+    rdfs:label "Exit Expression"@en ;
+    rdfs:comment """Exits the current process with a reason. The exit/1 builtin
+    causes the current process to terminate, optionally signaling other processes."""@en ;
+    rdfs:subClassOf :ControlFlowExpression .
+
+:hasExitReason a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has exit reason"@en ;
+    rdfs:comment "Links an exit expression to its reason value."@en ;
+    rdfs:domain :ExitExpression ;
+    rdfs:range :Expression .
+
 # Control flow expressions are disjoint - an expression cannot be multiple types
 :IfExpression owl:disjointWith :UnlessExpression,
     :CaseExpression,
@@ -324,34 +336,43 @@
     :WithExpression,
     :TryExpression,
     :RaiseExpression,
-    :ThrowExpression .
+    :ThrowExpression,
+    :ExitExpression .
 
 :UnlessExpression owl:disjointWith :CaseExpression,
     :CondExpression,
     :WithExpression,
     :TryExpression,
     :RaiseExpression,
-    :ThrowExpression .
+    :ThrowExpression,
+    :ExitExpression .
 
 :CaseExpression owl:disjointWith :CondExpression,
     :WithExpression,
     :TryExpression,
     :RaiseExpression,
-    :ThrowExpression .
+    :ThrowExpression,
+    :ExitExpression .
 
 :CondExpression owl:disjointWith :WithExpression,
     :TryExpression,
     :RaiseExpression,
-    :ThrowExpression .
+    :ThrowExpression,
+    :ExitExpression .
 
 :WithExpression owl:disjointWith :TryExpression,
     :RaiseExpression,
-    :ThrowExpression .
+    :ThrowExpression,
+    :ExitExpression .
 
 :TryExpression owl:disjointWith :RaiseExpression,
-    :ThrowExpression .
+    :ThrowExpression,
+    :ExitExpression .
 
-:RaiseExpression owl:disjointWith :ThrowExpression .
+:RaiseExpression owl:disjointWith :ThrowExpression,
+    :ExitExpression .
+
+:ThrowExpression owl:disjointWith :ExitExpression .
 
 :hasThrownValue a owl:ObjectProperty ;
     rdfs:label "has thrown value"@en ;
@@ -1152,6 +1173,9 @@
         :WithExpression
         :TryExpression
         :ReceiveExpression
+        :RaiseExpression
+        :ThrowExpression
+        :ExitExpression
     ) .
 
 # Disjoint classes for patterns
