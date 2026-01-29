@@ -49,7 +49,8 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
       :resume,
       :dry_run,
       :verbose,
-      :halt_on_warning
+      :halt_on_warning,
+      :include_expressions
     ]
 
     @type sort_order :: :popularity | :alphabetical
@@ -67,7 +68,8 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
             resume: boolean(),
             dry_run: boolean(),
             verbose: boolean(),
-            halt_on_warning: boolean()
+            halt_on_warning: boolean(),
+            include_expressions: boolean()
           }
 
     @doc """
@@ -83,12 +85,13 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
       * `:delay_ms` - Delay between packages in ms (default: 100)
       * `:api_delay_ms` - Delay between API calls in ms (default: 50)
       * `:timeout_minutes` - Per-package timeout (default: 5)
-      * `:base_iri_template` - IRI template with :name/:version placeholders (default: https://elixir-code.org/:name/:version/)
+      * `:base_iri_template` - IRI template with :name/:version placeholders (default: https://elixir-code.org/:name/:version#)
       * `:sort_by` - Sort order: :popularity or :alphabetical (default: :popularity)
       * `:resume` - Resume from progress file (default: true)
       * `:dry_run` - List packages only, don't analyze (default: false)
       * `:verbose` - Verbose output (default: false)
       * `:halt_on_warning` - Stop batch processing when any warning is logged (default: false)
+      * `:include_expressions` - Enable full expression AST extraction (default: false)
     """
     @spec new(keyword()) :: t()
     def new(opts \\ []) do
@@ -104,12 +107,13 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
         api_delay_ms: Keyword.get(opts, :api_delay_ms, 50),
         timeout_minutes: Keyword.get(opts, :timeout_minutes, 5),
         base_iri_template:
-          Keyword.get(opts, :base_iri_template, "https://elixir-code.org/:name/:version/"),
+          Keyword.get(opts, :base_iri_template, "https://elixir-code.org/:name/:version#"),
         sort_by: Keyword.get(opts, :sort_by, :popularity),
         resume: Keyword.get(opts, :resume, true),
         dry_run: Keyword.get(opts, :dry_run, false),
         verbose: Keyword.get(opts, :verbose, false),
-        halt_on_warning: Keyword.get(opts, :halt_on_warning, false)
+        halt_on_warning: Keyword.get(opts, :halt_on_warning, false),
+        include_expressions: Keyword.get(opts, :include_expressions, false)
       }
     end
 
@@ -471,7 +475,8 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
     analyze_config = %{
       base_iri_template: state.config.base_iri_template,
       timeout_minutes: state.config.timeout_minutes,
-      version: version
+      version: version,
+      include_expressions: state.config.include_expressions
     }
 
     case AnalyzerAdapter.analyze_package(source_path, name, analyze_config) do
