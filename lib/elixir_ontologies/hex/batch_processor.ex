@@ -28,6 +28,7 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
   alias ElixirOntologies.Hex.Progress.PackageResult
   alias ElixirOntologies.Hex.ProgressStore
   alias ElixirOntologies.Hex.RateLimiter
+  alias ElixirOntologies.Hex.WarningHandler
 
   defmodule Config do
     @moduledoc """
@@ -47,7 +48,8 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
       :sort_by,
       :resume,
       :dry_run,
-      :verbose
+      :verbose,
+      :halt_on_warning
     ]
 
     @type sort_order :: :popularity | :alphabetical
@@ -64,7 +66,8 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
             sort_by: sort_order(),
             resume: boolean(),
             dry_run: boolean(),
-            verbose: boolean()
+            verbose: boolean(),
+            halt_on_warning: boolean()
           }
 
     @doc """
@@ -85,6 +88,7 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
       * `:resume` - Resume from progress file (default: true)
       * `:dry_run` - List packages only, don't analyze (default: false)
       * `:verbose` - Verbose output (default: false)
+      * `:halt_on_warning` - Stop batch processing when any warning is logged (default: false)
     """
     @spec new(keyword()) :: t()
     def new(opts \\ []) do
@@ -104,7 +108,8 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
         sort_by: Keyword.get(opts, :sort_by, :popularity),
         resume: Keyword.get(opts, :resume, true),
         dry_run: Keyword.get(opts, :dry_run, false),
-        verbose: Keyword.get(opts, :verbose, false)
+        verbose: Keyword.get(opts, :verbose, false),
+        halt_on_warning: Keyword.get(opts, :halt_on_warning, false)
       }
     end
 
@@ -138,7 +143,8 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
       :rate_limiter,
       :processed_count,
       :started_at,
-      :interrupted
+      :interrupted,
+      :warning_handler_pid
     ]
 
     @type t :: %__MODULE__{
@@ -148,7 +154,8 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
             rate_limiter: RateLimiter.State.t(),
             processed_count: non_neg_integer(),
             started_at: DateTime.t(),
-            interrupted: boolean()
+            interrupted: boolean(),
+            warning_handler_pid: pid() | nil
           }
   end
 
@@ -188,7 +195,8 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
          rate_limiter: rate_limiter,
          processed_count: 0,
          started_at: DateTime.utc_now(),
-         interrupted: false
+         interrupted: false,
+         warning_handler_pid: nil
        }}
     end
   end
@@ -235,27 +243,35 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
   defp run_processing(%State{} = state) do
     setup_signal_handlers()
 
-    # Check for pending.json first - if it exists, use it instead of fetching from API
-    package_stream = get_package_stream_with_pending(state.http_client, state.config)
+    # Setup warning handler if halt_on_warning is enabled
+    warning_handler_pid = setup_warning_handler(state.config.halt_on_warning)
+    state = %{state | warning_handler_pid: warning_handler_pid}
 
-    state =
-      package_stream
-      |> skip_processed(state.progress)
-      |> maybe_limit(state.config.limit)
-      |> Enum.reduce_while(state, fn package, acc_state ->
-        if acc_state.interrupted do
-          {:halt, acc_state}
-        else
-          updated_state = process_one_package(package, acc_state)
-          {:cont, updated_state}
-        end
-      end)
+    try do
+      # Check for pending.json first - if it exists, use it instead of fetching from API
+      package_stream = get_package_stream_with_pending(state.http_client, state.config)
 
-    # Final save
-    :ok = ProgressStore.save(state.progress, state.config.progress_file)
+      state =
+        package_stream
+        |> skip_processed(state.progress)
+        |> maybe_limit(state.config.limit)
+        |> Enum.reduce_while(state, fn package, acc_state ->
+          if acc_state.interrupted do
+            {:halt, acc_state}
+          else
+            updated_state = process_one_package(package, acc_state)
+            {:cont, updated_state}
+          end
+        end)
 
-    summary = Progress.summary(state.progress)
-    {:ok, summary}
+      # Final save
+      :ok = ProgressStore.save(state.progress, state.config.progress_file)
+
+      summary = Progress.summary(state.progress)
+      {:ok, summary}
+    after
+      teardown_warning_handler(warning_handler_pid, state.config.halt_on_warning)
+    end
   end
 
   defp get_package_stream_with_pending(http_client, config) do
@@ -361,11 +377,19 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
     # Rate limiting
     state = %{state | rate_limiter: RateLimiter.acquire(state.rate_limiter)}
 
+    # Reset warning state before processing this package
+    if state.config.halt_on_warning do
+      WarningHandler.reset(state.warning_handler_pid)
+    end
+
     # Process the package
     {result, state} = do_process_package(package, state)
 
     duration_ms = System.monotonic_time(:millisecond) - start_time
     result = %{result | duration_ms: duration_ms}
+
+    # Check if warnings were detected during package processing
+    {result, state} = check_for_warnings(result, state, package)
 
     # Update progress
     progress = Progress.add_result(state.progress, result)
@@ -486,5 +510,47 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
     Logger.info("Interrupted - saving progress...")
     :ok = ProgressStore.save(state.progress, state.config.progress_file)
     %{state | interrupted: true}
+  end
+
+  defp setup_warning_handler(false), do: nil
+
+  defp setup_warning_handler(true) do
+    {:ok, pid} = WarningHandler.start_link()
+    :ok = WarningHandler.install_logger_handler(pid)
+    pid
+  end
+
+  defp teardown_warning_handler(nil, _halt_on_warning), do: :ok
+
+  defp teardown_warning_handler(pid, true) do
+    WarningHandler.remove_logger_handler()
+    WarningHandler.stop(pid)
+    :ok
+  end
+
+  defp check_for_warnings(result, state, package) do
+    if state.config.halt_on_warning and
+         WarningHandler.warning_detected?(state.warning_handler_pid) do
+      # Warnings detected - mark package as failed and halt batch
+      version = Api.latest_stable_version(package)
+
+      failure =
+        FailureTracker.record_failure(
+          package.name,
+          version,
+          :warning_detected,
+          nil
+        )
+
+      if state.config.verbose do
+        Logger.warning("Warnings detected for #{package.name} - halting batch processing")
+      end
+
+      # Mark batch as interrupted to halt processing
+      {failure, %{state | interrupted: true}}
+    else
+      # No warnings, return original result
+      {result, state}
+    end
   end
 end
