@@ -317,6 +317,13 @@ defmodule ElixirOntologies.Extractors.Parameter do
     extract_pattern(node, pattern_type, opts)
   end
 
+  # Function call pattern: foo(arg1, arg2), StructType{field: value}
+  # Matches {name, _meta, args} where args is a list (not an atom context)
+  def extract({name, _meta, args} = node, opts)
+      when is_atom(name) and is_list(args) do
+    extract_pattern(node, :call_pattern, opts)
+  end
+
   # Simple variable: x, name, etc.
   def extract({name, meta, context} = node, opts)
       when is_atom(name) and is_atom(context) do
