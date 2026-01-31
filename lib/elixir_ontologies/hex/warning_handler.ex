@@ -45,7 +45,10 @@ defmodule ElixirOntologies.Hex.WarningHandler do
   """
   @spec install_logger_handler(pid() | atom()) :: {:ok, term()} | {:error, term()}
   def install_logger_handler(pid \\ __MODULE__) do
-    :logger.add_handler(__MODULE__, {__MODULE__, :handler}, %{
+    # Use a fixed handler name - we only run one WarningHandler at a time
+    handler_id = :elixir_ontologies_warning_handler
+
+    :logger.add_handler(handler_id, __MODULE__, %{
       formatter: {__MODULE__, :format},
       handler: pid
     })
@@ -56,7 +59,7 @@ defmodule ElixirOntologies.Hex.WarningHandler do
   """
   @spec remove_logger_handler() :: :ok
   def remove_logger_handler do
-    :logger.remove_handler(__MODULE__)
+    :logger.remove_handler(:elixir_ontologies_warning_handler)
   end
 
   # GenServer callbacks
@@ -88,14 +91,14 @@ defmodule ElixirOntologies.Hex.WarningHandler do
     :none
   end
 
-  def handle(%{level: :warning} = event, %{handler: handler_pid}) do
+  def log(%{level: :warning} = event, %{handler: handler_pid}) do
     # Forward warning to our GenServer
     send(handler_pid, {:warning, event})
     # Return original event so default formatter still prints it
     event
   end
 
-  def handle(event, _config) do
+  def log(event, _config) do
     # Pass through all other log levels
     event
   end

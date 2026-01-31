@@ -314,7 +314,14 @@ defmodule ElixirOntologies.Extractors.CaseWith do
   def extract_case(ast, opts \\ [])
 
   def extract_case({:case, _meta, [subject, body_opts]} = ast, opts) do
-    do_clauses = Keyword.get(body_opts, :do, [])
+    do_clauses =
+      if is_list(body_opts) and Keyword.keyword?(body_opts) do
+        Keyword.get(body_opts, :do, [])
+      else
+        # body_opts is a direct expression (unlikely for case, but handle gracefully)
+        []
+      end
+
     location = Helpers.extract_location_if(ast, opts)
 
     clauses = build_case_clauses(do_clauses, opts)
@@ -397,10 +404,16 @@ defmodule ElixirOntologies.Extractors.CaseWith do
 
   def extract_with({:with, _meta, [_ | _] = args} = ast, opts) do
     # Last element contains [do: body] or [do: body, else: else_clauses]
+    # or it may be a direct expression (not a keyword list)
     {clause_args, [body_opts]} = Enum.split(args, -1)
 
-    body = Keyword.get(body_opts, :do)
-    else_clauses_ast = Keyword.get(body_opts, :else, [])
+    {body, else_clauses_ast} =
+      if is_list(body_opts) and Keyword.keyword?(body_opts) do
+        {Keyword.get(body_opts, :do), Keyword.get(body_opts, :else, [])}
+      else
+        # body_opts is a direct expression, not a keyword list
+        {body_opts, []}
+      end
 
     location = Helpers.extract_location_if(ast, opts)
 
@@ -544,8 +557,15 @@ defmodule ElixirOntologies.Extractors.CaseWith do
   def extract_receive(ast, opts \\ [])
 
   def extract_receive({:receive, _meta, [body_opts]} = ast, opts) do
-    do_clauses = get_receive_clauses(Keyword.get(body_opts, :do, []))
-    after_clauses = Keyword.get(body_opts, :after, [])
+    {do_clauses, after_clauses} =
+      if is_list(body_opts) and Keyword.keyword?(body_opts) do
+        {get_receive_clauses(Keyword.get(body_opts, :do, [])),
+         Keyword.get(body_opts, :after, [])}
+      else
+        # body_opts is a direct expression, not a keyword list
+        {[], []}
+      end
+
     location = Helpers.extract_location_if(ast, opts)
 
     clauses = build_case_clauses(do_clauses, opts)
@@ -774,7 +794,14 @@ defmodule ElixirOntologies.Extractors.CaseWith do
       end
 
     # Also search in clause bodies
-    do_clauses = Keyword.get(body_opts, :do, [])
+    do_clauses =
+      if is_list(body_opts) and Keyword.keyword?(body_opts) do
+        Keyword.get(body_opts, :do, [])
+      else
+        # body_opts is a direct expression (unlikely for case, but handle gracefully)
+        []
+      end
+
     nested = extract_from_case_clauses(do_clauses, type, opts, depth + 1, max)
 
     result ++ nested
@@ -794,8 +821,14 @@ defmodule ElixirOntologies.Extractors.CaseWith do
 
     # Also search in body and else clauses
     {_clause_args, [body_opts]} = Enum.split(args, -1)
-    body = Keyword.get(body_opts, :do)
-    else_clauses = Keyword.get(body_opts, :else, [])
+
+    {body, else_clauses} =
+      if is_list(body_opts) and Keyword.keyword?(body_opts) do
+        {Keyword.get(body_opts, :do), Keyword.get(body_opts, :else, [])}
+      else
+        # body_opts is a direct expression, not a keyword list
+        {body_opts, []}
+      end
 
     nested_body = extract_expressions_recursive(body, type, opts, depth + 1, max)
     nested_else = extract_from_case_clauses(else_clauses, type, opts, depth + 1, max)
@@ -816,8 +849,14 @@ defmodule ElixirOntologies.Extractors.CaseWith do
       end
 
     # Also search in clause bodies
-    do_clauses = get_receive_clauses(Keyword.get(body_opts, :do, []))
-    after_clauses = Keyword.get(body_opts, :after, [])
+    {do_clauses, after_clauses} =
+      if is_list(body_opts) and Keyword.keyword?(body_opts) do
+        {get_receive_clauses(Keyword.get(body_opts, :do, [])),
+         Keyword.get(body_opts, :after, [])}
+      else
+        # body_opts is a direct expression, not a keyword list
+        {[], []}
+      end
 
     nested_do = extract_from_case_clauses(do_clauses, type, opts, depth + 1, max)
     nested_after = extract_from_case_clauses(after_clauses, type, opts, depth + 1, max)
