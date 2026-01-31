@@ -324,6 +324,14 @@ defmodule ElixirOntologies.Extractors.Parameter do
     extract_pattern(node, :call_pattern, opts)
   end
 
+  # Macro-generated call pattern: unquote(...)(args), macro_call(args)
+  # Matches {name, _meta, args} where name is not an atom but args is a list
+  # This handles patterns like {{:unquote, ...}, meta, [arg1, arg2]}
+  def extract({name, _meta, args} = node, opts)
+      when not is_atom(name) and is_list(args) do
+    extract_pattern(node, :macro_call_pattern, opts)
+  end
+
   # Simple variable: x, name, etc.
   def extract({name, meta, context} = node, opts)
       when is_atom(name) and is_atom(context) do
