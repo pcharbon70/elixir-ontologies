@@ -443,9 +443,11 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
           FailureTracker.record_failure(package.name, version, reason, nil)
 
         if state.config.verbose do
-          # Use info level for non-elixir packages (Erlang-only) to avoid triggering halt-on-warning
-          if reason == :no_elixir_source or reason == {:error, :no_elixir_source} do
-            Logger.info("Skipped: #{package.name} - Erlang-only package (no Elixir source)")
+          # Use info level for non-elixir packages and unrecognized project structures
+          # to avoid triggering halt-on-warning
+          if reason == :no_elixir_source or reason == {:error, :no_elixir_source} or
+             reason == :no_app_name or reason == {:error, :no_app_name} do
+            Logger.info("Skipped: #{package.name} - unrecognized project structure (#{inspect(reason)})")
           else
             Logger.warning("Failed: #{package.name} - #{inspect(reason)}")
           end
