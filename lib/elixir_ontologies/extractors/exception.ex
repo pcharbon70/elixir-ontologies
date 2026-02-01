@@ -385,6 +385,13 @@ defmodule ElixirOntologies.Extractors.Exception do
   """
   @spec extract_rescue_clauses([Macro.t()], keyword()) :: [RescueClause.t()]
   def extract_rescue_clauses(clauses, opts \\ [])
+
+  # Handle macro-generated unquote expressions in rescue clauses
+  def extract_rescue_clauses({:unquote, _, _}, _opts) do
+    # Return empty list for unquoted rescue blocks - we can't statically analyze them
+    []
+  end
+
   def extract_rescue_clauses(nil, _opts), do: []
   def extract_rescue_clauses([], _opts), do: []
 
@@ -447,6 +454,10 @@ defmodule ElixirOntologies.Extractors.Exception do
   """
   @spec extract_catch_clauses([Macro.t()], keyword()) :: [CatchClause.t()]
   def extract_catch_clauses(clauses, opts \\ [])
+
+  # Handle macro-generated unquote expressions in catch clauses
+  def extract_catch_clauses({:unquote, _, _}, _opts), do: []
+
   def extract_catch_clauses(nil, _opts), do: []
   def extract_catch_clauses([], _opts), do: []
 
@@ -503,6 +514,10 @@ defmodule ElixirOntologies.Extractors.Exception do
   """
   @spec extract_else_clauses([Macro.t()], keyword()) :: [ElseClause.t()]
   def extract_else_clauses(clauses, opts \\ [])
+
+  # Handle macro-generated unquote expressions in else clauses
+  def extract_else_clauses({:unquote, _, _}, _opts), do: []
+
   def extract_else_clauses(nil, _opts), do: []
   def extract_else_clauses([], _opts), do: []
 
