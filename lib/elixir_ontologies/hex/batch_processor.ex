@@ -443,7 +443,12 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
           FailureTracker.record_failure(package.name, version, reason, nil)
 
         if state.config.verbose do
-          Logger.warning("Failed: #{package.name} - #{inspect(reason)}")
+          # Use info level for non-elixir packages (Erlang-only) to avoid triggering halt-on-warning
+          if reason == :no_elixir_source or reason == {:error, :no_elixir_source} do
+            Logger.info("Skipped: #{package.name} - Erlang-only package (no Elixir source)")
+          else
+            Logger.warning("Failed: #{package.name} - #{inspect(reason)}")
+          end
         end
 
         {failure, state}
