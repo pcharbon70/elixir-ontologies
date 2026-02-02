@@ -449,6 +449,8 @@ defmodule ElixirOntologies.Hex.BatchProcessor do
               reason == {:error, :no_elixir_source} or
               reason == :no_app_name or
               reason == {:error, :no_app_name} or
+              reason == :not_found or
+              reason == {:error, :not_found} or
               match?({:unsafe_symlink, _}, reason)
 
           if skip_reason? do
