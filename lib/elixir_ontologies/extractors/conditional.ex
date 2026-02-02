@@ -518,6 +518,7 @@ defmodule ElixirOntologies.Extractors.Conditional do
     end
   end
 
+  defp build_cond_clauses({:unquote, _, _}, _opts), do: []
   defp build_cond_clauses(clauses, opts) when is_list(clauses) do
     clauses
     |> Enum.with_index()
@@ -525,6 +526,9 @@ defmodule ElixirOntologies.Extractors.Conditional do
       build_cond_clause(clause_ast, index, opts)
     end)
   end
+
+  # Handle variable references and other AST nodes
+  defp build_cond_clauses(_other, _opts), do: []
 
   defp build_cond_clause({:->, _meta, [[condition], body]} = ast, index, opts) do
     location = Helpers.extract_location_if(ast, opts)
@@ -668,6 +672,7 @@ defmodule ElixirOntologies.Extractors.Conditional do
   defp extract_from_branches(_, _opts, _depth, _max_depth), do: []
 
   # Extract conditionals from cond clause bodies
+  defp extract_from_cond_clauses({:unquote, _, _}, _opts, _depth, _max_depth), do: []
   defp extract_from_cond_clauses(clauses, opts, depth, max_depth) when is_list(clauses) do
     Enum.flat_map(clauses, fn
       {:->, _, [[_condition], body]} ->
@@ -677,4 +682,7 @@ defmodule ElixirOntologies.Extractors.Conditional do
         []
     end)
   end
+
+  # Handle variable references and other AST nodes
+  defp extract_from_cond_clauses(_other, _opts, _depth, _max_depth), do: []
 end
