@@ -399,6 +399,10 @@ defmodule ElixirOntologies.Extractors.Exception do
     Enum.map(clauses, &extract_single_rescue_clause(&1, opts))
   end
 
+  # Handle variable references and other AST nodes in rescue clauses
+  # (e.g., {:exception_clauses, _, nil} from macro-generated code)
+  def extract_rescue_clauses(_other, _opts), do: []
+
   defp extract_single_rescue_clause({:->, _meta, [[pattern], body]} = node, opts) do
     {exceptions, variable, is_catch_all} = parse_rescue_pattern(pattern)
 
@@ -465,6 +469,9 @@ defmodule ElixirOntologies.Extractors.Exception do
     Enum.map(clauses, &extract_single_catch_clause(&1, opts))
   end
 
+  # Handle variable references and other AST nodes
+  def extract_catch_clauses(_other, _opts), do: []
+
   defp extract_single_catch_clause({:->, _meta, [[kind, pattern], body]} = node, opts)
        when kind in [:throw, :exit, :error] do
     %CatchClause{
@@ -524,6 +531,9 @@ defmodule ElixirOntologies.Extractors.Exception do
   def extract_else_clauses(clauses, opts) when is_list(clauses) do
     Enum.map(clauses, &extract_single_else_clause(&1, opts))
   end
+
+  # Handle variable references and other AST nodes
+  def extract_else_clauses(_other, _opts), do: []
 
   defp extract_single_else_clause(
          {:->, _meta, [[{:when, _, [pattern, guard]}], body]} = node,
