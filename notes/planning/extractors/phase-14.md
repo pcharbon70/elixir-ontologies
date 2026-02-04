@@ -203,14 +203,16 @@ Note: The ontology does not define `variableName` or `hasConstraint` properties.
 - [x] 14.3.4.6 Add type variable builder tests (5 tests: simple, different name, in union, in function, multiple vars)
 
 **Section 14.3 Unit Tests:**
-- [ ] Test union type RDF generation
-- [ ] Test parameterized type RDF generation
-- [ ] Test remote type RDF generation
-- [ ] Test type variable RDF generation
-- [ ] Test constraint RDF generation
-- [ ] Test complex nested type RDF generation
-- [ ] Test type IRI uniqueness and stability
-- [ ] Test integration with function spec builder
+- [x] Test union type RDF generation
+- [x] Test parameterized type RDF generation
+- [x] Test remote type RDF generation
+- [x] Test type variable RDF generation
+- [x] Test constraint RDF generation (N/A - function not implemented, documented in test file)
+- [x] Test complex nested type RDF generation
+- [x] Test type IRI uniqueness and stability (added 4 new tests)
+- [x] Test integration with function spec builder (added 4 new tests)
+
+**Note:** Section 14.3 unit tests are now complete. The test file has 65 total tests (5 doctests + 60 unit tests). Most tests already existed; 8 new tests were added for IRI stability (4) and spec builder integration (4). Constraint RDF generation is marked N/A since `build_type_constraints_triples/3` returns [] as a documented future enhancement.
 
 ## 14.4 Typespec Completeness
 
