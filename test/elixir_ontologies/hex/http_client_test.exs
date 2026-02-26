@@ -216,10 +216,68 @@ defmodule ElixirOntologies.Hex.HttpClientTest do
         Plug.Conn.resp(conn, 429, "Rate Limited")
       end)
 
-      client = HttpClient.new()
+      client = HttpClient.new(retries: 0)
       result = HttpClient.get(client, "#{base_url}/limited")
 
       assert result == {:error, :rate_limited}
+    end
+
+    test "retries 429 using retry-after header when present", %{
+      bypass: bypass,
+      base_url: base_url
+    } do
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      Bypass.expect(bypass, "GET", "/retry-after", fn conn ->
+        attempt = Agent.get_and_update(counter, &{&1 + 1, &1 + 1})
+
+        if attempt == 1 do
+          conn
+          |> Plug.Conn.put_resp_header("retry-after", "0")
+          |> Plug.Conn.resp(429, "Rate Limited")
+        else
+          Plug.Conn.resp(conn, 200, "OK")
+        end
+      end)
+
+      client = HttpClient.new(retries: 1, retry_base_delay_ms: 100, retry_jitter_ms: 0)
+      {:ok, response} = HttpClient.get(client, "#{base_url}/retry-after")
+
+      assert response.status == 200
+      assert Agent.get(counter, & &1) == 2
+    end
+
+    test "retries 429 with incremental backoff when retry-after is missing", %{
+      bypass: bypass,
+      base_url: base_url
+    } do
+      {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+      Bypass.expect(bypass, "GET", "/incremental-backoff", fn conn ->
+        attempt = Agent.get_and_update(counter, &{&1 + 1, &1 + 1})
+
+        if attempt == 1 do
+          Plug.Conn.resp(conn, 429, "Rate Limited")
+        else
+          Plug.Conn.resp(conn, 200, "OK")
+        end
+      end)
+
+      client =
+        HttpClient.new(
+          retries: 1,
+          retry_base_delay_ms: 120,
+          retry_max_delay_ms: 120,
+          retry_jitter_ms: 0
+        )
+
+      started_at = System.monotonic_time(:millisecond)
+      {:ok, response} = HttpClient.get(client, "#{base_url}/incremental-backoff")
+      elapsed_ms = System.monotonic_time(:millisecond) - started_at
+
+      assert response.status == 200
+      assert Agent.get(counter, & &1) == 2
+      assert elapsed_ms >= 100
     end
 
     test "returns {:error, {:http_error, status}} for other errors", %{

@@ -138,17 +138,17 @@ defmodule ElixirOntologies.Hex.Api do
     start_page = Keyword.get(opts, :start_page, 1)
 
     Stream.resource(
-      fn -> {client, start_page, delay_ms, :continue} end,
+      fn -> {client, start_page, delay_ms, :continue, 0} end,
       &do_stream_page/1,
       fn _ -> :ok end
     )
   end
 
-  defp do_stream_page({_client, _page, _delay_ms, :halt}) do
+  defp do_stream_page({_client, _page, _delay_ms, :halt, _rate_limit_retries}) do
     {:halt, nil}
   end
 
-  defp do_stream_page({client, page, delay_ms, :continue}) do
+  defp do_stream_page({client, page, delay_ms, :continue, rate_limit_retries}) do
     # Apply delay between pages (except for first page)
     if page > 1, do: Process.sleep(delay_ms)
 
@@ -162,12 +162,13 @@ defmodule ElixirOntologies.Hex.Api do
         additional_delay = HttpClient.rate_limit_delay(rate_limit)
         if additional_delay > 0, do: Process.sleep(additional_delay)
 
-        {packages, {client, page + 1, delay_ms, :continue}}
+        {packages, {client, page + 1, delay_ms, :continue, 0}}
 
       {:error, :rate_limited} ->
-        # Wait and retry the same page
-        Process.sleep(delay_ms * 10)
-        do_stream_page({client, page, delay_ms, :continue})
+        # Incremental backoff and retry the same page
+        next_retry = rate_limit_retries + 1
+        Process.sleep(incremental_rate_limit_backoff(delay_ms, next_retry))
+        do_stream_page({client, page, delay_ms, :continue, next_retry})
 
       {:error, reason} ->
         # Log error and halt the stream
@@ -410,6 +411,10 @@ defmodule ElixirOntologies.Hex.Api do
   end
 
   defp fetch_all_packages(client, delay_ms, on_page, sort, page \\ 1, acc \\ []) do
+    fetch_all_packages(client, delay_ms, on_page, sort, page, acc, 0)
+  end
+
+  defp fetch_all_packages(client, delay_ms, on_page, sort, page, acc, rate_limit_retries) do
     on_page.(page)
 
     if page > 1, do: Process.sleep(delay_ms)
@@ -430,19 +435,29 @@ defmodule ElixirOntologies.Hex.Api do
           on_page,
           sort,
           page + 1,
-          Enum.reverse(packages) ++ acc
+          Enum.reverse(packages) ++ acc,
+          0
         )
 
       {:error, :rate_limited} ->
-        # Wait and retry the same page
-        Process.sleep(delay_ms * 10)
-        fetch_all_packages(client, delay_ms, on_page, sort, page, acc)
+        # Incremental backoff and retry the same page
+        next_retry = rate_limit_retries + 1
+        Process.sleep(incremental_rate_limit_backoff(delay_ms, next_retry))
+        fetch_all_packages(client, delay_ms, on_page, sort, page, acc, next_retry)
 
       {:error, reason} ->
         require Logger
         Logger.error("Failed to fetch page #{page}: #{inspect(reason)}")
         Enum.reverse(acc)
     end
+  end
+
+  defp incremental_rate_limit_backoff(delay_ms, retry_count) do
+    base_delay_ms = max(delay_ms, 100)
+    retry_count = max(retry_count, 1)
+    max_backoff_ms = 30_000
+
+    min(base_delay_ms * retry_count, max_backoff_ms)
   end
 
   @doc """

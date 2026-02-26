@@ -366,7 +366,14 @@ defmodule ElixirOntologies.Hex.Filter do
   end
 
   # Check if package is Elixir with retry on rate limit
-  defp check_elixir_with_retry(http_client, name, version, delay_ms, retries \\ 3) do
+  defp check_elixir_with_retry(
+         http_client,
+         name,
+         version,
+         delay_ms,
+         retries \\ 3,
+         retry_count \\ 1
+       ) do
     alias ElixirOntologies.Hex.Api
 
     case Api.get_release_meta(http_client, name, version) do
@@ -376,11 +383,20 @@ defmodule ElixirOntologies.Hex.Filter do
         "mix" in build_tools or not is_nil(elixir_version)
 
       {:error, :rate_limited} when retries > 0 ->
-        # Back off and retry
+        # Incremental backoff and retry
+        backoff_ms = incremental_rate_limit_backoff(delay_ms, retry_count)
         require Logger
-        Logger.warning("Rate limited, backing off for #{delay_ms * 5}ms...")
-        Process.sleep(delay_ms * 5)
-        check_elixir_with_retry(http_client, name, version, delay_ms, retries - 1)
+        Logger.warning("Rate limited, backing off for #{backoff_ms}ms...")
+        Process.sleep(backoff_ms)
+
+        check_elixir_with_retry(
+          http_client,
+          name,
+          version,
+          delay_ms,
+          retries - 1,
+          retry_count + 1
+        )
 
       {:error, :rate_limited} ->
         # Exhausted retries, assume Elixir (fail open)
@@ -392,6 +408,14 @@ defmodule ElixirOntologies.Hex.Filter do
         # On other errors, assume it might be Elixir (fail open)
         true
     end
+  end
+
+  defp incremental_rate_limit_backoff(delay_ms, retry_count) do
+    base_delay_ms = max(delay_ms, 100)
+    retry_count = max(retry_count, 1)
+    max_backoff_ms = 30_000
+
+    min(base_delay_ms * retry_count, max_backoff_ms)
   end
 
   @doc """

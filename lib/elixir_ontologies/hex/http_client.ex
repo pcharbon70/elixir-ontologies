@@ -4,7 +4,7 @@ defmodule ElixirOntologies.Hex.HttpClient do
 
   Provides a thin wrapper around Req with project-specific defaults including:
   - Consistent User-Agent identification
-  - Automatic retry with exponential backoff
+  - Automatic retry with Retry-After support and incremental backoff fallback
   - Configurable timeouts
   - Rate limit header tracking
   - Streaming downloads for large files
@@ -21,6 +21,10 @@ defmodule ElixirOntologies.Hex.HttpClient do
   @user_agent "ElixirOntologies/#{Mix.Project.config()[:version]} (Elixir/#{System.version()})"
   @default_timeout 30_000
   @default_retries 3
+  @default_retry_base_delay_ms 1_000
+  @default_retry_max_delay_ms 30_000
+  @default_retry_jitter_ms 500
+  @retryable_statuses [408, 429, 500, 502, 503, 504]
 
   @rate_limit_headers ["x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset"]
 
@@ -42,6 +46,9 @@ defmodule ElixirOntologies.Hex.HttpClient do
 
     * `:timeout` - Request timeout in milliseconds (default: #{@default_timeout})
     * `:retries` - Maximum retry attempts (default: #{@default_retries})
+    * `:retry_base_delay_ms` - Base delay for incremental backoff (default: #{@default_retry_base_delay_ms})
+    * `:retry_max_delay_ms` - Maximum retry delay cap (default: #{@default_retry_max_delay_ms})
+    * `:retry_jitter_ms` - Random jitter added to retry delay (default: #{@default_retry_jitter_ms})
 
   ## Examples
 
@@ -53,12 +60,37 @@ defmodule ElixirOntologies.Hex.HttpClient do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
     retries = Keyword.get(opts, :retries, @default_retries)
 
+    retry_base_delay_ms =
+      normalize_non_negative_int(
+        Keyword.get(opts, :retry_base_delay_ms, @default_retry_base_delay_ms),
+        @default_retry_base_delay_ms
+      )
+
+    retry_max_delay_ms =
+      normalize_non_negative_int(
+        Keyword.get(opts, :retry_max_delay_ms, @default_retry_max_delay_ms),
+        @default_retry_max_delay_ms
+      )
+      |> max(retry_base_delay_ms)
+
+    retry_jitter_ms =
+      normalize_non_negative_int(
+        Keyword.get(opts, :retry_jitter_ms, @default_retry_jitter_ms),
+        @default_retry_jitter_ms
+      )
+
     Req.new(
       headers: [{"user-agent", @user_agent}],
       receive_timeout: timeout,
-      retry: :safe_transient,
-      max_retries: retries,
-      retry_delay: &exponential_backoff/1
+      retry:
+        &retry_with_backoff(
+          &1,
+          &2,
+          retry_base_delay_ms,
+          retry_max_delay_ms,
+          retry_jitter_ms
+        ),
+      max_retries: retries
     )
   end
 
@@ -257,10 +289,68 @@ defmodule ElixirOntologies.Hex.HttpClient do
   @spec user_agent() :: String.t()
   def user_agent, do: @user_agent
 
-  # Exponential backoff with jitter: 1s, 2s, 4s base + random jitter
-  defp exponential_backoff(attempt) do
-    base = :math.pow(2, attempt - 1) * 1000
-    jitter = :rand.uniform(500)
-    trunc(base + jitter)
+  # Req supports custom retry callbacks. We return {:delay, ms} so we can
+  # use Retry-After when available and otherwise apply incremental backoff.
+  defp retry_with_backoff(request, response_or_exception, base_delay_ms, max_delay_ms, jitter_ms) do
+    if should_retry?(request, response_or_exception) do
+      {:delay,
+       retry_delay_ms(request, response_or_exception, base_delay_ms, max_delay_ms, jitter_ms)}
+    else
+      false
+    end
+  end
+
+  defp should_retry?(%Req.Request{method: method}, response_or_exception)
+       when method in [:get, :head] do
+    transient?(response_or_exception)
+  end
+
+  defp should_retry?(_request, _response_or_exception), do: false
+
+  defp transient?(%Req.Response{status: status}) when status in @retryable_statuses, do: true
+  defp transient?(%Req.Response{}), do: false
+
+  defp transient?(%Req.TransportError{reason: reason})
+       when reason in [:timeout, :econnrefused, :closed],
+       do: true
+
+  defp transient?(%Req.HTTPError{protocol: :http2, reason: :unprocessed}), do: true
+  defp transient?(%{__exception__: true}), do: false
+  defp transient?(_), do: false
+
+  defp retry_delay_ms(request, %Req.Response{status: status} = response, base, max, jitter)
+       when status in [429, 503] do
+    case Req.Response.get_retry_after(response) do
+      delay when is_integer(delay) and delay >= 0 ->
+        delay
+
+      _ ->
+        incremental_backoff_ms(request, base, max, jitter)
+    end
+  end
+
+  defp retry_delay_ms(request, _response_or_exception, base, max, jitter) do
+    incremental_backoff_ms(request, base, max, jitter)
+  end
+
+  # Incremental backoff: base, 2*base, 3*base, ... capped at max.
+  defp incremental_backoff_ms(request, base_delay_ms, max_delay_ms, jitter_ms) do
+    attempt = Req.Request.get_private(request, :req_retry_count, 0) + 1
+    delay = min(attempt * base_delay_ms, max_delay_ms)
+
+    if jitter_ms > 0 do
+      jitter = :rand.uniform(jitter_ms) - 1
+      min(delay + jitter, max_delay_ms)
+    else
+      delay
+    end
+  end
+
+  defp normalize_non_negative_int(value, _default) when is_integer(value) and value >= 0 do
+    value
+  end
+
+  defp normalize_non_negative_int(_value, default) do
+    default
   end
 end
