@@ -385,12 +385,23 @@ defmodule ElixirOntologies.Extractors.Exception do
   """
   @spec extract_rescue_clauses([Macro.t()], keyword()) :: [RescueClause.t()]
   def extract_rescue_clauses(clauses, opts \\ [])
+
+  # Handle macro-generated unquote expressions in rescue clauses
+  def extract_rescue_clauses({:unquote, _, _}, _opts) do
+    # Return empty list for unquoted rescue blocks - we can't statically analyze them
+    []
+  end
+
   def extract_rescue_clauses(nil, _opts), do: []
   def extract_rescue_clauses([], _opts), do: []
 
   def extract_rescue_clauses(clauses, opts) when is_list(clauses) do
     Enum.map(clauses, &extract_single_rescue_clause(&1, opts))
   end
+
+  # Handle variable references and other AST nodes in rescue clauses
+  # (e.g., {:exception_clauses, _, nil} from macro-generated code)
+  def extract_rescue_clauses(_other, _opts), do: []
 
   defp extract_single_rescue_clause({:->, _meta, [[pattern], body]} = node, opts) do
     {exceptions, variable, is_catch_all} = parse_rescue_pattern(pattern)
@@ -447,12 +458,19 @@ defmodule ElixirOntologies.Extractors.Exception do
   """
   @spec extract_catch_clauses([Macro.t()], keyword()) :: [CatchClause.t()]
   def extract_catch_clauses(clauses, opts \\ [])
+
+  # Handle macro-generated unquote expressions in catch clauses
+  def extract_catch_clauses({:unquote, _, _}, _opts), do: []
+
   def extract_catch_clauses(nil, _opts), do: []
   def extract_catch_clauses([], _opts), do: []
 
   def extract_catch_clauses(clauses, opts) when is_list(clauses) do
     Enum.map(clauses, &extract_single_catch_clause(&1, opts))
   end
+
+  # Handle variable references and other AST nodes
+  def extract_catch_clauses(_other, _opts), do: []
 
   defp extract_single_catch_clause({:->, _meta, [[kind, pattern], body]} = node, opts)
        when kind in [:throw, :exit, :error] do
@@ -476,7 +494,10 @@ defmodule ElixirOntologies.Extractors.Exception do
 
   # Handle catch with two patterns where kind is a variable or complex pattern
   # e.g., `kind, value -> ...` where kind is a variable binding
-  defp extract_single_catch_clause({:->, _meta, [[kind_pattern, value_pattern], body]} = node, opts) do
+  defp extract_single_catch_clause(
+         {:->, _meta, [[kind_pattern, value_pattern], body]} = node,
+         opts
+       ) do
     %CatchClause{
       kind: :any,
       pattern: {kind_pattern, value_pattern},
@@ -500,12 +521,19 @@ defmodule ElixirOntologies.Extractors.Exception do
   """
   @spec extract_else_clauses([Macro.t()], keyword()) :: [ElseClause.t()]
   def extract_else_clauses(clauses, opts \\ [])
+
+  # Handle macro-generated unquote expressions in else clauses
+  def extract_else_clauses({:unquote, _, _}, _opts), do: []
+
   def extract_else_clauses(nil, _opts), do: []
   def extract_else_clauses([], _opts), do: []
 
   def extract_else_clauses(clauses, opts) when is_list(clauses) do
     Enum.map(clauses, &extract_single_else_clause(&1, opts))
   end
+
+  # Handle variable references and other AST nodes
+  def extract_else_clauses(_other, _opts), do: []
 
   defp extract_single_else_clause(
          {:->, _meta, [[{:when, _, [pattern, guard]}], body]} = node,

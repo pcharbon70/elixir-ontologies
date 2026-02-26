@@ -28,7 +28,9 @@ defmodule ElixirOntologies.Hex.FailureTrackerTest do
     test "classifies not elixir errors" do
       assert FailureTracker.classify_error(:not_elixir) == :not_elixir
       assert FailureTracker.classify_error(:no_mix_exs) == :not_elixir
+      assert FailureTracker.classify_error(:no_source_files) == :not_elixir
       assert FailureTracker.classify_error({:error, :not_elixir}) == :not_elixir
+      assert FailureTracker.classify_error({:error, :no_source_files}) == :not_elixir
     end
 
     test "classifies output errors" do
@@ -110,7 +112,8 @@ defmodule ElixirOntologies.Hex.FailureTrackerTest do
         PackageResult.failure("p1", "1.0.0", error_type: :download_error),
         PackageResult.failure("p2", "1.0.0", error_type: :download_error),
         PackageResult.failure("p3", "1.0.0", error_type: :not_elixir),
-        PackageResult.success("p4", "1.0.0")  # Should be excluded
+        # Should be excluded
+        PackageResult.success("p4", "1.0.0")
       ]
 
       by_type = FailureTracker.failures_by_type(results)
@@ -135,8 +138,10 @@ defmodule ElixirOntologies.Hex.FailureTrackerTest do
         PackageResult.failure("p1", "1.0.0", error_type: :download_error),
         PackageResult.failure("p2", "1.0.0", error_type: :timeout),
         PackageResult.failure("p3", "1.0.0", error_type: :extraction_error),
-        PackageResult.failure("p4", "1.0.0", error_type: :not_elixir),  # Not retryable
-        PackageResult.failure("p5", "1.0.0", error_type: :analysis_error)  # Not retryable
+        # Not retryable
+        PackageResult.failure("p4", "1.0.0", error_type: :not_elixir),
+        # Not retryable
+        PackageResult.failure("p5", "1.0.0", error_type: :analysis_error)
       ]
 
       candidates = FailureTracker.retry_candidates(results)
@@ -194,9 +199,17 @@ defmodule ElixirOntologies.Hex.FailureTrackerTest do
     end
 
     test "exports failures to JSON file", %{test_file: file} do
-      progress = Progress.new()
-        |> Progress.add_result(PackageResult.failure("p1", "1.0.0", error_type: :download_error, error: "Connection failed"))
-        |> Progress.add_result(PackageResult.failure("p2", "1.0.0", error_type: :not_elixir, error: "No mix.exs"))
+      progress =
+        Progress.new()
+        |> Progress.add_result(
+          PackageResult.failure("p1", "1.0.0",
+            error_type: :download_error,
+            error: "Connection failed"
+          )
+        )
+        |> Progress.add_result(
+          PackageResult.failure("p2", "1.0.0", error_type: :not_elixir, error: "No mix.exs")
+        )
 
       :ok = FailureTracker.export_failures(progress, file)
 

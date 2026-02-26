@@ -87,6 +87,8 @@ defmodule ElixirOntologies.Extractors.Parameter do
     :|,
     # binary pattern
     :<<>>,
+    # binary interpolation pattern: "prefix_#{var}"
+    :<>,
     # match pattern (pin in pattern)
     :=
   ]
@@ -256,9 +258,56 @@ defmodule ElixirOntologies.Extractors.Parameter do
     extract_pattern(node, :binary, opts)
   end
 
+  # Binary interpolation pattern: "prefix_#{var}"
+  def extract({:<>, _, _} = node, opts) do
+    extract_pattern(node, :binary_interpolation, opts)
+  end
+
+  # Unquote: unquote(var) - extract the inner expression for macro-generated parameters
+  def extract({:unquote, _, [inner]} = node, opts) do
+    case extract(inner, opts) do
+      {:ok, result} ->
+        # Update the expression to be the full unquote node, not just the inner
+        {:ok, %{result | expression: node}}
+
+      {:error, _reason} ->
+        # If inner extraction fails, treat as a pattern with unknown name
+        extract_pattern(node, :unquote, opts)
+    end
+  end
+
+  # Unquote splicing: unquote_splicing(vars) - treat as pattern for macro-generated parameters
+  def extract({:unquote_splicing, _, _} = node, opts) do
+    extract_pattern(node, :unquote_splicing, opts)
+  end
+
+  # Sigils: ~s"string", ~r"regex", ~c"chars", etc. - treat as literal pattern parameters
+  def extract({:sigil_c, _, _} = node, opts), do: extract_pattern(node, :sigil_literal, opts)
+  def extract({:sigil_s, _, _} = node, opts), do: extract_pattern(node, :sigil_literal, opts)
+  def extract({:sigil_r, _, _} = node, opts), do: extract_pattern(node, :sigil_literal, opts)
+  def extract({:sigil_w, _, _} = node, opts), do: extract_pattern(node, :sigil_literal, opts)
+  def extract({sigil, _, _} = node, opts) when is_atom(sigil) and sigil in ~w(sigil_C sigil_S sigil_R sigil_W sigil_D sigil_T sigil_N)a do
+    extract_pattern(node, :sigil_literal, opts)
+  end
+
+  # Module attribute: @attribute_name - treat as literal pattern parameter
+  def extract({:@, _, _} = node, opts) do
+    extract_pattern(node, :module_attribute, opts)
+  end
+
+  # Module alias: Some.Module.Name - treat as literal pattern parameter
+  def extract({:__aliases__, _, _} = node, opts) do
+    extract_pattern(node, :module_alias, opts)
+  end
+
   # Match pattern: pattern = value
   def extract({:=, _, _} = node, opts) do
     extract_pattern(node, :match, opts)
+  end
+
+  # Empty list pattern: []
+  def extract([] = node, opts) do
+    extract_pattern(node, :empty_list, opts)
   end
 
   # List literal pattern: [a, b, c]
@@ -266,6 +315,21 @@ defmodule ElixirOntologies.Extractors.Parameter do
   def extract([_ | _] = node, opts) do
     pattern_type = if Keyword.keyword?(node), do: :keyword, else: :list
     extract_pattern(node, pattern_type, opts)
+  end
+
+  # Function call pattern: foo(arg1, arg2), StructType{field: value}
+  # Matches {name, _meta, args} where args is a list (not an atom context)
+  def extract({name, _meta, args} = node, opts)
+      when is_atom(name) and is_list(args) do
+    extract_pattern(node, :call_pattern, opts)
+  end
+
+  # Macro-generated call pattern: unquote(...)(args), macro_call(args)
+  # Matches {name, _meta, args} where name is not an atom but args is a list
+  # This handles patterns like {{:unquote, ...}, meta, [arg1, arg2]}
+  def extract({name, _meta, args} = node, opts)
+      when not is_atom(name) and is_list(args) do
+    extract_pattern(node, :macro_call_pattern, opts)
   end
 
   # Simple variable: x, name, etc.
@@ -524,7 +588,14 @@ defmodule ElixirOntologies.Extractors.Parameter do
   defp get_pattern_type({:%, _, _}), do: :struct
   defp get_pattern_type({:|, _, _}), do: :cons
   defp get_pattern_type({:<<>>, _, _}), do: :binary
+  defp get_pattern_type({:<>, _, _}), do: :binary_interpolation
+  defp get_pattern_type({:unquote, _, _}), do: :unquote
+  defp get_pattern_type({:unquote_splicing, _, _}), do: :unquote_splicing
+  defp get_pattern_type({sigil, _, _}) when is_atom(sigil) and sigil in ~w(sigil_c sigil_s sigil_r sigil_w sigil_C sigil_S sigil_R sigil_W sigil_D sigil_T sigil_N)a, do: :sigil_literal
+  defp get_pattern_type({:@, _, _}), do: :module_attribute
+  defp get_pattern_type({:__aliases__, _, _}), do: :module_alias
   defp get_pattern_type({:=, _, _}), do: :match
+  defp get_pattern_type([]), do: :empty_list
   defp get_pattern_type([_ | _] = list), do: if(Keyword.keyword?(list), do: :keyword, else: :list)
   defp get_pattern_type(_), do: nil
 end

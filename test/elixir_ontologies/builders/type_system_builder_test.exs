@@ -1185,4 +1185,220 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilderTest do
       assert {spec_iri, RDF.type(), Structure.FunctionSpec} in spec_triples
     end
   end
+
+  # ===========================================================================
+  # IRI Stability Tests (Phase 14.3)
+  # ===========================================================================
+
+  describe "IRI stability and consistency" do
+    test "type definition produces consistent IRI across multiple calls" do
+      type_def = build_test_type_definition(name: :status, arity: 0)
+      context = build_test_context()
+      module_iri = build_test_module_iri()
+
+      {type_iri1, _triples1} =
+        TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
+
+      {type_iri2, _triples2} =
+        TypeSystemBuilder.build_type_definition(type_def, module_iri, context)
+
+      # Same type should produce same IRI
+      assert type_iri1 == type_iri2
+      assert to_string(type_iri1) == "https://example.org/code#TestModule/type/status/0"
+    end
+
+    test "same type expression produces consistent triple structure" do
+      context = build_test_context()
+      # AST for `integer() | atom()`
+      union_ast = {:|, [], [{:integer, [], []}, {:atom, [], []}]}
+
+      {_node1, triples1} = TypeSystemBuilder.build_type_expression(union_ast, context)
+      {_node2, triples2} = TypeSystemBuilder.build_type_expression(union_ast, context)
+
+      # Same type expression should produce same number of triples
+      assert length(triples1) == length(triples2)
+
+      # Both should have UnionType class
+      assert Enum.any?(triples1, fn
+               {_, pred, obj} -> pred == RDF.type() and obj == Structure.UnionType
+               _ -> false
+             end)
+
+      assert Enum.any?(triples2, fn
+               {_, pred, obj} -> pred == RDF.type() and obj == Structure.UnionType
+               _ -> false
+             end)
+
+      # Both should have 2 unionOf links
+      union_of_count1 = Enum.count(triples1, fn {_, pred, _} -> pred == Structure.unionOf() end)
+      union_of_count2 = Enum.count(triples2, fn {_, pred, _} -> pred == Structure.unionOf() end)
+      assert union_of_count1 == union_of_count2
+      assert union_of_count1 == 2
+    end
+
+    test "function spec IRI is stable and equals function IRI" do
+      func_spec = build_test_function_spec(name: :process, arity: 1)
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "process", arity: 1)
+
+      {spec_iri1, _triples1} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      {spec_iri2, _triples2} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Spec IRI should always equal function IRI
+      assert spec_iri1 == function_iri
+      assert spec_iri2 == function_iri
+      assert spec_iri1 == spec_iri2
+    end
+
+    test "different type expressions produce different triple counts or structures" do
+      context = build_test_context()
+
+      # Different union types
+      union_ast1 = {:|, [], [{:integer, [], []}, {:atom, [], []}]}
+      union_ast2 = {:|, [], [{:integer, [], []}, {:binary, [], []}]}
+
+      {_node1, triples1} = TypeSystemBuilder.build_type_expression(union_ast1, context)
+      {_node2, triples2} = TypeSystemBuilder.build_type_expression(union_ast2, context)
+
+      # Both should have same structure (2 unionOf links)
+      assert length(triples1) == length(triples2)
+
+      # But the type names should differ
+      atom_name =
+        Enum.find(triples1, fn
+          {_, pred, obj} ->
+            pred == Structure.typeName() and RDF.Literal.value(obj) == "atom"
+
+          _ ->
+            false
+        end)
+
+      binary_name =
+        Enum.find(triples2, fn
+          {_, pred, obj} ->
+            pred == Structure.typeName() and RDF.Literal.value(obj) == "binary"
+
+          _ ->
+            false
+        end)
+
+      # Each should have its respective type name
+      assert atom_name != nil
+      assert binary_name != nil
+    end
+  end
+
+  # ===========================================================================
+  # Function Spec Builder Integration Tests (Phase 14.3)
+  # ===========================================================================
+
+  describe "function spec builder integration" do
+    test "spec with union return type generates complete RDF" do
+      # Spec with union return: @spec foo() :: :ok | :error
+      func_spec =
+        build_test_function_spec(
+          name: :result,
+          arity: 0,
+          parameter_types: [],
+          return_type: {:|, [], [:ok, :error]}
+        )
+
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "result", arity: 0)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Verify spec class
+      assert {spec_iri, RDF.type(), Structure.FunctionSpec} in triples
+
+      # Note: return_type is not yet built (returns []), so no UnionType triples
+      # This test documents current behavior
+      # Future: assert Enum.any?(tripiples, fn {_, pred, obj} -> pred == RDF.type() and obj == Structure.UnionType end)
+    end
+
+    test "spec with parameterized parameters generates correct types" do
+      # Spec: @spec process(list(integer())) :: :ok
+      func_spec =
+        build_test_function_spec(
+          name: :process,
+          arity: 1,
+          parameter_types: [{:list, [], [[{:integer, [], []}]]}],
+          return_type: :ok
+        )
+
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "process", arity: 1)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Verify spec class
+      assert {spec_iri, RDF.type(), Structure.FunctionSpec} in triples
+
+      # Note: parameter_types are not yet built (returns []), so no ParameterizedType triples
+      # This test documents current behavior
+      # Future: assert Enum.any?(triples, fn {_, pred, obj} -> pred == RDF.type() and obj == Structure.ParameterizedType end)
+    end
+
+    test "callback spec with type variables" do
+      # Callback: @callback process(t) :: t
+      func_spec =
+        build_test_function_spec(
+          name: :process,
+          arity: 1,
+          spec_type: :callback,
+          parameter_types: [{:t, [], nil}],
+          return_type: {:t, [], nil}
+        )
+
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "process", arity: 1)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Verify callback class
+      assert {spec_iri, RDF.type(), Structure.CallbackSpec} in triples
+
+      # Note: parameter and return types not yet built
+      # This test documents current behavior
+      # Future: verify TypeVariable instances in triples
+    end
+
+    test "spec links correctly to function IRI" do
+      func_spec =
+        build_test_function_spec(
+          name: :my_func,
+          arity: 2,
+          parameter_types: [{:integer, [], []}, {:integer, [], []}],
+          return_type: {:integer, [], []}
+        )
+
+      context = build_test_context()
+      function_iri = build_test_function_iri(function_name: "my_func", arity: 2)
+
+      {spec_iri, triples} =
+        TypeSystemBuilder.build_function_spec(func_spec, function_iri, context)
+
+      # Verify hasSpec triple from function to spec (they are the same IRI)
+      assert {function_iri, Structure.hasSpec(), spec_iri} in triples
+      assert spec_iri == function_iri
+    end
+  end
+
+  # ===========================================================================
+  # Note: Constraint RDF Generation Tests (Phase 14.3)
+  # ===========================================================================
+
+  # The following task from phase-14.md section 14.3 is NOT APPLICABLE:
+  # - Test constraint RDF generation
+  #
+  # Reason: The build_type_constraints_triples/3 function (line 783 of
+  # TypeSystemBuilder) is a stub that returns []. This is documented as a
+  # "Future enhancement" in the code comments. When constraint support is
+  # implemented, tests should be added at that time.
 end

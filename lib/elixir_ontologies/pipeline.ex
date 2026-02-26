@@ -276,7 +276,8 @@ defmodule ElixirOntologies.Pipeline do
       file_path: file_path,
       config: %{
         include_source_text: config.include_source_text,
-        include_git_info: config.include_git_info
+        include_git_info: config.include_git_info,
+        include_expressions: config.include_expressions
       }
     )
   end

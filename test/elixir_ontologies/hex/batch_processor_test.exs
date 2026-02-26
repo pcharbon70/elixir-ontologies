@@ -32,10 +32,11 @@ defmodule ElixirOntologies.Hex.BatchProcessorTest do
     end
 
     test "accepts custom progress_file" do
-      config = Config.new(
-        output_dir: "/output",
-        progress_file: "/other/progress.json"
-      )
+      config =
+        Config.new(
+          output_dir: "/output",
+          progress_file: "/other/progress.json"
+        )
 
       assert config.progress_file == "/other/progress.json"
     end
@@ -204,6 +205,7 @@ defmodule ElixirOntologies.Hex.BatchProcessorTest do
         "current_page" => 3,
         "config" => %{}
       }
+
       File.mkdir_p!(dir)
       File.write!(progress_file, Jason.encode!(existing_progress))
 

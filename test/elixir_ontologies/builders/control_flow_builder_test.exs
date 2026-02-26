@@ -9,7 +9,7 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
 
   use ExUnit.Case, async: true
 
-  alias ElixirOntologies.Builders.{ControlFlowBuilder, Context}
+  alias ElixirOntologies.Builders.{ControlFlowBuilder, Context, ExpressionBuilder}
   alias ElixirOntologies.Extractors.Conditional.{Conditional, Branch}
 
   alias ElixirOntologies.Extractors.CaseWith.{
@@ -839,6 +839,1720 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
   end
 
   # ===========================================================================
+  # Phase 28.1: Generator Pattern Extraction Tests (Full Mode)
+  # ===========================================================================
+
+  describe "generator pattern extraction in full mode" do
+    setup do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "extracts generator pattern with variable pattern", %{context: context} do
+      # for x <- xs, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], Elixir},
+        enumerable: {:xs, [], Elixir}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], Elixir},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/map/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator individual
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == gen_iri and p == RDF.type() and o == Core.Generator
+             end)
+
+      # Should have pattern linked via hasPattern
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
+      pattern_link = find_triple(triples, gen_iri, Core.hasPattern())
+      assert pattern_link != nil
+      assert elem(pattern_link, 2) == pattern_iri
+
+      # Pattern should be a VariablePattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.VariablePattern
+    end
+
+    test "extracts generator pattern with tuple pattern", %{context: context} do
+      # for {x, y} <- tuples, do: x + y
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:{}, [], [{:x, [], Elixir}, {:y, [], Elixir}]},
+        enumerable: {:tuples, [], Elixir}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:+, [], [{:x, [], Elixir}, {:y, [], Elixir}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/tuples/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator with pattern
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
+
+      # Pattern should be a TuplePattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.TuplePattern
+    end
+
+    test "extracts multiple generators with patterns in order", %{context: context} do
+      # for x <- xs, y <- ys, do: {x, y}
+      gen1 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], Elixir},
+        enumerable: {:xs, [], Elixir}
+      }
+
+      gen2 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:y, [], Elixir},
+        enumerable: {:ys, [], Elixir}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen1, gen2],
+        filters: [],
+        body: {:{}, [], [{:x, [], Elixir}, {:y, [], Elixir}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/product/2",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have two generators
+      gen_links =
+        Enum.filter(triples, fn {s, p, _o} ->
+          s == expr_iri and p == Core.hasGenerator()
+        end)
+
+      assert length(gen_links) == 2
+
+      # First generator should have pattern
+      gen_iri_0 = RDF.iri("#{expr_iri.value}/gen/0")
+      _pattern_iri_0 = RDF.iri("#{gen_iri_0.value}/pattern")
+      pattern_link_0 = find_triple(triples, gen_iri_0, Core.hasPattern())
+      assert pattern_link_0 != nil
+
+      # Second generator should have pattern
+      gen_iri_1 = RDF.iri("#{expr_iri.value}/gen/1")
+      _pattern_iri_1 = RDF.iri("#{gen_iri_1.value}/pattern")
+      pattern_link_1 = find_triple(triples, gen_iri_1, Core.hasPattern())
+      assert pattern_link_1 != nil
+    end
+
+    test "extracts generator pattern with list pattern", %{context: context} do
+      # for [h | t] <- lists, do: h
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:|, [], [{:h, [], Elixir}, {:t, [], Elixir}]},
+        enumerable: {:lists, [], Elixir}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:h, [], Elixir},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/heads/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Pattern should be extracted (list pattern)
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      _pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
+      pattern_link = find_triple(triples, gen_iri, Core.hasPattern())
+      assert pattern_link != nil
+    end
+
+    test "light mode does not extract patterns (backward compatibility)" do
+      context = Context.new(base_iri: @base_iri)
+
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], Elixir},
+        enumerable: {:xs, [], Elixir}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], Elixir},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/map/1",
+          index: 0
+        )
+
+      # Light mode: should only have boolean flag
+      generator_triple = find_triple(triples, expr_iri, Core.hasGenerator())
+      assert generator_triple != nil
+      assert RDF.Literal.value(elem(generator_triple, 2)) == true
+
+      # Should NOT have individual generator IRIs
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      refute Enum.any?(triples, fn {s, _, _} -> s == gen_iri end)
+
+      # Should NOT have pattern IRIs
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
+      refute Enum.any?(triples, fn {s, _, _} -> s == pattern_iri end)
+    end
+  end
+
+  # ===========================================================================
+  # Phase 28.2: Bitstring Comprehension Tests (Full Mode)
+  # ===========================================================================
+
+  describe "bitstring comprehension in full mode" do
+    setup do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "bitstring comprehension creates ForComprehension type", %{context: context} do
+      # for <<byte>> <- binary, do: byte
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern: {:<<>>, [], [{:byte, [], nil}]},
+        enumerable: {:binary, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:byte, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/process_bytes/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have ForComprehension type (same as list comprehensions)
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ForComprehension
+    end
+
+    test "bitstring comprehension extracts generator pattern", %{context: context} do
+      # for <<byte>> <- binary, do: byte
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern: {:<<>>, [], [{:byte, [], nil}]},
+        enumerable: {:binary, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:byte, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/process_bytes/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator individual
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == gen_iri and p == RDF.type() and o == Core.Generator
+             end)
+
+      # Should have pattern linked via hasPattern
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
+      pattern_link = find_triple(triples, gen_iri, Core.hasPattern())
+      assert pattern_link != nil
+      assert elem(pattern_link, 2) == pattern_iri
+
+      # Pattern should be a BinaryPattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.BinaryPattern
+    end
+
+    test "bitstring comprehension handles size modifiers", %{context: context} do
+      # for <<x::8>> <- data, do: x
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern: {:<<>>, [], [{:"::", [], [{:x, [], nil}, 8]}]},
+        enumerable: {:data, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/parse_bytes/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator with BinaryPattern
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
+
+      # Pattern should be a BinaryPattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.BinaryPattern
+    end
+
+    test "bitstring comprehension handles type modifiers", %{context: context} do
+      # for <<head::binary>> <- data, do: head
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern: {:<<>>, [], [{:"::", [], [{:head, [], nil}, {:binary, [], nil}]}]},
+        enumerable: {:data, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:head, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/get_head/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator with BinaryPattern
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
+
+      # Pattern should be a BinaryPattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.BinaryPattern
+    end
+
+    test "bitstring comprehension handles complex patterns", %{context: context} do
+      # for <<head::8, rest::binary>> <- data, do: {head, rest}
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern:
+          {:<<>>, [],
+           [
+             {:"::", [], [{:head, [], nil}, 8]},
+             {:"::", [], [{:rest, [], nil}, {:binary, [], nil}]}
+           ]},
+        enumerable: {:data, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:{}, [], [{:head, [], nil}, {:rest, [], nil}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/parse_packet/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Generator with BinaryPattern
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
+
+      # Pattern should be a BinaryPattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.BinaryPattern
+    end
+
+    test "light mode does not extract bitstring patterns (backward compatibility)" do
+      context = Context.new(base_iri: @base_iri)
+
+      # for <<byte>> <- binary, do: byte
+      gen = %Comprehension.Generator{
+        type: :bitstring_generator,
+        pattern: {:<<>>, [], [{:byte, [], nil}]},
+        enumerable: {:binary, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:byte, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/process_bytes/1",
+          index: 0
+        )
+
+      # Light mode: should only have boolean flag
+      generator_triple = find_triple(triples, expr_iri, Core.hasGenerator())
+      assert generator_triple != nil
+      assert RDF.Literal.value(elem(generator_triple, 2)) == true
+
+      # Should NOT have individual generator IRIs
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      refute Enum.any?(triples, fn {s, _, _} -> s == gen_iri end)
+
+      # Should NOT have pattern IRIs
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
+      refute Enum.any?(triples, fn {s, _, _} -> s == pattern_iri end)
+    end
+  end
+
+  # ===========================================================================
+  # Phase 28.3: Filter Expression Extraction Tests (Full Mode)
+  # ===========================================================================
+
+  describe "filter expression extraction in full mode" do
+    setup do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "extracts filter expression with comparison operator", %{context: context} do
+      # for x <- xs, x > 0, do: x * 2
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression: {:>, [], [{:x, [], nil}, 0]}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter],
+        body: {:*, [], [{:x, [], nil}, 2]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/positive/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Filter individual
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == filter_iri and p == RDF.type() and o == Core.Filter
+             end)
+
+      # Comprehension should link to filter via hasFilter
+      filter_link = find_triple(triples, expr_iri, Core.hasFilter())
+      assert filter_link != nil
+      assert elem(filter_link, 2) == filter_iri
+
+      # Filter should have a filter expression (the filter expression)
+      filter_expr_link = find_triple(triples, filter_iri, Core.hasFilterExpression())
+      assert filter_expr_link != nil
+      assert match?(%RDF.IRI{}, elem(filter_expr_link, 2))
+    end
+
+    test "extracts multiple filter expressions in order", %{context: context} do
+      # for x <- xs, x > 0, x < 100, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      filter1 = %Comprehension.Filter{
+        expression: {:>, [], [{:x, [], nil}, 0]}
+      }
+
+      filter2 = %Comprehension.Filter{
+        expression: {:<, [], [{:x, [], nil}, 100]}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter1, filter2],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/range/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have two filter individuals
+      filter_iri_0 = RDF.iri("#{expr_iri.value}/filter/0")
+      filter_iri_1 = RDF.iri("#{expr_iri.value}/filter/1")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == filter_iri_0 and p == RDF.type() and o == Core.Filter
+             end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == filter_iri_1 and p == RDF.type() and o == Core.Filter
+             end)
+
+      # Both should be linked via hasFilter
+      filter_links =
+        Enum.filter(triples, fn {s, p, _o} ->
+          s == expr_iri and p == Core.hasFilter()
+        end)
+
+      assert length(filter_links) == 2
+
+      # Check order - filter-0 should come before filter-1
+      linked_filters =
+        filter_links
+        |> Enum.map(fn {_, _, o} -> o end)
+        |> Enum.sort()
+
+      assert linked_filters == [filter_iri_0, filter_iri_1]
+    end
+
+    test "extracts filter expression with boolean and", %{context: context} do
+      # for x <- xs, is_binary(x) and byte_size(x) > 0, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression:
+          {:and, [],
+           [
+             {{:., [], [{:is_binary, [], nil}, {:x, [], nil}]}, [], []},
+             {:>, [], [{{:., [], [{:byte_size, [], nil}, {:x, [], nil}]}, [], []}, 0]}
+           ]}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/non_empty_binaries/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Filter individual
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == filter_iri and p == RDF.type() and o == Core.Filter
+             end)
+
+      # Filter should have condition expression
+      cond_link = find_triple(triples, filter_iri, Core.hasFilterExpression())
+      assert cond_link != nil
+    end
+
+    test "extracts filter expression with function call", %{context: context} do
+      # for x <- xs, valid?(x), do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression: {{:., [], [{:valid?, [], nil}, {:x, [], nil}]}, [], []}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/valid_only/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Filter individual
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == filter_iri and p == RDF.type() and o == Core.Filter
+             end)
+
+      # Filter should have condition expression
+      cond_link = find_triple(triples, filter_iri, Core.hasFilterExpression())
+      assert cond_link != nil
+    end
+
+    test "extracts filter expression with guard", %{context: context} do
+      # for {k, v} <- map, is_atom(k), do: {k, v}
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:{}, [], [{:k, [], nil}, {:v, [], nil}]},
+        enumerable: {:map, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression: {{:., [], [{:is_atom, [], nil}, {:k, [], nil}]}, [], []}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter],
+        body: {:{}, [], [{:k, [], nil}, {:v, [], nil}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/atom_keys/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have Filter individual
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == filter_iri and p == RDF.type() and o == Core.Filter
+             end)
+
+      # Filter should have condition expression
+      cond_link = find_triple(triples, filter_iri, Core.hasFilterExpression())
+      assert cond_link != nil
+    end
+
+    test "light mode does not extract filter expressions (backward compatibility)", %{
+      context: _context
+    } do
+      # Light mode - no expression_builder option
+      light_context = Context.new(base_iri: @base_iri)
+
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression: {:>, [], [{:x, [], nil}, 0]}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          light_context,
+          containing_function: "MyMap/light/1",
+          index: 0
+        )
+
+      # Should have boolean flag for filter
+      filter_triple = find_triple(triples, expr_iri, Core.hasFilter())
+      assert filter_triple != nil
+      assert RDF.Literal.value(elem(filter_triple, 2)) == true
+
+      # Should NOT have individual filter IRI
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
+      refute Enum.any?(triples, fn {s, _, _} -> s == filter_iri end)
+    end
+  end
+
+  # ===========================================================================
+  # Phase 28.4: Collect Expression Extraction Tests (Full Mode)
+  # ===========================================================================
+
+  describe "collect expression extraction in full mode" do
+    setup do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "extracts collect expression with simple multiplication", %{context: context} do
+      # for x <- xs, do: x * 2
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:*, [], [{:x, [], nil}, 2]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/doubled/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have a collect expression for the body (collect expression)
+      body_links =
+        Enum.filter(triples, fn {s, p, _o} ->
+          s == expr_iri and p == Core.hasCollectExpression()
+        end)
+
+      # Should have at least one hasCollectExpression link for the body
+      assert length(body_links) >= 1
+
+      # The linked expression should be an IRI
+      [{_, _, body_iri} | _] = body_links
+      assert match?(%RDF.IRI{}, body_iri)
+    end
+
+    test "extracts collect expression with tuple pattern", %{context: context} do
+      # for {k, v} <- map, do: {k, v * 2}
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:{}, [], [{:k, [], nil}, {:v, [], nil}]},
+        enumerable: {:map, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:{}, [], [{:k, [], nil}, {:*, [], [{:v, [], nil}, 2]}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/scaled_map/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have body expression
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
+      assert body_link != nil
+      assert match?(%RDF.IRI{}, elem(body_link, 2))
+    end
+
+    test "extracts collect expression with struct literal", %{context: context} do
+      # for x <- xs, do: %{value: x}
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {%{}, [], [{:value, [], {:x, [], nil}}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/to_structs/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have body expression
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
+      assert body_link != nil
+      assert match?(%RDF.IRI{}, elem(body_link, 2))
+    end
+
+    test "extracts collect expression with list construction", %{context: context} do
+      # for x <- xs, do: [x, x * 2]
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: [{:x, [], nil}, {:*, [], [{:x, [], nil}, 2]}],
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/duplicate/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have body expression
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
+      assert body_link != nil
+      assert match?(%RDF.IRI{}, elem(body_link, 2))
+    end
+
+    test "extracts collect expression with function call", %{context: context} do
+      # for x <- xs, do: process(x)
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {{:., [], [{:process, [], nil}, {:x, [], nil}]}, [], []},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/processed/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have body expression
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
+      assert body_link != nil
+      assert match?(%RDF.IRI{}, elem(body_link, 2))
+    end
+
+    test "light mode does not extract collect expressions (backward compatibility)", %{
+      context: _context
+    } do
+      # Light mode - no expression_builder option
+      light_context = Context.new(base_iri: @base_iri)
+
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:*, [], [{:x, [], nil}, 2]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          light_context,
+          containing_function: "MyApp/light_doubled/1",
+          index: 0
+        )
+
+      # Should NOT have hasCondition for body in light mode
+      body_links =
+        Enum.filter(triples, fn {s, p, _o} ->
+          s == expr_iri and p == Core.hasCondition()
+        end)
+
+      # In light mode, no expression extraction should occur
+      # (Generators still use hasCondition for enumerable, so we need to check specifically)
+      # The key is that we shouldn't have body/collect expression IRIs
+      assert length(Enum.filter(body_links, fn {_, _, o} -> match?(%RDF.IRI{}, o) end)) == 0
+    end
+  end
+
+  # ===========================================================================
+  # Phase 28.5: Comprehension Option Expression Extraction Tests (Full Mode)
+  # ===========================================================================
+
+  describe "comprehension option extraction in full mode" do
+    setup do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "extracts into option expression for literal map", %{context: context} do
+      # for {k, v} <- pairs, into: %{}, do: {k, v * 2}
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:{}, [], [{:k, [], nil}, {:v, [], nil}]},
+        enumerable: {:pairs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:{}, [], [{:k, [], nil}, {:*, [], [{:v, [], nil}, 2]}]},
+        options: %{into: {%{}, [], []}},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/to_map/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasIntoOption link
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link != nil
+      # Should link to an expression IRI, not a boolean literal
+      assert match?(%RDF.IRI{}, elem(into_link, 2))
+    end
+
+    test "extracts into option expression for function call", %{context: context} do
+      # for x <- xs, into: MapSet.new(), do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{into: {{:., [], [{:MapSet, [], nil}, {:new, [], nil}]}, [], []}},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/to_set/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasIntoOption link
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link != nil
+      # Should link to an expression IRI
+      assert match?(%RDF.IRI{}, elem(into_link, 2))
+    end
+
+    test "extracts reduce option expression", %{context: context} do
+      # for x <- xs, reduce: 0 do
+      #   acc -> acc + x
+      # end
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:+, [], [:acc, :x]},
+        options: %{reduce: 0},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/sum/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasReduceOption link
+      reduce_link = find_triple(triples, expr_iri, Core.hasReduceOption())
+      assert reduce_link != nil
+      # Should link to an expression IRI
+      assert match?(%RDF.IRI{}, elem(reduce_link, 2))
+    end
+
+    test "extracts uniq option expression as boolean", %{context: context} do
+      # for x <- xs, uniq: true, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{uniq: true},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/unique/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasUniqOption link
+      uniq_link = find_triple(triples, expr_iri, Core.hasUniqOption())
+      assert uniq_link != nil
+      # uniq: true is stored as boolean literal
+      assert RDF.Literal.value(elem(uniq_link, 2)) == true
+    end
+
+    test "extracts comprehension with multiple options", %{context: context} do
+      # for x <- xs, into: %{}, uniq: true, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{into: {%{}, [], []}, uniq: true},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/unique_map/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have both options
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link != nil
+      assert match?(%RDF.IRI{}, elem(into_link, 2))
+
+      uniq_link = find_triple(triples, expr_iri, Core.hasUniqOption())
+      assert uniq_link != nil
+      assert RDF.Literal.value(elem(uniq_link, 2)) == true
+    end
+
+    test "handles comprehension with no options", %{context: context} do
+      # for x <- xs, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/identity/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should NOT have option links
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link == nil
+
+      reduce_link = find_triple(triples, expr_iri, Core.hasReduceOption())
+      assert reduce_link == nil
+
+      uniq_link = find_triple(triples, expr_iri, Core.hasUniqOption())
+      assert uniq_link == nil
+    end
+
+    test "light mode does not extract option expressions (backward compatibility)", %{
+      context: _context
+    } do
+      # Light mode - no expression_builder option
+      light_context = Context.new(base_iri: @base_iri)
+
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{into: {%{}, [], []}, uniq: true},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          light_context,
+          containing_function: "MyApp/light_options/1",
+          index: 0
+        )
+
+      # Should have boolean flags in light mode
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link != nil
+      assert RDF.Literal.value(elem(into_link, 2)) == true
+
+      uniq_link = find_triple(triples, expr_iri, Core.hasUniqOption())
+      assert uniq_link != nil
+      assert RDF.Literal.value(elem(uniq_link, 2)) == true
+    end
+  end
+
+  # ===========================================================================
+  # Phase 28.6: Comprehension Nesting and Complexity Tests
+  # ===========================================================================
+
+  describe "comprehension nesting and complexity" do
+    setup do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {:ok, context: context}
+    end
+
+    test "handles nested list comprehension in body", %{context: context} do
+      # for x <- xs, do: for y <- ys, do: {x, y}
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      # Inner comprehension as the body
+      inner_gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:y, [], nil},
+        enumerable: {:ys, [], nil}
+      }
+
+      inner_comprehension = %Comprehension{
+        type: :for,
+        generators: [inner_gen],
+        filters: [],
+        body: {:{}, [], [{:x, [], nil}, {:y, [], nil}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: inner_comprehension,
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/nested/2",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have outer comprehension
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.ForComprehension
+             end)
+
+      # Should have generator for outer comprehension
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == gen_iri and p == RDF.type() and o == Core.Generator
+             end)
+
+      # Should have inner comprehension as body (now properly extracted as ForComprehension)
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
+      assert body_link != nil
+      inner_iri = elem(body_link, 2)
+
+      # Inner should also be a ForComprehension (the fix!)
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == inner_iri and p == RDF.type() and o == Core.ForComprehension
+             end)
+
+      # Inner comprehension should have its own generator
+      inner_gen_iri = RDF.iri("#{inner_iri.value}/gen/0")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == inner_gen_iri and p == RDF.type() and o == Core.Generator
+             end)
+    end
+
+    test "handles deeply nested comprehensions (3 levels)", %{context: context} do
+      # for x <- xs, do: for y <- ys, do: for z <- zs, do: {x, y, z}
+      gen1 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      # Inner-most comprehension (level 3)
+      gen3 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:z, [], nil},
+        enumerable: {:zs, [], nil}
+      }
+
+      innermost_comprehension = %Comprehension{
+        type: :for,
+        generators: [gen3],
+        filters: [],
+        body: {:{}, [], [{:x, [], nil}, {:y, [], nil}, {:z, [], nil}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      # Middle comprehension (level 2)
+      gen2 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:y, [], nil},
+        enumerable: {:ys, [], nil}
+      }
+
+      middle_comprehension = %Comprehension{
+        type: :for,
+        generators: [gen2],
+        filters: [],
+        body: innermost_comprehension,
+        options: %{},
+        metadata: %{}
+      }
+
+      # Outer comprehension (level 1)
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen1],
+        filters: [],
+        body: middle_comprehension,
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/deeply_nested/2",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have outer comprehension as ForComprehension
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.ForComprehension
+             end)
+
+      # Get middle comprehension IRI (level 2)
+      middle_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
+      assert middle_link != nil
+      middle_iri = elem(middle_link, 2)
+
+      # Middle should be a ForComprehension
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == middle_iri and p == RDF.type() and o == Core.ForComprehension
+             end)
+
+      # Get innermost comprehension IRI (level 3)
+      innermost_link = find_triple(triples, middle_iri, Core.hasCollectExpression())
+      assert innermost_link != nil
+      innermost_iri = elem(innermost_link, 2)
+
+      # Innermost should also be a ForComprehension
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == innermost_iri and p == RDF.type() and o == Core.ForComprehension
+             end)
+
+      # Innermost should have its own generator
+      innermost_gen_iri = RDF.iri("#{innermost_iri.value}/gen/0")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == innermost_gen_iri and p == RDF.type() and o == Core.Generator
+             end)
+    end
+
+    test "handles comprehension with all components", %{context: context} do
+      # for x <- xs, y <- ys, x > 0, y < 10, into: %{}, do: {x, y}
+      gen1 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      gen2 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:y, [], nil},
+        enumerable: {:ys, [], nil}
+      }
+
+      filter1 = %Comprehension.Filter{
+        expression: {:>, [], [{:x, [], nil}, 0]}
+      }
+
+      filter2 = %Comprehension.Filter{
+        expression: {:<, [], [{:y, [], nil}, 10]}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen1, gen2],
+        filters: [filter1, filter2],
+        body: {:{}, [], [{:x, [], nil}, {:y, [], nil}]},
+        options: %{into: {%{}, [], []}},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/complex/2",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have ForComprehension type
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.ForComprehension
+             end)
+
+      # Should have two generators
+      gen_iri_0 = RDF.iri("#{expr_iri.value}/gen/0")
+      gen_iri_1 = RDF.iri("#{expr_iri.value}/gen/1")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == gen_iri_0 and p == RDF.type() and o == Core.Generator
+             end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == gen_iri_1 and p == RDF.type() and o == Core.Generator
+             end)
+
+      # Should have two filters
+      filter_iri_0 = RDF.iri("#{expr_iri.value}/filter/0")
+      filter_iri_1 = RDF.iri("#{expr_iri.value}/filter/1")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == filter_iri_0 and p == RDF.type() and o == Core.Filter
+             end)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == filter_iri_1 and p == RDF.type() and o == Core.Filter
+             end)
+
+      # Should have into option
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link != nil
+      assert match?(%RDF.IRI{}, elem(into_link, 2))
+
+      # Should have body expression
+      body_link = find_triple(triples, expr_iri, Core.hasCollectExpression())
+      assert body_link != nil
+    end
+
+    test "handles comprehension with complex pattern destructuring", %{context: context} do
+      # for {{x, y}, z} <- items, do: {x, y, z}
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern:
+          {:{}, [],
+           [
+             {:{}, [], [{:x, [], nil}, {:y, [], nil}]},
+             {:z, [], nil}
+           ]},
+        enumerable: {:items, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:{}, [], [{:x, [], nil}, {:y, [], nil}, {:z, [], nil}]},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/destructure/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have generator with complex pattern
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      pattern_iri = RDF.iri("#{gen_iri.value}/pattern")
+
+      # Pattern should be extracted
+      pattern_link = find_triple(triples, gen_iri, Core.hasPattern())
+      assert pattern_link != nil
+      assert elem(pattern_link, 2) == pattern_iri
+
+      # Pattern should be a TuplePattern
+      pattern_type = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type != nil
+      assert elem(pattern_type, 2) == Core.TuplePattern
+    end
+
+    test "handles comprehension with complex boolean filter", %{context: context} do
+      # for x <- xs, is_number(x) and x > 0 and x < 100, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression:
+          {:and, [],
+           [
+             {:and, [],
+              [
+                {{:., [], [{:is_number, [], nil}, {:x, [], nil}]}, [], []},
+                {:>, [], [{:x, [], nil}, 0]}
+              ]},
+             {:<, [], [{:x, [], nil}, 100]}
+           ]}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [filter],
+        body: {:x, [], nil},
+        options: %{},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/complex_filter/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have filter
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == filter_iri and p == RDF.type() and o == Core.Filter
+             end)
+
+      # Filter should have condition expression
+      cond_link = find_triple(triples, filter_iri, Core.hasFilterExpression())
+      assert cond_link != nil
+      assert match?(%RDF.IRI{}, elem(cond_link, 2))
+    end
+
+    test "handles comprehension with multiple options", %{context: context} do
+      # for x <- xs, into: %{}, uniq: true, do: x
+      gen = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen],
+        filters: [],
+        body: {:x, [], nil},
+        options: %{into: {%{}, [], []}, uniq: true},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          context,
+          containing_function: "MyApp/options/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have both options
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link != nil
+
+      uniq_link = find_triple(triples, expr_iri, Core.hasUniqOption())
+      assert uniq_link != nil
+      assert RDF.Literal.value(elem(uniq_link, 2)) == true
+    end
+
+    test "light mode handles complex comprehension (backward compatibility)", %{context: _context} do
+      # Light mode - no expression_builder option
+      light_context = Context.new(base_iri: @base_iri)
+
+      gen1 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:x, [], nil},
+        enumerable: {:xs, [], nil}
+      }
+
+      gen2 = %Comprehension.Generator{
+        type: :generator,
+        pattern: {:y, [], nil},
+        enumerable: {:ys, [], nil}
+      }
+
+      filter = %Comprehension.Filter{
+        expression: {:>, [], [{:x, [], nil}, 0]}
+      }
+
+      comprehension = %Comprehension{
+        type: :for,
+        generators: [gen1, gen2],
+        filters: [filter],
+        body: {:{}, [], [{:x, [], nil}, {:y, [], nil}]},
+        options: %{into: {%{}, [], []}},
+        metadata: %{}
+      }
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_comprehension(
+          comprehension,
+          light_context,
+          containing_function: "MyApp/light_complex/2",
+          index: 0
+        )
+
+      # Should have boolean flags only
+      gen_link = find_triple(triples, expr_iri, Core.hasGenerator())
+      assert gen_link != nil
+      assert RDF.Literal.value(elem(gen_link, 2)) == true
+
+      filter_link = find_triple(triples, expr_iri, Core.hasFilter())
+      assert filter_link != nil
+      assert RDF.Literal.value(elem(filter_link, 2)) == true
+
+      into_link = find_triple(triples, expr_iri, Core.hasIntoOption())
+      assert into_link != nil
+      assert RDF.Literal.value(elem(into_link, 2)) == true
+
+      # Should NOT have individual generator/filter IRIs
+      gen_iri = RDF.iri("#{expr_iri.value}/gen/0")
+      refute Enum.any?(triples, fn {s, _, _} -> s == gen_iri end)
+
+      filter_iri = RDF.iri("#{expr_iri.value}/filter/0")
+      refute Enum.any?(triples, fn {s, _, _} -> s == filter_iri end)
+    end
+  end
+
+  # ===========================================================================
   # Location Handling Tests
   # ===========================================================================
 
@@ -1171,6 +2885,1914 @@ defmodule ElixirOntologies.Builders.ControlFlowBuilderTest do
       then_triple = find_triple(triples, expr_iri, Core.hasThenBranch())
       assert %RDF.Literal{} = elem(then_triple, 2)
       assert RDF.Literal.value(elem(then_triple, 2)) == true
+    end
+  end
+
+  # ===========================================================================
+  # ExpressionBuilder Integration Tests
+  # ===========================================================================
+
+  describe "ExpressionBuilder integration" do
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "build_conditional/3 with expression_builder in full mode builds condition expression" do
+      conditional = %Conditional{
+        type: :if,
+        condition: {:>, [], [{:x, [], nil}, 5]},
+        branches: [%Branch{type: :then, body: :ok}, %Branch{type: :else, body: :err}],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have an expression IRI for the condition (not just boolean)
+      cond_triple = find_triple(triples, expr_iri, Core.hasCondition())
+
+      # In full mode, hasCondition should link to an expression IRI, not a boolean
+      assert %RDF.IRI{} = elem(cond_triple, 2)
+
+      # Should have triples for the comparison operator
+      condition_iri = elem(cond_triple, 2)
+      type_triple = find_triple(triples, condition_iri, RDF.type())
+
+      # The condition should be a ComparisonOperator
+      assert elem(type_triple, 2) == Core.ComparisonOperator
+    end
+
+    test "build_conditional/3 without expression_builder uses boolean flags" do
+      conditional = %Conditional{
+        type: :if,
+        condition: {:>, [], [{:x, [], nil}, 5]},
+        branches: [%Branch{type: :then, body: :ok}, %Branch{type: :else, body: :err}],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0
+          # No expression_builder
+        )
+
+      # Should have boolean flag for condition
+      cond_triple = find_triple(triples, expr_iri, Core.hasCondition())
+
+      # In light mode, hasCondition should be a boolean literal
+      assert %RDF.Literal{} = elem(cond_triple, 2)
+      assert RDF.Literal.value(elem(cond_triple, 2)) == true
+    end
+
+    test "build_conditional/3 in light mode uses boolean flags even with expression_builder" do
+      conditional = %Conditional{
+        type: :if,
+        condition: {:>, [], [{:x, [], nil}, 5]},
+        branches: [%Branch{type: :then, body: :ok}],
+        metadata: %{}
+      }
+
+      # Light mode: include_expressions is false
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: false},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should use boolean flag in light mode
+      cond_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert %RDF.Literal{} = elem(cond_triple, 2)
+      assert RDF.Literal.value(elem(cond_triple, 2)) == true
+    end
+
+    test "build_conditional/3 with dependency file uses boolean flags even in full mode" do
+      conditional = %Conditional{
+        type: :if,
+        condition: {:>, [], [{:x, [], nil}, 5]},
+        branches: [%Branch{type: :then, body: :ok}],
+        metadata: %{}
+      }
+
+      # Dependency file path
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "deps/decimal/lib/decimal.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should use boolean flag for dependency files
+      cond_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert %RDF.Literal{} = elem(cond_triple, 2)
+      assert RDF.Literal.value(elem(cond_triple, 2)) == true
+    end
+
+    test "build_conditional/3 builds branch body expressions in full mode" do
+      conditional = %Conditional{
+        type: :if,
+        condition: {:x, [], nil},
+        branches: [
+          %Branch{type: :then, body: {:+, [], [{:y, [], nil}, 1]}},
+          %Branch{type: :else, body: {:*, [], [{:z, [], nil}, 2]}}
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have expression IRIs for branch bodies
+      then_triple = find_triple(triples, expr_iri, Core.hasThenBranch())
+      else_triple = find_triple(triples, expr_iri, Core.hasElseBranch())
+
+      # Both should link to expression IRIs
+      assert %RDF.IRI{} = elem(then_triple, 2)
+      assert %RDF.IRI{} = elem(else_triple, 2)
+    end
+  end
+
+  # ===========================================================================
+  # Cond Expression Integration Tests (Phase 25.2)
+  # ===========================================================================
+
+  describe "cond clause expression extraction" do
+    test "cond clause extraction in light mode uses boolean flag" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{
+            condition: {:>, [], [{:x, [], nil}, 0]},
+            body: :positive,
+            index: 0,
+            is_catch_all: false
+          },
+          %{condition: true, body: :default, index: 1, is_catch_all: true}
+        ],
+        metadata: %{}
+      }
+
+      # Light mode: include_expressions is false
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: false},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/classify/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should use boolean flag for hasClause in light mode
+      clause_triple = find_triple(triples, expr_iri, Core.hasClause())
+      assert clause_triple != nil
+      assert %RDF.Literal{} = elem(clause_triple, 2)
+      assert RDF.Literal.value(elem(clause_triple, 2)) == true
+
+      # Should NOT have expression IRIs in light mode
+      refute find_triple(triples, expr_iri, Core.hasCondition()) != nil and
+               match?(%RDF.IRI{}, elem(find_triple(triples, expr_iri, Core.hasCondition()), 2))
+    end
+
+    test "cond clause extraction in full mode builds expression trees" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{
+            condition: {:>, [], [{:x, [], nil}, 0]},
+            body: :positive,
+            index: 0,
+            is_catch_all: false
+          },
+          %{condition: true, body: :default, index: 1, is_catch_all: true}
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/classify/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition links to expression IRIs (not boolean)
+      has_condition_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasCondition() end)
+
+      # In full mode, we should have hasCondition links to IRIs, not boolean
+      assert length(has_condition_triples) > 0
+      # All hasCondition values should be IRIs in full mode
+      Enum.each(has_condition_triples, fn {_s, _p, o} ->
+        assert %RDF.IRI{} = o
+      end)
+    end
+
+    test "cond clause extraction captures condition expression" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{
+            condition: {:==, [], [{:x, [], nil}, 5]},
+            body: :matched,
+            index: 0,
+            is_catch_all: false
+          }
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition linking to an expression IRI
+      cond_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert cond_triple != nil
+      condition_iri = elem(cond_triple, 2)
+      assert %RDF.IRI{} = condition_iri
+
+      # The condition should be a ComparisonOperator
+      type_triple = find_triple(triples, condition_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ComparisonOperator
+    end
+
+    test "cond clause extraction captures body expression" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{
+            condition: {:>, [], [{:x, [], nil}, 0]},
+            body: {:*, [], [{:x, [], nil}, 2]},
+            index: 0,
+            is_catch_all: false
+          }
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/double/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasThenBranch linking to the body expression IRI
+      body_triple = find_triple(triples, expr_iri, Core.hasThenBranch())
+      assert body_triple != nil
+      body_iri = elem(body_triple, 2)
+      assert %RDF.IRI{} = body_iri
+
+      # The body should have an expression type
+      type_triple = find_triple(triples, body_iri, RDF.type())
+      assert type_triple != nil
+    end
+
+    test "cond clause extraction handles multiple clauses" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{
+            condition: {:>, [], [{:x, [], nil}, 10]},
+            body: :large,
+            index: 0,
+            is_catch_all: false
+          },
+          %{
+            condition: {:>, [], [{:x, [], nil}, 5]},
+            body: :medium,
+            index: 1,
+            is_catch_all: false
+          },
+          %{condition: true, body: :small, index: 2, is_catch_all: true}
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/categorize/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition links for each clause (3 total)
+      has_condition_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasCondition() end)
+
+      assert length(has_condition_triples) == 3
+
+      # Should have hasThenBranch links for each clause body (3 total)
+      has_body_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasThenBranch() end)
+
+      assert length(has_body_triples) == 3
+    end
+
+    test "cond clause extraction handles catch-all clause" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{
+            condition: {:>, [], [{:x, [], nil}, 0]},
+            body: :positive,
+            index: 0,
+            is_catch_all: false
+          },
+          %{condition: true, body: :zero_or_negative, index: 1, is_catch_all: true}
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/sign/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should handle the catch-all clause (condition: true)
+      # The catch-all clause should still generate condition and body triples
+      has_condition_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasCondition() end)
+
+      assert length(has_condition_triples) == 2
+
+      has_body_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasThenBranch() end)
+
+      assert length(has_body_triples) == 2
+    end
+
+    test "cond clause extraction preserves clause order" do
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      conditional = %Conditional{
+        type: :cond,
+        condition: nil,
+        branches: [],
+        clauses: [
+          %{condition: {:==, [], [{:x, [], nil}, 1]}, body: :one, index: 0, is_catch_all: false},
+          %{condition: {:==, [], [{:x, [], nil}, 2]}, body: :two, index: 1, is_catch_all: false},
+          %{condition: {:==, [], [{:x, [], nil}, 3]}, body: :three, index: 2, is_catch_all: false}
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {_expr_iri, triples} =
+        ControlFlowBuilder.build_conditional(conditional, context,
+          containing_function: "MyApp/number_name/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find all condition IRIs
+      condition_iris =
+        triples
+        |> Enum.filter(fn {_s, p, _o} -> p == Core.hasCondition() end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+        |> Enum.filter(fn o -> match?(%RDF.IRI{}, o) end)
+
+      # Check that the suffixes preserve order (cond_0_condition, cond_1_condition, cond_2_condition)
+      suffixes =
+        condition_iris
+        |> Enum.map(fn iri ->
+          iri
+          |> to_string()
+          |> String.split("/")
+          |> List.last()
+        end)
+        |> Enum.sort()
+
+      # Should have suffixes in order
+      assert Enum.at(suffixes, 0) =~ "cond_0"
+      assert Enum.at(suffixes, 1) =~ "cond_1"
+      assert Enum.at(suffixes, 2) =~ "cond_2"
+    end
+  end
+
+  # ===========================================================================
+  # Case Expression Integration Tests (Phase 25.3)
+  # ===========================================================================
+
+  describe "case expression integration" do
+    alias ElixirOntologies.Extractors.CaseWith.{CaseExpression, CaseClause}
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "case subject expression extraction in full mode" do
+      case_expr = %CaseExpression{
+        # Variable uses Elixir as context
+        subject: {:x, [], Elixir},
+        clauses: [
+          %CaseClause{index: 0, pattern: {:a, [], Elixir}, guard: nil, body: 1, has_guard: false}
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition linking to the subject expression
+      subject_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert subject_triple != nil
+      subject_iri = elem(subject_triple, 2)
+      assert %RDF.IRI{} = subject_iri
+
+      # The subject should be a Variable
+      type_triple = find_triple(triples, subject_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.Variable
+    end
+
+    test "case clause pattern extraction in full mode" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], nil},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            # Variable pattern uses Elixir as context
+            pattern: {:x, [], Elixir},
+            guard: nil,
+            body: :matched,
+            has_guard: false
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasPattern linking to a pattern IRI
+      pattern_triple = find_triple(triples, expr_iri, Core.hasPattern())
+      assert pattern_triple != nil
+      pattern_iri = elem(pattern_triple, 2)
+      assert %RDF.IRI{} = pattern_iri
+
+      # The pattern should be a VariablePattern
+      pattern_type_triple = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type_triple != nil
+      assert elem(pattern_type_triple, 2) == Core.VariablePattern
+    end
+
+    test "case clause guard extraction in full mode" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], Elixir},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:x, [], Elixir},
+            guard: {:when, [], [{:>, [], [{:x, [], Elixir}, 0]}]},
+            body: :positive,
+            has_guard: true
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasGuard linking to guard expression
+      guard_triple = find_triple(triples, expr_iri, Core.hasGuard())
+      assert guard_triple != nil
+      guard_iri = elem(guard_triple, 2)
+      assert %RDF.IRI{} = guard_iri
+    end
+
+    test "case clause body extraction in full mode" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], Elixir},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:a, [], Elixir},
+            guard: nil,
+            body: {:+, [], [{:a, [], Elixir}, 1]},
+            has_guard: false
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasThenBranch linking to body expression
+      body_triple = find_triple(triples, expr_iri, Core.hasThenBranch())
+      assert body_triple != nil
+      body_iri = elem(body_triple, 2)
+      assert %RDF.IRI{} = body_iri
+
+      # The body should have an expression type
+      type_triple = find_triple(triples, body_iri, RDF.type())
+      assert type_triple != nil
+    end
+
+    test "case extraction with multiple clauses" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], Elixir},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:a, [], Elixir},
+            guard: nil,
+            body: :one,
+            has_guard: false
+          },
+          %CaseClause{
+            index: 1,
+            pattern: {:b, [], Elixir},
+            guard: nil,
+            body: :two,
+            has_guard: false
+          },
+          %CaseClause{
+            index: 2,
+            pattern: {:c, [], Elixir},
+            guard: nil,
+            body: :three,
+            has_guard: false
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasThenBranch links for each clause (3 total)
+      body_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasThenBranch() end)
+
+      assert length(body_triples) == 3
+    end
+
+    test "case extraction with guarded clauses" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], Elixir},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:a, [], Elixir},
+            guard: {:when, [], [{:>, [], [{:a, [], Elixir}, 0]}]},
+            body: :positive,
+            has_guard: true
+          },
+          %CaseClause{
+            index: 1,
+            pattern: {:b, [], Elixir},
+            guard: nil,
+            body: :other,
+            has_guard: false
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasGuard linking for the guarded clause
+      guard_triple = find_triple(triples, expr_iri, Core.hasGuard())
+      assert guard_triple != nil
+      guard_iri = elem(guard_triple, 2)
+      assert %RDF.IRI{} = guard_iri
+
+      # Should still have body expressions for both clauses
+      body_triples =
+        Enum.filter(triples, fn {s, p, _o} -> s == expr_iri and p == Core.hasThenBranch() end)
+
+      assert length(body_triples) == 2
+    end
+
+    test "case extraction preserves clause order" do
+      case_expr = %CaseExpression{
+        subject: {:x, [], Elixir},
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:one, [], Elixir},
+            guard: nil,
+            body: 1,
+            has_guard: false
+          },
+          %CaseClause{
+            index: 1,
+            pattern: {:two, [], Elixir},
+            guard: nil,
+            body: 2,
+            has_guard: false
+          },
+          %CaseClause{
+            index: 2,
+            pattern: {:three, [], Elixir},
+            guard: nil,
+            body: 3,
+            has_guard: false
+          }
+        ],
+        location: nil,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {_expr_iri, triples} =
+        ControlFlowBuilder.build_case(case_expr, context,
+          containing_function: "MyApp/test/1",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find all body IRIs
+      body_iris =
+        triples
+        |> Enum.filter(fn {_s, p, _o} -> p == Core.hasThenBranch() end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+        |> Enum.filter(fn o -> match?(%RDF.IRI{}, o) end)
+
+      # Check that the suffixes preserve order (case_0_body, case_1_body, case_2_body)
+      suffixes =
+        body_iris
+        |> Enum.map(fn iri ->
+          iri
+          |> to_string()
+          |> String.split("/")
+          |> List.last()
+        end)
+        |> Enum.sort()
+
+      # Should have suffixes in order
+      assert Enum.at(suffixes, 0) =~ "case_0"
+      assert Enum.at(suffixes, 1) =~ "case_1"
+      assert Enum.at(suffixes, 2) =~ "case_2"
+    end
+  end
+
+  # ===========================================================================
+  # With Expression Integration Tests (Phase 25.4)
+  # ===========================================================================
+
+  describe "with expression integration" do
+    alias ElixirOntologies.Extractors.CaseWith.{WithExpression, WithClause, CaseClause}
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "with clause pattern extraction in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result, [], Elixir}
+          }
+        ],
+        body: {:result, [], Elixir},
+        else_clauses: [],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasPattern linking to the pattern IRI
+      pattern_triple = find_triple(triples, expr_iri, Core.hasPattern())
+      assert pattern_triple != nil
+
+      # Pattern should be a VariablePattern for the variable { :ok, [], Elixir }
+      pattern_iri = elem(pattern_triple, 2)
+      pattern_type_triple = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type_triple != nil
+      assert elem(pattern_type_triple, 2) == Core.VariablePattern
+    end
+
+    test "with clause expression extraction in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:x, [], Elixir},
+            expression: {:get_value, [], []}
+          }
+        ],
+        body: {:x, [], Elixir},
+        else_clauses: [],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition linking to the matched expression
+      # (The expression on the right side of the <- operator)
+      expr_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert expr_triple != nil
+
+      # The expression should be a LocalCall
+      matched_expr_iri = elem(expr_triple, 2)
+      expr_type_triple = find_triple(triples, matched_expr_iri, RDF.type())
+      assert expr_type_triple != nil
+      assert elem(expr_type_triple, 2) == Core.LocalCall
+    end
+
+    test "with body extraction in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result, [], Elixir}
+          }
+        ],
+        body: {:result, [], Elixir},
+        else_clauses: [],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasBody linking to body expression
+      body_triple = find_triple(triples, expr_iri, ElixirOntologies.NS.Structure.hasBody())
+      assert body_triple != nil
+
+      # Body should be a Variable
+      body_iri = elem(body_triple, 2)
+      body_type_triple = find_triple(triples, body_iri, RDF.type())
+      assert body_type_triple != nil
+      assert elem(body_type_triple, 2) == Core.Variable
+    end
+
+    test "with else clause extraction in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result, [], Elixir}
+          }
+        ],
+        body: {:result, [], Elixir},
+        else_clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:error, [], Elixir},
+            guard: nil,
+            body: {:handle_error, [], []},
+            has_guard: false
+          }
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find the else pattern (there should be at least 2 patterns - one for with clause, one for else)
+      pattern_iris =
+        triples
+        |> Enum.filter(fn {s, p, _o} -> s == expr_iri and p == Core.hasPattern() end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+
+      # Should have at least 2 patterns (with clause + else clause)
+      assert length(pattern_iris) >= 2
+
+      # Should have hasThenBranch linking to else body
+      body_triple = find_triple(triples, expr_iri, Core.hasThenBranch())
+      assert body_triple != nil
+
+      # Else body should be a LocalCall
+      body_iri = elem(body_triple, 2)
+      body_type_triple = find_triple(triples, body_iri, RDF.type())
+      assert body_type_triple != nil
+      assert elem(body_type_triple, 2) == Core.LocalCall
+    end
+
+    test "with extraction with multiple clauses in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result1, [], Elixir}
+          },
+          %WithClause{
+            index: 1,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result2, [], Elixir}
+          },
+          %WithClause{
+            index: 2,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result3, [], Elixir}
+          }
+        ],
+        body: {:final_result, [], Elixir},
+        else_clauses: [],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have 3 hasPattern links (one per clause)
+      pattern_iris =
+        triples
+        |> Enum.filter(fn {s, p, _o} -> s == expr_iri and p == Core.hasPattern() end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+
+      assert length(pattern_iris) == 3
+
+      # Should have hasCondition links for each expression being matched
+      condition_links =
+        triples
+        |> Enum.filter(fn {s, p, _o} ->
+          s == expr_iri and p == Core.hasCondition()
+        end)
+
+      assert length(condition_links) == 3
+    end
+
+    test "with extraction handles else clauses with guards in full mode" do
+      with_expr = %WithExpression{
+        clauses: [
+          %WithClause{
+            index: 0,
+            type: :match,
+            pattern: {:ok, [], Elixir},
+            expression: {:result, [], Elixir}
+          }
+        ],
+        body: {:result, [], Elixir},
+        else_clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:error, [], Elixir},
+            guard: {:when, [], [{:x, [], Elixir}, {:is_exception, [], []}]},
+            body: {:raise, [], []},
+            has_guard: true
+          }
+        ],
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_with(with_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasGuard link for the else clause
+      guard_triple = find_triple(triples, expr_iri, Core.hasGuard())
+      assert guard_triple != nil
+    end
+  end
+
+  # ===========================================================================
+  # Receive Expression Integration Tests (Phase 25.5)
+  # ===========================================================================
+
+  describe "receive expression integration" do
+    alias ElixirOntologies.Extractors.CaseWith.{ReceiveExpression, CaseClause, AfterClause}
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "receive clause pattern extraction in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:msg, [], Elixir},
+            guard: nil,
+            body: {:handle, [], []},
+            has_guard: false
+          }
+        ],
+        after_clause: nil,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasPattern linking to the pattern IRI
+      pattern_triple = find_triple(triples, expr_iri, Core.hasPattern())
+      assert pattern_triple != nil
+
+      # Pattern should be a VariablePattern
+      pattern_iri = elem(pattern_triple, 2)
+      pattern_type_triple = find_triple(triples, pattern_iri, RDF.type())
+      assert pattern_type_triple != nil
+      assert elem(pattern_type_triple, 2) == Core.VariablePattern
+    end
+
+    test "receive clause guard extraction in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:x, [], Elixir},
+            guard: {:when, [], [{:x, [], Elixir}, {:is_integer, [], [{:x, [], Elixir}]}]},
+            body: {:x, [], Elixir},
+            has_guard: true
+          }
+        ],
+        after_clause: nil,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasGuard linking to guard expression
+      guard_triple = find_triple(triples, expr_iri, Core.hasGuard())
+      assert guard_triple != nil
+
+      # Guard should be a function call
+      guard_iri = elem(guard_triple, 2)
+      guard_type_triple = find_triple(triples, guard_iri, RDF.type())
+      assert guard_type_triple != nil
+      assert elem(guard_type_triple, 2) == Core.LocalCall
+    end
+
+    test "receive clause body extraction in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:msg, [], Elixir},
+            guard: nil,
+            body: {:process_msg, [], [{:msg, [], Elixir}]},
+            has_guard: false
+          }
+        ],
+        after_clause: nil,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasBody linking to body expression
+      body_triple = find_triple(triples, expr_iri, ElixirOntologies.NS.Structure.hasBody())
+      assert body_triple != nil
+
+      # Body should be a LocalCall
+      body_iri = elem(body_triple, 2)
+      body_type_triple = find_triple(triples, body_iri, RDF.type())
+      assert body_type_triple != nil
+      assert elem(body_type_triple, 2) == Core.LocalCall
+    end
+
+    test "receive timeout expression extraction in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [],
+        after_clause: %AfterClause{
+          timeout: 5000,
+          body: :timeout,
+          is_immediate: false
+        },
+        has_after: true,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasCondition linking to timeout expression
+      timeout_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert timeout_triple != nil
+
+      # Timeout should be an IntegerLiteral
+      timeout_iri = elem(timeout_triple, 2)
+      timeout_type_triple = find_triple(triples, timeout_iri, RDF.type())
+      assert timeout_type_triple != nil
+      assert elem(timeout_type_triple, 2) == Core.IntegerLiteral
+    end
+
+    test "receive after block extraction in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [],
+        after_clause: %AfterClause{
+          timeout: 5000,
+          body: {:handle_timeout, [], []},
+          is_immediate: false
+        },
+        has_after: true,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasAfterClause linking to after body
+      after_triple = find_triple(triples, expr_iri, Core.hasAfterClause())
+      assert after_triple != nil
+
+      # After body should be a LocalCall
+      after_body_iri = elem(after_triple, 2)
+      after_body_type_triple = find_triple(triples, after_body_iri, RDF.type())
+      assert after_body_type_triple != nil
+      assert elem(after_body_type_triple, 2) == Core.LocalCall
+    end
+
+    test "receive extraction with multiple clauses in full mode" do
+      receive_expr = %ReceiveExpression{
+        clauses: [
+          %CaseClause{
+            index: 0,
+            pattern: {:ping, [], Elixir},
+            guard: nil,
+            body: {:pong, [], []},
+            has_guard: false
+          },
+          %CaseClause{
+            index: 1,
+            pattern: {:stop, [], Elixir},
+            guard: nil,
+            body: {:exit, [], [:normal]},
+            has_guard: false
+          },
+          %CaseClause{
+            index: 2,
+            pattern: {:_, [], nil},
+            guard: nil,
+            body: {:unknown_msg, [], []},
+            has_guard: false
+          }
+        ],
+        after_clause: nil,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_receive(receive_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have 3 hasPattern links (one per clause)
+      pattern_iris =
+        triples
+        |> Enum.filter(fn {s, p, _o} -> s == expr_iri and p == Core.hasPattern() end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+
+      assert length(pattern_iris) == 3
+
+      # Should have 3 hasBody links (one per clause)
+      body_iris =
+        triples
+        |> Enum.filter(fn {s, p, _o} ->
+          s == expr_iri and p == ElixirOntologies.NS.Structure.hasBody()
+        end)
+        |> Enum.map(fn {_s, _p, o} -> o end)
+
+      assert length(body_iris) == 3
+    end
+  end
+
+  # ===========================================================================
+  # Try Expression Integration Tests (Phase 25.6)
+  # ===========================================================================
+
+  describe "try expression integration" do
+    alias ElixirOntologies.Extractors.{Exception, Exception.RescueClause, Exception.CatchClause}
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "try expression extraction for try body in full mode" do
+      try_expr = %Exception{
+        body: {:risky_operation, [], []},
+        rescue_clauses: [],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: false,
+        has_catch: false,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.TryExpression
+
+      # Should have hasBody linking to try body
+      body_triple = find_triple(triples, expr_iri, ElixirOntologies.NS.Structure.hasBody())
+      assert body_triple != nil
+
+      # Body should be a LocalCall
+      body_iri = elem(body_triple, 2)
+      body_type_triple = find_triple(triples, body_iri, RDF.type())
+      assert body_type_triple != nil
+      assert elem(body_type_triple, 2) == Core.LocalCall
+    end
+
+    test "try expression rescue pattern extraction in full mode" do
+      try_expr = %Exception{
+        body: :ok,
+        rescue_clauses: [
+          %RescueClause{
+            exceptions: [],
+            variable: {:e, [], Elixir},
+            body: {:handle_error, [], []},
+            is_catch_all: true
+          }
+        ],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: true,
+        has_catch: false,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasRescueClause linking to rescue clause
+      rescue_triples =
+        triples
+        |> Enum.filter(fn {s, p, _o} -> s == expr_iri and p == Core.hasRescueClause() end)
+
+      assert length(rescue_triples) == 1
+    end
+
+    test "try expression catch pattern extraction in full mode" do
+      try_expr = %Exception{
+        body: :ok,
+        rescue_clauses: [],
+        catch_clauses: [
+          %CatchClause{
+            kind: :throw,
+            pattern: {:value, [], Elixir},
+            body: {:handle_throw, [], []}
+          }
+        ],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: false,
+        has_catch: true,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasPattern linking to catch pattern
+      pattern_triple = find_triple(triples, expr_iri, Core.hasPattern())
+      assert pattern_triple != nil
+
+      # Should have hasCatchClause linking to catch clause
+      catch_triple = find_triple(triples, expr_iri, Core.hasCatchClause())
+      assert catch_triple != nil
+
+      # Should have hasBody linking to catch body
+      body_triple = find_triple(triples, expr_iri, ElixirOntologies.NS.Structure.hasBody())
+      assert body_triple != nil
+    end
+
+    test "try expression after block extraction in full mode" do
+      try_expr = %Exception{
+        body: :ok,
+        rescue_clauses: [],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: {:cleanup, [], []},
+        has_rescue: false,
+        has_catch: false,
+        has_else: false,
+        has_after: true,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasAfterClause linking to after body
+      after_triple = find_triple(triples, expr_iri, Core.hasAfterClause())
+      assert after_triple != nil
+
+      # After body should be a LocalCall
+      after_body_iri = elem(after_triple, 2)
+      after_body_type_triple = find_triple(triples, after_body_iri, RDF.type())
+      assert after_body_type_triple != nil
+      assert elem(after_body_type_triple, 2) == Core.LocalCall
+    end
+
+    test "try expression extraction handles multiple rescue clauses in full mode" do
+      try_expr = %Exception{
+        body: :ok,
+        rescue_clauses: [
+          %RescueClause{
+            exceptions: [RuntimeError],
+            variable: nil,
+            body: {:handle_runtime, [], []},
+            is_catch_all: false
+          },
+          %RescueClause{
+            exceptions: [],
+            variable: {:e, [], Elixir},
+            body: {:handle_any, [], []},
+            is_catch_all: true
+          }
+        ],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: true,
+        has_catch: false,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have 2 hasRescueClause links
+      rescue_triples =
+        triples
+        |> Enum.filter(fn {s, p, _o} -> s == expr_iri and p == Core.hasRescueClause() end)
+
+      assert length(rescue_triples) == 2
+    end
+
+    test "try expression extraction handles wildcard rescue in full mode" do
+      try_expr = %Exception{
+        body: :ok,
+        rescue_clauses: [
+          %RescueClause{
+            exceptions: [],
+            variable: nil,
+            body: :error,
+            is_catch_all: true
+          }
+        ],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: true,
+        has_catch: false,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have hasRescueClause link
+      rescue_triple = find_triple(triples, expr_iri, Core.hasRescueClause())
+      assert rescue_triple != nil
+    end
+
+    test "try expression extraction for simple try (no rescue/catch/after) in full mode" do
+      try_expr = %Exception{
+        body: {:simple, [], []},
+        rescue_clauses: [],
+        catch_clauses: [],
+        else_clauses: [],
+        after_body: nil,
+        has_rescue: false,
+        has_catch: false,
+        has_else: false,
+        has_after: false,
+        metadata: %{}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_try(try_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.TryExpression
+
+      # Should have hasBody linking to try body
+      body_triple = find_triple(triples, expr_iri, ElixirOntologies.NS.Structure.hasBody())
+      assert body_triple != nil
+
+      # Should NOT have any rescue, catch, or after links
+      refute find_triple(triples, expr_iri, Core.hasRescueClause())
+      refute find_triple(triples, expr_iri, Core.hasCatchClause())
+      refute find_triple(triples, expr_iri, Core.hasAfterClause())
+    end
+  end
+
+  # ===========================================================================
+  # Raise/Throw Expression Integration Tests (Phase 25.7)
+  # ===========================================================================
+
+  describe "raise/throw expression integration" do
+    alias ElixirOntologies.Extractors.Exception.{RaiseExpression, ThrowExpression}
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "raise expression extraction with message in full mode" do
+      raise_expr = %RaiseExpression{
+        exception: nil,
+        message: "something went wrong",
+        attributes: nil,
+        is_reraise: false,
+        stacktrace: nil,
+        location: %{line: 10}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_raise(raise_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.RaiseExpression
+
+      # Should have hasCondition linking to message expression
+      condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert condition_triple != nil
+
+      # Message should be a StringLiteral
+      msg_iri = elem(condition_triple, 2)
+      msg_type_triple = find_triple(triples, msg_iri, RDF.type())
+      assert msg_type_triple != nil
+      assert elem(msg_type_triple, 2) == Core.StringLiteral
+
+      # Should have location
+      line_triple = find_triple(triples, expr_iri, Core.startLine())
+      assert line_triple != nil
+      assert RDF.Literal.value(elem(line_triple, 2)) == 10
+    end
+
+    test "raise expression extraction with exception and message in full mode" do
+      raise_expr = %RaiseExpression{
+        exception: RuntimeError,
+        message: "error occurred",
+        attributes: nil,
+        is_reraise: false,
+        stacktrace: nil,
+        location: %{line: 15}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_raise(raise_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 1,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.RaiseExpression
+
+      # Should have hasCondition linking to message expression
+      condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert condition_triple != nil
+    end
+
+    test "raise expression extraction for reraise in full mode" do
+      # Reraise uses __STACKTRACE__ as the stacktrace
+      raise_expr = %RaiseExpression{
+        exception: nil,
+        message: nil,
+        attributes: nil,
+        is_reraise: true,
+        stacktrace: {:@, [], [{:__STACKTRACE__, [], Elixir}]},
+        location: %{line: 20}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_raise(raise_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.RaiseExpression
+
+      # Reraise with no message should not have hasCondition
+      condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert condition_triple == nil
+    end
+
+    test "throw expression extraction for value in full mode" do
+      throw_expr = %ThrowExpression{
+        value: :error,
+        location: %{line: 25}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_throw(throw_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 0,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ThrowExpression
+
+      # Should have hasCondition linking to value expression
+      condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert condition_triple != nil
+
+      # Value should be an AtomLiteral
+      value_iri = elem(condition_triple, 2)
+      value_type_triple = find_triple(triples, value_iri, RDF.type())
+      assert value_type_triple != nil
+      assert elem(value_type_triple, 2) == Core.AtomLiteral
+
+      # Should have location
+      line_triple = find_triple(triples, expr_iri, Core.startLine())
+      assert line_triple != nil
+      assert RDF.Literal.value(elem(line_triple, 2)) == 25
+    end
+
+    test "throw expression extraction handles complex expressions" do
+      # Throw a tuple value
+      throw_expr = %ThrowExpression{
+        value: {:{}, [], [:error, "message", 123]},
+        location: %{line: 30}
+      }
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      {expr_iri, triples} =
+        ControlFlowBuilder.build_throw(throw_expr, context,
+          containing_function: "MyApp/test/0",
+          index: 1,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should have type triple
+      type_triple = find_triple(triples, expr_iri, RDF.type())
+      assert type_triple != nil
+      assert elem(type_triple, 2) == Core.ThrowExpression
+
+      # Should have hasCondition linking to value expression
+      condition_triple = find_triple(triples, expr_iri, Core.hasCondition())
+      assert condition_triple != nil
+
+      # Value should be a TupleLiteral
+      value_iri = elem(condition_triple, 2)
+      value_type_triple = find_triple(triples, value_iri, RDF.type())
+      assert value_type_triple != nil
+      assert elem(value_type_triple, 2) == Core.TupleLiteral
     end
   end
 

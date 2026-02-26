@@ -221,6 +221,12 @@ defmodule ElixirOntologies.Analyzer.Project do
     extract_keyword_list(expr)
   end
 
+  # Handle list concatenation: [items] ++ other_list or [items] ++ function_call()
+  # Extracts the keyword list from the left side of the ++
+  defp extract_keyword_list({:++, _, [left, _right]}) do
+    extract_keyword_list(left)
+  end
+
   defp extract_keyword_list([{_, _} | _] = list) do
     Enum.reduce(list, %{}, fn
       {key, value}, acc when is_atom(key) ->

@@ -13,7 +13,8 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
 
   describe "status_line/3" do
     test "formats status with total" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.set_total(1000)
         |> Progress.add_result(PackageResult.success("p1", "1.0.0"))
 
@@ -25,7 +26,8 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
     end
 
     test "formats status without total" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.add_result(PackageResult.success("p1", "1.0.0"))
 
       line = ProgressDisplay.status_line(progress, "ecto", "3.11.0")
@@ -49,9 +51,10 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
     test "outputs status line" do
       progress = Progress.new()
 
-      output = capture_io(fn ->
-        ProgressDisplay.print_status(progress, "phoenix", "1.7.10")
-      end)
+      output =
+        capture_io(fn ->
+          ProgressDisplay.print_status(progress, "phoenix", "1.7.10")
+        end)
 
       assert output =~ "phoenix v1.7.10"
     end
@@ -63,7 +66,8 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
 
   describe "calculate_eta/1" do
     test "calculates ETA from average duration" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.set_total(100)
         |> Progress.add_result(PackageResult.success("p1", "1.0.0", duration_ms: 1000))
         |> Progress.add_result(PackageResult.success("p2", "1.0.0", duration_ms: 2000))
@@ -75,7 +79,8 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
     end
 
     test "returns nil when no total" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.add_result(PackageResult.success("p1", "1.0.0", duration_ms: 1000))
 
       eta = ProgressDisplay.calculate_eta(progress)
@@ -84,7 +89,8 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
     end
 
     test "returns nil when no packages processed" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.set_total(100)
 
       eta = ProgressDisplay.calculate_eta(progress)
@@ -93,7 +99,8 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
     end
 
     test "returns nil when all packages processed" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.set_total(1)
         |> Progress.add_result(PackageResult.success("p1", "1.0.0", duration_ms: 1000))
 
@@ -127,7 +134,8 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
 
   describe "stats_line/1" do
     test "formats success/fail/skip counts" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.add_result(PackageResult.success("p1", "1.0.0"))
         |> Progress.add_result(PackageResult.success("p2", "1.0.0"))
         |> Progress.add_result(PackageResult.failure("p3", "1.0.0"))
@@ -136,8 +144,10 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
       line = ProgressDisplay.stats_line(progress)
 
       # Check for counts regardless of color codes
-      assert line =~ "2"  # success
-      assert line =~ "1"  # fail and skip
+      # success
+      assert line =~ "2"
+      # fail and skip
+      assert line =~ "1"
     end
 
     test "handles all zeros" do
@@ -162,9 +172,10 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
 
   describe "log_start/2" do
     test "outputs package start message" do
-      output = capture_io(fn ->
-        ProgressDisplay.log_start("phoenix", "1.7.10")
-      end)
+      output =
+        capture_io(fn ->
+          ProgressDisplay.log_start("phoenix", "1.7.10")
+        end)
 
       assert output =~ "Starting: phoenix v1.7.10"
       # Should have timestamp
@@ -174,9 +185,10 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
 
   describe "log_complete/3" do
     test "outputs complete message with duration" do
-      output = capture_io(fn ->
-        ProgressDisplay.log_complete("phoenix", "1.7.10", 1500)
-      end)
+      output =
+        capture_io(fn ->
+          ProgressDisplay.log_complete("phoenix", "1.7.10", 1500)
+        end)
 
       assert output =~ "Complete: phoenix v1.7.10"
       assert output =~ "1.5s"
@@ -185,9 +197,10 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
 
   describe "log_error/3" do
     test "outputs error message" do
-      output = capture_io(fn ->
-        ProgressDisplay.log_error("broken", "1.0.0", :connection_failed)
-      end)
+      output =
+        capture_io(fn ->
+          ProgressDisplay.log_error("broken", "1.0.0", :connection_failed)
+        end)
 
       assert output =~ "broken v1.0.0"
       assert output =~ "connection_failed"
@@ -196,9 +209,10 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
 
   describe "log_skip/3" do
     test "outputs skip message" do
-      output = capture_io(fn ->
-        ProgressDisplay.log_skip("erlang_pkg", "1.0.0", "not Elixir")
-      end)
+      output =
+        capture_io(fn ->
+          ProgressDisplay.log_skip("erlang_pkg", "1.0.0", "not Elixir")
+        end)
 
       assert output =~ "erlang_pkg v1.0.0"
       assert output =~ "not Elixir"
@@ -211,13 +225,15 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
 
   describe "display_summary/2" do
     test "displays summary output" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.add_result(PackageResult.success("p1", "1.0.0"))
         |> Progress.add_result(PackageResult.failure("p2", "1.0.0"))
 
-      output = capture_io(fn ->
-        ProgressDisplay.display_summary(progress, %{output_dir: "/tmp/out"})
-      end)
+      output =
+        capture_io(fn ->
+          ProgressDisplay.display_summary(progress, %{output_dir: "/tmp/out"})
+        end)
 
       assert output =~ "Batch Processing Complete"
       assert output =~ "Total processed: 2"
@@ -227,12 +243,14 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
     end
 
     test "suggests retry for failures" do
-      progress = Progress.new()
+      progress =
+        Progress.new()
         |> Progress.add_result(PackageResult.failure("p1", "1.0.0"))
 
-      output = capture_io(fn ->
-        ProgressDisplay.display_summary(progress)
-      end)
+      output =
+        capture_io(fn ->
+          ProgressDisplay.display_summary(progress)
+        end)
 
       assert output =~ "retry failed packages"
     end
@@ -246,9 +264,10 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
         resume: true
       }
 
-      output = capture_io(fn ->
-        ProgressDisplay.display_banner(config)
-      end)
+      output =
+        capture_io(fn ->
+          ProgressDisplay.display_banner(config)
+        end)
 
       assert output =~ "Hex.pm Batch Analyzer"
       assert output =~ "/tmp/output"
@@ -263,9 +282,10 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
 
   describe "print_dry_run_package/3" do
     test "outputs indexed package line" do
-      output = capture_io(fn ->
-        ProgressDisplay.print_dry_run_package("phoenix", "1.7.10", 42)
-      end)
+      output =
+        capture_io(fn ->
+          ProgressDisplay.print_dry_run_package("phoenix", "1.7.10", 42)
+        end)
 
       assert output =~ "42. phoenix v1.7.10"
     end
@@ -273,9 +293,10 @@ defmodule ElixirOntologies.Hex.ProgressDisplayTest do
 
   describe "display_dry_run_summary/1" do
     test "outputs package count" do
-      output = capture_io(fn ->
-        ProgressDisplay.display_dry_run_summary(150)
-      end)
+      output =
+        capture_io(fn ->
+          ProgressDisplay.display_dry_run_summary(150)
+        end)
 
       assert output =~ "Total Elixir packages found: 150"
       assert output =~ "without --dry-run"

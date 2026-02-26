@@ -6,6 +6,8 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
   alias ElixirOntologies.Extractors.Clause
   alias ElixirOntologies.NS.{Structure, Core}
 
+  @base_iri "https://example.org/code#"
+
   doctest ClauseBuilder
 
   # ===========================================================================
@@ -972,6 +974,372 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
       assert clause_iri_1 != clause_iri_2
       assert clause_iri_2 != clause_iri_3
       assert clause_iri_1 != clause_iri_3
+    end
+  end
+
+  # ===========================================================================
+  # ExpressionBuilder Integration Tests
+  # ===========================================================================
+
+  describe "ExpressionBuilder integration" do
+    alias ElixirOntologies.Builders.ExpressionBuilder
+
+    test "build_clause/3 with expression_builder in full mode builds guard expression" do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      clause_info =
+        build_test_clause(
+          order: 1,
+          head: %{
+            parameters: [{:x, [], nil}],
+            guard: {:and, [], [{:is_integer, [], [{:x, [], nil}]}, {:>, [], [{:x, [], nil}, 0]}]}
+          }
+        )
+
+      function_iri = ~I<https://example.org/code#MyApp/test/1>
+
+      {clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find the FunctionHead blank node
+      head_triple =
+        Enum.find(triples, fn {s, p, _o} ->
+          s == clause_iri and p == Structure.hasHead()
+        end)
+
+      assert head_triple != nil
+      head_bnode = elem(head_triple, 2)
+
+      # Find the guard expression IRI linked from head
+      guard_triple =
+        Enum.find(triples, fn {s, p, _o} ->
+          s == head_bnode and p == Core.hasGuard()
+        end)
+
+      assert guard_triple != nil
+
+      # In full mode, hasGuard should link to an expression IRI, not a blank node
+      guard_iri = elem(guard_triple, 2)
+      assert %RDF.IRI{} = guard_iri
+    end
+
+    test "build_clause/3 without expression_builder uses blank node for guard" do
+      context = Context.new(base_iri: @base_iri)
+
+      clause_info =
+        build_test_clause(
+          order: 1,
+          head: %{
+            parameters: [{:x, [], nil}],
+            guard: {:is_integer, [], [{:x, [], nil}]}
+          }
+        )
+
+      function_iri = ~I<https://example.org/code#MyApp/test/1>
+
+      {clause_iri, triples} = ClauseBuilder.build_clause(clause_info, function_iri, context)
+
+      # Find the FunctionHead blank node
+      head_triple =
+        Enum.find(triples, fn {s, p, _o} ->
+          s == clause_iri and p == Structure.hasHead()
+        end)
+
+      assert head_triple != nil
+      head_bnode = elem(head_triple, 2)
+
+      # Find the guard blank node linked from head
+      guard_triple =
+        Enum.find(triples, fn {s, p, _o} ->
+          s == head_bnode and p == Core.hasGuard()
+        end)
+
+      assert guard_triple != nil
+
+      # In light mode, hasGuard should link to a blank node
+      guard_node = elem(guard_triple, 2)
+      assert is_struct(guard_node, RDF.BlankNode)
+    end
+
+    test "build_clause/3 in light mode uses blank node even with expression_builder" do
+      # Light mode: include_expressions is false
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: false},
+          file_path: "lib/my_app.ex"
+        )
+
+      clause_info =
+        build_test_clause(
+          order: 1,
+          head: %{
+            parameters: [{:x, [], nil}],
+            guard: {:is_integer, [], [{:x, [], nil}]}
+          }
+        )
+
+      function_iri = ~I<https://example.org/code#MyApp/test/1>
+
+      {clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find the guard - should be blank node in light mode
+      head_triple =
+        Enum.find(triples, fn {s, p, _o} ->
+          s == clause_iri and p == Structure.hasHead()
+        end)
+
+      head_bnode = elem(head_triple, 2)
+
+      guard_triple =
+        Enum.find(triples, fn {s, p, _o} ->
+          s == head_bnode and p == Core.hasGuard()
+        end)
+
+      assert guard_triple != nil
+      guard_node = elem(guard_triple, 2)
+      assert is_struct(guard_node, RDF.BlankNode)
+    end
+
+    test "build_clause/3 with dependency file uses blank node even in full mode" do
+      # Dependency file path
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "deps/decimal/lib/decimal.ex"
+        )
+
+      clause_info =
+        build_test_clause(
+          order: 1,
+          head: %{
+            parameters: [{:x, [], nil}],
+            guard: {:is_integer, [], [{:x, [], nil}]}
+          }
+        )
+
+      function_iri = ~I<https://example.org/code#MyApp/test/1>
+
+      {clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should use blank node for dependency files
+      head_triple =
+        Enum.find(triples, fn {s, p, _o} ->
+          s == clause_iri and p == Structure.hasHead()
+        end)
+
+      head_bnode = elem(head_triple, 2)
+
+      guard_triple =
+        Enum.find(triples, fn {s, p, _o} ->
+          s == head_bnode and p == Core.hasGuard()
+        end)
+
+      assert guard_triple != nil
+      guard_node = elem(guard_triple, 2)
+      assert is_struct(guard_node, RDF.BlankNode)
+    end
+
+    test "build_clause/3 with nil guard handles gracefully" do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      clause_info =
+        build_test_clause(
+          order: 1,
+          head: %{
+            parameters: [{:x, [], nil}],
+            guard: nil
+          }
+        )
+
+      function_iri = ~I<https://example.org/code#MyApp/test/1>
+
+      {clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Should not have a hasGuard triple when guard is nil
+      head_triple =
+        Enum.find(triples, fn {s, p, _o} ->
+          s == clause_iri and p == Structure.hasHead()
+        end)
+
+      head_bnode = elem(head_triple, 2)
+
+      guard_triple =
+        Enum.find(triples, fn {s, p, _o} ->
+          s == head_bnode and p == Core.hasGuard()
+        end)
+
+      assert guard_triple == nil
+    end
+
+    test "guard expression has inGuardContext property" do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      clause_info =
+        build_test_clause(
+          order: 1,
+          head: %{
+            parameters: [{:x, [], nil}],
+            guard: {:is_integer, [], [{:x, [], nil}]}
+          }
+        )
+
+      function_iri = ~I<https://example.org/code#MyApp/test/1>
+
+      {_clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find the guard expression IRI
+      guard_iri =
+        Enum.find_value(triples, fn {s, p, o} ->
+          if p == Core.hasGuard() do
+            o
+          else
+            nil
+          end
+        end)
+
+      assert guard_iri != nil
+
+      # Verify guard expression has inGuardContext property set to true
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+             end)
+    end
+
+    test "guard expression with and/or has inGuardContext property" do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      clause_info =
+        build_test_clause(
+          order: 1,
+          head: %{
+            parameters: [{:x, [], nil}],
+            guard: {:and, [], [{:is_integer, [], [{:x, [], nil}]}, {:>, [], [{:x, [], nil}, 0]}]}
+          }
+        )
+
+      function_iri = ~I<https://example.org/code#MyApp/test/1>
+
+      {_clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find the guard expression IRI (the LogicalOperator for 'and')
+      guard_iri =
+        Enum.find_value(triples, fn {s, p, o} ->
+          if p == Core.hasGuard() do
+            o
+          else
+            nil
+          end
+        end)
+
+      assert guard_iri != nil
+
+      # Verify guard expression has inGuardContext property set to true
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+             end)
+    end
+
+    test "regular expression does not have inGuardContext property" do
+      # Test that regular (non-guard) expressions don't get inGuardContext
+      alias ElixirOntologies.Builders.ExpressionBuilder
+
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+        |> Context.with_expression_counter()
+
+      # Build a regular expression (not in guard context)
+      ast = {:==, [], [{:x, [], nil}, 1]}
+      {:ok, {expr_iri, triples, _context}} = ExpressionBuilder.build(ast, context, [])
+
+      # Verify regular expression does NOT have inGuardContext property
+      refute Enum.any?(triples, fn {s, p, _o} ->
+               s == expr_iri and p == Core.inGuardContext()
+             end)
+    end
+
+    test "guard with remote call has inGuardContext property on call" do
+      context =
+        Context.new(
+          base_iri: @base_iri,
+          config: %{include_expressions: true},
+          file_path: "lib/my_app.ex"
+        )
+
+      clause_info =
+        build_test_clause(
+          order: 1,
+          head: %{
+            parameters: [{:x, [], nil}],
+            guard: {:is_binary, [], [{:x, [], nil}]}
+          }
+        )
+
+      function_iri = ~I<https://example.org/code#MyApp/test/1>
+
+      {_clause_iri, triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: ExpressionBuilder
+        )
+
+      # Find the guard expression IRI (the RemoteCall)
+      guard_iri =
+        Enum.find_value(triples, fn {_s, p, o} ->
+          if p == Core.hasGuard() do
+            o
+          else
+            nil
+          end
+        end)
+
+      assert guard_iri != nil
+
+      # Verify guard expression has inGuardContext property set to true
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == guard_iri and p == Core.inGuardContext() and RDF.Literal.value(o) == true
+             end)
     end
   end
 end

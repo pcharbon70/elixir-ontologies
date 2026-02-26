@@ -73,7 +73,6 @@ defmodule ElixirOntologies.Hex.Api do
         updated_at: Utils.parse_datetime(json["updated_at"])
       }
     end
-
   end
 
   # ===========================================================================
@@ -166,9 +165,11 @@ defmodule ElixirOntologies.Hex.Api do
         {packages, {client, page + 1, delay_ms, :continue}}
 
       {:error, :rate_limited} ->
-        # Wait and retry the same page
-        Process.sleep(delay_ms * 10)
-        do_stream_page({client, page, delay_ms, :continue})
+        # HttpClient retry/backoff is already exhausted at this point.
+        # Halt the stream to avoid repeatedly hammering Hex.pm.
+        require Logger
+        Logger.warning("Rate limit retries exhausted on page #{page}, stopping package stream")
+        {:halt, nil}
 
       {:error, reason} ->
         # Log error and halt the stream
@@ -216,7 +217,8 @@ defmodule ElixirOntologies.Hex.Api do
       {:ok, meta} = Api.get_release_meta(client, "phoenix", "1.7.14")
       # => %{"build_tools" => ["mix"], "elixir" => "~> 1.11", "app" => "phoenix"}
   """
-  @spec get_release_meta(Req.Request.t(), String.t(), String.t()) :: {:ok, map()} | {:error, term()}
+  @spec get_release_meta(Req.Request.t(), String.t(), String.t()) ::
+          {:ok, map()} | {:error, term()}
   def get_release_meta(client, name, version) when is_binary(name) and is_binary(version) do
     url = "#{@hex_api_url}/packages/#{URI.encode(name)}/releases/#{version}"
 
@@ -424,12 +426,21 @@ defmodule ElixirOntologies.Hex.Api do
         additional_delay = HttpClient.rate_limit_delay(rate_limit)
         if additional_delay > 0, do: Process.sleep(additional_delay)
 
-        fetch_all_packages(client, delay_ms, on_page, sort, page + 1, Enum.reverse(packages) ++ acc)
+        fetch_all_packages(
+          client,
+          delay_ms,
+          on_page,
+          sort,
+          page + 1,
+          Enum.reverse(packages) ++ acc
+        )
 
       {:error, :rate_limited} ->
-        # Wait and retry the same page
-        Process.sleep(delay_ms * 10)
-        fetch_all_packages(client, delay_ms, on_page, sort, page, acc)
+        # HttpClient retry/backoff is already exhausted at this point.
+        # Return an empty list so callers stop batch processing.
+        require Logger
+        Logger.warning("Rate limit retries exhausted on page #{page}, stopping package fetch")
+        []
 
       {:error, reason} ->
         require Logger
@@ -450,16 +461,24 @@ defmodule ElixirOntologies.Hex.Api do
     b_recent = recent_downloads(b)
 
     cond do
-      a_recent > b_recent -> true
-      a_recent < b_recent -> false
+      a_recent > b_recent ->
+        true
+
+      a_recent < b_recent ->
+        false
+
       true ->
         # Recent downloads equal, compare total downloads
         a_total = total_downloads(a)
         b_total = total_downloads(b)
 
         cond do
-          a_total > b_total -> true
-          a_total < b_total -> false
+          a_total > b_total ->
+            true
+
+          a_total < b_total ->
+            false
+
           true ->
             # Total downloads also equal, compare by name (ascending)
             a.name <= b.name

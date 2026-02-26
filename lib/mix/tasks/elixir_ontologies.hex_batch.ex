@@ -35,6 +35,8 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     * `--package`, `-p` - Analyze a single package by name
     * `--dry-run` - List packages only, don't analyze
     * `--build-list` - Create progress.json with package list, don't analyze
+    * `--halt-on-warning` - Stop processing immediately when any warning is logged
+    * `--include-expressions` - Enable full expression AST extraction (10-40x larger output)
     * `--quiet`, `-q` - Minimal output
     * `--verbose`, `-v` - Detailed output with timestamps
 
@@ -120,6 +122,8 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
     sort_by: :string,
     dry_run: :boolean,
     build_list: :boolean,
+    halt_on_warning: :boolean,
+    include_expressions: :boolean,
     quiet: :boolean,
     verbose: :boolean
   ]
@@ -189,7 +193,9 @@ defmodule Mix.Tasks.ElixirOntologies.HexBatch do
       timeout_minutes: Keyword.get(opts, :timeout, 5),
       sort_by: parse_sort_by(opts[:sort_by]),
       dry_run: Keyword.get(opts, :dry_run, false),
-      verbose: Keyword.get(opts, :verbose, false)
+      verbose: Keyword.get(opts, :verbose, false),
+      halt_on_warning: Keyword.get(opts, :halt_on_warning, false),
+      include_expressions: Keyword.get(opts, :include_expressions, false)
     ]
 
     # Only include progress_file if explicitly provided

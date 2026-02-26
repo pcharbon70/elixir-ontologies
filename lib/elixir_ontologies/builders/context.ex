@@ -32,6 +32,14 @@ defmodule ElixirOntologies.Builders.Context do
   - `:config` - Configuration options (optional)
   - `:metadata` - Additional context metadata (optional)
   - `:known_modules` - Set of module names in analysis scope for cross-module linking (optional)
+
+  ## Expression Counter
+
+  When building expressions with `ExpressionBuilder`, the context metadata can
+  include an `:expression_counter` for generating deterministic expression IRIs.
+
+      context = Context.with_expression_counter(context)
+      {counter, updated_context} = Context.next_expression_counter(context)
   """
 
   @enforce_keys [:base_iri]
@@ -364,6 +372,115 @@ defmodule ElixirOntologies.Builders.Context do
   def cross_module_linking_enabled?(%__MODULE__{known_modules: _}), do: true
 
   # ===========================================================================
+  # Expression Mode Helpers
+  # ===========================================================================
+
+  @doc """
+  Checks if full expression extraction mode is enabled in the context.
+
+  Returns `true` when `include_expressions` in the config is `true`. This is a
+  convenience helper for checking the expression extraction mode without needing
+  to access the config map directly.
+
+  Note: This only checks the config setting. To determine if full expression
+  extraction should actually be used for a specific file (considering project
+  vs dependency distinction), use `full_mode_for_file?/2`.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: true}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.full_mode?(context)
+      true
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: false}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.full_mode?(context)
+      false
+
+  """
+  @spec full_mode?(t()) :: boolean()
+  def full_mode?(%__MODULE__{} = context) do
+    get_config(context, :include_expressions, false) == true
+  end
+
+  @doc """
+  Checks if full expression extraction mode should be used for a specific file.
+
+  Returns `true` only when BOTH:
+  1. `include_expressions` in the config is `true`
+  2. The file is project code (not in `/deps/`)
+
+  This helper combines the config check with the project file detection to ensure
+  that dependencies are always extracted in light mode, keeping storage manageable.
+
+  ## Parameters
+
+  - `context` - The builder context
+  - `file_path` - The file path to check
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: true}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.full_mode_for_file?(context, "lib/my_app/users.ex")
+      true
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: true}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.full_mode_for_file?(context, "deps/decimal/lib/decimal.ex")
+      false
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: false}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.full_mode_for_file?(context, "lib/my_app/users.ex")
+      false
+
+  """
+  @spec full_mode_for_file?(t(), String.t() | nil) :: boolean()
+  def full_mode_for_file?(%__MODULE__{} = context, file_path) do
+    full_mode?(context) and ElixirOntologies.Config.project_file?(file_path)
+  end
+
+  @doc """
+  Checks if light expression extraction mode is enabled in the context.
+
+  Returns `true` when `include_expressions` in the config is `false` (the default).
+  Light mode extracts only structural metadata without full expression trees.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: false}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.light_mode?(context)
+      true
+
+      iex> context = ElixirOntologies.Builders.Context.new(
+      ...>   base_iri: "https://example.org/code#",
+      ...>   config: %{include_expressions: true}
+      ...> )
+      iex> ElixirOntologies.Builders.Context.light_mode?(context)
+      false
+
+  """
+  @spec light_mode?(t()) :: boolean()
+  def light_mode?(%__MODULE__{} = context) do
+    not full_mode?(context)
+  end
+
+  # ===========================================================================
   # Context IRI Resolution
   # ===========================================================================
 
@@ -419,5 +536,74 @@ defmodule ElixirOntologies.Builders.Context do
 
   def get_context_iri(%__MODULE__{} = context, fallback_namespace) do
     RDF.iri("#{context.base_iri}#{fallback_namespace}")
+  end
+
+  # ===========================================================================
+  # Expression Counter (for ExpressionBuilder)
+  # ===========================================================================
+
+  @doc """
+  Creates a new context with an initialized expression counter.
+
+  The expression counter is used by `ExpressionBuilder` to generate
+  deterministic IRIs for expressions (e.g., `expr/0`, `expr/1`, etc.).
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(base_iri: "https://example.org/code#")
+      iex> context = ElixirOntologies.Builders.Context.with_expression_counter(context)
+      iex> ElixirOntologies.Builders.Context.get_metadata(context, :expression_counter)
+      0
+
+  """
+  @spec with_expression_counter(t()) :: t()
+  def with_expression_counter(%__MODULE__{} = context) do
+    with_metadata(context, %{expression_counter: 0})
+  end
+
+  @doc """
+  Gets the next expression counter value and returns an updated context.
+
+  This function atomically retrieves the current counter value and returns
+  a new context with the counter incremented. Used by `ExpressionBuilder`
+  to generate sequential expression IRIs.
+
+  Returns `{counter, updated_context}` where `counter` is the current value
+  (to be used for IRI generation) and `updated_context` has the counter
+  incremented for the next call.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(base_iri: "https://example.org/code#")
+      iex> context = ElixirOntologies.Builders.Context.with_expression_counter(context)
+      iex> {counter1, context1} = ElixirOntologies.Builders.Context.next_expression_counter(context)
+      iex> counter1
+      0
+      iex> {counter2, context2} = ElixirOntologies.Builders.Context.next_expression_counter(context1)
+      iex> counter2
+      1
+
+  """
+  @spec next_expression_counter(t()) :: {non_neg_integer(), t()}
+  def next_expression_counter(%__MODULE__{metadata: metadata} = context) do
+    counter = Map.get(metadata, :expression_counter, 0)
+    new_context = put_in(context.metadata[:expression_counter], counter + 1)
+    {counter, new_context}
+  end
+
+  @doc """
+  Gets the current expression counter value without incrementing.
+
+  ## Examples
+
+      iex> context = ElixirOntologies.Builders.Context.new(base_iri: "https://example.org/code#")
+      iex> context = ElixirOntologies.Builders.Context.with_expression_counter(context)
+      iex> ElixirOntologies.Builders.Context.get_expression_counter(context)
+      0
+
+  """
+  @spec get_expression_counter(t()) :: non_neg_integer()
+  def get_expression_counter(%__MODULE__{metadata: metadata}) do
+    Map.get(metadata, :expression_counter, 0)
   end
 end

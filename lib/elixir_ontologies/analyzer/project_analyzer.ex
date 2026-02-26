@@ -204,7 +204,7 @@ defmodule ElixirOntologies.Analyzer.ProjectAnalyzer do
   """
   @spec analyze(String.t(), keyword()) :: {:ok, Result.t()} | {:error, term()}
   def analyze(path, opts \\ []) do
-    config = Keyword.get(opts, :config, Config.default())
+    config = get_or_build_config(opts)
 
     with {:ok, project} <- Project.detect(path),
          files <- discover_files(project, opts),
@@ -220,6 +220,38 @@ defmodule ElixirOntologies.Analyzer.ProjectAnalyzer do
          errors: errors,
          metadata: metadata
        }}
+    end
+  end
+
+  # Gets config from opts or builds it from individual options
+  defp get_or_build_config(opts) do
+    case Keyword.get(opts, :config) do
+      nil ->
+        # Build config from individual options
+        # Only include options that are explicitly set
+        config_opts =
+          []
+          |> maybe_add_option(opts, :base_iri, nil)
+          |> maybe_add_option(opts, :include_git_info, true)
+          |> maybe_add_option(opts, :include_source_text, false)
+          |> maybe_add_option(opts, :include_expressions, false)
+          |> maybe_add_option(opts, :output_format, :turtle)
+
+        Config.new(config_opts)
+
+      config when is_struct(config, Config) ->
+        # Use provided config, potentially merging individual options
+        # For now, just use the provided config as-is
+        config
+    end
+  end
+
+  defp maybe_add_option(list, opts, key, default) do
+    value = Keyword.get(opts, key, default)
+    if value == default do
+      list
+    else
+      [{key, value} | list]
     end
   end
 

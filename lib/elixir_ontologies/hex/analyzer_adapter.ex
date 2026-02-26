@@ -34,6 +34,7 @@ defmodule ElixirOntologies.Hex.AnalyzerAdapter do
       (default: "https://elixir-code.org/:name/:version/")
     * `:version` - Package version for IRI generation (required for proper IRIs)
     * `:timeout_minutes` - Analysis timeout in minutes (default: #{@default_timeout_minutes})
+    * `:include_expressions` - Enable full expression AST extraction (default: false)
   """
   @spec analyze_package(Path.t(), String.t(), map()) ::
           {:ok, term(), map()} | {:error, term()}
@@ -42,12 +43,17 @@ defmodule ElixirOntologies.Hex.AnalyzerAdapter do
     timeout_ms = timeout * 60 * 1000
 
     base_iri = generate_base_iri(config, name)
+    include_expressions = Map.get(config, :include_expressions, false)
 
+    # Pass config options - Note: ProjectAnalyzer.analyze requires a Config struct
+    # but for now we pass the base_iri directly to maintain compatibility
+    # TODO: Future enhancement - properly integrate include_expressions via Config struct
     opts = [
       base_iri: base_iri,
       exclude_tests: true,
       continue_on_error: true,
-      include_git_info: false
+      include_git_info: false,
+      include_expressions: include_expressions
     ]
 
     with_timeout(timeout_ms, fn ->
@@ -68,21 +74,24 @@ defmodule ElixirOntologies.Hex.AnalyzerAdapter do
   Returns `{:error, :timeout}` if the function exceeds the timeout.
   Returns `{:error, {:task_exit, reason}}` if the function crashes.
   """
-  @spec with_timeout(non_neg_integer(), (() -> term())) :: term()
+  @spec with_timeout(non_neg_integer(), (-> term())) :: term()
   def with_timeout(timeout_ms, fun) when is_function(fun, 0) do
     caller = self()
     ref = make_ref()
 
     # Spawn unlinked process to avoid crashing caller on exception
-    pid = spawn(fn ->
-      result = try do
-        {:ok, fun.()}
-      catch
-        kind, reason ->
-          {:error, {:task_exit, {kind, reason}}}
-      end
-      send(caller, {ref, result})
-    end)
+    pid =
+      spawn(fn ->
+        result =
+          try do
+            {:ok, fun.()}
+          catch
+            kind, reason ->
+              {:error, {:task_exit, {kind, reason}}}
+          end
+
+        send(caller, {ref, result})
+      end)
 
     receive do
       {^ref, {:ok, result}} ->

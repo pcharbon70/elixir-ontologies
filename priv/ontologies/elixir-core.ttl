@@ -66,41 +66,6 @@
     rdfs:subClassOf bfo:BFO_0000031 .
 
 # =============================================================================
-# Comments
-# =============================================================================
-
-:Comment a owl:Class ;
-    rdfs:label "Comment"@en ;
-    rdfs:comment "A source code comment. Comments are not part of the AST but provide important context."@en ;
-    rdfs:subClassOf :CodeElement .
-
-:LineComment a owl:Class ;
-    rdfs:label "Line Comment"@en ;
-    rdfs:comment "A single-line comment starting with #."@en ;
-    rdfs:subClassOf :Comment ;
-    skos:example "# This is a line comment"@en .
-
-:BlockComment a owl:Class ;
-    rdfs:label "Block Comment"@en ;
-    rdfs:comment "A multi-line comment block (consecutive line comments treated as a block)."@en ;
-    rdfs:subClassOf :Comment ;
-    skos:example """# This is a block comment
-# spanning multiple lines
-# with related content"""@en .
-
-:TodoComment a owl:Class ;
-    rdfs:label "TODO Comment"@en ;
-    rdfs:comment "A comment containing TODO, FIXME, HACK, XXX, or similar markers indicating pending work."@en ;
-    rdfs:subClassOf :Comment ;
-    skos:example "# TODO: Implement error handling"@en .
-
-:FixmeComment a owl:Class ;
-    rdfs:label "FIXME Comment"@en ;
-    rdfs:comment "A comment containing FIXME indicating code that needs to be fixed."@en ;
-    rdfs:subClassOf :TodoComment ;
-    skos:example "# FIXME: This breaks with empty lists"@en .
-
-# =============================================================================
 # Abstract Syntax Tree Classes
 # =============================================================================
 
@@ -140,8 +105,18 @@
 :AtomLiteral a owl:Class ;
     rdfs:label "Atom Literal"@en ;
     rdfs:comment """An Elixir atom - a constant whose name is its value.
-    Examples: :ok, :error, true, false, nil."""@en ;
+    Examples: :ok, :error, :foo."""@en ;
     rdfs:subClassOf :Literal .
+
+:BooleanLiteral a owl:Class ;
+    rdfs:label "Boolean Literal"@en ;
+    rdfs:comment "A boolean atom literal: true or false."@en ;
+    rdfs:subClassOf :AtomLiteral .
+
+:NilLiteral a owl:Class ;
+    rdfs:label "Nil Literal"@en ;
+    rdfs:comment "The nil atom literal representing absence of value."@en ;
+    rdfs:subClassOf :AtomLiteral .
 
 :IntegerLiteral a owl:Class ;
     rdfs:label "Integer Literal"@en ;
@@ -183,6 +158,11 @@
     rdfs:label "Map Literal"@en ;
     rdfs:comment "A map literal with key-value pairs."@en ;
     rdfs:subClassOf :Literal .
+
+:StructLiteral a owl:Class ;
+    rdfs:label "Struct Literal"@en ;
+    rdfs:comment "A struct literal with a defined type and fields."@en ;
+    rdfs:subClassOf :MapLiteral .
 
 :KeywordListLiteral a owl:Class ;
     rdfs:label "Keyword List Literal"@en ;
@@ -314,6 +294,24 @@
     rdfs:comment "Raises an exception."@en ;
     rdfs:subClassOf :ControlFlowExpression .
 
+:hasMessage a owl:ObjectProperty ;
+    rdfs:label "has message"@en ;
+    rdfs:comment "Links a raise expression to its message expression."@en ;
+    rdfs:domain :RaiseExpression ;
+    rdfs:range :Expression .
+
+:refersToExceptionType a owl:ObjectProperty ;
+    rdfs:label "refers to exception type"@en ;
+    rdfs:comment "Links a raise expression to the exception type (module) being raised."@en ;
+    rdfs:domain :RaiseExpression ;
+    rdfs:range :Module .
+
+:hasArgument a owl:ObjectProperty ;
+    rdfs:label "has argument"@en ;
+    rdfs:comment "Links a raise expression to a keyword argument."@en ;
+    rdfs:domain :RaiseExpression ;
+    rdfs:range :Literal .
+
 :ThrowExpression a owl:Class ;
     rdfs:label "Throw Expression"@en ;
     rdfs:comment "Throws a value to be caught by a catch clause."@en ;
@@ -321,8 +319,67 @@
 
 :ExitExpression a owl:Class ;
     rdfs:label "Exit Expression"@en ;
-    rdfs:comment "Terminates the current process with a reason."@en ;
+    rdfs:comment """Exits the current process with a reason. The exit/1 builtin
+    causes the current process to terminate, optionally signaling other processes."""@en ;
     rdfs:subClassOf :ControlFlowExpression .
+
+:hasExitReason a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has exit reason"@en ;
+    rdfs:comment "Links an exit expression to its reason value."@en ;
+    rdfs:domain :ExitExpression ;
+    rdfs:range :Expression .
+
+# Control flow expressions are disjoint - an expression cannot be multiple types
+:IfExpression owl:disjointWith :UnlessExpression,
+    :CaseExpression,
+    :CondExpression,
+    :WithExpression,
+    :TryExpression,
+    :RaiseExpression,
+    :ThrowExpression,
+    :ExitExpression .
+
+:UnlessExpression owl:disjointWith :CaseExpression,
+    :CondExpression,
+    :WithExpression,
+    :TryExpression,
+    :RaiseExpression,
+    :ThrowExpression,
+    :ExitExpression .
+
+:CaseExpression owl:disjointWith :CondExpression,
+    :WithExpression,
+    :TryExpression,
+    :RaiseExpression,
+    :ThrowExpression,
+    :ExitExpression .
+
+:CondExpression owl:disjointWith :WithExpression,
+    :TryExpression,
+    :RaiseExpression,
+    :ThrowExpression,
+    :ExitExpression .
+
+:WithExpression owl:disjointWith :TryExpression,
+    :RaiseExpression,
+    :ThrowExpression,
+    :ExitExpression .
+
+:TryExpression owl:disjointWith :RaiseExpression,
+    :ThrowExpression,
+    :ExitExpression .
+
+:RaiseExpression owl:disjointWith :ThrowExpression,
+    :ExitExpression .
+
+:ThrowExpression owl:disjointWith :ExitExpression .
+
+:hasThrownValue a owl:ObjectProperty ;
+    rdfs:label "has thrown value"@en ;
+    rdfs:comment "Links a throw expression to the value being thrown."@en ;
+    rdfs:domain :ThrowExpression ;
+    rdfs:range :Expression ;
+    a owl:FunctionalProperty .
 
 :ReceiveExpression a owl:Class ;
     rdfs:label "Receive Expression"@en ;
@@ -490,6 +547,11 @@
     rdfs:comment "A function call within the current module scope."@en ;
     rdfs:subClassOf :Expression .
 
+:AnonymousFunctionCall a owl:Class ;
+    rdfs:label "Anonymous Function Call"@en ;
+    rdfs:comment "A call to an anonymous function stored in a variable, using dot syntax (e.g., fun.(args))."@en ;
+    rdfs:subClassOf :Expression .
+
 # =============================================================================
 # Scope and Environment
 # =============================================================================
@@ -526,27 +588,6 @@
 # =============================================================================
 # Object Properties
 # =============================================================================
-
-# Comment properties
-:hasComment a owl:ObjectProperty ;
-    rdfs:label "has comment"@en ;
-    rdfs:comment "Links a code element to an associated comment."@en ;
-    rdfs:domain :CodeElement ;
-    rdfs:range :Comment .
-
-:commentAbove a owl:ObjectProperty ;
-    rdfs:label "comment above"@en ;
-    rdfs:comment "A comment appearing directly above a code element."@en ;
-    rdfs:subPropertyOf :hasComment ;
-    rdfs:domain :CodeElement ;
-    rdfs:range :Comment .
-
-:inlineComment a owl:ObjectProperty ;
-    rdfs:label "inline comment"@en ;
-    rdfs:comment "A comment appearing on the same line as a code element."@en ;
-    rdfs:subPropertyOf :hasComment ;
-    rdfs:domain :CodeElement ;
-    rdfs:range :Comment .
 
 # Source location properties
 :hasSourceLocation a owl:ObjectProperty, owl:FunctionalProperty ;
@@ -618,6 +659,51 @@
     rdfs:domain :UnaryOperator ;
     rdfs:range :Expression .
 
+:hasArgument a owl:ObjectProperty ;
+    rdfs:label "has argument"@en ;
+    rdfs:comment "Links a function call (RemoteCall or LocalCall) to its argument expressions."@en ;
+    rdfs:subPropertyOf :hasChild ;
+    rdfs:domain :Expression ;
+    rdfs:range :Expression .
+
+:inGuardContext a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "in guard context"@en ;
+    rdfs:comment "Marks an expression as being within a guard clause. Guard expressions have restricted semantics - only certain operations and functions are allowed."@en ;
+    rdfs:domain :Expression ;
+    rdfs:range xsd:boolean .
+
+# =============================================================================
+# Capture Operator Properties
+# =============================================================================
+
+:captureIndex a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture index"@en ;
+    rdfs:comment """The argument index captured by &1, &2, etc.
+    Used in anonymous function shorthand."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:integer .
+
+:captureModuleName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture module name"@en ;
+    rdfs:comment """The module name referenced in &Module.fun/arity
+    function capture syntax."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:string .
+
+:captureFunctionName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture function name"@en ;
+    rdfs:comment """The function name referenced in &Module.fun/arity
+    function capture syntax."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:string .
+
+:captureArity a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "capture arity"@en ;
+    rdfs:comment """The arity specified in &Module.fun/arity
+    function capture syntax."""@en ;
+    rdfs:domain :CaptureOperator ;
+    rdfs:range xsd:integer .
+
 # Pattern matching properties
 :hasPattern a owl:ObjectProperty ;
     rdfs:label "has pattern"@en ;
@@ -654,21 +740,80 @@
     rdfs:label "has clause"@en ;
     rdfs:comment "Links a case/cond/receive to its pattern clauses."@en .
 
+:hasTryBody a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has try body"@en ;
+    rdfs:comment "Links a try expression to its main body expression."@en ;
+    rdfs:domain :TryExpression ;
+    rdfs:range :Block .
+
+:RescueClause a owl:Class ;
+    rdfs:label "Rescue Clause"@en ;
+    rdfs:comment "A clause in a try expression that catches and handles exceptions."@en ;
+    rdfs:subClassOf :Expression .
+
 :hasRescueClause a owl:ObjectProperty ;
     rdfs:label "has rescue clause"@en ;
-    rdfs:domain :TryExpression .
+    rdfs:comment "Links a try expression to its rescue clauses (ordered)."@en ;
+    rdfs:domain :TryExpression ;
+    rdfs:range :RescueClause .
+
+:hasRescueBody a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has rescue body"@en ;
+    rdfs:comment "Links a rescue clause to its handler body expression."@en ;
+    rdfs:domain :RescueClause ;
+    rdfs:range :Block .
+
+:hasExceptionPattern a owl:ObjectProperty ;
+    rdfs:label "has exception pattern"@en ;
+    rdfs:comment "Links a rescue clause to its exception matching pattern."@en ;
+    rdfs:domain :RescueClause ;
+    rdfs:range :Pattern .
+
+:refersToExceptionType a owl:ObjectProperty ;
+    rdfs:label "refers to exception type"@en ;
+    rdfs:comment "Links a rescue clause pattern to a specific exception type (struct)."@en ;
+    rdfs:domain :RescueClause ;
+    rdfs:range :Module .
+
+:CatchClause a owl:Class ;
+    rdfs:label "Catch Clause"@en ;
+    rdfs:comment "A clause in a try expression that catches thrown values, errors, or exits."@en ;
+    rdfs:subClassOf :Expression .
 
 :hasCatchClause a owl:ObjectProperty ;
     rdfs:label "has catch clause"@en ;
-    rdfs:domain :TryExpression .
+    rdfs:comment "Links a try expression to its catch clauses (ordered)."@en ;
+    rdfs:domain :TryExpression ;
+    rdfs:range :CatchClause .
+
+:hasCatchBody a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has catch body"@en ;
+    rdfs:comment "Links a catch clause to its handler body expression."@en ;
+    rdfs:domain :CatchClause ;
+    rdfs:range :Block .
+
+:hasCatchPattern a owl:ObjectProperty ;
+    rdfs:label "has catch pattern"@en ;
+    rdfs:comment "Links a catch clause to its value matching pattern."@en ;
+    rdfs:domain :CatchClause ;
+    rdfs:range :Pattern .
+
+:hasCatchType a owl:ObjectProperty ;
+    rdfs:label "has catch type"@en ;
+    rdfs:comment "Links a catch clause to the type of value being caught (:throw, :error, :exit)."@en ;
+    rdfs:domain :CatchClause ;
+    rdfs:range :Literal .
 
 :hasAfterClause a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:label "has after clause"@en ;
     rdfs:domain :TryExpression ;
     rdfs:range :Block .
 
-:hasElseClause a owl:ObjectProperty ;
-    rdfs:label "has else clause"@en .
+:hasElseClause a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has else clause"@en ;
+    rdfs:comment "Links a try expression to its else clause (executes when no exception occurs)."@en ;
+    rdfs:domain :TryExpression ;
+    rdfs:range :Block .
 
 # Comprehension properties
 :hasGenerator a owl:ObjectProperty ;
@@ -685,33 +830,16 @@
     rdfs:label "has into collector"@en ;
     rdfs:domain :ForComprehension .
 
-:hasIntoOption a owl:DatatypeProperty, owl:FunctionalProperty ;
-    rdfs:label "has into option"@en ;
-    rdfs:comment "Indicates the comprehension uses into option to collect results."@en ;
-    rdfs:domain :ForComprehension ;
-    rdfs:range xsd:boolean .
-
-:hasReduceOption a owl:DatatypeProperty, owl:FunctionalProperty ;
-    rdfs:label "has reduce option"@en ;
-    rdfs:comment "Indicates the comprehension uses reduce option for accumulation."@en ;
-    rdfs:domain :ForComprehension ;
-    rdfs:range xsd:boolean .
-
-:hasUniqOption a owl:DatatypeProperty, owl:FunctionalProperty ;
-    rdfs:label "has uniq option"@en ;
-    rdfs:comment "Indicates the comprehension uses uniq option to filter duplicates."@en ;
-    rdfs:domain :ForComprehension ;
-    rdfs:range xsd:boolean .
-
-:hasAfterTimeout a owl:DatatypeProperty, owl:FunctionalProperty ;
-    rdfs:label "has after timeout"@en ;
-    rdfs:comment "Indicates the receive expression has an after timeout block."@en ;
-    rdfs:domain :ReceiveExpression ;
-    rdfs:range xsd:boolean .
-
 # Block and scope properties
 :containsExpression a owl:ObjectProperty ;
     rdfs:label "contains expression"@en ;
+    rdfs:domain :Block ;
+    rdfs:range :Expression .
+
+:hasReturnExpression a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has return expression"@en ;
+    rdfs:comment "Links a block to the expression that provides its return value. Typically the last expression, but may be an early exit expression (throw/raise)."@en ;
+    rdfs:subPropertyOf :hasChild ;
     rdfs:domain :Block ;
     rdfs:range :Expression .
 
@@ -738,11 +866,13 @@
 # Reference properties
 :refersToModule a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:label "refers to module"@en ;
-    rdfs:domain :ModuleReference .
+    rdfs:domain :ModuleReference, :RemoteCall ;
+    rdfs:range :Module .
 
 :refersToFunction a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:label "refers to function"@en ;
-    rdfs:domain :FunctionReference .
+    rdfs:domain :FunctionReference, :RemoteCall, :LocalCall ;
+    rdfs:range :Function .
 
 :refersToVariable a owl:ObjectProperty, owl:FunctionalProperty ;
     rdfs:label "refers to variable"@en ;
@@ -862,6 +992,11 @@
     rdfs:domain :BinaryLiteral ;
     rdfs:range xsd:base64Binary .
 
+:charlistValue a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "charlist value"@en ;
+    rdfs:domain :CharlistLiteral ;
+    rdfs:range xsd:string .
+
 # Operator identity
 :operatorSymbol a owl:DatatypeProperty, owl:FunctionalProperty ;
     rdfs:label "operator symbol"@en ;
@@ -913,6 +1048,86 @@
     rdfs:domain :ReceiveExpression ;
     rdfs:range xsd:nonNegativeInteger .
 
+# After timeout clause for receive
+:hasAfterTimeout a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has after timeout"@en ;
+    rdfs:comment """Links a receive expression to its after timeout clause body.
+    The after clause executes when no message is received within the timeout period."""@en ;
+    rdfs:domain :ReceiveExpression ;
+    rdfs:range :Expression .
+
+# Comprehension option properties
+:hasIntoOption a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has into option"@en ;
+    rdfs:comment """Links a comprehension to its :into collector expression.
+    Specifies the container to collect comprehension results into."""@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range :Expression .
+
+:hasReduceOption a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has reduce option"@en ;
+    rdfs:comment """Links a comprehension to its :reduce accumulator expression.
+    Specifies the reducer function for accumulating comprehension results."""@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range :Expression .
+
+:hasUniqOption a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "has uniq option"@en ;
+    rdfs:comment """Indicates whether a comprehension filters duplicate values.
+    The :uniq option removes duplicates from comprehension results."""@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range xsd:boolean .
+
+# Additional comprehension properties for semantic clarity
+:hasEnumerable a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has enumerable"@en ;
+    rdfs:comment """Links a generator to the enumerable expression it iterates over.
+    The enumerable is the data source (list, map, stream, etc.) being traversed."""@en ;
+    rdfs:domain :Generator ;
+    rdfs:range :Expression .
+
+:hasCollectExpression a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has collect expression"@en ;
+    rdfs:comment """Links a comprehension to its body/collect expression.
+    This is the expression evaluated for each filtered element to produce the result."""@en ;
+    rdfs:domain :ForComprehension ;
+    rdfs:range :Expression .
+
+:hasFilterExpression a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has filter expression"@en ;
+    rdfs:comment """Links a filter to the boolean expression that determines
+    whether elements are included in the comprehension result."""@en ;
+    rdfs:domain :Filter ;
+    rdfs:range :Expression .
+
+# =============================================================================
+# Function Call Properties
+# =============================================================================
+
+:moduleName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "module name"@en ;
+    rdfs:comment "The module name for a remote function call or module reference (e.g., 'String', 'MyApp.Users')."@en ;
+    rdfs:domain :RemoteCall, :ModuleReference, :FunctionReference ;
+    rdfs:range xsd:string .
+
+:functionName a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "function name"@en ;
+    rdfs:comment "The function name for a function call or function reference."@en ;
+    rdfs:domain :RemoteCall, :LocalCall, :FunctionReference ;
+    rdfs:range xsd:string .
+
+:arity a owl:DatatypeProperty, owl:FunctionalProperty ;
+    rdfs:label "arity"@en ;
+    rdfs:comment "The number of arguments in a function call or function reference."@en ;
+    rdfs:domain :RemoteCall, :LocalCall, :FunctionReference ;
+    rdfs:range xsd:integer .
+
+:hasFunctionExpression a owl:ObjectProperty, owl:FunctionalProperty ;
+    rdfs:label "has function expression"@en ;
+    rdfs:comment "Links an anonymous function call to the variable expression holding the function."@en ;
+    rdfs:domain :AnonymousFunctionCall ;
+    rdfs:range :Expression .
+
 # =============================================================================
 # OWL Axioms
 # =============================================================================
@@ -958,6 +1173,9 @@
         :WithExpression
         :TryExpression
         :ReceiveExpression
+        :RaiseExpression
+        :ThrowExpression
+        :ExitExpression
     ) .
 
 # Disjoint classes for patterns

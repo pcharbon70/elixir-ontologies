@@ -390,11 +390,29 @@ defmodule ElixirOntologies.IRITest do
       assert result.module == "MyApp.Users"
     end
 
+    test "parses module IRI with slash base" do
+      iri = RDF.iri("https://example.org/code/pkg/1.0.0/MyApp.Users")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :module
+      assert result.base_iri == "https://example.org/code/pkg/1.0.0/"
+      assert result.module == "MyApp.Users"
+    end
+
     test "parses function IRI" do
       iri = RDF.iri("https://example.org/code#MyApp.Users/get_user/1")
       assert {:ok, result} = IRI.parse(iri)
       assert result.type == :function
       assert result.base_iri == "https://example.org/code#"
+      assert result.module == "MyApp.Users"
+      assert result.function == "get_user"
+      assert result.arity == 1
+    end
+
+    test "parses function IRI with slash base" do
+      iri = RDF.iri("https://example.org/code/pkg/1.0.0/MyApp.Users/get_user/1")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :function
+      assert result.base_iri == "https://example.org/code/pkg/1.0.0/"
       assert result.module == "MyApp.Users"
       assert result.function == "get_user"
       assert result.arity == 1
@@ -417,10 +435,32 @@ defmodule ElixirOntologies.IRITest do
       assert result.clause == 0
     end
 
+    test "parses clause IRI with slash base" do
+      iri = RDF.iri("https://example.org/code/pkg/1.0.0/MyApp/get/2/clause/0")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :clause
+      assert result.base_iri == "https://example.org/code/pkg/1.0.0/"
+      assert result.module == "MyApp"
+      assert result.function == "get"
+      assert result.arity == 2
+      assert result.clause == 0
+    end
+
     test "parses parameter IRI" do
       iri = RDF.iri("https://example.org/code#MyApp/get/2/clause/0/param/1")
       assert {:ok, result} = IRI.parse(iri)
       assert result.type == :parameter
+      assert result.module == "MyApp"
+      assert result.function == "get"
+      assert result.clause == 0
+      assert result.parameter == 1
+    end
+
+    test "parses parameter IRI with slash base" do
+      iri = RDF.iri("https://example.org/code/pkg/1.0.0/MyApp/get/2/clause/0/param/1")
+      assert {:ok, result} = IRI.parse(iri)
+      assert result.type == :parameter
+      assert result.base_iri == "https://example.org/code/pkg/1.0.0/"
       assert result.module == "MyApp"
       assert result.function == "get"
       assert result.clause == 0
@@ -468,7 +508,7 @@ defmodule ElixirOntologies.IRITest do
     end
 
     test "returns error for unknown pattern" do
-      assert {:error, _} = IRI.parse("https://example.org/unknown")
+      assert {:error, _} = IRI.parse("https://example.org/not_a_module/bad-module")
     end
 
     test "works with string input" do
@@ -483,8 +523,18 @@ defmodule ElixirOntologies.IRITest do
       assert {:ok, "MyApp.Users"} = IRI.module_from_iri(iri)
     end
 
+    test "extracts module from module IRI with slash base" do
+      iri = RDF.iri("https://example.org/code/pkg/1.0.0/MyApp.Users")
+      assert {:ok, "MyApp.Users"} = IRI.module_from_iri(iri)
+    end
+
     test "extracts module from function IRI" do
       iri = RDF.iri("https://example.org/code#MyApp.Users/get_user/1")
+      assert {:ok, "MyApp.Users"} = IRI.module_from_iri(iri)
+    end
+
+    test "extracts module from function IRI with slash base" do
+      iri = RDF.iri("https://example.org/code/pkg/1.0.0/MyApp.Users/get_user/1")
       assert {:ok, "MyApp.Users"} = IRI.module_from_iri(iri)
     end
 
@@ -512,6 +562,11 @@ defmodule ElixirOntologies.IRITest do
   describe "function_from_iri/1" do
     test "extracts function from function IRI" do
       iri = RDF.iri("https://example.org/code#MyApp.Users/get_user/1")
+      assert {:ok, {"MyApp.Users", "get_user", 1}} = IRI.function_from_iri(iri)
+    end
+
+    test "extracts function from function IRI with slash base" do
+      iri = RDF.iri("https://example.org/code/pkg/1.0.0/MyApp.Users/get_user/1")
       assert {:ok, {"MyApp.Users", "get_user", 1}} = IRI.function_from_iri(iri)
     end
 

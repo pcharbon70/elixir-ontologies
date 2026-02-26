@@ -299,7 +299,8 @@ defmodule ElixirOntologies.Hex.OutputManagerTest do
     test "returns threshold in bytes" do
       bytes = OutputManager.min_disk_space_bytes()
 
-      assert bytes == 500 * 1024 * 1024  # 500 MB
+      # 500 MB
+      assert bytes == 500 * 1024 * 1024
     end
   end
 

@@ -57,7 +57,7 @@ defmodule ElixirOntologies.Builders.FunctionBuilder do
       "https://example.org/code#MyApp/hello/0"
   """
 
-  alias ElixirOntologies.Builders.{Context, Helpers}
+  alias ElixirOntologies.Builders.{ClauseBuilder, Context, Helpers}
   alias ElixirOntologies.{IRI, NS}
   alias ElixirOntologies.Extractors.Function, as: FunctionExtractor
   alias NS.{Structure, Core}
@@ -120,7 +120,8 @@ defmodule ElixirOntologies.Builders.FunctionBuilder do
         build_belongs_to_triple(function_iri, function_info, context) ++
         build_docstring_triple(function_iri, function_info) ++
         build_delegate_triple(function_iri, function_info, context) ++
-        build_location_triple(function_iri, function_info, context)
+        build_location_triple(function_iri, function_info, context) ++
+        build_clause_triples(function_info, function_iri, context)
 
     # Flatten and deduplicate
     triples = List.flatten(triples) |> Enum.uniq()
@@ -329,5 +330,21 @@ defmodule ElixirOntologies.Builders.FunctionBuilder do
 
   defp module_name_from_term(module) when is_list(module) do
     module_name_string(module)
+  end
+
+  # ===========================================================================
+  # Clause Triple Generation
+  # ===========================================================================
+
+  # Build triples for function clauses using ClauseBuilder
+  defp build_clause_triples(function_info, function_iri, context) do
+    clauses = function_info.clauses || []
+
+    Enum.flat_map(clauses, fn clause_info ->
+      {_clause_iri, clause_triples} =
+        ClauseBuilder.build_clause(clause_info, function_iri, context)
+
+      clause_triples
+    end)
   end
 end

@@ -736,10 +736,17 @@ defmodule ElixirOntologies.Builders.TypeSystemBuilder do
     # Use safe conversion for AST tuples like __MODULE__
     module_str =
       case module do
-        nil -> "%{}"
-        mods when is_list(mods) -> "%" <> Enum.map_join(mods, ".", &module_part_to_string/1) <> "{}"
-        mod when is_atom(mod) -> "%" <> Atom.to_string(mod) <> "{}"
-        mod -> "%" <> module_part_to_string(mod) <> "{}"
+        nil ->
+          "%{}"
+
+        mods when is_list(mods) ->
+          "%" <> Enum.map_join(mods, ".", &module_part_to_string/1) <> "{}"
+
+        mod when is_atom(mod) ->
+          "%" <> Atom.to_string(mod) <> "{}"
+
+        mod ->
+          "%" <> module_part_to_string(mod) <> "{}"
       end
 
     name_triple =

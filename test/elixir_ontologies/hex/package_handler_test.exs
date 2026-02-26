@@ -197,11 +197,11 @@ defmodule ElixirOntologies.Hex.PackageHandlerTest do
       # Simulate what with_package does
       result =
         try do
-          fn ctx ->
-            assert ctx.name == "test"
-            assert ctx.version == "1.0.0"
-            :callback_result
-          end.(context)
+          (fn ctx ->
+             assert ctx.name == "test"
+             assert ctx.version == "1.0.0"
+             :callback_result
+           end).(context)
         after
           # Cleanup would happen here
           :ok
@@ -215,7 +215,7 @@ defmodule ElixirOntologies.Hex.PackageHandlerTest do
 
       result =
         try do
-          fn _ctx -> {:ok, :analysis_result} end.(context)
+          (fn _ctx -> {:ok, :analysis_result} end).(context)
         after
           :ok
         end

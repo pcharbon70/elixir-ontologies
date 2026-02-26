@@ -12,6 +12,7 @@ defmodule ElixirOntologies.ConfigTest do
       assert config.include_source_text == false
       assert config.include_git_info == true
       assert config.output_format == :turtle
+      assert config.include_expressions == false
     end
   end
 
@@ -127,6 +128,115 @@ defmodule ElixirOntologies.ConfigTest do
       assert_raise ArgumentError, ~r/Invalid config/, fn ->
         Config.new(base_iri: "")
       end
+    end
+  end
+
+  describe "include_expressions configuration" do
+    test "default/0 sets include_expressions to false" do
+      config = Config.default()
+      assert config.include_expressions == false
+    end
+
+    test "merge/2 accepts include_expressions option" do
+      config = Config.default()
+      merged = Config.merge(config, include_expressions: true)
+
+      assert merged.include_expressions == true
+    end
+
+    test "merge/2 accepts include_expressions with false value" do
+      config = Config.default()
+      merged = Config.merge(config, include_expressions: false)
+
+      assert merged.include_expressions == false
+    end
+
+    test "validate/1 passes with include_expressions true" do
+      config = Config.new(include_expressions: true)
+
+      assert config.include_expressions == true
+    end
+
+    test "validate/1 passes with include_expressions false" do
+      config = Config.new(include_expressions: false)
+
+      assert config.include_expressions == false
+    end
+
+    test "validate/1 returns error for non-boolean include_expressions" do
+      config = %Config{Config.default() | include_expressions: "yes"}
+
+      assert {:error, reasons} = Config.validate(config)
+      assert "include_expressions must be a boolean" in reasons
+    end
+  end
+
+  describe "project_file?/1" do
+    test "returns true for lib/ files" do
+      assert Config.project_file?("lib/my_app/users.ex") == true
+    end
+
+    test "returns true for src/ files" do
+      assert Config.project_file?("src/my_app/users.ex") == true
+    end
+
+    test "returns true for test/ files" do
+      assert Config.project_file?("test/my_app/users_test.exs") == true
+    end
+
+    test "returns false for deps/ files" do
+      assert Config.project_file?("deps/decimal/lib/decimal.ex") == false
+    end
+
+    test "returns false for absolute path with deps/" do
+      assert Config.project_file?("/path/to/project/deps/nimble_parsec/lib/parsec.ex") == false
+    end
+
+    test "returns false for nil path" do
+      assert Config.project_file?(nil) == false
+    end
+
+    test "returns true for files with deps in name but not in path" do
+      # Edge case: file name contains "deps" but not in /deps/ directory
+      assert Config.project_file?("lib/my_deps_helper.ex") == true
+    end
+  end
+
+  describe "should_extract_full?/2" do
+    test "returns true when include_expressions enabled and project file" do
+      config = Config.new(include_expressions: true)
+
+      assert Config.should_extract_full?("lib/my_app/users.ex", config) == true
+    end
+
+    test "returns false when include_expressions disabled" do
+      config = Config.new(include_expressions: false)
+
+      assert Config.should_extract_full?("lib/my_app/users.ex", config) == false
+    end
+
+    test "returns false for dependency files even when enabled" do
+      config = Config.new(include_expressions: true)
+
+      assert Config.should_extract_full?("deps/decimal/lib/decimal.ex", config) == false
+    end
+
+    test "returns false for nil file path" do
+      config = Config.new(include_expressions: true)
+
+      assert Config.should_extract_full?(nil, config) == false
+    end
+
+    test "returns false for src/ file when disabled" do
+      config = Config.new(include_expressions: false)
+
+      assert Config.should_extract_full?("src/my_app/users.ex", config) == false
+    end
+
+    test "returns true for src/ file when enabled" do
+      config = Config.new(include_expressions: true)
+
+      assert Config.should_extract_full?("src/my_app/users.ex", config) == true
     end
   end
 end

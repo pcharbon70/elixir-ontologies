@@ -323,8 +323,14 @@ defmodule ElixirOntologies.Extractors.Conditional do
   def extract_if(ast, extract_opts \\ [])
 
   def extract_if({:if, _meta, [condition, opts]} = ast, extract_opts) do
-    then_body = Keyword.get(opts, :do)
-    else_body = Keyword.get(opts, :else)
+    {then_body, else_body} =
+      if is_list(opts) and Keyword.keyword?(opts) do
+        {Keyword.get(opts, :do), Keyword.get(opts, :else)}
+      else
+        # opts is a direct expression (unlikely for if, but handle gracefully)
+        {opts, nil}
+      end
+
     location = Helpers.extract_location_if(ast, extract_opts)
 
     branches = build_branches(then_body, else_body)
@@ -372,8 +378,14 @@ defmodule ElixirOntologies.Extractors.Conditional do
   def extract_unless(ast, extract_opts \\ [])
 
   def extract_unless({:unless, _meta, [condition, opts]} = ast, extract_opts) do
-    then_body = Keyword.get(opts, :do)
-    else_body = Keyword.get(opts, :else)
+    {then_body, else_body} =
+      if is_list(opts) and Keyword.keyword?(opts) do
+        {Keyword.get(opts, :do), Keyword.get(opts, :else)}
+      else
+        # opts is a direct expression (unlikely for unless, but handle gracefully)
+        {opts, nil}
+      end
+
     location = Helpers.extract_location_if(ast, extract_opts)
 
     branches = build_branches(then_body, else_body)
@@ -424,7 +436,14 @@ defmodule ElixirOntologies.Extractors.Conditional do
   def extract_cond(ast, extract_opts \\ [])
 
   def extract_cond({:cond, _meta, [opts]} = ast, extract_opts) do
-    do_clauses = Keyword.get(opts, :do, [])
+    do_clauses =
+      if is_list(opts) and Keyword.keyword?(opts) do
+        Keyword.get(opts, :do, [])
+      else
+        # opts is a direct expression (unlikely for cond, but handle gracefully)
+        []
+      end
+
     location = Helpers.extract_location_if(ast, extract_opts)
 
     clauses = build_cond_clauses(do_clauses, extract_opts)
@@ -499,6 +518,7 @@ defmodule ElixirOntologies.Extractors.Conditional do
     end
   end
 
+  defp build_cond_clauses({:unquote, _, _}, _opts), do: []
   defp build_cond_clauses(clauses, opts) when is_list(clauses) do
     clauses
     |> Enum.with_index()
@@ -506,6 +526,9 @@ defmodule ElixirOntologies.Extractors.Conditional do
       build_cond_clause(clause_ast, index, opts)
     end)
   end
+
+  # Handle variable references and other AST nodes
+  defp build_cond_clauses(_other, _opts), do: []
 
   defp build_cond_clause({:->, _meta, [[condition], body]} = ast, index, opts) do
     location = Helpers.extract_location_if(ast, opts)
@@ -591,7 +614,13 @@ defmodule ElixirOntologies.Extractors.Conditional do
     case extract_cond(ast, opts) do
       {:ok, cond} ->
         # Extract from clause bodies
-        do_clauses = Keyword.get(body_opts, :do, [])
+        do_clauses =
+          if is_list(body_opts) and Keyword.keyword?(body_opts) do
+            Keyword.get(body_opts, :do, [])
+          else
+            []
+          end
+
         nested = extract_from_cond_clauses(do_clauses, opts, depth + 1, max_depth)
         [cond | nested]
 
@@ -626,8 +655,13 @@ defmodule ElixirOntologies.Extractors.Conditional do
 
   # Extract conditionals from if/unless branches
   defp extract_from_branches(opts, extract_opts, depth, max_depth) when is_list(opts) do
-    do_body = Keyword.get(opts, :do)
-    else_body = Keyword.get(opts, :else)
+    {do_body, else_body} =
+      if Keyword.keyword?(opts) do
+        {Keyword.get(opts, :do), Keyword.get(opts, :else)}
+      else
+        # opts is a list but not a keyword list (unlikely, but handle gracefully)
+        {opts, nil}
+      end
 
     from_do = extract_conditionals_recursive(do_body, extract_opts, depth, max_depth)
     from_else = extract_conditionals_recursive(else_body, extract_opts, depth, max_depth)
@@ -638,6 +672,7 @@ defmodule ElixirOntologies.Extractors.Conditional do
   defp extract_from_branches(_, _opts, _depth, _max_depth), do: []
 
   # Extract conditionals from cond clause bodies
+  defp extract_from_cond_clauses({:unquote, _, _}, _opts, _depth, _max_depth), do: []
   defp extract_from_cond_clauses(clauses, opts, depth, max_depth) when is_list(clauses) do
     Enum.flat_map(clauses, fn
       {:->, _, [[_condition], body]} ->
@@ -647,4 +682,7 @@ defmodule ElixirOntologies.Extractors.Conditional do
         []
     end)
   end
+
+  # Handle variable references and other AST nodes
+  defp extract_from_cond_clauses(_other, _opts, _depth, _max_depth), do: []
 end

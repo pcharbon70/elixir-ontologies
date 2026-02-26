@@ -99,9 +99,11 @@ defmodule ElixirOntologies.Hex.FailureTracker do
   defp not_elixir_error?(:not_elixir), do: true
   defp not_elixir_error?(:no_mix_exs), do: true
   defp not_elixir_error?(:no_elixir_source), do: true
+  defp not_elixir_error?(:no_source_files), do: true
   defp not_elixir_error?({:error, :not_elixir}), do: true
   defp not_elixir_error?({:error, :no_mix_exs}), do: true
   defp not_elixir_error?({:error, :no_elixir_source}), do: true
+  defp not_elixir_error?({:error, :no_source_files}), do: true
   defp not_elixir_error?(_), do: false
 
   # Output error detection
