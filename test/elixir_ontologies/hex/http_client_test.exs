@@ -21,11 +21,18 @@ defmodule ElixirOntologies.Hex.HttpClientTest do
       assert client.options.receive_timeout == 60_000
     end
 
-    test "creates client with custom retry count" do
+    test "caps retry count at max allowed" do
       client = HttpClient.new(retries: 5)
 
       assert %Req.Request{} = client
-      assert client.options.max_retries == 5
+      assert client.options.max_retries == 4
+    end
+
+    test "creates client with retry count below max" do
+      client = HttpClient.new(retries: 2)
+
+      assert %Req.Request{} = client
+      assert client.options.max_retries == 2
     end
 
     test "User-Agent header is properly formatted" do

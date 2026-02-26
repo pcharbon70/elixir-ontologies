@@ -20,7 +20,8 @@ defmodule ElixirOntologies.Hex.HttpClient do
 
   @user_agent "ElixirOntologies/#{Mix.Project.config()[:version]} (Elixir/#{System.version()})"
   @default_timeout 30_000
-  @default_retries 3
+  @default_retries 4
+  @max_retries 4
   @default_retry_base_delay_ms 1_000
   @default_retry_max_delay_ms 30_000
   @default_retry_jitter_ms 500
@@ -45,7 +46,7 @@ defmodule ElixirOntologies.Hex.HttpClient do
   ## Options
 
     * `:timeout` - Request timeout in milliseconds (default: #{@default_timeout})
-    * `:retries` - Maximum retry attempts (default: #{@default_retries})
+    * `:retries` - Maximum retry attempts (default: #{@default_retries}, max: #{@max_retries})
     * `:retry_base_delay_ms` - Base delay for incremental backoff (default: #{@default_retry_base_delay_ms})
     * `:retry_max_delay_ms` - Maximum retry delay cap (default: #{@default_retry_max_delay_ms})
     * `:retry_jitter_ms` - Random jitter added to retry delay (default: #{@default_retry_jitter_ms})
@@ -58,7 +59,10 @@ defmodule ElixirOntologies.Hex.HttpClient do
   @spec new(keyword()) :: Req.Request.t()
   def new(opts) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
-    retries = Keyword.get(opts, :retries, @default_retries)
+
+    retries =
+      normalize_non_negative_int(Keyword.get(opts, :retries, @default_retries), @default_retries)
+      |> min(@max_retries)
 
     retry_base_delay_ms =
       normalize_non_negative_int(

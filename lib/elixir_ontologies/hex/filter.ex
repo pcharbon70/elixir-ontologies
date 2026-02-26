@@ -348,74 +348,56 @@ defmodule ElixirOntologies.Hex.Filter do
 
     alias ElixirOntologies.Hex.Api
 
-    Stream.filter(packages, fn package ->
+    Stream.transform(packages, :continue, fn package, :continue ->
       version = Api.latest_stable_version(package)
 
       # Add delay to avoid rate limiting
       if delay_ms > 0, do: Process.sleep(delay_ms)
 
-      is_elixir = check_elixir_with_retry(http_client, package.name, version, delay_ms)
+      case check_elixir_with_retry(http_client, package.name, version) do
+        {:ok, true} ->
+          {[package], :continue}
 
-      if not is_elixir and verbose do
-        require Logger
-        Logger.info("Skipping Erlang package: #{package.name}")
+        {:ok, false} ->
+          if verbose do
+            require Logger
+            Logger.info("Skipping Erlang package: #{package.name}")
+          end
+
+          {[], :continue}
+
+        {:error, :rate_limited_exhausted} ->
+          # HttpClient retry/backoff is already exhausted at this point.
+          # Halt filtering so we don't keep sending metadata requests.
+          require Logger
+
+          Logger.warning(
+            "Rate limit retries exhausted for #{package.name}, stopping filter stream"
+          )
+
+          {:halt, :continue}
       end
-
-      is_elixir
     end)
   end
 
-  # Check if package is Elixir with retry on rate limit
-  defp check_elixir_with_retry(
-         http_client,
-         name,
-         version,
-         delay_ms,
-         retries \\ 3,
-         retry_count \\ 1
-       ) do
+  # Check if package is Elixir using release metadata.
+  # HttpClient handles retries/backoff; on exhaustion we stop the filter stream.
+  defp check_elixir_with_retry(http_client, name, version) do
     alias ElixirOntologies.Hex.Api
 
     case Api.get_release_meta(http_client, name, version) do
       {:ok, meta} ->
         build_tools = meta["build_tools"] || []
         elixir_version = meta["elixir"]
-        "mix" in build_tools or not is_nil(elixir_version)
-
-      {:error, :rate_limited} when retries > 0 ->
-        # Incremental backoff and retry
-        backoff_ms = incremental_rate_limit_backoff(delay_ms, retry_count)
-        require Logger
-        Logger.warning("Rate limited, backing off for #{backoff_ms}ms...")
-        Process.sleep(backoff_ms)
-
-        check_elixir_with_retry(
-          http_client,
-          name,
-          version,
-          delay_ms,
-          retries - 1,
-          retry_count + 1
-        )
+        {:ok, "mix" in build_tools or not is_nil(elixir_version)}
 
       {:error, :rate_limited} ->
-        # Exhausted retries, assume Elixir (fail open)
-        require Logger
-        Logger.warning("Rate limit retries exhausted for #{name}, assuming Elixir")
-        true
+        {:error, :rate_limited_exhausted}
 
       {:error, _} ->
         # On other errors, assume it might be Elixir (fail open)
-        true
+        {:ok, true}
     end
-  end
-
-  defp incremental_rate_limit_backoff(delay_ms, retry_count) do
-    base_delay_ms = max(delay_ms, 100)
-    retry_count = max(retry_count, 1)
-    max_backoff_ms = 30_000
-
-    min(base_delay_ms * retry_count, max_backoff_ms)
   end
 
   @doc """

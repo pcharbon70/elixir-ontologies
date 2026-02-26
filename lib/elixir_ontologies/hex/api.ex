@@ -138,17 +138,17 @@ defmodule ElixirOntologies.Hex.Api do
     start_page = Keyword.get(opts, :start_page, 1)
 
     Stream.resource(
-      fn -> {client, start_page, delay_ms, :continue, 0} end,
+      fn -> {client, start_page, delay_ms, :continue} end,
       &do_stream_page/1,
       fn _ -> :ok end
     )
   end
 
-  defp do_stream_page({_client, _page, _delay_ms, :halt, _rate_limit_retries}) do
+  defp do_stream_page({_client, _page, _delay_ms, :halt}) do
     {:halt, nil}
   end
 
-  defp do_stream_page({client, page, delay_ms, :continue, rate_limit_retries}) do
+  defp do_stream_page({client, page, delay_ms, :continue}) do
     # Apply delay between pages (except for first page)
     if page > 1, do: Process.sleep(delay_ms)
 
@@ -162,13 +162,14 @@ defmodule ElixirOntologies.Hex.Api do
         additional_delay = HttpClient.rate_limit_delay(rate_limit)
         if additional_delay > 0, do: Process.sleep(additional_delay)
 
-        {packages, {client, page + 1, delay_ms, :continue, 0}}
+        {packages, {client, page + 1, delay_ms, :continue}}
 
       {:error, :rate_limited} ->
-        # Incremental backoff and retry the same page
-        next_retry = rate_limit_retries + 1
-        Process.sleep(incremental_rate_limit_backoff(delay_ms, next_retry))
-        do_stream_page({client, page, delay_ms, :continue, next_retry})
+        # HttpClient retry/backoff is already exhausted at this point.
+        # Halt the stream to avoid repeatedly hammering Hex.pm.
+        require Logger
+        Logger.warning("Rate limit retries exhausted on page #{page}, stopping package stream")
+        {:halt, nil}
 
       {:error, reason} ->
         # Log error and halt the stream
@@ -411,10 +412,6 @@ defmodule ElixirOntologies.Hex.Api do
   end
 
   defp fetch_all_packages(client, delay_ms, on_page, sort, page \\ 1, acc \\ []) do
-    fetch_all_packages(client, delay_ms, on_page, sort, page, acc, 0)
-  end
-
-  defp fetch_all_packages(client, delay_ms, on_page, sort, page, acc, rate_limit_retries) do
     on_page.(page)
 
     if page > 1, do: Process.sleep(delay_ms)
@@ -435,29 +432,21 @@ defmodule ElixirOntologies.Hex.Api do
           on_page,
           sort,
           page + 1,
-          Enum.reverse(packages) ++ acc,
-          0
+          Enum.reverse(packages) ++ acc
         )
 
       {:error, :rate_limited} ->
-        # Incremental backoff and retry the same page
-        next_retry = rate_limit_retries + 1
-        Process.sleep(incremental_rate_limit_backoff(delay_ms, next_retry))
-        fetch_all_packages(client, delay_ms, on_page, sort, page, acc, next_retry)
+        # HttpClient retry/backoff is already exhausted at this point.
+        # Return an empty list so callers stop batch processing.
+        require Logger
+        Logger.warning("Rate limit retries exhausted on page #{page}, stopping package fetch")
+        []
 
       {:error, reason} ->
         require Logger
         Logger.error("Failed to fetch page #{page}: #{inspect(reason)}")
         Enum.reverse(acc)
     end
-  end
-
-  defp incremental_rate_limit_backoff(delay_ms, retry_count) do
-    base_delay_ms = max(delay_ms, 100)
-    retry_count = max(retry_count, 1)
-    max_backoff_ms = 30_000
-
-    min(base_delay_ms * retry_count, max_backoff_ms)
   end
 
   @doc """
