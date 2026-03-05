@@ -6,6 +6,7 @@ defmodule ElixirOntologies.PipelineTest do
   alias ElixirOntologies.Builders.Context
   alias ElixirOntologies.Extractors.Module, as: ModuleExtractor
   alias ElixirOntologies.Extractors.Function, as: FunctionExtractor
+  alias ElixirOntologies.Extractors.Struct, as: StructExtractor
 
   # ===========================================================================
   # Test Helpers
@@ -57,6 +58,7 @@ defmodule ElixirOntologies.PipelineTest do
       specs: [],
       protocols: %{protocol: nil, implementations: []},
       behaviors: %{definition: nil, implementations: []},
+      structs: Keyword.get(opts, :structs, []),
       otp_patterns: %{genserver: nil, supervisor: nil, agent: nil, task: nil, ets: nil},
       attributes: [],
       macros: []
@@ -210,6 +212,22 @@ defmodule ElixirOntologies.PipelineTest do
       assert result.supervisors == []
       assert result.agents == []
       assert result.tasks == []
+    end
+
+    test "passes through extracted structs" do
+      struct_info = %StructExtractor{
+        fields: [],
+        enforce_keys: [],
+        derives: [],
+        location: nil,
+        metadata: %{}
+      }
+
+      module_analysis = build_minimal_module_analysis(structs: [struct_info])
+
+      result = Pipeline.convert_module_analysis(module_analysis)
+
+      assert result.structs == [struct_info]
     end
   end
 

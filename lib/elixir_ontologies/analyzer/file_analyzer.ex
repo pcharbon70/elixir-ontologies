@@ -140,6 +140,7 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
     - `specs` - List of function spec results
     - `protocols` - Protocol and implementation results
     - `behaviors` - Behavior definition and implementation results
+    - `structs` - Struct definition results
     - `otp_patterns` - OTP pattern detection results (GenServer, Supervisor, etc.)
     - `attributes` - Module attribute results
     - `macros` - Macro definition and usage results
@@ -157,6 +158,7 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
       specs: [],
       protocols: %{},
       behaviors: %{},
+      structs: [],
       otp_patterns: %{},
       attributes: [],
       macros: [],
@@ -185,6 +187,7 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
             specs: list(),
             protocols: map(),
             behaviors: map(),
+            structs: list(),
             otp_patterns: map(),
             attributes: list(),
             macros: list(),
@@ -418,6 +421,7 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
       specs: extract_specs(body),
       protocols: extract_protocols(body),
       behaviors: extract_behaviors(body),
+      structs: extract_structs(body),
       otp_patterns: extract_otp_patterns(body),
       attributes: extract_attributes(body),
       macros: extract_macros(body),
@@ -475,19 +479,71 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
     |> Enum.reject(&is_nil/1)
   end
 
-  defp extract_protocols(_body) do
-    # For now, return empty - full implementation requires checking defprotocol/defimpl
-    %{protocol: nil, implementations: []}
+  defp extract_protocols(body) do
+    protocol =
+      body
+      |> find_protocol_nodes()
+      |> List.first()
+      |> case do
+        nil ->
+          nil
+
+        protocol_node ->
+          safe_extract(fn -> Extractors.Protocol.extract(protocol_node) end)
+      end
+
+    implementations =
+      body
+      |> find_protocol_implementation_nodes()
+      |> Enum.map(
+        &safe_extract(fn ->
+          Extractors.Protocol.extract_implementation(&1)
+        end)
+      )
+      |> Enum.reject(&is_nil/1)
+
+    %{protocol: protocol, implementations: implementations}
   end
 
-  defp extract_behaviors(_body) do
-    # For now, return empty - full implementation requires checking @behaviour
-    %{definition: nil, implementations: []}
+  defp extract_behaviors(body) do
+    definition =
+      if Extractors.Behaviour.defines_behaviour?(body) do
+        safe_extract(fn -> {:ok, Extractors.Behaviour.extract_from_body(body)} end)
+      else
+        nil
+      end
+
+    implementations =
+      case safe_extract(fn -> {:ok, Extractors.Behaviour.extract_implementations(body)} end) do
+        %{behaviours: behaviours, overridables: overridables} = implementation
+        when behaviours != [] or overridables != [] ->
+          [implementation]
+
+        _ ->
+          []
+      end
+
+    %{definition: definition, implementations: implementations}
   end
 
-  defp extract_otp_patterns(_body) do
-    # For now, return empty - full implementation requires pattern matching
-    %{genserver: nil, supervisor: nil, agent: nil, task: nil, ets: nil}
+  defp extract_structs(body) do
+    case safe_extract(fn -> Extractors.Struct.extract_from_body(body) end) do
+      nil -> []
+      struct -> [struct]
+    end
+  end
+
+  defp extract_otp_patterns(body) do
+    ets_patterns =
+      safe_extract(fn -> {:ok, Extractors.OTP.ETS.extract_all(body)} end) || []
+
+    %{
+      genserver: safe_extract(fn -> Extractors.OTP.GenServer.extract(body) end),
+      supervisor: safe_extract(fn -> Extractors.OTP.Supervisor.extract(body) end),
+      agent: safe_extract(fn -> Extractors.OTP.Agent.extract(body) end),
+      task: safe_extract(fn -> Extractors.OTP.Task.extract(body) end),
+      ets: if(ets_patterns == [], do: nil, else: ets_patterns)
+    }
   end
 
   defp extract_attributes(body) do
@@ -497,9 +553,8 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
     |> Enum.reject(&is_nil/1)
   end
 
-  defp extract_macros(_body) do
-    # For now, return empty - full implementation requires finding defmacro nodes
-    []
+  defp extract_macros(body) do
+    safe_extract(fn -> {:ok, Extractors.Macro.extract_all(body)} end) || []
   end
 
   # ===========================================================================
@@ -534,6 +589,22 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
   defp find_function_nodes(body) do
     walk_ast(body, fn
       {type, _, _} = node when type in [:def, :defp, :defmacro, :defmacrop] -> {:collect, node}
+      _ -> :continue
+    end)
+  end
+
+  # Find protocol definition nodes (defprotocol)
+  defp find_protocol_nodes(body) do
+    walk_ast(body, fn
+      {:defprotocol, _, _} = node -> {:collect, node}
+      _ -> :continue
+    end)
+  end
+
+  # Find protocol implementation nodes (defimpl)
+  defp find_protocol_implementation_nodes(body) do
+    walk_ast(body, fn
+      {:defimpl, _, _} = node -> {:collect, node}
       _ -> :continue
     end)
   end
@@ -628,7 +699,8 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzer do
         file_path: file_path,
         config: %{
           include_source_text: config.include_source_text,
-          include_git_info: config.include_git_info
+          include_git_info: config.include_git_info,
+          include_expressions: config.include_expressions
         }
       )
 

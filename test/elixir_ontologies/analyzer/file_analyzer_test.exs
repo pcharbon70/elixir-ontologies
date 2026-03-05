@@ -172,6 +172,112 @@ defmodule ElixirOntologies.Analyzer.FileAnalyzerTest do
     end
   end
 
+  describe "protocol extraction" do
+    test "extracts protocol definitions and implementations" do
+      source = """
+      defmodule FileAnalyzerProtocolContainer do
+        defprotocol NestedProtocol do
+          def encode(data)
+        end
+
+        defimpl NestedProtocol, for: Integer do
+          def encode(value), do: Integer.to_string(value)
+        end
+      end
+      """
+
+      {:ok, result} = FileAnalyzer.analyze_string(source)
+
+      [module] = result.modules
+
+      assert module.name == :FileAnalyzerProtocolContainer
+      assert module.protocols.protocol != nil
+      assert length(module.protocols.implementations) == 1
+    end
+  end
+
+  describe "behaviour extraction" do
+    test "extracts behaviour definitions and implementations" do
+      source = """
+      defmodule FileAnalyzerBehaviour do
+        @callback run(term()) :: term()
+      end
+
+      defmodule FileAnalyzerBehaviourImpl do
+        @behaviour FileAnalyzerBehaviour
+        def run(value), do: value
+      end
+      """
+
+      {:ok, result} = FileAnalyzer.analyze_string(source)
+
+      behaviour_module = Enum.find(result.modules, &(&1.name == :FileAnalyzerBehaviour))
+      impl_module = Enum.find(result.modules, &(&1.name == :FileAnalyzerBehaviourImpl))
+
+      assert behaviour_module.behaviors.definition != nil
+      assert behaviour_module.behaviors.implementations == []
+
+      assert impl_module.behaviors.definition == nil
+      assert length(impl_module.behaviors.implementations) == 1
+    end
+  end
+
+  describe "struct extraction" do
+    test "extracts defstruct definitions" do
+      source = """
+      defmodule FileAnalyzerStruct do
+        @enforce_keys [:id]
+        defstruct [:id, :name]
+      end
+      """
+
+      {:ok, result} = FileAnalyzer.analyze_string(source)
+
+      [module] = result.modules
+      assert module.name == :FileAnalyzerStruct
+      assert length(module.structs) == 1
+    end
+  end
+
+  describe "otp extraction" do
+    test "extracts GenServer patterns" do
+      source = """
+      defmodule FileAnalyzerServer do
+        use GenServer
+
+        def start_link(opts \\\\ []), do: GenServer.start_link(__MODULE__, opts)
+        def init(state), do: {:ok, state}
+      end
+      """
+
+      {:ok, result} = FileAnalyzer.analyze_string(source)
+
+      [module] = result.modules
+      assert module.name == :FileAnalyzerServer
+      assert module.otp_patterns.genserver != nil
+    end
+  end
+
+  describe "macro extraction" do
+    test "extracts macro definitions" do
+      source = """
+      defmodule FileAnalyzerMacros do
+        defmacro hello(name) do
+          quote do
+            "Hello, " <> unquote(name)
+          end
+        end
+      end
+      """
+
+      {:ok, result} = FileAnalyzer.analyze_string(source)
+
+      [module] = result.modules
+      assert module.name == :FileAnalyzerMacros
+      assert length(module.macros) == 1
+    end
+  end
+
   # ============================================================================
   # Context Detection Tests
   # ============================================================================

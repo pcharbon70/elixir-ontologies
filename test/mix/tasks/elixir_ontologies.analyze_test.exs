@@ -89,6 +89,15 @@ defmodule Mix.Tasks.ElixirOntologies.AnalyzeTest do
       assert output =~ "@prefix"
     end
 
+    test "accepts --include-expressions option", %{test_file: test_file} do
+      output =
+        capture_io(fn ->
+          Analyze.run([test_file, "--include-expressions", "--quiet"])
+        end)
+
+      assert output =~ "@prefix"
+    end
+
     test "writes output to file", %{test_file: test_file, temp_dir: temp_dir} do
       output_file = Path.join(temp_dir, "output.ttl")
 

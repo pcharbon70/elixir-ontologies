@@ -21,6 +21,7 @@ defmodule Mix.Tasks.ElixirOntologies.Update do
     * `--base-iri`, `-b` - Base IRI for generated resources
     * `--include-source` - Include source code text in graph
     * `--include-git` - Include git provenance information (default: true)
+    * `--include-expressions` - Include full AST expression triples (default: false)
     * `--exclude-tests` - Exclude test files from analysis (default: true)
     * `--quiet`, `-q` - Suppress progress output
 
@@ -254,6 +255,7 @@ defmodule Mix.Tasks.ElixirOntologies.Update do
         base_iri: :string,
         include_source: :boolean,
         include_git: :boolean,
+        include_expressions: :boolean,
         exclude_tests: :boolean,
         quiet: :boolean
       ],
@@ -535,6 +537,12 @@ defmodule Mix.Tasks.ElixirOntologies.Update do
     config =
       case Keyword.fetch(opts, :include_git) do
         {:ok, value} -> %{config | include_git_info: value}
+        :error -> config
+      end
+
+    config =
+      case Keyword.fetch(opts, :include_expressions) do
+        {:ok, value} -> %{config | include_expressions: value}
         :error -> config
       end
 
