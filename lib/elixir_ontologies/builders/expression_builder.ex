@@ -949,14 +949,16 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # raise/2: raise Exception, "message" -> raises Exception with message
   # raise/2: raise Exception, [keyword: value] -> raises with attributes
   # raise/1: raise Exception -> raises Exception with default message
-  @spec build_raise(list(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
+  @spec build_raise(term(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
   defp build_raise(args, expr_iri, context) do
+    normalized_args = normalize_raise_args(args)
+
     # Create type triple for RaiseExpression
     type_triple = Helpers.type_triple(expr_iri, Core.RaiseExpression)
 
     # Process the args based on their structure
     {exception_triples, message_triples, argument_triples} =
-      process_raise_args(args, expr_iri, context)
+      process_raise_args(normalized_args, expr_iri, context)
 
     # Combine all triples
     [type_triple] ++ exception_triples ++ message_triples ++ argument_triples
@@ -985,6 +987,15 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     message_triples = build_expression_triples(message_ast, message_iri, context)
     message_link_triple = Helpers.object_property(expr_iri, Core.hasMessage(), message_iri)
     message_triples ++ [message_link_triple]
+  end
+
+  # raise/0 in some AST forms may be represented with non-list args.
+  # Treat these as "re-raise" shape with no explicit arguments.
+  defp normalize_raise_args(args) when is_list(args), do: args
+  defp normalize_raise_args(_), do: []
+
+  defp process_raise_args([], _expr_iri, _context) do
+    {[], [], []}
   end
 
   defp process_raise_args([{:__aliases__, _, _module_path} = alias_ast], expr_iri, context) do

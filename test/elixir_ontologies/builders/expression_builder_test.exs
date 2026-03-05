@@ -7846,6 +7846,35 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
       assert length(argument_triples) > 0
     end
 
+    test "extracts raise with no arguments list form", %{context: context} do
+      ast = {:raise, [], []}
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.RaiseExpression
+             end)
+
+      refute Enum.any?(triples, fn {s, p, _o} ->
+               s == expr_iri and p == Core.hasMessage()
+             end)
+    end
+
+    test "extracts raise with no arguments quote form", %{context: context} do
+      ast =
+        quote do
+          raise
+        end
+
+      expr_iri = RDF.iri("https://example.org/code#expr/0")
+      triples = ExpressionBuilder.build_expression_triples(ast, expr_iri, context)
+
+      assert Enum.any?(triples, fn {s, p, o} ->
+               s == expr_iri and p == RDF.type() and o == Core.RaiseExpression
+             end)
+    end
+
     test "captures exception type reference for custom exceptions", %{context: context} do
       ast =
         quote do
