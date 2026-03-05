@@ -227,7 +227,9 @@ defmodule ElixirOntologies.Pipeline do
       module: ma.module_info,
       functions: ma.functions || [],
       protocols: extract_protocols(ma.protocols),
+      protocol_implementations: extract_protocol_implementations(ma.protocols),
       behaviours: extract_behaviours(ma.behaviors),
+      behaviour_implementations: extract_behaviour_implementations(ma.behaviors),
       structs: ma.structs || [],
       types: ma.types || [],
       genservers: extract_otp_pattern(ma.otp_patterns, :genserver),
@@ -241,13 +243,23 @@ defmodule ElixirOntologies.Pipeline do
     }
   end
 
-  defp extract_protocols(%{protocol: nil, implementations: []}), do: []
   defp extract_protocols(%{protocol: protocol}) when not is_nil(protocol), do: [protocol]
   defp extract_protocols(_), do: []
 
-  defp extract_behaviours(%{definition: nil, implementations: []}), do: []
+  defp extract_protocol_implementations(%{implementations: implementations})
+       when is_list(implementations),
+       do: implementations
+
+  defp extract_protocol_implementations(_), do: []
+
   defp extract_behaviours(%{definition: definition}) when not is_nil(definition), do: [definition]
   defp extract_behaviours(_), do: []
+
+  defp extract_behaviour_implementations(%{implementations: implementations})
+       when is_list(implementations),
+       do: implementations
+
+  defp extract_behaviour_implementations(_), do: []
 
   defp extract_otp_pattern(nil, _key), do: []
 
