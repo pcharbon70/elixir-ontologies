@@ -5,11 +5,13 @@ defmodule ElixirOntologies.Builders.OrchestratorTest do
   alias ElixirOntologies.Builders.{Orchestrator, Context}
   alias ElixirOntologies.Extractors.Module, as: ModuleExtractor
   alias ElixirOntologies.Extractors.Function, as: FunctionExtractor
+  alias ElixirOntologies.Extractors.Protocol.Implementation, as: ProtocolImplementation
   alias ElixirOntologies.Extractors.OTP.GenServer, as: GenServerExtractor
   alias ElixirOntologies.Extractors.OTP.Supervisor, as: SupervisorExtractor
   alias ElixirOntologies.Extractors.OTP.Agent, as: AgentExtractor
   alias ElixirOntologies.Extractors.OTP.Task, as: TaskExtractor
   alias ElixirOntologies.Extractors.Struct, as: StructExtractor
+  alias ElixirOntologies.NS.Structure
 
   # ===========================================================================
   # Test Helpers
@@ -97,6 +99,31 @@ defmodule ElixirOntologies.Builders.OrchestratorTest do
       derives: [],
       location: nil,
       metadata: %{}
+    }
+  end
+
+  defp build_minimal_protocol_implementation(opts) do
+    %ProtocolImplementation{
+      protocol: Keyword.get(opts, :protocol, [:Stringable]),
+      for_type: Keyword.get(opts, :for_type, [:TestModule]),
+      functions: [],
+      is_any: false,
+      location: nil,
+      metadata: %{}
+    }
+  end
+
+  defp build_minimal_behaviour_implementation(opts) do
+    %{
+      behaviours: [
+        %{
+          behaviour: Keyword.get(opts, :behaviour, :GenServer),
+          behaviour_alias: nil,
+          location: nil
+        }
+      ],
+      overridables: [],
+      functions: Keyword.get(opts, :functions, [{:init, 1}])
     }
   end
 
@@ -302,6 +329,52 @@ defmodule ElixirOntologies.Builders.OrchestratorTest do
   end
 
   # ===========================================================================
+  # Protocol/Behaviour Implementation Tests
+  # ===========================================================================
+
+  describe "build_module_graph/2 - protocol and behaviour implementations" do
+    test "builds graph with protocol implementation" do
+      module_info = build_minimal_module()
+      implementation = build_minimal_protocol_implementation(for_type: [:CustomType])
+
+      analysis = %{
+        module: module_info,
+        protocol_implementations: [implementation]
+      }
+
+      context = build_test_context()
+
+      {:ok, graph} = Orchestrator.build_module_graph(analysis, context)
+
+      impl_iri = RDF.iri("https://example.org/code#Stringable.for.CustomType")
+      protocol_iri = RDF.iri("https://example.org/code#Stringable")
+      assert RDF.Graph.describes?(graph, impl_iri)
+      assert {impl_iri, Structure.implementsProtocol(), protocol_iri} in RDF.Graph.triples(graph)
+    end
+
+    test "builds graph with behaviour implementation" do
+      module_info = build_minimal_module(name: [:MyServer])
+      implementation = build_minimal_behaviour_implementation(behaviour: :GenServer)
+
+      analysis = %{
+        module: module_info,
+        behaviour_implementations: [implementation]
+      }
+
+      context = build_test_context()
+
+      {:ok, graph} = Orchestrator.build_module_graph(analysis, context)
+
+      module_iri = RDF.iri("https://example.org/code#MyServer")
+      behaviour_iri = RDF.iri("https://example.org/code#GenServer")
+
+      assert {module_iri, Structure.implementsBehaviour(), behaviour_iri} in RDF.Graph.triples(
+               graph
+             )
+    end
+  end
+
+  # ===========================================================================
   # Integration Tests
   # ===========================================================================
 
@@ -339,7 +412,9 @@ defmodule ElixirOntologies.Builders.OrchestratorTest do
         module: module_info,
         functions: [],
         protocols: [],
+        protocol_implementations: [],
         behaviours: [],
+        behaviour_implementations: [],
         structs: [],
         types: [],
         genservers: [],

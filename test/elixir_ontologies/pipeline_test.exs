@@ -6,6 +6,7 @@ defmodule ElixirOntologies.PipelineTest do
   alias ElixirOntologies.Builders.Context
   alias ElixirOntologies.Extractors.Module, as: ModuleExtractor
   alias ElixirOntologies.Extractors.Function, as: FunctionExtractor
+  alias ElixirOntologies.Extractors.Protocol.Implementation, as: ProtocolImplementation
   alias ElixirOntologies.Extractors.Struct, as: StructExtractor
 
   # ===========================================================================
@@ -56,8 +57,8 @@ defmodule ElixirOntologies.PipelineTest do
       functions: Keyword.get(opts, :functions, []),
       types: Keyword.get(opts, :types, []),
       specs: [],
-      protocols: %{protocol: nil, implementations: []},
-      behaviors: %{definition: nil, implementations: []},
+      protocols: Keyword.get(opts, :protocols, %{protocol: nil, implementations: []}),
+      behaviors: Keyword.get(opts, :behaviors, %{definition: nil, implementations: []}),
       structs: Keyword.get(opts, :structs, []),
       otp_patterns: %{genserver: nil, supervisor: nil, agent: nil, task: nil, ets: nil},
       attributes: [],
@@ -177,7 +178,9 @@ defmodule ElixirOntologies.PipelineTest do
       assert Map.has_key?(result, :module)
       assert Map.has_key?(result, :functions)
       assert Map.has_key?(result, :protocols)
+      assert Map.has_key?(result, :protocol_implementations)
       assert Map.has_key?(result, :behaviours)
+      assert Map.has_key?(result, :behaviour_implementations)
       assert Map.has_key?(result, :types)
       assert Map.has_key?(result, :genservers)
       assert Map.has_key?(result, :supervisors)
@@ -212,6 +215,43 @@ defmodule ElixirOntologies.PipelineTest do
       assert result.supervisors == []
       assert result.agents == []
       assert result.tasks == []
+    end
+
+    test "passes through protocol implementations" do
+      implementation = %ProtocolImplementation{
+        protocol: [:Stringable],
+        for_type: [:TestModule],
+        functions: [],
+        is_any: false,
+        location: nil,
+        metadata: %{}
+      }
+
+      module_analysis =
+        build_minimal_module_analysis(
+          protocols: %{protocol: nil, implementations: [implementation]}
+        )
+
+      result = Pipeline.convert_module_analysis(module_analysis)
+
+      assert result.protocol_implementations == [implementation]
+    end
+
+    test "passes through behaviour implementations" do
+      implementation = %{
+        behaviours: [%{behaviour: :GenServer, behaviour_alias: nil, location: nil}],
+        overridables: [],
+        functions: [{:init, 1}]
+      }
+
+      module_analysis =
+        build_minimal_module_analysis(
+          behaviors: %{definition: nil, implementations: [implementation]}
+        )
+
+      result = Pipeline.convert_module_analysis(module_analysis)
+
+      assert result.behaviour_implementations == [implementation]
     end
 
     test "passes through extracted structs" do

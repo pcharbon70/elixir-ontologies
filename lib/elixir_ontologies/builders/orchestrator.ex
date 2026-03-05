@@ -13,7 +13,8 @@ defmodule ElixirOntologies.Builders.Orchestrator do
 
   1. **Phase 1**: Module builder (single, establishes module IRI)
   2. **Phase 2**: All module-level builders in parallel (Functions, Protocols,
-     Behaviours, Structs, Types, OTP patterns)
+     Protocol Implementations, Behaviours, Behaviour Implementations, Structs,
+     Types, OTP patterns)
   3. **Phase 3**: Clause builders in parallel (depends on function IRIs)
   4. **Aggregation**: All triples combined into single RDF.Graph
 
@@ -22,14 +23,16 @@ defmodule ElixirOntologies.Builders.Orchestrator do
       alias ElixirOntologies.Builders.{Orchestrator, Context}
 
       # Analysis result from extractors
-      analysis = %{
-        module: module_extraction_result,
-        functions: [function1, function2],
-        protocols: [],
-        behaviours: [],
-        structs: [struct_result],
-        types: [type1, type2],
-        genservers: [genserver_result],
+       analysis = %{
+         module: module_extraction_result,
+         functions: [function1, function2],
+         protocols: [],
+         protocol_implementations: [],
+         behaviours: [],
+         behaviour_implementations: [],
+         structs: [struct_result],
+         types: [type1, type2],
+         genservers: [genserver_result],
         supervisors: [],
         agents: [],
         tasks: []
@@ -189,7 +192,9 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     builders = [
       {:functions, &build_functions/3},
       {:protocols, &build_protocols/3},
+      {:protocol_implementations, &build_protocol_implementations/3},
       {:behaviours, &build_behaviours/3},
+      {:behaviour_implementations, &build_behaviour_implementations/3},
       {:structs, &build_structs/3},
       {:types, &build_types/3},
       {:genservers, &build_genservers/3},
@@ -238,12 +243,34 @@ defmodule ElixirOntologies.Builders.Orchestrator do
     end)
   end
 
+  defp build_protocol_implementations(analysis, _module_iri, context) do
+    implementations = Map.get(analysis, :protocol_implementations, [])
+
+    Enum.flat_map(implementations, fn implementation_info ->
+      {_implementation_iri, triples} =
+        ProtocolBuilder.build_implementation(implementation_info, context)
+
+      triples
+    end)
+  end
+
   defp build_behaviours(analysis, module_iri, context) do
     behaviours = Map.get(analysis, :behaviours, [])
 
     Enum.flat_map(behaviours, fn behaviour_info ->
       {_behaviour_iri, triples} =
         BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
+
+      triples
+    end)
+  end
+
+  defp build_behaviour_implementations(analysis, module_iri, context) do
+    implementations = Map.get(analysis, :behaviour_implementations, [])
+
+    Enum.flat_map(implementations, fn implementation_info ->
+      {_implementation_iri, triples} =
+        BehaviourBuilder.build_implementation(implementation_info, module_iri, context)
 
       triples
     end)
