@@ -25,6 +25,7 @@ defmodule Mix.Tasks.ElixirOntologies.Analyze do
     * `--base-iri`, `-b` - Base IRI for generated resources
     * `--include-source` - Include source code text in graph (default: false)
     * `--include-git` - Include git provenance information (default: true)
+    * `--include-expressions` - Include full AST expression triples (default: false)
     * `--exclude-tests` - Exclude test files from project analysis (default: true)
     * `--validate`, `-v` - Validate output against SHACL shapes (requires pySHACL)
     * `--quiet`, `-q` - Suppress progress output (default: false)
@@ -99,6 +100,7 @@ defmodule Mix.Tasks.ElixirOntologies.Analyze do
         base_iri: :string,
         include_source: :boolean,
         include_git: :boolean,
+        include_expressions: :boolean,
         exclude_tests: :boolean,
         validate: :boolean,
         quiet: :boolean
@@ -234,6 +236,12 @@ defmodule Mix.Tasks.ElixirOntologies.Analyze do
     config =
       case Keyword.fetch(opts, :include_git) do
         {:ok, value} -> %{config | include_git_info: value}
+        :error -> config
+      end
+
+    config =
+      case Keyword.fetch(opts, :include_expressions) do
+        {:ok, value} -> %{config | include_expressions: value}
         :error -> config
       end
 

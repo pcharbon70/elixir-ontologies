@@ -216,11 +216,11 @@ defmodule ElixirOntologies.Builders.BehaviourBuilder do
         if callback.is_optional do
           Structure.OptionalCallback
         else
-          Structure.Callback
+          Structure.RequiredCallback
         end
 
       [
-        # rdf:type struct:Callback or struct:OptionalCallback
+        # rdf:type struct:RequiredCallback or struct:OptionalCallback
         Helpers.type_triple(callback_iri, callback_class),
         # struct:functionName
         Helpers.datatype_property(

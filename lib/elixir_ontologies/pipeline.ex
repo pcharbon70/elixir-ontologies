@@ -228,7 +228,7 @@ defmodule ElixirOntologies.Pipeline do
       functions: ma.functions || [],
       protocols: extract_protocols(ma.protocols),
       behaviours: extract_behaviours(ma.behaviors),
-      structs: extract_structs(ma),
+      structs: ma.structs || [],
       types: ma.types || [],
       genservers: extract_otp_pattern(ma.otp_patterns, :genserver),
       supervisors: extract_otp_pattern(ma.otp_patterns, :supervisor),
@@ -248,13 +248,6 @@ defmodule ElixirOntologies.Pipeline do
   defp extract_behaviours(%{definition: nil, implementations: []}), do: []
   defp extract_behaviours(%{definition: definition}) when not is_nil(definition), do: [definition]
   defp extract_behaviours(_), do: []
-
-  defp extract_structs(%ModuleAnalysis{} = _ma) do
-    # Struct detection is not yet implemented in the analyzer
-    # defstruct is a macro call, not an attribute, so it requires
-    # separate extraction logic from the module body AST
-    []
-  end
 
   defp extract_otp_pattern(nil, _key), do: []
 

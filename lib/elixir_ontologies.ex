@@ -211,6 +211,7 @@ defmodule ElixirOntologies do
   - `:base_iri` - Base IRI for generated resources (default: "https://example.org/code#")
   - `:include_source_text` - Include source code in graph (default: false)
   - `:include_git_info` - Include git provenance (default: true)
+  - `:include_expressions` - Include full AST expression triples (default: false)
 
   ## Returns
 
@@ -267,6 +268,7 @@ defmodule ElixirOntologies do
   - `:base_iri` - Base IRI for generated resources
   - `:include_source_text` - Include source code in graph (default: false)
   - `:include_git_info` - Include git provenance (default: true)
+  - `:include_expressions` - Include full AST expression triples (default: false)
 
   Analysis options:
   - `:exclude_tests` - Skip test/ directories (default: true)
@@ -349,6 +351,7 @@ defmodule ElixirOntologies do
   - `:base_iri` - Base IRI for generated resources
   - `:include_source_text` - Include source code in graph
   - `:include_git_info` - Include git provenance
+  - `:include_expressions` - Include full AST expression triples
 
   Analysis options:
   - `:project_path` - Path to project (default: ".")
@@ -544,6 +547,7 @@ defmodule ElixirOntologies do
     |> maybe_put(:base_iri, Keyword.get(opts, :base_iri))
     |> maybe_put(:include_source_text, Keyword.get(opts, :include_source_text))
     |> maybe_put(:include_git_info, Keyword.get(opts, :include_git_info))
+    |> maybe_put(:include_expressions, Keyword.get(opts, :include_expressions))
   end
 
   defp maybe_put(config, _key, nil), do: config

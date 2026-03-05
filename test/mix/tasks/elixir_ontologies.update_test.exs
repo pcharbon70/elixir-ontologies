@@ -124,7 +124,11 @@ defmodule Mix.Tasks.ElixirOntologies.UpdateTest do
       assert content =~ "@prefix"
     end
 
-    test "writes to custom output file", %{temp_dir: temp_dir, project_dir: project_dir, graph_file: graph_file} do
+    test "writes to custom output file", %{
+      temp_dir: temp_dir,
+      project_dir: project_dir,
+      graph_file: graph_file
+    } do
       output_file = Path.join(temp_dir, "updated.ttl")
 
       capture_io(fn ->
@@ -133,6 +137,17 @@ defmodule Mix.Tasks.ElixirOntologies.UpdateTest do
 
       assert File.exists?(output_file)
       assert File.exists?(output_file <> ".state")
+    end
+
+    test "accepts --include-expressions option", %{
+      project_dir: project_dir,
+      graph_file: graph_file
+    } do
+      capture_io(fn ->
+        Update.run(["--input", graph_file, project_dir, "--include-expressions", "--quiet"])
+      end)
+
+      assert File.exists?(graph_file)
     end
   end
 
@@ -184,7 +199,10 @@ defmodule Mix.Tasks.ElixirOntologies.UpdateTest do
       assert output =~ "full analysis"
     end
 
-    test "falls back to full analysis when state missing", %{project_dir: project_dir, graph_file: graph_file} do
+    test "falls back to full analysis when state missing", %{
+      project_dir: project_dir,
+      graph_file: graph_file
+    } do
       output =
         capture_io(fn ->
           Update.run(["--input", graph_file, project_dir])
@@ -280,7 +298,11 @@ defmodule Mix.Tasks.ElixirOntologies.UpdateTest do
       assert output =~ "Loading existing graph"
     end
 
-    test "accepts --output short form -o", %{temp_dir: temp_dir, project_dir: project_dir, graph_file: graph_file} do
+    test "accepts --output short form -o", %{
+      temp_dir: temp_dir,
+      project_dir: project_dir,
+      graph_file: graph_file
+    } do
       output_file = Path.join(temp_dir, "out.ttl")
 
       capture_io(fn ->
