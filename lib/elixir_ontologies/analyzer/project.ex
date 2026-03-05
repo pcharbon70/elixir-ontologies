@@ -197,7 +197,7 @@ defmodule ElixirOntologies.Analyzer.Project do
   defp extract_project_config(ast) do
     case find_project_function(ast) do
       nil -> {:error, :no_project_function}
-      config -> {:ok, config}
+      config -> {:ok, resolve_config_references(ast, config)}
     end
   end
 
@@ -215,6 +215,23 @@ defmodule ElixirOntologies.Analyzer.Project do
   end
 
   defp find_project_function(_), do: nil
+
+  defp resolve_config_references(ast, config) when is_map(config) do
+    config
+    |> resolve_deps_reference(ast)
+  end
+
+  defp resolve_deps_reference(%{deps: deps_ref} = config, ast) when is_atom(deps_ref) do
+    resolved_deps =
+      ast
+      |> find_function_bodies(deps_ref)
+      |> Enum.flat_map(&extract_deps_ast/1)
+      |> Enum.uniq()
+
+    Map.put(config, :deps, resolved_deps)
+  end
+
+  defp resolve_deps_reference(config, _ast), do: config
 
   # Extract keyword list from AST
   defp extract_keyword_list({:__block__, _, [expr]}) do
@@ -238,6 +255,105 @@ defmodule ElixirOntologies.Analyzer.Project do
   end
 
   defp extract_keyword_list(_), do: %{}
+
+  defp find_function_bodies(ast, function_name) do
+    walk_ast(ast, fn
+      {def_type, _, [head, [do: body]]}
+      when def_type in [:def, :defp] and is_list(head) == false ->
+        case function_head_name(head) do
+          ^function_name -> {:collect, body}
+          _ -> :continue
+        end
+
+      _ ->
+        :continue
+    end)
+  end
+
+  defp function_head_name({:when, _, [head | _]}), do: function_head_name(head)
+  defp function_head_name({name, _, _}) when is_atom(name), do: name
+  defp function_head_name(_), do: nil
+
+  # Extracts dependency declarations from a deps function body AST.
+  defp extract_deps_ast({:__block__, _, [expr]}), do: extract_deps_ast(expr)
+
+  defp extract_deps_ast({:++, _, [left, right]}) do
+    extract_deps_ast(left) ++ extract_deps_ast(right)
+  end
+
+  defp extract_deps_ast(list) when is_list(list) do
+    list
+    |> Enum.map(&extract_dep_ast/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp extract_deps_ast(_), do: []
+
+  defp extract_dep_ast(dep) when is_atom(dep), do: dep
+
+  defp extract_dep_ast({:{}, _, [dep_ast, second_arg_ast]}) do
+    dep = extract_literal_atom(dep_ast)
+    second_arg = extract_value(second_arg_ast)
+
+    cond do
+      is_nil(dep) ->
+        nil
+
+      is_binary(second_arg) ->
+        {dep, second_arg}
+
+      true ->
+        dep
+    end
+  end
+
+  defp extract_dep_ast({:{}, _, [dep_ast, version_ast, _opts_ast]}) do
+    dep = extract_literal_atom(dep_ast)
+    version = extract_value(version_ast)
+
+    cond do
+      is_nil(dep) ->
+        nil
+
+      is_binary(version) ->
+        {dep, version}
+
+      true ->
+        dep
+    end
+  end
+
+  defp extract_dep_ast(_), do: nil
+
+  defp extract_literal_atom(atom) when is_atom(atom), do: atom
+  defp extract_literal_atom(_), do: nil
+
+  # Generic AST walker that collects values based on a predicate.
+  defp walk_ast(ast, fun, acc \\ [])
+
+  defp walk_ast({:__block__, _, expressions}, fun, acc) when is_list(expressions) do
+    Enum.reduce(expressions, acc, &walk_ast(&1, fun, &2))
+  end
+
+  defp walk_ast(node, fun, acc) when is_tuple(node) do
+    case fun.(node) do
+      {:collect, item} ->
+        node
+        |> Tuple.to_list()
+        |> Enum.reduce([item | acc], &walk_ast(&1, fun, &2))
+
+      :continue ->
+        node
+        |> Tuple.to_list()
+        |> Enum.reduce(acc, &walk_ast(&1, fun, &2))
+    end
+  end
+
+  defp walk_ast(list, fun, acc) when is_list(list) do
+    Enum.reduce(list, acc, &walk_ast(&1, fun, &2))
+  end
+
+  defp walk_ast(_, _fun, acc), do: acc
 
   # Extract literal values from AST
   defp extract_value({:__block__, _, [value]}), do: extract_value(value)
