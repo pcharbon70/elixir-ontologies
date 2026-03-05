@@ -362,11 +362,30 @@ defmodule ElixirOntologies.Extractors.Exception do
             {:error, _} -> {node, acc}
           end
 
+        {def_kind, meta, [_head, clauses]} = node, acc
+        when def_kind in [:def, :defp, :defmacro, :defmacrop] and is_list(clauses) ->
+          if function_exception_clauses?(clauses) do
+            # Function-level rescue/catch is represented on def/defp AST as
+            # keyword clauses; normalize to try-shape for extraction.
+            try_node = {:try, meta, [clauses]}
+
+            case extract_try(try_node, opts) do
+              {:ok, try_expr} -> {node, [try_expr | acc]}
+              {:error, _} -> {node, acc}
+            end
+          else
+            {node, acc}
+          end
+
         node, acc ->
           {node, acc}
       end)
 
     Enum.reverse(tries)
+  end
+
+  defp function_exception_clauses?(clauses) when is_list(clauses) do
+    Enum.any?([:rescue, :catch, :else, :after], &Keyword.has_key?(clauses, &1))
   end
 
   # ===========================================================================
