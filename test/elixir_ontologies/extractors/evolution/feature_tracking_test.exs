@@ -400,6 +400,47 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTrackingTest do
 
       assert is_list(bugfixes)
     end
+
+    @tag :integration
+    test "extracts affected functions from changed files when scope is enabled" do
+      repo_dir =
+        Path.join(
+          System.tmp_dir!(),
+          "feature_tracking_scope_#{System.unique_integer([:positive])}"
+        )
+
+      on_exit(fn -> File.rm_rf(repo_dir) end)
+
+      File.mkdir_p!(Path.join(repo_dir, "lib"))
+      run_git!(repo_dir, ["init"])
+      run_git!(repo_dir, ["config", "user.email", "test@example.com"])
+      run_git!(repo_dir, ["config", "user.name", "Feature Tracking Test"])
+
+      File.write!(Path.join(repo_dir, "lib/sample.ex"), """
+      defmodule Sample do
+        def foo, do: :ok
+      end
+      """)
+
+      run_git!(repo_dir, ["add", "."])
+      run_git!(repo_dir, ["commit", "-m", "feat: initial"])
+
+      File.write!(Path.join(repo_dir, "lib/sample.ex"), """
+      defmodule Sample do
+        def foo(x), do: x + 1
+        defp helper, do: :ok
+      end
+      """)
+
+      run_git!(repo_dir, ["add", "."])
+      run_git!(repo_dir, ["commit", "-m", "fix: adjust sample functions"])
+
+      {:ok, commit} = Commit.extract_commit(repo_dir, "HEAD")
+      {:ok, [bugfix]} = FeatureTracking.detect_bugfixes(repo_dir, commit, include_scope: true)
+
+      assert {:foo, 1} in bugfix.affected_functions
+      assert {:helper, 0} in bugfix.affected_functions
+    end
   end
 
   describe "detect_all/3" do
@@ -453,5 +494,10 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTrackingTest do
       # Should not match version numbers as issues
       assert Enum.empty?(refs) or Enum.all?(refs, &(&1.number > 0))
     end
+  end
+
+  defp run_git!(repo_dir, args) do
+    {output, 0} = System.cmd("git", args, cd: repo_dir, stderr_to_stdout: true)
+    output
   end
 end
