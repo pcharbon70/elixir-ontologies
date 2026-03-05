@@ -6583,9 +6583,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
         end)
 
       assert list_param != nil
-      # Parameter should be extracted as Expression (the cons pattern creates child patterns)
+      # Parameter should be extracted as ListPattern for [head | tail] destructuring
       assert Enum.any?(triples, fn {s, p, o} ->
-               s == list_param and p == RDF.type() and o == Core.Expression
+               s == list_param and p == RDF.type() and o == Core.ListPattern
              end)
 
       # Body should be a Variable with name "h"
