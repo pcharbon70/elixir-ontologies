@@ -20,6 +20,7 @@ defmodule ElixirOntologies.Hex.AnalyzerAdapter do
   """
 
   alias ElixirOntologies.Analyzer.ProjectAnalyzer
+  alias ElixirOntologies.Config
 
   @default_timeout_minutes 5
 
@@ -45,15 +46,17 @@ defmodule ElixirOntologies.Hex.AnalyzerAdapter do
     base_iri = generate_base_iri(config, name)
     include_expressions = Map.get(config, :include_expressions, false)
 
-    # Pass config options - Note: ProjectAnalyzer.analyze requires a Config struct
-    # but for now we pass the base_iri directly to maintain compatibility
-    # TODO: Future enhancement - properly integrate include_expressions via Config struct
+    analyzer_config =
+      Config.new(
+        base_iri: base_iri,
+        include_git_info: false,
+        include_expressions: include_expressions
+      )
+
     opts = [
-      base_iri: base_iri,
+      config: analyzer_config,
       exclude_tests: true,
-      continue_on_error: true,
-      include_git_info: false,
-      include_expressions: include_expressions
+      continue_on_error: true
     ]
 
     with_timeout(timeout_ms, fn ->
