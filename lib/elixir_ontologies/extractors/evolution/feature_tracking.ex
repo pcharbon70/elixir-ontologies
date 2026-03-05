@@ -250,7 +250,7 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
     {:ok, activity} = Activity.classify_commit(repo_path, commit, include_scope: include_scope)
 
     if activity.type == :feature do
-      feature = build_feature(commit, activity, tracker_opts)
+      feature = build_feature(repo_path, commit, activity, tracker_opts)
       {:ok, [feature]}
     else
       {:ok, []}
@@ -295,7 +295,7 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
     {:ok, activity} = Activity.classify_commit(repo_path, commit, include_scope: include_scope)
 
     if activity.type == :bugfix do
-      bugfix = build_bugfix(commit, activity, tracker_opts)
+      bugfix = build_bugfix(repo_path, commit, activity, tracker_opts)
       {:ok, [bugfix]}
     else
       {:ok, []}
@@ -494,7 +494,7 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
   # Private - Feature Building
   # ===========================================================================
 
-  defp build_feature(commit, activity, tracker_opts) do
+  defp build_feature(repo_path, commit, activity, tracker_opts) do
     message = commit.subject || commit.message || ""
     issue_refs = parse_issue_references(message <> " " <> (commit.body || ""))
 
@@ -508,7 +508,7 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
     name = extract_feature_name(message)
 
     # Get modules and functions from scope
-    {modules, functions} = extract_affected_elements(activity.scope)
+    {modules, functions} = extract_affected_elements(activity.scope, repo_path)
 
     %FeatureAddition{
       name: name,
@@ -553,7 +553,7 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
   # Private - Bug Fix Building
   # ===========================================================================
 
-  defp build_bugfix(commit, activity, tracker_opts) do
+  defp build_bugfix(repo_path, commit, activity, tracker_opts) do
     message = commit.subject || commit.message || ""
     issue_refs = parse_issue_references(message <> " " <> (commit.body || ""))
 
@@ -567,7 +567,7 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
     description = extract_bugfix_description(message)
 
     # Get affected modules and functions from scope
-    {modules, functions} = extract_affected_elements(activity.scope)
+    {modules, functions} = extract_affected_elements(activity.scope, repo_path)
 
     %BugFix{
       description: description,
@@ -610,21 +610,108 @@ defmodule ElixirOntologies.Extractors.Evolution.FeatureTracking do
   # Private - Scope Helpers
   # ===========================================================================
 
-  defp extract_affected_elements(%Scope{} = scope) do
+  defp extract_affected_elements(%Scope{} = scope, repo_path) do
     modules = scope.modules_affected
 
     # Extract function names from files if available
     functions =
       scope.files_changed
-      |> Enum.filter(&String.ends_with?(&1, ".ex"))
-      |> Enum.flat_map(&extract_functions_from_path/1)
+      |> Enum.filter(fn path ->
+        String.ends_with?(path, ".ex") or String.ends_with?(path, ".exs")
+      end)
+      |> Enum.flat_map(&extract_functions_from_path(&1, repo_path))
+      |> Enum.uniq()
 
     {modules, functions}
   end
 
-  defp extract_functions_from_path(_path) do
-    # For now, return empty - would need to parse file to get functions
-    # This could be enhanced to actually parse the file
-    []
+  defp extract_functions_from_path(path, repo_path)
+       when is_binary(path) and is_binary(repo_path) do
+    absolute_path =
+      path
+      |> normalize_changed_path()
+      |> resolve_changed_path(repo_path)
+
+    with true <- File.regular?(absolute_path),
+         {:ok, content} <- File.read(absolute_path),
+         {:ok, ast} <- Code.string_to_quoted(content, columns: true) do
+      ast
+      |> collect_function_signatures()
+      |> Enum.uniq()
+    else
+      _ -> []
+    end
   end
+
+  defp extract_functions_from_path(_path, _repo_path), do: []
+
+  defp resolve_changed_path(path, repo_path) do
+    if Path.type(path) == :absolute do
+      path
+    else
+      Path.join(repo_path, path)
+    end
+  end
+
+  # Handles both simple rename format "old.ex => new.ex" and
+  # brace rename format "lib/{old => new}.ex".
+  defp normalize_changed_path(path) do
+    cond do
+      String.contains?(path, "=>") and String.contains?(path, "{") and String.contains?(path, "}") ->
+        case Regex.run(~r/^(.*)\{[^{}]*=>\s*([^{}]+)\}(.*)$/, path) do
+          [_, prefix, renamed, suffix] ->
+            String.trim(prefix <> renamed <> suffix)
+
+          _ ->
+            path
+            |> String.split("=>")
+            |> List.last()
+            |> String.trim()
+        end
+
+      String.contains?(path, "=>") ->
+        path
+        |> String.split("=>")
+        |> List.last()
+        |> String.trim()
+
+      true ->
+        path
+    end
+  end
+
+  defp collect_function_signatures(ast) do
+    {_ast, signatures} =
+      Macro.prewalk(ast, [], fn
+        {def_type, _meta, _args} = node, acc when def_type in [:def, :defp] ->
+          case function_signature_from_node(node) do
+            nil -> {node, acc}
+            signature -> {node, [signature | acc]}
+          end
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    Enum.reverse(signatures)
+  end
+
+  defp function_signature_from_node({def_type, _meta, [head | _]})
+       when def_type in [:def, :defp] do
+    case unwrap_when_head(head) do
+      {name, _, args} when is_atom(name) ->
+        {name, count_function_arity(args)}
+
+      _ ->
+        nil
+    end
+  end
+
+  defp function_signature_from_node(_), do: nil
+
+  defp unwrap_when_head({:when, _meta, [head | _guards]}), do: unwrap_when_head(head)
+  defp unwrap_when_head(head), do: head
+
+  defp count_function_arity(args) when is_list(args), do: length(args)
+  defp count_function_arity(nil), do: 0
 end
