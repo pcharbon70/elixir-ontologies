@@ -639,6 +639,32 @@ defmodule ElixirOntologies.Extractors.ExceptionTest do
       assert length(tries) == 1
     end
 
+    test "extracts try inside private function" do
+      ast =
+        quote do
+          defp my_private_func do
+            risky()
+          rescue
+            _ -> :error
+          end
+        end
+
+      tries = Exception.extract_try_expressions(ast)
+      assert length(tries) == 1
+    end
+
+    test "does not treat normal function as try expression" do
+      ast =
+        quote do
+          def my_func do
+            :ok
+          end
+        end
+
+      tries = Exception.extract_try_expressions(ast)
+      assert tries == []
+    end
+
     test "returns empty list when no try expressions" do
       ast =
         quote do
