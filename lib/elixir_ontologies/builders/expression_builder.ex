@@ -1777,7 +1777,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     IO.iodata_to_binary(segments)
   end
 
-  # Check if a list is a cons pattern: [{:|, _, [head, tail]}]
+  # Check if a list is a cons pattern: [head | tail]
+  # Accept both canonical list-wrapped and direct tuple shapes.
+  defp cons_pattern?({:|, _, [_head, _tail]}), do: true
   defp cons_pattern?([{:|, _, [_head, _tail]}]), do: true
   defp cons_pattern?(_), do: false
 
@@ -2321,6 +2323,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   def detect_pattern_type({:%, _, [{:__MODULE__, [], []}, {:%{}, _, _}]}), do: :struct_pattern
   def detect_pattern_type({:%{}, _, _}), do: :map_pattern
   def detect_pattern_type({:<<>>, _, _}), do: :binary_pattern
+  def detect_pattern_type({:|, _, [_head, _tail]}), do: :list_pattern
   def detect_pattern_type(list) when is_list(list), do: :list_pattern
   # Atom literal AST: {name, meta, nil} - must come before variable pattern
   # Variables have Elixir as ctx, atom literals have nil
@@ -2462,16 +2465,20 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
     # Check for cons pattern vs flat list
     child_triples =
-      if cons_pattern?(ast) do
-        build_cons_list_pattern(ast, context, depth)
-      else
-        # Check size limit for flat lists
-        if length(ast) > @max_pattern_size do
+      cond do
+        cons_pattern?(ast) ->
+          build_cons_list_pattern(ast, context, depth)
+
+        is_list(ast) ->
+          if length(ast) > @max_pattern_size do
+            []
+          else
+            {triples, _ctx} = build_child_patterns(ast, context, depth)
+            triples
+          end
+
+        true ->
           []
-        else
-          {triples, _ctx} = build_child_patterns(ast, context, depth)
-          triples
-        end
       end
 
     # Include type triple and all child pattern triples
@@ -2515,7 +2522,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   # Helper to build cons pattern [head | tail]
   # Builds head and tail as separate child patterns
-  defp build_cons_list_pattern([{:|, _, [head, tail]}], context, depth) do
+  defp build_cons_list_pattern({:|, _, [head, tail]}, context, depth) do
     # Build head pattern
     head_triples =
       case build(head, context, []) do
@@ -2538,6 +2545,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
     # Combine head and tail pattern triples
     head_triples ++ tail_triples
+  end
+
+  defp build_cons_list_pattern([{:|, _, [head, tail]}], context, depth) do
+    build_cons_list_pattern({:|, [], [head, tail]}, context, depth)
   end
 
   defp build_map_pattern({:%{}, _meta, pairs}, expr_iri, context, depth) do

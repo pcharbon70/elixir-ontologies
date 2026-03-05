@@ -102,7 +102,7 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       callback_iri = RDF.iri("#{behaviour_iri}/init/1")
 
       # Verify callback type
-      assert {callback_iri, RDF.type(), Structure.Callback} in triples
+      assert {callback_iri, RDF.type(), Structure.RequiredCallback} in triples
 
       # Verify callback properties
       assert {callback_iri, Structure.functionName(), RDF.XSD.String.new("init")} in triples
@@ -132,9 +132,9 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       handle_call_iri = RDF.iri("#{behaviour_iri}/handle_call/3")
       terminate_iri = RDF.iri("#{behaviour_iri}/terminate/2")
 
-      assert {init_iri, RDF.type(), Structure.Callback} in triples
-      assert {handle_call_iri, RDF.type(), Structure.Callback} in triples
-      assert {terminate_iri, RDF.type(), Structure.Callback} in triples
+      assert {init_iri, RDF.type(), Structure.RequiredCallback} in triples
+      assert {handle_call_iri, RDF.type(), Structure.RequiredCallback} in triples
+      assert {terminate_iri, RDF.type(), Structure.RequiredCallback} in triples
     end
 
     test "builds behaviour with documentation" do
@@ -175,7 +175,7 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
   # ===========================================================================
 
   describe "build_behaviour/2 - callback types" do
-    test "builds required callback with Callback class" do
+    test "builds required callback with RequiredCallback class" do
       callback = build_test_callback(name: :required_fn, arity: 0, is_optional: false)
       behaviour_info = build_test_behaviour(callbacks: [callback])
       context = build_test_context()
@@ -186,7 +186,7 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
         BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri = RDF.iri("#{behaviour_iri}/required_fn/0")
-      assert {callback_iri, RDF.type(), Structure.Callback} in triples
+      assert {callback_iri, RDF.type(), Structure.RequiredCallback} in triples
     end
 
     test "builds optional callback with OptionalCallback class" do
@@ -239,7 +239,7 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       optional_iri = RDF.iri("#{behaviour_iri}/optional/1")
       macro_iri = RDF.iri("#{behaviour_iri}/macro/2")
 
-      assert {required_iri, RDF.type(), Structure.Callback} in triples
+      assert {required_iri, RDF.type(), Structure.RequiredCallback} in triples
       assert {optional_iri, RDF.type(), Structure.OptionalCallback} in triples
       assert {macro_iri, RDF.type(), Structure.MacroCallback} in triples
     end
@@ -556,7 +556,7 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
         BehaviourBuilder.build_behaviour(behaviour_info, module_iri, context)
 
       callback_iri = RDF.iri("#{behaviour_iri}/handle_event/3")
-      assert {callback_iri, RDF.type(), Structure.Callback} in triples
+      assert {callback_iri, RDF.type(), Structure.RequiredCallback} in triples
     end
 
     test "generates different IRIs for callbacks with same name but different arity" do
@@ -576,8 +576,8 @@ defmodule ElixirOntologies.Builders.BehaviourBuilderTest do
       callback_iri_1 = RDF.iri("#{behaviour_iri}/format_status/1")
       callback_iri_2 = RDF.iri("#{behaviour_iri}/format_status/2")
 
-      assert {callback_iri_1, RDF.type(), Structure.Callback} in triples
-      assert {callback_iri_2, RDF.type(), Structure.Callback} in triples
+      assert {callback_iri_1, RDF.type(), Structure.RequiredCallback} in triples
+      assert {callback_iri_2, RDF.type(), Structure.RequiredCallback} in triples
     end
   end
 
