@@ -113,6 +113,30 @@ defmodule ElixirOntologies.Analyzer.ProjectTest do
       end)
     end
 
+    test "resolves deps() function calls to concrete dependencies" do
+      tmp_dir = create_temp_project("test_deps_resolution", deps: true)
+
+      try do
+        {:ok, project} = Project.detect(tmp_dir)
+        assert {:ex_doc, "~> 0.29"} in project.deps
+      after
+        File.rm_rf!(tmp_dir)
+      end
+    end
+
+    test "extracts inline dependency tuples from project config" do
+      tmp_dir = create_inline_deps_project("test_inline_deps")
+
+      try do
+        {:ok, project} = Project.detect(tmp_dir)
+
+        assert {:jason, "~> 1.4"} in project.deps
+        assert :plug in project.deps
+      after
+        File.rm_rf!(tmp_dir)
+      end
+    end
+
     test "handles project with no dependencies" do
       # Create a temporary minimal project
       tmp_dir = create_temp_project("test_no_deps", deps: false)
@@ -342,6 +366,33 @@ defmodule ElixirOntologies.Analyzer.ProjectTest do
       def project do
         [
           app: :#{name}
+        ]
+      end
+    end
+    """
+
+    File.write!(Path.join(tmp_dir, "mix.exs"), mix_content)
+    File.mkdir_p!(Path.join(tmp_dir, "lib"))
+
+    tmp_dir
+  end
+
+  defp create_inline_deps_project(name) do
+    tmp_dir = Path.join(System.tmp_dir!(), "project_test_#{name}_#{:rand.uniform(1_000_000)}")
+    File.mkdir_p!(tmp_dir)
+
+    mix_content = """
+    defmodule #{Macro.camelize(name)}.MixProject do
+      use Mix.Project
+
+      def project do
+        [
+          app: :#{name},
+          version: "0.1.0",
+          deps: [
+            {:jason, "~> 1.4"},
+            {:plug, git: "https://github.com/elixir-plug/plug"}
+          ]
         ]
       end
     end
