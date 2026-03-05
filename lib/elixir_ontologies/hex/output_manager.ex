@@ -153,26 +153,34 @@ defmodule ElixirOntologies.Hex.OutputManager do
     # Ensure directory exists for the check
     File.mkdir_p!(output_dir)
 
-    # Use df command to check available space
-    case System.cmd("df", ["-B1", "--output=avail", output_dir], stderr_to_stdout: true) do
+    # Use POSIX df output to keep behavior portable across GNU/Linux and BSD/macOS.
+    case System.cmd("df", ["-Pk", output_dir], stderr_to_stdout: true) do
       {output, 0} ->
-        # Parse the output - second line contains the bytes
-        case output |> String.trim() |> String.split("\n") |> Enum.at(1) do
-          nil ->
-            {:error, :parse_failed}
-
-          bytes_str ->
-            case Integer.parse(String.trim(bytes_str)) do
-              {bytes, _} -> {:ok, bytes}
-              :error -> {:error, :parse_failed}
-            end
-        end
+        parse_available_bytes(output)
 
       {error, _code} ->
         {:error, {:df_failed, error}}
     end
   rescue
     e -> {:error, {:system_error, e}}
+  end
+
+  defp parse_available_bytes(output) do
+    with line when is_binary(line) <- output |> String.split("\n", trim: true) |> Enum.at(1),
+         tokens when is_list(tokens) and length(tokens) >= 4 <-
+           String.split(line, ~r/\s+/, trim: true),
+         available_kb when is_binary(available_kb) <- Enum.at(tokens, 3),
+         {available_kb_int, ""} <- parse_integer(available_kb) do
+      {:ok, available_kb_int * 1024}
+    else
+      _ -> {:error, :parse_failed}
+    end
+  end
+
+  defp parse_integer(value) when is_binary(value) do
+    value
+    |> String.replace(",", "")
+    |> Integer.parse()
   end
 
   @doc """
