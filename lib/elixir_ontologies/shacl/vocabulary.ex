@@ -74,6 +74,8 @@ defmodule ElixirOntologies.SHACL.Vocabulary do
   # SPARQL Constraints
   @sh_sparql RDF.iri("http://www.w3.org/ns/shacl#sparql")
   @sh_select RDF.iri("http://www.w3.org/ns/shacl#select")
+  @sh_parameter RDF.iri("http://www.w3.org/ns/shacl#parameter")
+  @sh_property_validator RDF.iri("http://www.w3.org/ns/shacl#propertyValidator")
   @sh_prefixes RDF.iri("http://www.w3.org/ns/shacl#prefixes")
   @sh_declare RDF.iri("http://www.w3.org/ns/shacl#declare")
   @sh_prefix RDF.iri("http://www.w3.org/ns/shacl#prefix")
@@ -202,6 +204,12 @@ defmodule ElixirOntologies.SHACL.Vocabulary do
 
   @doc "SHACL select query predicate IRI"
   def select, do: @sh_select
+
+  @doc "SHACL parameter predicate IRI"
+  def parameter, do: @sh_parameter
+
+  @doc "SHACL propertyValidator predicate IRI"
+  def property_validator, do: @sh_property_validator
 
   @doc "SHACL prefixes predicate IRI"
   def prefixes, do: @sh_prefixes

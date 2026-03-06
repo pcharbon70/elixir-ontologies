@@ -178,7 +178,10 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
       validate_function_arity_match_constraint(data_graph, focus_node, constraint)
     else
       # Step 1: Substitute $this with focus node
-      query_with_substitution = substitute_this(constraint.select_query, focus_node)
+      query_with_substitution =
+        constraint.select_query
+        |> substitute_this(focus_node)
+        |> substitute_pre_bound_values(constraint.pre_bound_values)
 
       query_with_prefixes =
         ensure_prefix_declarations(query_with_substitution, constraint.prefixes_graph)
@@ -400,6 +403,80 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
     |> String.replace("$this", bnode_string)
   end
 
+  @spec substitute_pre_bound_values(
+          String.t(),
+          %{optional(String.t()) => RDF.Term.t()} | nil
+        ) ::
+          String.t()
+  defp substitute_pre_bound_values(query_string, nil), do: query_string
+
+  defp substitute_pre_bound_values(query_string, pre_bound_values)
+       when map_size(pre_bound_values) == 0 do
+    query_string
+  end
+
+  defp substitute_pre_bound_values(query_string, pre_bound_values) do
+    Enum.reduce(pre_bound_values, query_string, fn {var_name, value}, acc ->
+      substitute_variable(acc, var_name, term_to_sparql_token(value))
+    end)
+  end
+
+  @spec substitute_variable(String.t(), String.t(), String.t()) :: String.t()
+  defp substitute_variable(query_string, var_name, token)
+       when is_binary(query_string) and is_binary(var_name) and is_binary(token) do
+    # Match SHACL variable placeholders (e.g. $PATH, $lang) without catching longer names.
+    pattern = ~r/\$#{Regex.escape(var_name)}\b/
+    String.replace(query_string, pattern, token)
+  end
+
+  @spec term_to_sparql_token(RDF.Term.t()) :: String.t()
+  defp term_to_sparql_token(%RDF.IRI{value: value}) when is_binary(value), do: "<#{value}>"
+
+  defp term_to_sparql_token(%RDF.BlankNode{value: value}) when is_binary(value), do: "_:#{value}"
+
+  defp term_to_sparql_token(%RDF.Literal{} = literal) do
+    literal_value = RDF.Literal.value(literal)
+
+    cond do
+      is_boolean(literal_value) ->
+        if literal_value, do: "true", else: "false"
+
+      is_integer(literal_value) or is_float(literal_value) ->
+        to_string(literal_value)
+
+      language = RDF.Literal.language(literal) ->
+        ~s("#{escape_sparql_string(RDF.Literal.lexical(literal))}"@#{language})
+
+      datatype = RDF.Literal.datatype_id(literal) ->
+        datatype_value =
+          case datatype do
+            %RDF.IRI{value: iri_value} -> iri_value
+            _ -> to_string(datatype)
+          end
+
+        if datatype_value == "http://www.w3.org/2001/XMLSchema#string" do
+          ~s("#{escape_sparql_string(RDF.Literal.lexical(literal))}")
+        else
+          ~s("#{escape_sparql_string(RDF.Literal.lexical(literal))}"^^<#{datatype_value}>)
+        end
+
+      true ->
+        ~s("#{escape_sparql_string(RDF.Literal.lexical(literal))}")
+    end
+  end
+
+  defp term_to_sparql_token(value), do: to_string(value)
+
+  @spec escape_sparql_string(String.t()) :: String.t()
+  defp escape_sparql_string(value) when is_binary(value) do
+    value
+    |> String.replace("\\", "\\\\")
+    |> String.replace("\"", "\\\"")
+    |> String.replace("\n", "\\n")
+    |> String.replace("\r", "\\r")
+    |> String.replace("\t", "\\t")
+  end
+
   @spec replace_select_this_projection(String.t()) :: String.t()
   defp replace_select_this_projection(query_string) do
     query_string
@@ -538,7 +615,7 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
       %ValidationResult{
         severity: :violation,
         focus_node: focus_node,
-        path: nil,
+        path: constraint.result_path,
         source_shape: constraint.source_shape_id,
         message: constraint.message,
         details: build_details(solution)
