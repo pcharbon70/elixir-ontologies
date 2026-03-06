@@ -579,7 +579,7 @@ defmodule ElixirOntologies.Builders.Context do
       iex> {counter1, context1} = ElixirOntologies.Builders.Context.next_expression_counter(context)
       iex> counter1
       0
-      iex> {counter2, context2} = ElixirOntologies.Builders.Context.next_expression_counter(context1)
+      iex> {counter2, _context2} = ElixirOntologies.Builders.Context.next_expression_counter(context1)
       iex> counter2
       1
 

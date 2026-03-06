@@ -2371,7 +2371,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
       iex> context = ElixirOntologies.Builders.Context.new(base_iri: "https://example.org/test#", config: %{include_expressions: true}, file_path: "lib/my_app/users.ex") |> ElixirOntologies.Builders.Context.with_expression_counter()
       iex> {:ok, {iri, _triples, ctx}} = ExpressionBuilder.build(ast, context, [])
       iex> pattern_triples = ExpressionBuilder.build_pattern(ast, iri, ctx)
-      iex> Enum.any?(pattern_triples, fn {s, p, o} -> p == RDF.type() and o == Core.VariablePattern end)
+      iex> Enum.any?(pattern_triples, fn {_s, p, o} -> p == RDF.type() and o == Core.VariablePattern end)
       true
   """
   @spec build_pattern(Macro.t(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]

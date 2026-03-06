@@ -3861,7 +3861,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilderTest do
     test "dispatches literal pattern to LiteralPattern" do
       context = full_mode_context()
       ast = 42
-      {:ok, {expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
+      {:ok, {_expr_iri, triples, _}} = ExpressionBuilder.build(ast, context, [])
 
       # For now, literal pattern returns generic expression type
       # because the same AST is used for literal expressions

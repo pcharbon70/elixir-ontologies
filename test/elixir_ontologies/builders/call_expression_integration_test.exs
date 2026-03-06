@@ -297,7 +297,7 @@ defmodule ElixirOntologies.Builders.CallExpressionIntegrationTest do
       # Each argument should be a Variable
       argument_types =
         Enum.map(arguments, fn arg_iri ->
-          Enum.find(triples, fn {s, p, o} ->
+          Enum.find(triples, fn {s, p, _o} ->
             s == arg_iri and p == RDF.type()
           end)
         end)
