@@ -42,11 +42,8 @@ defmodule ElixirOntologies.W3CTest do
 
   # Known limitations - tests that are expected to fail due to SPARQL.ex limitations
   @known_sparql_limitations [
-    # Tests using nested SELECT subqueries
-    "component-001",
-    "pre-binding-001",
-    # Parsing error in test file
-    "select-001"
+    # Test using nested SELECT subqueries
+    "component-001"
   ]
 
   # Known limitations - core SHACL features not yet implemented
@@ -177,8 +174,10 @@ defmodule ElixirOntologies.W3CTest do
             case W3CTestRunner.run_test(test_case) do
               {:ok, report} ->
                 if W3CTestRunner.test_passed?(test_case, report) do
-                  # Surprisingly passed!
-                  assert true
+                  flunk("""
+                  Known limitation unexpectedly passed: #{Path.basename(test_file)}
+                  Remove this test from @known_sparql_limitations and run as a normal W3C test.
+                  """)
                 else
                   # Failed as expected - mark as pending
                   assert true,
