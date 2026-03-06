@@ -417,6 +417,25 @@ defmodule ElixirOntologies.SHACL.ValidatorTest do
     end
   end
 
+  describe "SPARQL constraint components" do
+    test "applies propertyValidator with $PATH and parameter pre-binding" do
+      fixture_path =
+        Path.join([File.cwd!(), "test", "fixtures", "w3c", "sparql", "component-001.ttl"])
+
+      base_iri = "file://#{Path.expand(fixture_path)}"
+
+      {:ok, graph} = RDF.Turtle.read_file(fixture_path, base_iri: base_iri)
+      {:ok, report} = Validator.run(graph, graph)
+
+      refute report.conforms?
+      assert length(report.results) == 2
+
+      result_paths = Enum.map(report.results, & &1.path)
+      assert ~I<http://example.com/ns#englishLabel> in result_paths
+      assert ~I<http://example.com/ns#germanLabel> in result_paths
+    end
+  end
+
   describe "parallel validation" do
     test "parallel validation produces same results as sequential" do
       shapes_graph =

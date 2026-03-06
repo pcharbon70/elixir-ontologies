@@ -27,6 +27,8 @@ defmodule ElixirOntologies.SHACL.Model.SPARQLConstraint do
   - `source_shape_id` - The IRI of the node shape containing this constraint
   - `message` - Error message template for violations
   - `select_query` - SPARQL SELECT query string with `$this` placeholder
+  - `pre_bound_values` - Optional SHACL pre-bound variable map (e.g., `$PATH`, `$lang`)
+  - `result_path` - Optional property path for property-level SPARQL violations
   - `prefixes_graph` - Optional RDF graph containing prefix declarations
 
   ## Examples
@@ -124,13 +126,19 @@ defmodule ElixirOntologies.SHACL.Model.SPARQLConstraint do
     # String.t() - raw SPARQL with $this
     :select_query,
     # RDF.Graph.t() | nil
-    :prefixes_graph
+    :prefixes_graph,
+    # %{String.t() => RDF.Term.t()}
+    pre_bound_values: %{},
+    # RDF.IRI.t() | nil
+    result_path: nil
   ]
 
   @type t :: %__MODULE__{
-          source_shape_id: RDF.IRI.t(),
+          source_shape_id: RDF.IRI.t() | RDF.BlankNode.t(),
           message: String.t(),
           select_query: String.t(),
+          pre_bound_values: %{optional(String.t()) => RDF.Term.t()},
+          result_path: RDF.IRI.t() | nil,
           prefixes_graph: RDF.Graph.t() | nil
         }
 end

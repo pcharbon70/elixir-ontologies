@@ -426,29 +426,35 @@ defmodule ElixirOntologies.SHACL.Reader do
   @spec parse_property_shapes(RDF.Graph.t(), RDF.Description.t()) ::
           {:ok, [PropertyShape.t()]} | {:error, term()}
   defp parse_property_shapes(graph, node_desc) do
-    property_ids =
-      node_desc
-      |> RDF.Description.get(SHACL.property(), [])
-      |> List.wrap()
+    with {:ok, property_validator_specs} <- parse_property_validator_specs(graph) do
+      property_ids =
+        node_desc
+        |> RDF.Description.get(SHACL.property(), [])
+        |> List.wrap()
 
-    property_shapes =
-      Enum.reduce_while(property_ids, [], fn prop_id, acc ->
-        case parse_property_shape(graph, prop_id) do
-          {:ok, prop_shape} -> {:cont, [prop_shape | acc]}
-          {:error, reason} -> {:halt, {:error, reason}}
-        end
-      end)
+      property_shapes =
+        Enum.reduce_while(property_ids, [], fn prop_id, acc ->
+          case parse_property_shape(graph, prop_id, property_validator_specs) do
+            {:ok, prop_shape} -> {:cont, [prop_shape | acc]}
+            {:error, reason} -> {:halt, {:error, reason}}
+          end
+        end)
 
-    case property_shapes do
-      {:error, _} = error -> error
-      shapes when is_list(shapes) -> {:ok, Enum.reverse(shapes)}
+      case property_shapes do
+        {:error, _} = error -> error
+        shapes when is_list(shapes) -> {:ok, Enum.reverse(shapes)}
+      end
     end
   end
 
   # Parse a single property shape
-  @spec parse_property_shape(RDF.Graph.t(), RDF.BlankNode.t() | RDF.IRI.t()) ::
+  @spec parse_property_shape(
+          RDF.Graph.t(),
+          RDF.BlankNode.t() | RDF.IRI.t(),
+          list()
+        ) ::
           {:ok, PropertyShape.t()} | {:error, term()}
-  defp parse_property_shape(graph, prop_id) do
+  defp parse_property_shape(graph, prop_id, property_validator_specs) do
     desc = RDF.Graph.description(graph, prop_id)
 
     with {:ok, path} <- extract_required_iri(desc, SHACL.path(), "sh:path"),
@@ -464,7 +470,14 @@ defmodule ElixirOntologies.SHACL.Reader do
          {:ok, in_values} <- extract_in_values(graph, desc),
          {:ok, has_value} <- extract_optional_term(desc, SHACL.has_value()),
          {:ok, {qualified_class, qualified_min_count}} <-
-           extract_qualified_constraints(graph, desc) do
+           extract_qualified_constraints(graph, desc),
+         {:ok, sparql_constraints} <-
+           parse_property_sparql_constraints(
+             desc,
+             prop_id,
+             path,
+             property_validator_specs
+           ) do
       {:ok,
        %PropertyShape{
          id: prop_id,
@@ -481,9 +494,210 @@ defmodule ElixirOntologies.SHACL.Reader do
          in: in_values,
          has_value: has_value,
          qualified_class: qualified_class,
-         qualified_min_count: qualified_min_count
+         qualified_min_count: qualified_min_count,
+         sparql_constraints: sparql_constraints
        }}
     end
+  end
+
+  # Parse SHACL-SPARQL property validators from custom constraint components.
+  # This supports W3C component tests that pre-bind $PATH and component parameters.
+  @spec parse_property_sparql_constraints(
+          RDF.Description.t(),
+          RDF.IRI.t() | RDF.BlankNode.t(),
+          RDF.IRI.t(),
+          list()
+        ) ::
+          {:ok, [SPARQLConstraint.t()]}
+  defp parse_property_sparql_constraints(desc, prop_id, path, property_validator_specs) do
+    constraints =
+      property_validator_specs
+      |> Enum.flat_map(fn %{parameters: parameters, validators: validators} ->
+        case build_parameter_bindings(desc, parameters) do
+          [] ->
+            []
+
+          parameter_bindings ->
+            Enum.flat_map(parameter_bindings, fn parameter_binding ->
+              pre_bound_values = Map.put(parameter_binding, "PATH", path)
+
+              Enum.map(validators, fn validator ->
+                %SPARQLConstraint{
+                  source_shape_id: prop_id,
+                  message: validator.message,
+                  select_query: validator.select_query,
+                  prefixes_graph: validator.prefixes_graph,
+                  pre_bound_values: pre_bound_values,
+                  result_path: path
+                }
+              end)
+            end)
+        end
+      end)
+
+    {:ok, constraints}
+  end
+
+  @spec parse_property_validator_specs(RDF.Graph.t()) :: {:ok, list()}
+  defp parse_property_validator_specs(graph) do
+    parameter_subjects = subjects_with_predicate(graph, SHACL.parameter())
+    validator_subjects = subjects_with_predicate(graph, SHACL.property_validator())
+
+    component_ids =
+      parameter_subjects
+      |> MapSet.intersection(validator_subjects)
+      |> MapSet.to_list()
+
+    specs =
+      component_ids
+      |> Enum.reduce([], fn component_id, acc ->
+        with {:ok, parameters} <- parse_component_parameters(graph, component_id),
+             true <- parameters != [],
+             {:ok, validators} <- parse_component_property_validators(graph, component_id),
+             true <- validators != [] do
+          [%{parameters: parameters, validators: validators} | acc]
+        else
+          _ -> acc
+        end
+      end)
+      |> Enum.reverse()
+
+    {:ok, specs}
+  end
+
+  @spec parse_component_parameters(RDF.Graph.t(), RDF.IRI.t() | RDF.BlankNode.t()) ::
+          {:ok, list()}
+  defp parse_component_parameters(graph, component_id) do
+    parameter_nodes =
+      graph
+      |> RDF.Graph.description(component_id)
+      |> RDF.Description.get(SHACL.parameter())
+      |> normalize_to_list()
+
+    parameters =
+      parameter_nodes
+      |> Enum.reduce([], fn parameter_node, acc ->
+        param_desc = RDF.Graph.description(graph, parameter_node)
+
+        case extract_required_iri(param_desc, SHACL.path(), "sh:path") do
+          {:ok, %RDF.IRI{} = path_iri} ->
+            [%{path: path_iri, var_name: parameter_var_name(path_iri)} | acc]
+
+          {:error, _reason} ->
+            acc
+        end
+      end)
+      |> Enum.reverse()
+      |> Enum.uniq_by(& &1.path)
+
+    {:ok, parameters}
+  end
+
+  @spec parse_component_property_validators(RDF.Graph.t(), RDF.IRI.t() | RDF.BlankNode.t()) ::
+          {:ok, list()}
+  defp parse_component_property_validators(graph, component_id) do
+    validator_nodes =
+      graph
+      |> RDF.Graph.description(component_id)
+      |> RDF.Description.get(SHACL.property_validator())
+      |> normalize_to_list()
+
+    validators =
+      validator_nodes
+      |> Enum.reduce([], fn validator_node, acc ->
+        validator_desc = RDF.Graph.description(graph, validator_node)
+
+        with {:ok, select_query} <-
+               extract_required_string(validator_desc, SHACL.select(), "sh:select"),
+             {:ok, message} <- extract_optional_string(validator_desc, SHACL.message()),
+             {:ok, prefixes_graph} <- extract_optional_prefixes(graph, validator_desc) do
+          [
+            %{
+              select_query: select_query,
+              message: message,
+              prefixes_graph: prefixes_graph
+            }
+            | acc
+          ]
+        else
+          {:error, reason} ->
+            Logger.warning(
+              "Skipping invalid sh:propertyValidator on #{inspect(component_id)}: #{inspect(reason)}"
+            )
+
+            acc
+        end
+      end)
+      |> Enum.reverse()
+
+    {:ok, validators}
+  end
+
+  @spec subjects_with_predicate(RDF.Graph.t(), RDF.IRI.t()) :: MapSet.t()
+  defp subjects_with_predicate(graph, predicate) do
+    graph
+    |> RDF.Graph.triples()
+    |> Enum.reduce(MapSet.new(), fn
+      {subject, ^predicate, _object}, acc -> MapSet.put(acc, subject)
+      _triple, acc -> acc
+    end)
+  end
+
+  @spec parameter_var_name(RDF.IRI.t()) :: String.t()
+  defp parameter_var_name(%RDF.IRI{value: value}) when is_binary(value) do
+    raw_candidate =
+      value
+      |> String.split(["#", "/"])
+      |> List.last()
+      |> to_string()
+
+    candidate = Regex.replace(~r/[^A-Za-z0-9_]/, raw_candidate, "_")
+
+    cond do
+      candidate == "" ->
+        "param"
+
+      Regex.match?(~r/^[A-Za-z_]/, candidate) ->
+        candidate
+
+      true ->
+        "p_#{candidate}"
+    end
+  end
+
+  @spec build_parameter_bindings(RDF.Description.t(), list()) ::
+          [%{optional(String.t()) => RDF.Term.t()}]
+  defp build_parameter_bindings(desc, parameters) do
+    parameter_values =
+      Enum.map(parameters, fn %{path: path, var_name: var_name} ->
+        values =
+          desc
+          |> RDF.Description.get(path)
+          |> normalize_to_list()
+          |> Enum.uniq()
+
+        {var_name, values}
+      end)
+
+    if Enum.any?(parameter_values, fn {_var_name, values} -> values == [] end) do
+      []
+    else
+      build_parameter_bindings_combinations(parameter_values, [%{}])
+    end
+  end
+
+  @spec build_parameter_bindings_combinations(list(), list()) :: list()
+  defp build_parameter_bindings_combinations([], bindings), do: bindings
+
+  defp build_parameter_bindings_combinations([{var_name, values} | rest], bindings) do
+    next_bindings =
+      Enum.flat_map(bindings, fn partial ->
+        Enum.map(values, fn value ->
+          Map.put(partial, var_name, value)
+        end)
+      end)
+
+    build_parameter_bindings_combinations(rest, next_bindings)
   end
 
   # Parse SPARQL constraints for a node shape

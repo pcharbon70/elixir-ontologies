@@ -259,6 +259,36 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
       assert "prop1 must be positive" in messages
       assert "prop2 must be less than 100" in messages
     end
+
+    test "applies SHACL pre-bound values for $PATH and parameter variables" do
+      data_graph =
+        RDF.Graph.new([
+          {~I<http://example.org/n1>, ~I<http://example.org/englishLabel>, RDF.literal("Munich")}
+        ])
+
+      constraint = %SPARQLConstraint{
+        source_shape_id: RDF.bnode("prop1"),
+        message: "Values must use language en",
+        select_query: """
+          SELECT DISTINCT $this ?value
+          WHERE {
+            $this $PATH ?value .
+            FILTER (!langMatches(lang(?value), $lang))
+          }
+        """,
+        pre_bound_values: %{
+          "PATH" => ~I<http://example.org/englishLabel>,
+          "lang" => RDF.literal("en")
+        },
+        result_path: ~I<http://example.org/englishLabel>
+      }
+
+      [violation] = SPARQL.validate(data_graph, ~I<http://example.org/n1>, [constraint])
+
+      assert violation.focus_node == ~I<http://example.org/n1>
+      assert violation.path == ~I<http://example.org/englishLabel>
+      assert violation.message == "Values must use language en"
+    end
   end
 
   describe "real SPARQL constraints from elixir-shapes.ttl" do

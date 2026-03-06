@@ -532,6 +532,46 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
       assert constraint.message == "Test constraint"
       assert constraint.prefixes_graph == nil
     end
+
+    test "parses propertyValidator constraints with pre-bound PATH and parameter values" do
+      param_node = RDF.bnode("param1")
+      validator_node = RDF.bnode("validator1")
+      prop_node = RDF.bnode("prop1")
+
+      graph =
+        RDF.Graph.new([
+          {~I<http://example.org/LanguageComponent>, ~I<http://www.w3.org/ns/shacl#parameter>,
+           param_node},
+          {param_node, ~I<http://www.w3.org/ns/shacl#path>, ~I<http://example.org/lang>},
+          {~I<http://example.org/LanguageComponent>,
+           ~I<http://www.w3.org/ns/shacl#propertyValidator>, validator_node},
+          {validator_node, ~I<http://www.w3.org/ns/shacl#select>,
+           RDF.literal("""
+           SELECT DISTINCT $this ?value
+           WHERE {
+             $this $PATH ?value .
+             FILTER (!langMatches(lang(?value), $lang))
+           }
+           """)},
+          {validator_node, ~I<http://www.w3.org/ns/shacl#message>,
+           RDF.literal("Values are literals with language \"{?lang}\"")},
+          {~I<http://example.org/Shape1>, RDF.type(), ~I<http://www.w3.org/ns/shacl#NodeShape>},
+          {~I<http://example.org/Shape1>, ~I<http://www.w3.org/ns/shacl#property>, prop_node},
+          {prop_node, ~I<http://www.w3.org/ns/shacl#path>, ~I<http://example.org/englishLabel>},
+          {prop_node, ~I<http://example.org/lang>, RDF.literal("en")}
+        ])
+
+      {:ok, [shape]} = Reader.parse_shapes(graph)
+      [property_shape] = shape.property_shapes
+
+      assert length(property_shape.sparql_constraints) == 1
+      [constraint] = property_shape.sparql_constraints
+
+      assert match?(%SPARQLConstraint{}, constraint)
+      assert constraint.result_path == ~I<http://example.org/englishLabel>
+      assert constraint.pre_bound_values["PATH"] == ~I<http://example.org/englishLabel>
+      assert constraint.pre_bound_values["lang"] == RDF.literal("en")
+    end
   end
 
   describe "error handling" do

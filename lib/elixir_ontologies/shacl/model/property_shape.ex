@@ -119,6 +119,8 @@ defmodule ElixirOntologies.SHACL.Model.PropertyShape do
   """
 
   @enforce_keys [:id, :path]
+  alias ElixirOntologies.SHACL.Model.SPARQLConstraint
+
   defstruct [
     # RDF.IRI.t() | RDF.BlankNode.t()
     :id,
@@ -161,7 +163,11 @@ defmodule ElixirOntologies.SHACL.Model.PropertyShape do
     # RDF.IRI.t() | nil
     qualified_class: nil,
     # non_neg_integer() | nil
-    qualified_min_count: nil
+    qualified_min_count: nil,
+
+    # Property-level SHACL-SPARQL constraints (e.g. custom constraint components)
+    # [SPARQLConstraint.t()]
+    sparql_constraints: []
   ]
 
   @type t :: %__MODULE__{
@@ -179,6 +185,7 @@ defmodule ElixirOntologies.SHACL.Model.PropertyShape do
           in: [RDF.Term.t()],
           has_value: RDF.Term.t() | nil,
           qualified_class: RDF.IRI.t() | nil,
-          qualified_min_count: non_neg_integer() | nil
+          qualified_min_count: non_neg_integer() | nil,
+          sparql_constraints: [SPARQLConstraint.t()]
         }
 end

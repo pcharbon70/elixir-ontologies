@@ -41,10 +41,7 @@ defmodule ElixirOntologies.W3CTest do
   @sparql_dir Path.join(@fixtures_dir, "sparql")
 
   # Known limitations - tests that are expected to fail due to SPARQL.ex limitations
-  @known_sparql_limitations [
-    # Test using nested SELECT subqueries
-    "component-001"
-  ]
+  @known_sparql_limitations []
 
   # Known limitations - core SHACL features not yet implemented
   @known_core_limitations [

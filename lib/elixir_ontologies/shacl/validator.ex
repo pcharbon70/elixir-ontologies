@@ -316,6 +316,9 @@ defmodule ElixirOntologies.SHACL.Validator do
     |> concat(Validators.String.validate(data_graph, focus_node, property_shape))
     |> concat(Validators.Value.validate(data_graph, focus_node, property_shape))
     |> concat(Validators.Qualified.validate(data_graph, focus_node, property_shape))
+    |> concat(
+      Validators.SPARQL.validate(data_graph, focus_node, property_shape.sparql_constraints)
+    )
   end
 
   # Helper: Concatenate results efficiently
