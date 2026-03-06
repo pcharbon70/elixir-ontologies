@@ -118,7 +118,9 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
 
   require Logger
 
+  alias ElixirOntologies.NS
   alias ElixirOntologies.SHACL.Model.{SPARQLConstraint, ValidationResult}
+  alias ElixirOntologies.SHACL.Vocabulary, as: SH
 
   # Dialyzer may not see SPARQL library types correctly
   @dialyzer {:nowarn_function, validate_constraint: 3}
@@ -168,8 +170,11 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
     # Step 1: Substitute $this with focus node
     query_with_substitution = substitute_this(constraint.select_query, focus_node)
 
+    query_with_prefixes =
+      ensure_prefix_declarations(query_with_substitution, constraint.prefixes_graph)
+
     # Step 2: Execute SPARQL query
-    case execute_query(data_graph, query_with_substitution) do
+    case execute_query(data_graph, query_with_prefixes) do
       {:ok, result} ->
         # Step 3: Convert results to violations
         results_to_violations(result, focus_node, constraint)
@@ -219,11 +224,107 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
       String.replace(
         query_string,
         ~r/WHERE\s*\{/,
-        "WHERE { BIND(#{focus_value} AS ?this) . "
+        "WHERE { BIND(#{focus_value} AS ?this) . ",
+        global: false
       )
     else
       query_string
     end
+  end
+
+  @spec ensure_prefix_declarations(String.t(), RDF.Graph.t() | nil) :: String.t()
+  defp ensure_prefix_declarations(query_string, prefixes_graph) do
+    existing_prefixes = extract_existing_prefixes(query_string)
+    available_prefixes = merge_available_prefixes(prefixes_graph)
+
+    prefix_declarations =
+      available_prefixes
+      |> Enum.reject(fn {prefix, _namespace} -> MapSet.member?(existing_prefixes, prefix) end)
+      |> Enum.map_join("", fn {prefix, namespace} ->
+        "PREFIX #{prefix}: <#{namespace}>\n"
+      end)
+
+    prefix_declarations <> query_string
+  end
+
+  @spec merge_available_prefixes(RDF.Graph.t() | nil) :: [{String.t(), String.t()}]
+  defp merge_available_prefixes(prefixes_graph) do
+    default_prefixes =
+      NS.prefix_map()
+      |> Enum.map(fn {prefix, namespace} -> {to_string(prefix), to_string(namespace)} end)
+
+    custom_prefixes = extract_prefixes_from_graph(prefixes_graph)
+    custom_map = Map.new(custom_prefixes)
+
+    default_with_custom_overrides =
+      Enum.map(default_prefixes, fn {prefix, namespace} ->
+        {prefix, Map.get(custom_map, prefix, namespace)}
+      end)
+
+    default_prefix_names = MapSet.new(Enum.map(default_prefixes, fn {prefix, _} -> prefix end))
+
+    extra_custom_prefixes =
+      Enum.reject(custom_prefixes, fn {prefix, _} ->
+        MapSet.member?(default_prefix_names, prefix)
+      end)
+
+    default_with_custom_overrides ++ extra_custom_prefixes
+  end
+
+  @spec extract_prefixes_from_graph(RDF.Graph.t() | nil) :: [{String.t(), String.t()}]
+  defp extract_prefixes_from_graph(nil), do: []
+
+  defp extract_prefixes_from_graph(%RDF.Graph{} = prefixes_graph) do
+    prefixes_graph
+    |> RDF.Graph.triples()
+    |> Enum.map(fn {subject, _predicate, _object} -> subject end)
+    |> Enum.uniq()
+    |> Enum.reduce([], fn subject, acc ->
+      desc = RDF.Graph.description(prefixes_graph, subject)
+
+      with prefix when is_binary(prefix) <-
+             extract_string_value(RDF.Description.get(desc, SH.prefix())),
+           namespace when is_binary(namespace) <-
+             extract_string_value(RDF.Description.get(desc, SH.namespace())),
+           true <- valid_prefix_name?(prefix),
+           true <- namespace != "" do
+        [{prefix, namespace} | acc]
+      else
+        _ -> acc
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  @spec extract_existing_prefixes(String.t()) :: MapSet.t(String.t())
+  defp extract_existing_prefixes(query_string) do
+    ~r/^\s*PREFIX\s+([A-Za-z][A-Za-z0-9_.-]*)\s*:/mi
+    |> Regex.scan(query_string)
+    |> Enum.map(fn [_, prefix] -> prefix end)
+    |> MapSet.new()
+  end
+
+  @spec extract_string_value(term()) :: String.t() | nil
+  defp extract_string_value(values) do
+    values
+    |> normalize_to_list()
+    |> Enum.find_value(&term_to_string/1)
+  end
+
+  @spec normalize_to_list(term()) :: list()
+  defp normalize_to_list(nil), do: []
+  defp normalize_to_list(values) when is_list(values), do: values
+  defp normalize_to_list(value), do: [value]
+
+  @spec term_to_string(term()) :: String.t() | nil
+  defp term_to_string(%RDF.IRI{value: value}) when is_binary(value), do: value
+  defp term_to_string(%RDF.Literal{} = literal), do: literal |> RDF.Literal.value() |> to_string()
+  defp term_to_string(value) when is_binary(value), do: value
+  defp term_to_string(_), do: nil
+
+  @spec valid_prefix_name?(String.t()) :: boolean()
+  defp valid_prefix_name?(prefix) do
+    Regex.match?(~r/^[A-Za-z][A-Za-z0-9_.-]*$/, prefix)
   end
 
   # Execute SPARQL query against data graph

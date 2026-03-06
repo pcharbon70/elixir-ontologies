@@ -5,6 +5,7 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
 
   alias ElixirOntologies.SHACL.Validators.SPARQL
   alias ElixirOntologies.SHACL.Model.SPARQLConstraint
+  alias ElixirOntologies.SHACL.Vocabulary, as: SHACL
 
   doctest ElixirOntologies.SHACL.Validators.SPARQL
 
@@ -184,6 +185,39 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
 
       # Should not crash, should return empty
       assert SPARQL.validate(data_graph, ~I<http://example.org/n1>, [constraint]) == []
+    end
+
+    test "resolves prefixes from prefixes_graph when query has no PREFIX declarations" do
+      declare_node = RDF.bnode("declare1")
+
+      prefixes_graph =
+        RDF.Graph.new([
+          {~I<http://example.org/prefixes>, SHACL.declare(), declare_node},
+          {declare_node, SHACL.prefix(), RDF.literal("struct")},
+          {declare_node, SHACL.namespace(),
+           RDF.literal("https://w3id.org/elixir-code/structure#")}
+        ])
+
+      data_graph =
+        RDF.Graph.new([
+          {~I<http://example.org/M#foo/2>, structure("arity"), RDF.XSD.integer(2)}
+        ])
+
+      constraint = %SPARQLConstraint{
+        source_shape_id: ~I<http://example.org/shapes#S1>,
+        message: "Arity should be 2",
+        select_query: """
+          SELECT $this ?arity
+          WHERE {
+            $this struct:arity ?arity .
+            FILTER (?arity = 2)
+          }
+        """,
+        prefixes_graph: prefixes_graph
+      }
+
+      [violation] = SPARQL.validate(data_graph, ~I<http://example.org/M#foo/2>, [constraint])
+      assert violation.message == "Arity should be 2"
     end
 
     test "processes multiple constraints" do

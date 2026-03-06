@@ -74,6 +74,10 @@ defmodule ElixirOntologies.SHACL.Vocabulary do
   # SPARQL Constraints
   @sh_sparql RDF.iri("http://www.w3.org/ns/shacl#sparql")
   @sh_select RDF.iri("http://www.w3.org/ns/shacl#select")
+  @sh_prefixes RDF.iri("http://www.w3.org/ns/shacl#prefixes")
+  @sh_declare RDF.iri("http://www.w3.org/ns/shacl#declare")
+  @sh_prefix RDF.iri("http://www.w3.org/ns/shacl#prefix")
+  @sh_namespace RDF.iri("http://www.w3.org/ns/shacl#namespace")
 
   # Logical Operators
   @sh_and RDF.iri("http://www.w3.org/ns/shacl#and")
@@ -198,6 +202,18 @@ defmodule ElixirOntologies.SHACL.Vocabulary do
 
   @doc "SHACL select query predicate IRI"
   def select, do: @sh_select
+
+  @doc "SHACL prefixes predicate IRI"
+  def prefixes, do: @sh_prefixes
+
+  @doc "SHACL declare predicate IRI"
+  def declare, do: @sh_declare
+
+  @doc "SHACL prefix predicate IRI"
+  def prefix, do: @sh_prefix
+
+  @doc "SHACL namespace predicate IRI"
+  def namespace, do: @sh_namespace
 
   # Logical Operators
   @doc "SHACL and logical operator IRI (all shapes must conform)"

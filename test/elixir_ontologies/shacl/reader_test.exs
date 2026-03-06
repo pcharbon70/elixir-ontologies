@@ -5,6 +5,7 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
 
   alias ElixirOntologies.SHACL.Reader
   alias ElixirOntologies.SHACL.Model.{NodeShape, SPARQLConstraint}
+  alias ElixirOntologies.SHACL.Vocabulary, as: SHACL
 
   describe "parse_shapes/2 with real elixir-shapes.ttl" do
     setup do
@@ -312,6 +313,33 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
       end)
     end
 
+    test "parses sh:prefixes into constraint prefixes_graph", %{shapes: shapes} do
+      sparql_constraints =
+        shapes
+        |> Enum.flat_map(& &1.sparql_constraints)
+
+      constraint_with_prefixes =
+        Enum.find(sparql_constraints, fn constraint ->
+          match?(%RDF.Graph{}, constraint.prefixes_graph)
+        end)
+
+      assert constraint_with_prefixes != nil
+
+      triples = RDF.Graph.triples(constraint_with_prefixes.prefixes_graph)
+
+      assert Enum.any?(triples, fn {_s, p, o} ->
+               p == SHACL.prefix() and RDF.Literal.value(o) == "struct"
+             end)
+
+      assert Enum.any?(triples, fn {_s, p, o} ->
+               p == SHACL.namespace() &&
+                 String.starts_with?(
+                   to_string(RDF.Literal.value(o)),
+                   "https://w3id.org/elixir-code/"
+                 )
+             end)
+    end
+
     test "SPARQL queries contain $this placeholder", %{shapes: shapes} do
       sparql_constraints =
         shapes
@@ -501,6 +529,7 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
       assert constraint.source_shape_id == ~I<http://example.org/Shape1>
       assert constraint.select_query == "SELECT $this WHERE { $this ?p ?o }"
       assert constraint.message == "Test constraint"
+      assert constraint.prefixes_graph == nil
     end
   end
 
