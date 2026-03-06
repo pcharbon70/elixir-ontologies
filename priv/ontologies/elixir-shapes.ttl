@@ -601,12 +601,12 @@
             WHERE {
                 $this struct:implementsProtocol ?protocol .
                 ?protocol struct:definesProtocolFunction ?missingFunc .
-                FILTER NOT EXISTS {
+                ?missingFunc struct:functionName ?missingName .
+                OPTIONAL {
                     $this struct:containsFunction ?implFunc .
-                    ?implFunc struct:functionName ?name .
-                    ?missingFunc struct:functionName ?name .
+                    ?implFunc struct:functionName ?missingName .
                 }
+                FILTER (!BOUND(?implFunc))
             }
         """
     ] .
-
