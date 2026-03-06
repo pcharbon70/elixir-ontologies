@@ -701,7 +701,7 @@ defmodule ElixirOntologies.Builders.ControlFlowFullTest do
         metadata: %{}
       }
 
-      {expr_iri, triples} =
+      {_expr_iri, triples} =
         ControlFlowBuilder.build_conditional(conditional, context,
           containing_function: "MyApp.test/1",
           index: 0,

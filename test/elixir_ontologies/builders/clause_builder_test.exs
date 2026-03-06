@@ -1220,7 +1220,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Find the guard expression IRI
       guard_iri =
-        Enum.find_value(triples, fn {s, p, o} ->
+        Enum.find_value(triples, fn {_s, p, o} ->
           if p == Core.hasGuard() do
             o
           else
@@ -1262,7 +1262,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilderTest do
 
       # Find the guard expression IRI (the LogicalOperator for 'and')
       guard_iri =
-        Enum.find_value(triples, fn {s, p, o} ->
+        Enum.find_value(triples, fn {_s, p, o} ->
           if p == Core.hasGuard() do
             o
           else

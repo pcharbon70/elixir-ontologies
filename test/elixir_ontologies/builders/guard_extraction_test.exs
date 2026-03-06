@@ -473,14 +473,14 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
 
       function_iri = ~I<https://example.org/code#MyApp/process/1>
 
-      {clause_iri, triples} =
+      {_clause_iri, triples} =
         ClauseBuilder.build_clause(clause_info, function_iri, context,
           expression_builder: ExpressionBuilder
         )
 
       # Simulate SPARQL query: Find all expressions with inGuardContext = true
       guard_expressions =
-        Enum.filter(triples, fn {s, p, o} ->
+        Enum.filter(triples, fn {_s, p, o} ->
           p == Core.inGuardContext() and RDF.Literal.value(o) == true
         end)
         |> Enum.map(fn {s, _p, _o} -> s end)
@@ -515,7 +515,7 @@ defmodule ElixirOntologies.Builders.GuardExtractionTest do
 
       # Simulate SPARQL: Find all LocalCalls with name "is_binary"
       is_binary_calls =
-        Enum.filter(triples, fn {s, p, o} ->
+        Enum.filter(triples, fn {_s, p, o} ->
           p == Core.name() and RDF.Literal.value(o) == "is_binary"
         end)
         |> Enum.map(fn {s, _p, _o} -> s end)
