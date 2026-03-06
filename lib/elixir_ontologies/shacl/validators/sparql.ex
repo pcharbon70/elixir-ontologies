@@ -119,8 +119,15 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
   require Logger
 
   alias ElixirOntologies.NS
+  alias ElixirOntologies.NS.Structure
   alias ElixirOntologies.SHACL.Model.{SPARQLConstraint, ValidationResult}
   alias ElixirOntologies.SHACL.Vocabulary, as: SH
+
+  @function_arity_match_shape "https://w3id.org/elixir-code/shapes#FunctionArityMatchShape"
+  @max_rdf_list_depth 512
+  @rdf_nil RDF.nil()
+  @core_has_parameter RDF.iri("https://w3id.org/elixir-code/core#hasParameter")
+  @core_has_parameters RDF.iri("https://w3id.org/elixir-code/core#hasParameters")
 
   # Dialyzer may not see SPARQL library types correctly
   @dialyzer {:nowarn_function, validate_constraint: 3}
@@ -167,23 +174,206 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
   @spec validate_constraint(RDF.Graph.t(), RDF.Term.t(), SPARQLConstraint.t()) ::
           [ValidationResult.t()]
   defp validate_constraint(data_graph, focus_node, %SPARQLConstraint{} = constraint) do
-    # Step 1: Substitute $this with focus node
-    query_with_substitution = substitute_this(constraint.select_query, focus_node)
+    if function_arity_match_constraint?(constraint) do
+      validate_function_arity_match_constraint(data_graph, focus_node, constraint)
+    else
+      # Step 1: Substitute $this with focus node
+      query_with_substitution = substitute_this(constraint.select_query, focus_node)
 
-    query_with_prefixes =
-      ensure_prefix_declarations(query_with_substitution, constraint.prefixes_graph)
+      query_with_prefixes =
+        ensure_prefix_declarations(query_with_substitution, constraint.prefixes_graph)
 
-    # Step 2: Execute SPARQL query
-    case execute_query(data_graph, query_with_prefixes) do
-      {:ok, result} ->
-        # Step 3: Convert results to violations
-        results_to_violations(result, focus_node, constraint)
+      # Step 2: Execute SPARQL query
+      case execute_query(data_graph, query_with_prefixes) do
+        {:ok, result} ->
+          # Step 3: Convert results to violations
+          results_to_violations(result, focus_node, constraint)
 
-      {:error, reason} ->
-        Logger.warning("SPARQL query execution failed: #{inspect(reason)}")
-        []
+        {:error, reason} ->
+          Logger.warning("SPARQL query execution failed: #{inspect(reason)}")
+          []
+      end
     end
   end
+
+  @spec function_arity_match_constraint?(SPARQLConstraint.t()) :: boolean()
+  defp function_arity_match_constraint?(%SPARQLConstraint{
+         source_shape_id: %RDF.IRI{value: value}
+       })
+       when is_binary(value) do
+    value == @function_arity_match_shape
+  end
+
+  defp function_arity_match_constraint?(_), do: false
+
+  @spec validate_function_arity_match_constraint(
+          RDF.Graph.t(),
+          RDF.Term.t(),
+          SPARQLConstraint.t()
+        ) ::
+          [ValidationResult.t()]
+  defp validate_function_arity_match_constraint(data_graph, focus_node, constraint) do
+    with {:ok, arity} <- extract_focus_arity(data_graph, focus_node),
+         {:ok, param_count} <- extract_first_clause_param_count(data_graph, focus_node),
+         true <- arity != param_count do
+      [
+        %ValidationResult{
+          severity: :violation,
+          focus_node: focus_node,
+          path: nil,
+          source_shape: constraint.source_shape_id,
+          message: constraint.message,
+          details: %{arity: arity, paramCount: param_count}
+        }
+      ]
+    else
+      false -> []
+      :no_arity -> []
+      :no_first_clause -> []
+      {:error, _reason} -> []
+    end
+  end
+
+  @spec extract_focus_arity(RDF.Graph.t(), RDF.Term.t()) :: {:ok, integer()} | :no_arity
+  defp extract_focus_arity(data_graph, focus_node) do
+    arity =
+      data_graph
+      |> objects_for(focus_node, Structure.arity())
+      |> Enum.find_value(&as_integer/1)
+
+    if is_integer(arity), do: {:ok, arity}, else: :no_arity
+  end
+
+  @spec extract_first_clause_param_count(RDF.Graph.t(), RDF.Term.t()) ::
+          {:ok, non_neg_integer()} | :no_first_clause | {:error, term()}
+  defp extract_first_clause_param_count(data_graph, focus_node) do
+    first_clause =
+      data_graph
+      |> objects_for(focus_node, Structure.hasClause())
+      |> Enum.find(fn clause ->
+        data_graph
+        |> object_for(clause, Structure.clauseOrder())
+        |> as_integer() == 1
+      end)
+
+    case first_clause do
+      nil ->
+        :no_first_clause
+
+      clause ->
+        case object_for(data_graph, clause, Structure.hasHead()) do
+          nil ->
+            :no_first_clause
+
+          head ->
+            {:ok, count_head_parameters(data_graph, head)}
+        end
+    end
+  end
+
+  @spec count_head_parameters(RDF.Graph.t(), RDF.Term.t()) :: non_neg_integer()
+  defp count_head_parameters(data_graph, head) do
+    direct_params =
+      data_graph
+      |> objects_for_any(head, [Structure.hasParameter(), @core_has_parameter])
+      |> Enum.uniq()
+
+    cond do
+      direct_params != [] ->
+        length(direct_params)
+
+      list_head =
+          object_for_any(data_graph, head, [Structure.hasParameters(), @core_has_parameters]) ->
+        case count_rdf_list_members(data_graph, list_head, 0, MapSet.new()) do
+          {:ok, count} -> count
+          {:error, _reason} -> 0
+        end
+
+      true ->
+        0
+    end
+  end
+
+  @spec count_rdf_list_members(RDF.Graph.t(), RDF.Term.t(), non_neg_integer(), MapSet.t()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  defp count_rdf_list_members(_graph, node, count, _seen) when node == @rdf_nil, do: {:ok, count}
+
+  defp count_rdf_list_members(_graph, _node, count, _seen) when count > @max_rdf_list_depth do
+    {:error, :rdf_list_depth_exceeded}
+  end
+
+  defp count_rdf_list_members(graph, node, count, seen) do
+    cond do
+      MapSet.member?(seen, node) ->
+        {:error, :cyclic_rdf_list}
+
+      true ->
+        next_seen = MapSet.put(seen, node)
+        first = object_for(graph, node, RDF.first())
+        rest = object_for(graph, node, RDF.rest())
+
+        if first == nil or rest == nil do
+          {:error, :invalid_rdf_list}
+        else
+          count_rdf_list_members(graph, rest, count + 1, next_seen)
+        end
+    end
+  end
+
+  @spec objects_for(RDF.Graph.t(), RDF.Term.t(), RDF.Term.t()) :: [RDF.Term.t()]
+  defp objects_for(data_graph, subject, predicate) do
+    data_graph
+    |> RDF.Graph.triples()
+    |> Enum.reduce([], fn
+      {^subject, ^predicate, object}, acc -> [object | acc]
+      _triple, acc -> acc
+    end)
+    |> Enum.reverse()
+  end
+
+  @spec object_for(RDF.Graph.t(), RDF.Term.t(), RDF.Term.t()) :: RDF.Term.t() | nil
+  defp object_for(data_graph, subject, predicate) do
+    data_graph
+    |> objects_for(subject, predicate)
+    |> List.first()
+  end
+
+  @spec objects_for_any(RDF.Graph.t(), RDF.Term.t(), [RDF.Term.t()]) :: [RDF.Term.t()]
+  defp objects_for_any(data_graph, subject, predicates) do
+    Enum.flat_map(predicates, fn predicate ->
+      objects_for(data_graph, subject, predicate)
+    end)
+  end
+
+  @spec object_for_any(RDF.Graph.t(), RDF.Term.t(), [RDF.Term.t()]) :: RDF.Term.t() | nil
+  defp object_for_any(data_graph, subject, predicates) do
+    data_graph
+    |> objects_for_any(subject, predicates)
+    |> List.first()
+  end
+
+  @spec as_integer(term()) :: integer() | nil
+  defp as_integer(%RDF.Literal{} = literal) do
+    case RDF.Literal.value(literal) do
+      value when is_integer(value) ->
+        value
+
+      value when is_float(value) ->
+        trunc(value)
+
+      value when is_binary(value) ->
+        case Integer.parse(value) do
+          {int, ""} -> int
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp as_integer(value) when is_integer(value), do: value
+  defp as_integer(_), do: nil
 
   # Replace $this placeholder with focus node
   # In SHACL-SPARQL, $this appears in both SELECT and WHERE clauses

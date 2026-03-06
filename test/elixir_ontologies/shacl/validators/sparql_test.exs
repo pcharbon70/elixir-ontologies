@@ -334,7 +334,9 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
           {clause, structure("hasHead"), head},
           # Head with 2 parameters (matches arity)
           {head, structure("hasParameter"), param1},
-          {head, structure("hasParameter"), param2}
+          {head, structure("hasParameter"), param2},
+          {param1, structure("parameterPosition"), RDF.XSD.integer(1)},
+          {param2, structure("parameterPosition"), RDF.XSD.integer(2)}
         ])
 
       constraint = %SPARQLConstraint{
@@ -342,19 +344,30 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
         message: "Function arity should match parameter count in first clause",
         select_query: """
           PREFIX struct: <https://w3id.org/elixir-code/structure#>
-          SELECT $this ?arity ?paramCount
+          PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+          SELECT $this ?arity ?paramAtArity ?extraParam
           WHERE {
             $this struct:arity ?arity .
             $this struct:hasClause ?clause .
             ?clause struct:clauseOrder 1 .
             ?clause struct:hasHead ?head .
-            {
-              SELECT (COUNT(?param) AS ?paramCount)
-              WHERE {
-                ?head struct:hasParameter ?param .
-              }
+
+            OPTIONAL {
+              ?head struct:hasParameter ?paramAtArity .
+              ?paramAtArity struct:parameterPosition ?posAtArity .
+              FILTER (xsd:integer(?posAtArity) = xsd:integer(?arity))
             }
-            FILTER (?arity != ?paramCount)
+
+            OPTIONAL {
+              ?head struct:hasParameter ?extraParam .
+              ?extraParam struct:parameterPosition ?paramPos .
+              FILTER (xsd:integer(?paramPos) > xsd:integer(?arity))
+            }
+
+            FILTER (
+              (xsd:integer(?arity) > 0 && !BOUND(?paramAtArity)) ||
+              BOUND(?extraParam)
+            )
           }
         """
       }
@@ -363,14 +376,6 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
       assert SPARQL.validate(data_graph, ~I<http://example.org/M#foo/2>, [constraint]) == []
     end
 
-    # PENDING: This test is currently disabled due to SPARQL.ex library limitations
-    # with nested SELECT subqueries. The SPARQL query uses a subquery to count parameters:
-    # `SELECT (COUNT(?param) AS ?paramCount) WHERE { ?head struct:hasParameter ?param }`
-    # This pattern is valid SPARQL 1.1 but not fully supported by the SPARQL.ex library.
-    # Error: "unknown prefix in 'struct:arity' on line 7"
-    # Planned: Either upgrade SPARQL.ex to support subqueries or rewrite constraint to avoid subqueries
-    # See: Phase 11.4.4 Review Fixes - SPARQL Limitations Documentation
-    @tag :pending
     test "FunctionArityMatchShape: invalid function (arity != parameter count)" do
       clause = RDF.bnode("clause1")
       head = RDF.bnode("head1")
@@ -384,7 +389,8 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
           {clause, structure("clauseOrder"), RDF.XSD.integer(1)},
           {clause, structure("hasHead"), head},
           # Head with only 1 parameter (doesn't match arity 2)
-          {head, structure("hasParameter"), param1}
+          {head, structure("hasParameter"), param1},
+          {param1, structure("parameterPosition"), RDF.XSD.integer(1)}
         ])
 
       constraint = %SPARQLConstraint{
@@ -392,19 +398,30 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
         message: "Function arity should match parameter count in first clause",
         select_query: """
           PREFIX struct: <https://w3id.org/elixir-code/structure#>
-          SELECT $this ?arity ?paramCount
+          PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+          SELECT $this ?arity ?paramAtArity ?extraParam
           WHERE {
             $this struct:arity ?arity .
             $this struct:hasClause ?clause .
             ?clause struct:clauseOrder 1 .
             ?clause struct:hasHead ?head .
-            {
-              SELECT (COUNT(?param) AS ?paramCount)
-              WHERE {
-                ?head struct:hasParameter ?param .
-              }
+
+            OPTIONAL {
+              ?head struct:hasParameter ?paramAtArity .
+              ?paramAtArity struct:parameterPosition ?posAtArity .
+              FILTER (xsd:integer(?posAtArity) = xsd:integer(?arity))
             }
-            FILTER (?arity != ?paramCount)
+
+            OPTIONAL {
+              ?head struct:hasParameter ?extraParam .
+              ?extraParam struct:parameterPosition ?paramPos .
+              FILTER (xsd:integer(?paramPos) > xsd:integer(?arity))
+            }
+
+            FILTER (
+              (xsd:integer(?arity) > 0 && !BOUND(?paramAtArity)) ||
+              BOUND(?extraParam)
+            )
           }
         """
       }

@@ -373,7 +373,8 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
       if arity_match_shape && length(arity_match_shape.sparql_constraints) > 0 do
         constraint = hd(arity_match_shape.sparql_constraints)
         assert String.contains?(constraint.select_query, "arity")
-        assert String.contains?(constraint.select_query, "COUNT")
+        assert String.contains?(constraint.select_query, "parameterPosition")
+        assert String.contains?(constraint.select_query, "BOUND")
       end
     end
   end
