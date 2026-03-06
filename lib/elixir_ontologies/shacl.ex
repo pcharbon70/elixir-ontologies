@@ -168,9 +168,9 @@ defmodule ElixirOntologies.SHACL do
 
   ### Known Limitations
 
-  **SPARQL Constraints**: SPARQL constraints with complex subqueries or `FILTER NOT EXISTS`
-  patterns may not execute due to SPARQL.ex library limitations. Core constraints
-  (cardinality, type, string, value, qualified) work identically to pySHACL.
+  **SPARQL Constraints**: SPARQL constraints with complex subqueries may not execute
+  due to SPARQL.ex library limitations. Core constraints (cardinality, type, string,
+  value, qualified) work identically to pySHACL.
 
   These are edge cases affecting <5% of real-world SHACL shapes. The elixir-shapes.ttl
   constraints are fully supported.

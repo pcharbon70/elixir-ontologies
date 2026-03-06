@@ -444,11 +444,12 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
           WHERE {
             $this struct:implementsProtocol ?protocol .
             ?protocol struct:definesProtocolFunction ?missingFunc .
-            FILTER NOT EXISTS {
+            ?missingFunc struct:functionName ?missingName .
+            OPTIONAL {
               $this struct:containsFunction ?implFunc .
-              ?implFunc struct:functionName ?name .
-              ?missingFunc struct:functionName ?name .
+              ?implFunc struct:functionName ?missingName .
             }
+            FILTER (!BOUND(?implFunc))
           }
         """
       }
@@ -457,15 +458,6 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
       assert SPARQL.validate(data_graph, impl, [constraint]) == []
     end
 
-    # PENDING: This test is currently disabled due to SPARQL.ex library limitations
-    # with FILTER NOT EXISTS clauses. The SPARQL query uses a negative pattern:
-    # `FILTER NOT EXISTS { $this struct:containsFunction ?implFunc . ... }`
-    # This pattern is valid SPARQL 1.1 but not fully supported by the SPARQL.ex library.
-    # The library doesn't correctly handle complex FILTER NOT EXISTS patterns with multiple
-    # triple patterns inside the NOT EXISTS block.
-    # Planned: Either upgrade SPARQL.ex to support FILTER NOT EXISTS or rewrite constraint
-    # See: Phase 11.4.4 Review Fixes - SPARQL Limitations Documentation
-    @tag :pending
     test "ProtocolComplianceShape: invalid implementation (missing protocol function)" do
       protocol = ~I<http://example.org/MyProtocol>
       impl = ~I<http://example.org/MyImpl>
@@ -490,11 +482,12 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
           WHERE {
             $this struct:implementsProtocol ?protocol .
             ?protocol struct:definesProtocolFunction ?missingFunc .
-            FILTER NOT EXISTS {
+            ?missingFunc struct:functionName ?missingName .
+            OPTIONAL {
               $this struct:containsFunction ?implFunc .
-              ?implFunc struct:functionName ?name .
-              ?missingFunc struct:functionName ?name .
+              ?implFunc struct:functionName ?missingName .
             }
+            FILTER (!BOUND(?implFunc))
           }
         """
       }
