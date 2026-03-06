@@ -96,7 +96,7 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
       assert violation.focus_node == ~I<http://example.org/n1>
     end
 
-    test "substitutes $this with blank node identifier" do
+    test "substitutes $this with blank node identifier while keeping SELECT valid" do
       bnode = RDF.bnode("b42")
 
       data_graph =
@@ -104,12 +104,11 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQLTest do
           {bnode, ~I<http://example.org/prop>, "value"}
         ])
 
-      # Note: Blank nodes don't work well with SELECT $this, so we use a different query pattern
       constraint = %SPARQLConstraint{
         source_shape_id: ~I<http://example.org/shapes#S1>,
         message: "Test",
         select_query: """
-          SELECT ?prop
+          SELECT $this ?prop
           WHERE {
             $this <http://example.org/prop> ?prop .
           }
