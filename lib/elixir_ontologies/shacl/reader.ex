@@ -525,7 +525,7 @@ defmodule ElixirOntologies.SHACL.Reader do
 
     with {:ok, message} <- extract_optional_string(desc, SHACL.message()),
          {:ok, select_query} <- extract_required_string(desc, SHACL.select(), "sh:select"),
-         {:ok, prefixes_graph} <- extract_optional_prefixes(desc) do
+         {:ok, prefixes_graph} <- extract_optional_prefixes(graph, desc) do
       {:ok,
        %SPARQLConstraint{
          source_shape_id: source_shape_id,
@@ -796,11 +796,49 @@ defmodule ElixirOntologies.SHACL.Reader do
     end
   end
 
-  # Helper: Extract optional prefixes (not currently used, reserved for future)
-  @spec extract_optional_prefixes(RDF.Description.t()) :: {:ok, RDF.Graph.t() | nil}
-  defp extract_optional_prefixes(_desc) do
-    # Prefixes are currently not parsed; we'll use the shapes graph's prefixes
-    {:ok, nil}
+  # Helper: Extract optional SHACL prefix declarations from sh:prefixes
+  @spec extract_optional_prefixes(RDF.Graph.t(), RDF.Description.t()) ::
+          {:ok, RDF.Graph.t() | nil}
+  defp extract_optional_prefixes(graph, desc) do
+    triples =
+      desc
+      |> RDF.Description.get(SHACL.prefixes())
+      |> normalize_to_list()
+      |> Enum.flat_map(&extract_prefix_declaration_triples(graph, &1))
+      |> Enum.uniq()
+
+    case triples do
+      [] -> {:ok, nil}
+      _ -> {:ok, RDF.Graph.new(triples)}
+    end
+  end
+
+  @spec extract_prefix_declaration_triples(RDF.Graph.t(), RDF.IRI.t() | RDF.BlankNode.t()) ::
+          list()
+  defp extract_prefix_declaration_triples(graph, prefixes_node) do
+    declare_nodes =
+      graph
+      |> RDF.Graph.description(prefixes_node)
+      |> RDF.Description.get(SHACL.declare())
+      |> normalize_to_list()
+
+    Enum.flat_map(declare_nodes, fn declare_node ->
+      declare_desc = RDF.Graph.description(graph, declare_node)
+
+      prefix_triples =
+        declare_desc
+        |> RDF.Description.get(SHACL.prefix())
+        |> normalize_to_list()
+        |> Enum.map(fn prefix -> {declare_node, SHACL.prefix(), prefix} end)
+
+      namespace_triples =
+        declare_desc
+        |> RDF.Description.get(SHACL.namespace())
+        |> normalize_to_list()
+        |> Enum.map(fn namespace -> {declare_node, SHACL.namespace(), namespace} end)
+
+      [{prefixes_node, SHACL.declare(), declare_node} | prefix_triples ++ namespace_triples]
+    end)
   end
 
   # Helper: Extract optional node kind
