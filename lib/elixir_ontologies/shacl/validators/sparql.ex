@@ -192,29 +192,29 @@ defmodule ElixirOntologies.SHACL.Validators.SPARQL do
   # - In WHERE: Replace with actual IRI
   @spec substitute_this(String.t(), RDF.Term.t()) :: String.t()
   defp substitute_this(query_string, %RDF.IRI{value: value}) when is_binary(value) do
-    # For SHACL-SPARQL, we need to:
-    # 1. Replace $this with ?this in SELECT clause
-    # 2. Add BIND(?focus AS ?this) where ?focus is the actual IRI
-    # 3. Use the IRI value in the BIND clause
-
     iri_string = "<#{value}>"
 
-    # Simple approach: replace all $this with ?this and bind it
     query_string
-    |> String.replace("SELECT $this", "SELECT ?this")
+    |> replace_select_this_projection()
     |> String.replace("$this", iri_string)
     |> add_this_binding(iri_string)
   end
 
   defp substitute_this(query_string, %RDF.BlankNode{value: value}) when is_binary(value) do
-    # Blank nodes in SPARQL BIND are problematic - SPARQL.ex doesn't support them
-    # For now, we skip BIND and just replace $this everywhere
-    # This won't work properly for SELECT $this queries, but blank nodes as
-    # focus nodes are rare in SHACL validation
+    # Blank nodes can't be used as a SELECT projection constant (`SELECT _:b1`).
+    # Keep a valid SELECT variable while constraining WHERE patterns to the focus bnode.
     bnode_string = "_:#{value}"
 
-    # Simple replacement without BIND
-    String.replace(query_string, "$this", bnode_string)
+    query_string
+    |> replace_select_this_projection()
+    |> String.replace("$this", bnode_string)
+  end
+
+  @spec replace_select_this_projection(String.t()) :: String.t()
+  defp replace_select_this_projection(query_string) do
+    query_string
+    |> String.replace(~r/\bSELECT\s+DISTINCT\s+\$this\b/i, "SELECT DISTINCT ?this")
+    |> String.replace(~r/\bSELECT\s+\$this\b/i, "SELECT ?this")
   end
 
   # Add BIND clause for ?this if needed
