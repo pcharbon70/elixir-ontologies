@@ -55,7 +55,6 @@ defmodule ElixirOntologies.W3CTest do
     "targetObjectsOf-001",
     "targetSubjectsOf-001",
     # String constraints not fully supported
-    "property-maxLength-001",
     "property-uniqueLang-001",
     # Numeric constraints not fully supported at node shape level
     "maxInclusive-001",

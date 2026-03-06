@@ -357,6 +357,67 @@ defmodule ElixirOntologies.SHACL.Validators.StringTest do
     end
   end
 
+  describe "maxLength constraint (sh:maxLength)" do
+    test "passes when value is within maximum length" do
+      shape = %PropertyShape{
+        id: RDF.bnode("bmax1"),
+        path: @description_prop,
+        max_length: 5
+      }
+
+      graph = RDF.Graph.new([{@module_iri, @description_prop, "abcde"}])
+
+      assert [] == String.validate(graph, @module_iri, shape)
+    end
+
+    test "fails when value exceeds maximum length" do
+      shape = %PropertyShape{
+        id: RDF.bnode("bmax2"),
+        path: @description_prop,
+        max_length: 4,
+        message: "Description must be at most 4 characters"
+      }
+
+      graph = RDF.Graph.new([{@module_iri, @description_prop, "toolong"}])
+
+      [violation] = String.validate(graph, @module_iri, shape)
+
+      assert violation.focus_node == @module_iri
+      assert violation.path == @description_prop
+      assert violation.severity == :violation
+      assert violation.message == "Description must be at most 4 characters"
+      assert violation.details.max_length == 4
+      assert violation.details.actual_length == 7
+      assert violation.details.actual_value == "toolong"
+
+      assert violation.details.constraint_component ==
+               ~I<http://www.w3.org/ns/shacl#MaxLengthConstraintComponent>
+    end
+
+    test "returns one violation per value exceeding max length" do
+      shape = %PropertyShape{
+        id: RDF.bnode("bmax3"),
+        path: @description_prop,
+        max_length: 3
+      }
+
+      graph =
+        RDF.Graph.new([
+          {@module_iri, @description_prop, "ok"},
+          {@module_iri, @description_prop, "four"},
+          {@module_iri, @description_prop, "five5"}
+        ])
+
+      violations = String.validate(graph, @module_iri, shape)
+      assert length(violations) == 2
+
+      assert Enum.all?(violations, fn v ->
+               v.details.constraint_component ==
+                 ~I<http://www.w3.org/ns/shacl#MaxLengthConstraintComponent>
+             end)
+    end
+  end
+
   describe "combined pattern and minLength constraints" do
     test "passes when both constraints are satisfied" do
       # Shape requires both pattern and minimum length

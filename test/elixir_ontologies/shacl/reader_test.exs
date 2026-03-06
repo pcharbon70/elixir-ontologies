@@ -157,6 +157,17 @@ defmodule ElixirOntologies.SHACL.ReaderTest do
       end)
     end
 
+    test "parses maxLength constraints", %{shapes: shapes} do
+      max_length_shapes =
+        shapes
+        |> Enum.flat_map(& &1.property_shapes)
+        |> Enum.filter(&(&1.max_length != nil))
+
+      Enum.each(max_length_shapes, fn shape ->
+        assert is_integer(shape.max_length) and shape.max_length >= 0
+      end)
+    end
+
     test "parses minInclusive constraints", %{shapes: shapes} do
       min_inclusive_shapes =
         shapes

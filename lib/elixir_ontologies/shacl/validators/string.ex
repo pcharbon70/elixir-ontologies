@@ -2,12 +2,13 @@ defmodule ElixirOntologies.SHACL.Validators.String do
   @moduledoc """
   SHACL string constraint validator.
 
-  Validates sh:pattern and sh:minLength constraints on string literal values.
+  Validates sh:pattern, sh:minLength, and sh:maxLength constraints on string literal values.
 
   ## Constraints
 
   - **sh:pattern** - Requires string values to match a regular expression pattern
   - **sh:minLength** - Requires string values to have at least N characters
+  - **sh:maxLength** - Requires string values to have at most N characters
 
   ## Algorithm
 
@@ -71,7 +72,7 @@ defmodule ElixirOntologies.SHACL.Validators.String do
   alias ElixirOntologies.SHACL.Validators.Helpers
 
   @doc """
-  Validate string constraints (sh:pattern, sh:minLength).
+  Validate string constraints (sh:pattern, sh:minLength, sh:maxLength).
 
   Returns a list of ValidationResult structs for any violations found.
   Returns empty list if all property values conform to string constraints.
@@ -80,7 +81,7 @@ defmodule ElixirOntologies.SHACL.Validators.String do
 
   - `data_graph` - RDF.Graph.t() containing the data to validate
   - `focus_node` - RDF.Term.t() the node being validated
-  - `property_shape` - PropertyShape.t() containing pattern and/or min_length
+  - `property_shape` - PropertyShape.t() containing pattern and/or length constraints
 
   ## Returns
 
@@ -112,6 +113,7 @@ defmodule ElixirOntologies.SHACL.Validators.String do
     []
     |> check_pattern(focus_node, property_shape, values)
     |> check_min_length(focus_node, property_shape, values)
+    |> check_max_length(focus_node, property_shape, values)
   end
 
   # Check sh:pattern constraint for all values
@@ -211,6 +213,61 @@ defmodule ElixirOntologies.SHACL.Validators.String do
               %{
                 constraint_component: ~I<http://www.w3.org/ns/shacl#MinLengthConstraintComponent>,
                 min_length: min_length,
+                actual_length: actual_length,
+                actual_value: str
+              }
+            )
+
+          [violation | acc]
+        end
+    end
+  end
+
+  # Check sh:maxLength constraint for all values
+  @spec check_max_length(
+          [ValidationResult.t()],
+          RDF.Term.t(),
+          PropertyShape.t(),
+          [RDF.Term.t()]
+        ) ::
+          [ValidationResult.t()]
+  defp check_max_length(results, focus_node, property_shape, values) do
+    case property_shape.max_length do
+      nil ->
+        # No maxLength constraint
+        results
+
+      max_length ->
+        # Check each value
+        violations =
+          Enum.reduce(values, [], fn value, acc ->
+            check_max_length_value(value, max_length, focus_node, property_shape, acc)
+          end)
+
+        results ++ Enum.reverse(violations)
+    end
+  end
+
+  defp check_max_length_value(value, max_length, focus_node, property_shape, acc) do
+    case Helpers.extract_string(value) do
+      nil ->
+        # Not a literal with string content - skip (datatype validator handles this)
+        acc
+
+      str ->
+        actual_length = String.length(str)
+
+        if actual_length <= max_length do
+          acc
+        else
+          violation =
+            Helpers.build_violation(
+              focus_node,
+              property_shape,
+              "Value is too long (expected at most #{max_length} characters, found #{actual_length})",
+              %{
+                constraint_component: ~I<http://www.w3.org/ns/shacl#MaxLengthConstraintComponent>,
+                max_length: max_length,
                 actual_length: actual_length,
                 actual_value: str
               }
