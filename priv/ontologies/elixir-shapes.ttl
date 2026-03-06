@@ -572,20 +572,29 @@
         sh:message "Function arity should match parameter count in first clause" ;
         sh:prefixes <https://w3id.org/elixir-code/shapes> ;
         sh:select """
-            SELECT $this ?arity ?paramCount
+            SELECT $this ?arity ?paramAtArity ?extraParam
             WHERE {
                 $this struct:arity ?arity .
                 $this struct:hasClause ?clause .
                 ?clause struct:clauseOrder 1 .
                 ?clause struct:hasHead ?head .
-                {
-                    SELECT ?head (COUNT(?param) AS ?paramCount)
-                    WHERE {
-                        ?head struct:hasParameter ?param .
-                    }
-                    GROUP BY ?head
+
+                OPTIONAL {
+                    ?head struct:hasParameter ?paramAtArity .
+                    ?paramAtArity struct:parameterPosition ?posAtArity .
+                    FILTER (xsd:integer(?posAtArity) = xsd:integer(?arity))
                 }
-                FILTER (?arity != ?paramCount)
+
+                OPTIONAL {
+                    ?head struct:hasParameter ?extraParam .
+                    ?extraParam struct:parameterPosition ?paramPos .
+                    FILTER (xsd:integer(?paramPos) > xsd:integer(?arity))
+                }
+
+                FILTER (
+                    (xsd:integer(?arity) > 0 && !BOUND(?paramAtArity)) ||
+                    BOUND(?extraParam)
+                )
             }
         """
     ] .
