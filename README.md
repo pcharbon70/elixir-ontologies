@@ -229,6 +229,31 @@ mix elixir_ontologies.analyze
 mix elixir_ontologies.analyze --include-expressions
 ```
 
+### Programmatic Expression Analysis
+
+Caller-supplied source requires explicit context before full expressions are emitted:
+
+```elixir
+config = ElixirOntologies.Config.new(include_expressions: true)
+
+{:ok, result} =
+  ElixirOntologies.Analyzer.FileAnalyzer.analyze_string(source, config,
+    file_path: "lib/my_app/accounts.ex",
+    source_kind: :project,
+    expression_identity_base: "example/my-app/abc123/lib/my_app/accounts.ex"
+  )
+```
+
+The caller must derive `source_kind` and identity material from trusted repository
+inventory; the library validates their shape but cannot authenticate them. The identity
+material is hashed into a stable scope, so the same source identity yields stable RDF
+resources and a different revision or path is disjoint. Do not put secrets in it.
+
+Dependency source and legacy `analyze_string/1` and `/2` remain lightweight, even when
+expressions are enabled. Contextual full-mode analysis returns no partial graph if strict
+construction fails or if its 100,000-resource, depth-100, or 500,000-triple bound is
+exceeded.
+
 ## Contributing
 
 See the [Developer Getting Started Guide](guides/developer/getting-started.md) for extending the system with new constructs.
