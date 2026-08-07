@@ -32,11 +32,15 @@ defmodule ElixirOntologies.Builders.Context do
   - `:config` - Configuration options (optional)
   - `:metadata` - Additional context metadata (optional)
   - `:known_modules` - Set of module names in analysis scope for cross-module linking (optional)
+  - `:source_kind` - Explicit `:project` or `:dependency` classification, or legacy
+    path-derived `:auto` behavior (default)
+  - `:expression_scope` - Hashed, document-stable scope used for full-expression IRIs
 
-  ## Expression Counter
+  ## Expression Identity
 
-  When building expressions with `ExpressionBuilder`, the context metadata can
-  include an `:expression_counter` for generating deterministic expression IRIs.
+  Contextual full-mode analysis uses `:expression_scope` plus parent/role/child
+  structure to produce deterministic expression IRIs. The expression counter remains
+  available as a compatibility utility for standalone and legacy builder callers.
 
       context = Context.with_expression_counter(context)
       {counter, updated_context} = Context.next_expression_counter(context)
@@ -47,6 +51,8 @@ defmodule ElixirOntologies.Builders.Context do
     :base_iri,
     :file_path,
     :parent_module,
+    source_kind: :auto,
+    expression_scope: nil,
     config: %{},
     metadata: %{},
     known_modules: nil
@@ -56,6 +62,8 @@ defmodule ElixirOntologies.Builders.Context do
           base_iri: String.t() | RDF.IRI.t(),
           file_path: String.t() | nil,
           parent_module: RDF.IRI.t() | nil,
+          source_kind: :project | :dependency | :auto,
+          expression_scope: String.t() | nil,
           config: map(),
           metadata: map(),
           known_modules: MapSet.t(String.t()) | nil
@@ -80,6 +88,9 @@ defmodule ElixirOntologies.Builders.Context do
   - `:config` - Configuration map
   - `:metadata` - Additional metadata map
   - `:known_modules` - MapSet of module names in analysis scope
+  - `:source_kind` - `:project`, `:dependency`, or `:auto` (default). `:auto`
+    preserves legacy path-based project/dependency classification.
+  - `:expression_scope` - Stable hashed scope for contextual full-expression IRIs
 
   ## Examples
 
@@ -106,6 +117,8 @@ defmodule ElixirOntologies.Builders.Context do
     base_iri = Keyword.fetch!(opts, :base_iri)
     file_path = Keyword.get(opts, :file_path)
     parent_module = Keyword.get(opts, :parent_module)
+    source_kind = Keyword.get(opts, :source_kind, :auto)
+    expression_scope = Keyword.get(opts, :expression_scope)
     config = Keyword.get(opts, :config, %{})
     metadata = Keyword.get(opts, :metadata, %{})
     known_modules = Keyword.get(opts, :known_modules)
@@ -114,6 +127,8 @@ defmodule ElixirOntologies.Builders.Context do
       base_iri: base_iri,
       file_path: file_path,
       parent_module: parent_module,
+      source_kind: source_kind,
+      expression_scope: expression_scope,
       config: config,
       metadata: metadata,
       known_modules: known_modules
@@ -413,10 +428,11 @@ defmodule ElixirOntologies.Builders.Context do
 
   Returns `true` only when BOTH:
   1. `include_expressions` in the config is `true`
-  2. The file is project code (not in `/deps/`)
+  2. The source is project code
 
-  This helper combines the config check with the project file detection to ensure
-  that dependencies are always extracted in light mode, keeping storage manageable.
+  Explicit `:project` or `:dependency` context takes precedence. The default
+  `:auto` classification retains the legacy path heuristic, where files beneath a
+  `deps` component remain lightweight.
 
   ## Parameters
 
@@ -449,7 +465,29 @@ defmodule ElixirOntologies.Builders.Context do
   """
   @spec full_mode_for_file?(t(), String.t() | nil) :: boolean()
   def full_mode_for_file?(%__MODULE__{} = context, file_path) do
-    full_mode?(context) and ElixirOntologies.Config.project_file?(file_path)
+    full_mode?(context) and project_source?(context, file_path)
+  end
+
+  @doc false
+  @spec expression_suffix(t(), RDF.IRI.t(), String.t()) :: String.t()
+  def expression_suffix(%__MODULE__{} = context, parent_iri, role) do
+    parent_digest = digest(to_string(parent_iri))
+
+    case context.expression_scope do
+      scope when is_binary(scope) -> "source/#{scope}/clause/#{parent_digest}/#{role}"
+      _other -> role
+    end
+  end
+
+  defp project_source?(%__MODULE__{source_kind: :project}, _file_path), do: true
+  defp project_source?(%__MODULE__{source_kind: :dependency}, _file_path), do: false
+
+  defp project_source?(%__MODULE__{source_kind: :auto}, file_path),
+    do: ElixirOntologies.Config.project_file?(file_path)
+
+  defp digest(value) do
+    :crypto.hash(:sha256, value)
+    |> Base.url_encode64(padding: false)
   end
 
   @doc """
