@@ -77,23 +77,22 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   ## IRI Generation
 
-  Expression IRIs are generated using a deterministic counter pattern:
-  `{base_iri}expr/{counter}` (e.g., `expr/0`, `expr/1`, `expr/2`)
+  Contextual full-mode analysis supplies an explicit source scope and root suffix.
+  Descendants use parent-relative semantic roles and indices, such as `/left`,
+  `/right`, `/clause/0/body`, and `/child/1`. This is the stable identity contract
+  for complete file graphs and remains deterministic across processes and parallel
+  execution.
 
-  The counter is maintained in the context metadata and increments for each
-  expression built, ensuring:
-  - Deterministic IRIs within a single extraction
-  - Uniqueness across all expressions in a graph
-  - Queryable expression structure via SPARQL
-
-  For child expressions (operands in binary operators), relative IRIs are used:
-  `{base_iri}expr/{counter}/left`, `{base_iri}expr/{counter}/right`
+  Standalone callers that omit a suffix retain the compatibility counter pattern
+  `{base_iri}expr/expr_{counter}`. Its counter is local to the supplied context and
+  must be threaded by callers; it is not the document-scoped full-analysis contract.
 
   The `expression_iri/3`, `fresh_iri/2`, and `get_or_create_iri/3` functions
   provide flexible IRI generation patterns for different use cases.
   """
 
   alias ElixirOntologies.Builders.{Context, Helpers}
+  alias ElixirOntologies.Extractors.{CaseWith, Comprehension, Conditional}
   alias ElixirOntologies.NS.Core
   alias ElixirOntologies.IRI
 
@@ -1116,170 +1115,175 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   use `build/3` instead.
   """
   @spec build_expression_triples(Macro.t(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
-  def build_expression_triples(ast, expr_iri, context)
+  def build_expression_triples(ast, expr_iri, context) do
+    do_build_expression_triples(ast, expr_iri, context) ++
+      source_location_triples(ast, expr_iri, context)
+  end
+
+  defp do_build_expression_triples(ast, expr_iri, context)
 
   # Comparison operators
-  def build_expression_triples({:==, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:==, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:==, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
-  def build_expression_triples({:!=, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:!=, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:!=, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
-  def build_expression_triples({:===, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:===, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:===, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
-  def build_expression_triples({:!==, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:!==, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:!==, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
-  def build_expression_triples({:<, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:<, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:<, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
-  def build_expression_triples({:>, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:>, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:>, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
-  def build_expression_triples({:<=, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:<=, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:<=, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
-  def build_expression_triples({:>=, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:>=, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:>=, left, right, expr_iri, context, Core.ComparisonOperator)
   end
 
   # Logical operators
-  def build_expression_triples({:and, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:and, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:and, left, right, expr_iri, context, Core.LogicalOperator)
   end
 
-  def build_expression_triples({:or, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:or, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:or, left, right, expr_iri, context, Core.LogicalOperator)
   end
 
-  def build_expression_triples({:&&, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:&&, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:&&, left, right, expr_iri, context, Core.LogicalOperator)
   end
 
-  def build_expression_triples({:||, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:||, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:||, left, right, expr_iri, context, Core.LogicalOperator)
   end
 
   # Unary operators (not, !, +, -)
-  def build_expression_triples({:not, _, [arg]}, expr_iri, context) do
+  defp do_build_expression_triples({:not, _, [arg]}, expr_iri, context) do
     build_unary(:not, arg, expr_iri, context)
   end
 
-  def build_expression_triples({:!, _, [arg]}, expr_iri, context) do
+  defp do_build_expression_triples({:!, _, [arg]}, expr_iri, context) do
     build_unary(:!, arg, expr_iri, context)
   end
 
   # Unary arithmetic operators (must come before binary to match single-argument case)
-  def build_expression_triples({:-, _, [operand]}, expr_iri, context) do
+  defp do_build_expression_triples({:-, _, [operand]}, expr_iri, context) do
     build_unary_arithmetic(:-, operand, expr_iri, context)
   end
 
-  def build_expression_triples({:+, _, [operand]}, expr_iri, context) do
+  defp do_build_expression_triples({:+, _, [operand]}, expr_iri, context) do
     build_unary_arithmetic(:+, operand, expr_iri, context)
   end
 
   # Arithmetic operators
-  def build_expression_triples({:+, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:+, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:+, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
-  def build_expression_triples({:-, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:-, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:-, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
-  def build_expression_triples({:*, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:*, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:*, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
-  def build_expression_triples({:/, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:/, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:/, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
-  def build_expression_triples({:div, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:div, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:div, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
-  def build_expression_triples({:rem, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:rem, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:rem, left, right, expr_iri, context, Core.ArithmeticOperator)
   end
 
   # Pipe operator
-  def build_expression_triples({:|>, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:|>, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:|>, left, right, expr_iri, context, Core.PipeOperator)
   end
 
   # String concatenation
-  def build_expression_triples({:<>, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:<>, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:<>, left, right, expr_iri, context, Core.StringConcatOperator)
   end
 
   # List operators
-  def build_expression_triples({:++, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:++, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:++, left, right, expr_iri, context, Core.ListOperator)
   end
 
-  def build_expression_triples({:--, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:--, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:--, left, right, expr_iri, context, Core.ListOperator)
   end
 
   # Match operator
-  def build_expression_triples({:=, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:=, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:=, left, right, expr_iri, context, Core.MatchOperator)
   end
 
   # Capture operator (&)
   # Matches: &1, &2, &3 (argument capture)
   # Matches: &Mod.fun/arity, &Mod.fun (function reference)
-  def build_expression_triples({:&, _, [arg]}, expr_iri, _context) when is_integer(arg) do
+  defp do_build_expression_triples({:&, _, [arg]}, expr_iri, _context) when is_integer(arg) do
     build_capture_index(arg, expr_iri)
   end
 
-  def build_expression_triples({:&, _, [{:/, _, [function_ref, arity]}]}, expr_iri, context) do
+  defp do_build_expression_triples({:&, _, [{:/, _, [function_ref, arity]}]}, expr_iri, context) do
     build_capture_function_ref(function_ref, arity, expr_iri, context)
   end
 
-  def build_expression_triples({:&, _, [function_ref]}, expr_iri, context) do
+  defp do_build_expression_triples({:&, _, [function_ref]}, expr_iri, context) do
     build_capture_function_ref(function_ref, nil, expr_iri, context)
   end
 
   # In operator
-  def build_expression_triples({:in, _, [left, right]}, expr_iri, context) do
+  defp do_build_expression_triples({:in, _, [left, right]}, expr_iri, context) do
     build_binary_operator(:in, left, right, expr_iri, context, Core.InOperator)
   end
 
   # Module alias reference: MyApp, MyApp.Users, etc.
   # AST: {:__aliases__, _, parts} where parts is [:MyApp] or [:MyApp, :Users]
   # Must come BEFORE literal handlers (atoms would also match some aliases)
-  def build_expression_triples({:__aliases__, _, parts}, expr_iri, context) do
+  defp do_build_expression_triples({:__aliases__, _, parts}, expr_iri, context) do
     build_module_reference(parts, expr_iri, context)
   end
 
   # Integer literals
-  def build_expression_triples(int, expr_iri, _context) when is_integer(int) do
+  defp do_build_expression_triples(int, expr_iri, _context) when is_integer(int) do
     build_literal(int, expr_iri, Core.IntegerLiteral, Core.integerValue(), RDF.XSD.Integer)
   end
 
   # Float literals
-  def build_expression_triples(float, expr_iri, _context) when is_float(float) do
+  defp do_build_expression_triples(float, expr_iri, _context) when is_float(float) do
     build_literal(float, expr_iri, Core.FloatLiteral, Core.floatValue(), RDF.XSD.Double)
   end
 
   # String literals (binaries)
-  def build_expression_triples(str, expr_iri, _context) when is_binary(str) do
+  defp do_build_expression_triples(str, expr_iri, _context) when is_binary(str) do
     build_literal(str, expr_iri, Core.StringLiteral, Core.stringValue(), RDF.XSD.String)
   end
 
   # List literals and charlist literals (lists of integers representing UTF-8 codepoints)
   # Must come before generic handlers that might match lists
-  def build_expression_triples(list, expr_iri, context) when is_list(list) do
+  defp do_build_expression_triples(list, expr_iri, context) when is_list(list) do
     cond do
       # Check for keyword list: all elements are 2-tuples with atom first elements
       # Must come before cons pattern check (cons lists are also lists)
@@ -1314,7 +1318,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Binary literals (<<>>)
   # Matches binary construction patterns like <<65>> or <<x::8>>
   # Note: Literal binaries like <<"hello">> compile to plain binaries and are caught by is_binary/1
-  def build_expression_triples({:<<>>, _meta, segments}, expr_iri, _context) do
+  defp do_build_expression_triples({:<<>>, _meta, segments}, expr_iri, _context) do
     if binary_literal?(segments) do
       # All segments are literal integers - we can construct the binary
       binary_value = construct_binary_from_literals(segments)
@@ -1335,56 +1339,109 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   # Atom literals (including true, false, nil)
-  def build_expression_triples(atom, expr_iri, _context) when is_atom(atom) do
+  defp do_build_expression_triples(atom, expr_iri, _context) when is_atom(atom) do
     build_atom_literal(atom, expr_iri)
   end
 
   # Tuple literals - must come before local call handler
   # General tuple form: {:{}, meta, elements} - covers empty tuple and 3+ tuples
-  def build_expression_triples({:{}, _meta, elements}, expr_iri, context) do
+  defp do_build_expression_triples({:{}, _meta, elements}, expr_iri, context) do
     build_tuple_literal(elements, expr_iri, context)
   end
 
   # 2-tuple: {left, right} - special form, not a 3-tuple AST node
-  def build_expression_triples({left, right}, expr_iri, context) do
+  defp do_build_expression_triples({left, right}, expr_iri, context) do
     build_tuple_literal([left, right], expr_iri, context)
   end
 
   # Struct literals - must come before map handler (both start with :%)
   # Struct pattern: {:%, meta, [module_ast, map_ast]}
-  def build_expression_triples({:%, _meta, [module_ast, map_ast]}, expr_iri, context) do
+  defp do_build_expression_triples({:%, _meta, [module_ast, map_ast]}, expr_iri, context) do
     build_struct_literal(module_ast, map_ast, expr_iri, context)
   end
 
   # Map literals
   # Map pattern: {:%{}, meta, pairs}
-  def build_expression_triples({:%{}, _meta, pairs}, expr_iri, context) do
+  defp do_build_expression_triples({:%{}, _meta, pairs}, expr_iri, context) do
     build_map_literal(pairs, expr_iri, context)
   end
 
   # Range literals: 1..10, 1..10//2, a..b, etc.
   # Simple range pattern: {:.., meta, [first, last]}
   # Step range pattern: {:"..//", meta, [first, last, step]}
-  def build_expression_triples({:.., _meta, [first, last]}, expr_iri, context) do
+  defp do_build_expression_triples({:.., _meta, [first, last]}, expr_iri, context) do
     build_range_literal(first, last, expr_iri, context)
   end
 
-  def build_expression_triples({:..//, _meta, [first, last, step]}, expr_iri, context) do
+  defp do_build_expression_triples({:..//, _meta, [first, last, step]}, expr_iri, context) do
     build_range_literal(first, last, step, expr_iri, context)
   end
 
   # Do blocks: {:__block__, meta, expressions}
   # Multi-expression blocks from do..end or begin..end
   # Must come before local call handler to avoid being matched as :__block__ call
-  def build_expression_triples({:__block__, _meta, expressions}, expr_iri, context) do
+  defp do_build_expression_triples({:__block__, _meta, expressions}, expr_iri, context) do
     build_do_block(expressions, expr_iri, context)
   end
 
   # Fn blocks: {:fn, meta, clauses}
   # Anonymous functions with fn...end syntax
   # Must come before local call handler to avoid being matched as :fn call
-  def build_expression_triples({:fn, _meta, clauses}, expr_iri, context) do
+  defp do_build_expression_triples({:fn, _meta, clauses}, expr_iri, context) do
     build_fn_block(clauses, expr_iri, context)
+  end
+
+  # Control-flow forms must be represented at the rooted structural IRI. The
+  # module-wide ControlFlowBuilder cannot provide that ownership because it
+  # analyzes a complete module body rather than an individual function clause.
+  defp do_build_expression_triples({kind, _meta, _args} = ast, expr_iri, context)
+       when kind in [:if, :unless, :cond] do
+    case Conditional.extract_conditional(ast) do
+      {:ok, conditional} -> build_conditional_expression(conditional, expr_iri, context)
+      {:error, _reason} -> raise ArgumentError, "invalid conditional AST"
+    end
+  end
+
+  defp do_build_expression_triples({:case, _meta, _args} = ast, expr_iri, context) do
+    case CaseWith.extract_case(ast) do
+      {:ok, case_expression} -> build_case_expression(case_expression, expr_iri, context)
+      {:error, _reason} -> raise ArgumentError, "invalid case AST"
+    end
+  end
+
+  defp do_build_expression_triples({:with, _meta, _args} = ast, expr_iri, context) do
+    case CaseWith.extract_with(ast) do
+      {:ok, with_expression} -> build_with_expression(with_expression, expr_iri, context)
+      {:error, _reason} -> raise ArgumentError, "invalid with AST"
+    end
+  end
+
+  defp do_build_expression_triples({:receive, _meta, _args} = ast, expr_iri, context) do
+    case CaseWith.extract_receive(ast) do
+      {:ok, receive_expression} ->
+        build_receive_expression(receive_expression, expr_iri, context)
+
+      {:error, _reason} ->
+        raise ArgumentError, "invalid receive AST"
+    end
+  end
+
+  defp do_build_expression_triples({:for, _meta, _args} = ast, expr_iri, context) do
+    case Comprehension.extract(ast) do
+      {:ok, comprehension} -> build_comprehension_expression(comprehension, expr_iri, context)
+      {:error, _reason} -> raise ArgumentError, "invalid comprehension AST"
+    end
+  end
+
+  defp do_build_expression_triples({:exit, _meta, [reason]}, expr_iri, context) do
+    child_expression(
+      expr_iri,
+      "reason",
+      reason,
+      Core.hasExitReason(),
+      context,
+      Core.ExitExpression
+    )
   end
 
   # Raise expressions: {:raise, _, args}
@@ -1394,7 +1451,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # - [exception] - raises specific exception with no message
   # - [exception, message] - raises specific exception with message
   # - [exception, [keyword: value]] - raises with keyword arguments
-  def build_expression_triples({:raise, _meta, args}, expr_iri, context) do
+  defp do_build_expression_triples({:raise, _meta, args}, expr_iri, context) do
     build_raise(args, expr_iri, context)
   end
 
@@ -1402,22 +1459,22 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Phase 30.7: Throw Expression Extraction
   # Throws any value to be caught by a catch clause (non-local return)
   # The args list contains exactly one element: the value being thrown
-  def build_expression_triples({:throw, _meta, [value_ast]}, expr_iri, context) do
+  defp do_build_expression_triples({:throw, _meta, [value_ast]}, expr_iri, context) do
     build_throw(value_ast, expr_iri, context)
   end
 
   # Try expressions: {:try, _, [blocks]}
   # Exception handling with rescue, catch, after, and else blocks
   # The blocks are in a single keyword list: [do: body, rescue: ..., ...]
-  def build_expression_triples({:try, _meta, [blocks]}, expr_iri, context) do
+  defp do_build_expression_triples({:try, _meta, [blocks]}, expr_iri, context) do
     build_try_expression(blocks, expr_iri, context)
   end
 
   # Local call: function(args) - must come before variable pattern
   # Note: This handler also checks for sigil atoms (sigil_c, sigil_r, sigil_s, sigil_w)
   # and dispatches them to the sigil literal handler
-  def build_expression_triples({function, meta, args}, expr_iri, context)
-      when is_atom(function) and is_list(meta) and is_list(args) do
+  defp do_build_expression_triples({function, meta, args}, expr_iri, context)
+       when is_atom(function) and is_list(meta) and is_list(args) do
     # Check if this is a sigil literal (pattern: {:sigil_CHAR, meta, [content_ast, modifiers_ast]})
     # Sigils have exactly 2 elements in args list: [content_ast, modifiers_ast]
     # We check if the atom name starts with "sigil_"
@@ -1433,40 +1490,373 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # AST: {{:., _, [{var, [], Elixir}], _, args}
   # The key identifier is ctx = Elixir (not nil) in the variable tuple
   # This is distinct from remote calls which have [module, function] as 2 elements
-  def build_expression_triples(
-        {{:., _, [{var, [], Elixir}]}, _, args},
-        expr_iri,
-        context
-      ) do
+  defp do_build_expression_triples(
+         {{:., _, [{var, [], Elixir}]}, _, args},
+         expr_iri,
+         context
+       ) do
     # Reconstruct the variable tuple for build_variable
     var_ast = {var, [], Elixir}
     build_anon_call(var_ast, args, expr_iri, context)
   end
 
   # Remote call: Module.function(args)
-  def build_expression_triples(
-        {{:., _, [module, function]}, _, args},
-        expr_iri,
-        context
-      ) do
+  defp do_build_expression_triples(
+         {{:., _, [module, function]}, _, args},
+         expr_iri,
+         context
+       ) do
     build_remote_call(module, function, args, expr_iri, context)
   end
 
   # Variable pattern: {name, meta, ctx} where ctx is nil or an atom
   # This must come after calls to avoid matching function calls
-  def build_expression_triples({name, meta, ctx} = var, expr_iri, build_context)
-      when is_atom(name) and is_list(meta) and (is_nil(ctx) or is_atom(ctx)) do
+  defp do_build_expression_triples({name, meta, ctx} = var, expr_iri, build_context)
+       when is_atom(name) and is_list(meta) and (is_nil(ctx) or is_atom(ctx)) do
     build_variable(var, expr_iri, build_context)
   end
 
   # Wildcard pattern
-  def build_expression_triples({:_}, expr_iri, _context) do
+  defp do_build_expression_triples({:_}, expr_iri, _context) do
     build_wildcard(expr_iri)
   end
 
   # Fallback for unknown expressions
-  def build_expression_triples(_ast, expr_iri, _context) do
+  defp do_build_expression_triples(_ast, expr_iri, _context) do
     build_generic_expression(expr_iri)
+  end
+
+  defp source_location_triples({_form, metadata, _args}, expr_iri, context)
+       when is_list(metadata) do
+    positions =
+      [
+        {Core.startLine(), Keyword.get(metadata, :line)},
+        {Core.startColumn(), Keyword.get(metadata, :column)},
+        {Core.endLine(), metadata_end_value(metadata, :line)},
+        {Core.endColumn(), metadata_end_value(metadata, :column)}
+      ]
+      |> Enum.filter(fn {_predicate, value} -> is_integer(value) and value > 0 end)
+
+    if positions == [] do
+      []
+    else
+      location_iri = fresh_iri(expr_iri, "location")
+
+      position_triples =
+        Enum.map(positions, fn {predicate, value} ->
+          Helpers.datatype_property(location_iri, predicate, value, RDF.XSD.PositiveInteger)
+        end)
+
+      file_triples =
+        case context.file_path do
+          path when is_binary(path) and path != "" ->
+            file_iri = IRI.for_source_file(context.base_iri, path)
+            [Helpers.object_property(location_iri, Core.inSourceFile(), file_iri)]
+
+          _other ->
+            []
+        end
+
+      [
+        Helpers.object_property(expr_iri, Core.hasSourceLocation(), location_iri),
+        Helpers.type_triple(location_iri, Core.SourceLocation)
+        | position_triples ++ file_triples
+      ]
+    end
+  end
+
+  defp source_location_triples(_ast, _expr_iri, _context), do: []
+
+  defp metadata_end_value(metadata, key) do
+    [:end, :closing, :end_of_expression]
+    |> Enum.find_value(fn metadata_key ->
+      case Keyword.get(metadata, metadata_key) do
+        nested when is_list(nested) -> Keyword.get(nested, key)
+        _other -> nil
+      end
+    end)
+  end
+
+  defp build_conditional_expression(%{type: type} = conditional, expr_iri, context)
+       when type in [:if, :unless] do
+    expression_type = if(type == :if, do: Core.IfExpression, else: Core.UnlessExpression)
+
+    condition_triples =
+      expression_link(expr_iri, "condition", conditional.condition, Core.hasCondition(), context)
+
+    branch_triples =
+      Enum.flat_map(conditional.branches, fn branch ->
+        case branch.type do
+          :then -> expression_link(expr_iri, "then", branch.body, Core.hasThenBranch(), context)
+          :else -> expression_link(expr_iri, "else", branch.body, Core.hasElseBranch(), context)
+        end
+      end)
+
+    [Helpers.type_triple(expr_iri, expression_type) | condition_triples ++ branch_triples]
+  end
+
+  defp build_conditional_expression(%{type: :cond, clauses: clauses}, expr_iri, context) do
+    clause_triples =
+      clauses
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {clause, index} ->
+        clause_iri = fresh_iri(expr_iri, "clause/#{index}")
+
+        [
+          Helpers.type_triple(clause_iri, Core.Expression),
+          Helpers.object_property(expr_iri, Core.hasClause(), clause_iri)
+          | expression_link(
+              clause_iri,
+              "condition",
+              clause.condition,
+              Core.hasCondition(),
+              context
+            ) ++
+              expression_link(
+                clause_iri,
+                "body",
+                clause.body,
+                Core.hasThenBranch(),
+                context
+              )
+        ]
+      end)
+
+    [Helpers.type_triple(expr_iri, Core.CondExpression) | clause_triples]
+  end
+
+  defp build_case_expression(case_expression, expr_iri, context) do
+    subject_triples =
+      expression_link(
+        expr_iri,
+        "subject",
+        case_expression.subject,
+        Core.hasCondition(),
+        context
+      )
+
+    clause_triples =
+      build_pattern_clauses(case_expression.clauses, expr_iri, "clause", context)
+
+    [Helpers.type_triple(expr_iri, Core.CaseExpression) | subject_triples ++ clause_triples]
+  end
+
+  defp build_with_expression(with_expression, expr_iri, context) do
+    match_triples =
+      with_expression.clauses
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {clause, index} ->
+        clause_iri = fresh_iri(expr_iri, "clause/#{index}")
+
+        [
+          Helpers.type_triple(clause_iri, Core.Expression),
+          Helpers.object_property(expr_iri, Core.hasClause(), clause_iri)
+          | pattern_link(clause_iri, "pattern", clause.pattern, context) ++
+              expression_link(
+                clause_iri,
+                "expression",
+                clause.expression,
+                Core.hasCondition(),
+                context
+              )
+        ]
+      end)
+
+    body_triples =
+      expression_link(expr_iri, "body", with_expression.body, Core.hasThenBranch(), context)
+
+    else_triples = build_with_else_clauses(with_expression.else_clauses, expr_iri, context)
+
+    [
+      Helpers.type_triple(expr_iri, Core.WithExpression)
+      | match_triples ++ body_triples ++ else_triples
+    ]
+  end
+
+  defp build_with_else_clauses([], _expr_iri, _context), do: []
+
+  defp build_with_else_clauses(clauses, expr_iri, context) do
+    else_iri = fresh_iri(expr_iri, "else")
+
+    [
+      Helpers.type_triple(else_iri, Core.DoBlock),
+      Helpers.object_property(expr_iri, Core.hasElseBranch(), else_iri)
+      | build_pattern_clauses(clauses, else_iri, "clause", context)
+    ]
+  end
+
+  defp build_receive_expression(receive_expression, expr_iri, context) do
+    clause_triples =
+      build_pattern_clauses(receive_expression.clauses, expr_iri, "clause", context)
+
+    after_triples =
+      case receive_expression.after_clause do
+        nil ->
+          []
+
+        after_clause ->
+          after_iri = fresh_iri(expr_iri, "after")
+
+          [
+            Helpers.type_triple(after_iri, Core.Expression),
+            Helpers.object_property(expr_iri, Core.hasAfterTimeout(), after_iri)
+            | expression_link(
+                after_iri,
+                "timeout",
+                after_clause.timeout,
+                Core.hasCondition(),
+                context
+              ) ++
+                expression_link(
+                  after_iri,
+                  "body",
+                  after_clause.body,
+                  Core.hasThenBranch(),
+                  context
+                )
+          ]
+      end
+
+    [Helpers.type_triple(expr_iri, Core.ReceiveExpression) | clause_triples ++ after_triples]
+  end
+
+  defp build_comprehension_expression(comprehension, expr_iri, context) do
+    generator_triples =
+      comprehension.generators
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {generator, index} ->
+        generator_iri = fresh_iri(expr_iri, "generator/#{index}")
+
+        generator_type =
+          if generator.type == :bitstring_generator,
+            do: Core.BitstringGenerator,
+            else: Core.Generator
+
+        [
+          Helpers.type_triple(generator_iri, generator_type),
+          Helpers.object_property(expr_iri, Core.hasGenerator(), generator_iri)
+          | pattern_link(generator_iri, "pattern", generator.pattern, context) ++
+              expression_link(
+                generator_iri,
+                "enumerable",
+                generator.enumerable,
+                Core.hasEnumerable(),
+                context
+              )
+        ]
+      end)
+
+    filter_triples =
+      comprehension.filters
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {filter, index} ->
+        filter_iri = fresh_iri(expr_iri, "filter/#{index}")
+
+        [
+          Helpers.type_triple(filter_iri, Core.Filter),
+          Helpers.object_property(expr_iri, Core.hasFilter(), filter_iri)
+          | expression_link(
+              filter_iri,
+              "expression",
+              filter.expression,
+              Core.hasFilterExpression(),
+              context
+            )
+        ]
+      end)
+
+    body_triples =
+      expression_link(
+        expr_iri,
+        "collect",
+        comprehension.body,
+        Core.hasCollectExpression(),
+        context
+      )
+
+    option_triples = comprehension_option_triples(comprehension.options, expr_iri, context)
+
+    [
+      Helpers.type_triple(expr_iri, Core.ForComprehension)
+      | generator_triples ++ filter_triples ++ body_triples ++ option_triples
+    ]
+  end
+
+  defp comprehension_option_triples(options, expr_iri, context) do
+    into =
+      if options.into == nil,
+        do: [],
+        else: expression_link(expr_iri, "into", options.into, Core.hasIntoOption(), context)
+
+    reduce =
+      if options.reduce == nil,
+        do: [],
+        else: expression_link(expr_iri, "reduce", options.reduce, Core.hasReduceOption(), context)
+
+    uniq =
+      if options.uniq,
+        do: [Helpers.datatype_property(expr_iri, Core.hasUniqOption(), true, RDF.XSD.Boolean)],
+        else: []
+
+    into ++ reduce ++ uniq
+  end
+
+  defp build_pattern_clauses(
+         clauses,
+         parent_iri,
+         role,
+         context,
+         link_predicate \\ Core.hasClause()
+       ) do
+    clauses
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {clause, index} ->
+      clause_iri = fresh_iri(parent_iri, "#{role}/#{index}")
+
+      guard_triples =
+        if clause.guard == nil,
+          do: [],
+          else: expression_link(clause_iri, "guard", clause.guard, Core.hasGuard(), context)
+
+      [
+        Helpers.type_triple(clause_iri, Core.Expression),
+        Helpers.object_property(parent_iri, link_predicate, clause_iri)
+        | pattern_link(clause_iri, "pattern", clause.pattern, context) ++
+            guard_triples ++
+            expression_link(
+              clause_iri,
+              "body",
+              clause.body,
+              Core.hasThenBranch(),
+              context
+            )
+      ]
+    end)
+  end
+
+  defp child_expression(parent_iri, role, ast, predicate, context, parent_type) do
+    [
+      Helpers.type_triple(parent_iri, parent_type)
+      | expression_link(parent_iri, role, ast, predicate, context)
+    ]
+  end
+
+  defp expression_link(parent_iri, role, ast, predicate, context) do
+    child_iri = fresh_iri(parent_iri, role)
+
+    [
+      Helpers.object_property(parent_iri, predicate, child_iri)
+      | build_expression_triples(ast, child_iri, context)
+    ]
+  end
+
+  defp pattern_link(parent_iri, role, ast, context) do
+    pattern_iri = fresh_iri(parent_iri, role)
+
+    [
+      Helpers.object_property(parent_iri, Core.hasPattern(), pattern_iri)
+      | build_pattern(ast, pattern_iri, context)
+    ]
   end
 
   # ===========================================================================
@@ -1786,14 +2176,17 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # Build child expressions from a collection, threading context through
   # Returns {flat_triples_list, final_context}
   # A mapper function can be provided to transform items before building
-  defp build_child_expressions(items, context, mapper \\ fn item -> item end) do
-    {triples_list, final_ctx} =
-      Enum.map_reduce(items, context, fn item, ctx ->
-        {:ok, {_child_iri, triples, new_ctx}} = build(mapper.(item), ctx, [])
-        {triples, new_ctx}
-      end)
+  defp build_child_expressions(items, parent_iri, context, mapper \\ fn item -> item end) do
+    items
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {item, index} ->
+      child_iri = fresh_iri(parent_iri, "child/#{index}")
 
-    {List.flatten(triples_list), final_ctx}
+      [
+        Helpers.object_property(parent_iri, Core.hasChild(), child_iri)
+        | build_expression_triples(mapper.(item), child_iri, context)
+      ]
+    end)
   end
 
   # Build a list literal from a list of elements
@@ -1802,7 +2195,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     type_triple = Helpers.type_triple(expr_iri, Core.ListLiteral)
 
     # Build child expressions for each element
-    {child_triples, _final_context} = build_child_expressions(list, context)
+    child_triples = build_child_expressions(list, expr_iri, context)
 
     # Include type triple and all child triples
     [type_triple | child_triples]
@@ -1814,14 +2207,18 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     type_triple = Helpers.type_triple(expr_iri, Core.ListLiteral)
 
     # Build head expression
-    {:ok, {_head_iri, head_triples, context_after_head}} = build(head, context, [])
+    head_iri = fresh_iri(expr_iri, "head")
+    tail_iri = fresh_iri(expr_iri, "tail")
 
-    # Build tail expression
-    {:ok, {_tail_iri, tail_triples, _context_after_tail}} = build(tail, context_after_head, [])
+    head_triples = build_expression_triples(head, head_iri, context)
+    tail_triples = build_expression_triples(tail, tail_iri, context)
 
-    # Note: hasHead and hasTail properties would need to be added to ontology
-    # For now, we just include the type triple and child expressions
-    [type_triple | head_triples] ++ tail_triples
+    [
+      type_triple,
+      Helpers.object_property(expr_iri, Core.hasChild(), head_iri),
+      Helpers.object_property(expr_iri, Core.hasChild(), tail_iri)
+      | head_triples ++ tail_triples
+    ]
   end
 
   # Build a keyword list from a list of {atom, value} tuples
@@ -1829,12 +2226,9 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     # Create the KeywordListLiteral type triple
     type_triple = Helpers.type_triple(expr_iri, Core.KeywordListLiteral)
 
-    # Build expressions for each value (keys are atom literals)
-    {value_triples, _final_context} =
-      build_child_expressions(pairs, context, fn {_key, value} -> value end)
+    entry_triples = build_key_value_entries(pairs, expr_iri, context)
 
-    # Include type triple and all value triples
-    [type_triple | value_triples]
+    [type_triple | entry_triples]
   end
 
   # Build a tuple literal from a list of elements
@@ -1843,7 +2237,7 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
     type_triple = Helpers.type_triple(expr_iri, Core.TupleLiteral)
 
     # Build child expressions for each element
-    {child_triples, _final_context} = build_child_expressions(elements, context)
+    child_triples = build_child_expressions(elements, expr_iri, context)
 
     # Include type triple and all child triples
     [type_triple | child_triples]
@@ -1899,33 +2293,53 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   # - 2-element lists: [[key_ast, value_ast], ...] (for complex keys like pin patterns)
   defp build_map_entries(pairs, _expr_iri, _context) when pairs == [], do: []
 
-  defp build_map_entries(pairs, _expr_iri, context) do
-    # Build expressions for each value (keys are literals, not expressions)
-    # Filter out map update syntax {:|, ..., [...]} for now
-    regular_pairs =
-      Enum.filter(pairs, fn
-        {:|, _, _} -> false
-        _ -> true
-      end)
+  defp build_map_entries(pairs, expr_iri, context) do
+    pairs
+    |> Enum.with_index()
+    |> Enum.flat_map(fn
+      {{:|, _metadata, [source, updates]}, index} when is_list(updates) ->
+        update_iri = fresh_iri(expr_iri, "update/#{index}")
 
-    # Extract values from pairs, handling both tuple and list formats
-    # For list format [[key_ast, value_ast], ...], we need to check each element
-    value_extractor = fn pair ->
-      case pair do
-        # 2-element list format for complex keys: [key_ast, value_ast]
-        [key_ast, value_ast] when is_tuple(key_ast) -> value_ast
-        # Tuple format for simple keys: {key, value_ast}
-        {_key, value_ast} -> value_ast
-        # Plain value (shouldn't happen in normal map syntax)
-        value -> value
-      end
-    end
+        [
+          Helpers.type_triple(update_iri, Core.Expression),
+          Helpers.object_property(expr_iri, Core.hasChild(), update_iri)
+          | expression_link(update_iri, "source", source, Core.hasChild(), context) ++
+              build_key_value_entries(updates, update_iri, context)
+        ]
 
-    {value_triples, _final_context} =
-      build_child_expressions(regular_pairs, context, value_extractor)
-
-    value_triples
+      {pair, index} ->
+        case key_value_pair(pair) do
+          {:ok, key, value} -> build_key_value_entry(expr_iri, index, key, value, context)
+          :error -> expression_link(expr_iri, "child/#{index}", pair, Core.hasChild(), context)
+        end
+    end)
   end
+
+  defp build_key_value_entries(pairs, expr_iri, context) do
+    pairs
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {pair, index} ->
+      case key_value_pair(pair) do
+        {:ok, key, value} -> build_key_value_entry(expr_iri, index, key, value, context)
+        :error -> expression_link(expr_iri, "entry/#{index}", pair, Core.hasChild(), context)
+      end
+    end)
+  end
+
+  defp build_key_value_entry(parent_iri, index, key, value, context) do
+    entry_iri = fresh_iri(parent_iri, "entry/#{index}")
+
+    [
+      Helpers.type_triple(entry_iri, Core.Expression),
+      Helpers.object_property(parent_iri, Core.hasChild(), entry_iri)
+      | expression_link(entry_iri, "key", key, Core.hasChild(), context) ++
+          expression_link(entry_iri, "value", value, Core.hasChild(), context)
+    ]
+  end
+
+  defp key_value_pair({key, value}), do: {:ok, key, value}
+  defp key_value_pair([key, value]), do: {:ok, key, value}
+  defp key_value_pair(_pair), do: :error
 
   # Generic expression for unknown AST nodes
   defp build_generic_expression(expr_iri) do
@@ -2003,9 +2417,10 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
 
   @doc false
   defp build_range_literal(first, last, expr_iri, context) do
-    # Build the first and last as child expressions
-    {:ok, {first_iri, first_triples, _}} = build(first, context, [])
-    {:ok, {last_iri, last_triples, _}} = build(last, context, [])
+    first_iri = fresh_iri(expr_iri, "start")
+    last_iri = fresh_iri(expr_iri, "end")
+    first_triples = build_expression_triples(first, first_iri, context)
+    last_triples = build_expression_triples(last, last_iri, context)
 
     # Create the RangeLiteral type and property triples
     type_triple = Helpers.type_triple(expr_iri, Core.RangeLiteral)
@@ -2016,10 +2431,12 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   end
 
   defp build_range_literal(first, last, step, expr_iri, context) do
-    # Build the first, last, and step as child expressions
-    {:ok, {first_iri, first_triples, _}} = build(first, context, [])
-    {:ok, {last_iri, last_triples, _}} = build(last, context, [])
-    {:ok, {step_iri, step_triples, _}} = build(step, context, [])
+    first_iri = fresh_iri(expr_iri, "start")
+    last_iri = fresh_iri(expr_iri, "end")
+    step_iri = fresh_iri(expr_iri, "step")
+    first_triples = build_expression_triples(first, first_iri, context)
+    last_triples = build_expression_triples(last, last_iri, context)
+    step_triples = build_expression_triples(step, step_iri, context)
 
     # Create the RangeLiteral type and property triples
     type_triple = Helpers.type_triple(expr_iri, Core.RangeLiteral)
@@ -2325,13 +2742,14 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   def detect_pattern_type({:<<>>, _, _}), do: :binary_pattern
   def detect_pattern_type({:|, _, [_head, _tail]}), do: :list_pattern
   def detect_pattern_type(list) when is_list(list), do: :list_pattern
-  # Atom literal AST: {name, meta, nil} - must come before variable pattern
-  # Variables have Elixir as ctx, atom literals have nil
-  def detect_pattern_type({name, _, nil}) when is_atom(name), do: :literal_pattern
+  # Preserve the historical quoted-atom representation used by direct builder
+  # callers. Parser-produced variables carry source metadata and fall through
+  # to the variable clause below.
+  def detect_pattern_type({name, [], nil}) when is_atom(name), do: :literal_pattern
   # Variable pattern must come after all other tuple-based patterns
   # because {name, _, ctx} also matches {:{}, [], []}
-  # Variables have Elixir as the third element, atoms have nil
-  # Note: Also matches variables in test modules (non-Elixir ctx)
+  # Parser-produced variables commonly use nil as their context; atom literal
+  # patterns are represented by plain atoms rather than AST triples.
   def detect_pattern_type({name, _, _ctx}) when is_atom(name) and name != :{} and name != :_,
     do: :variable_pattern
 
@@ -2377,6 +2795,11 @@ defmodule ElixirOntologies.Builders.ExpressionBuilder do
   @spec build_pattern(Macro.t(), RDF.IRI.t(), Context.t()) :: [RDF.Triple.t()]
   @spec build_pattern(Macro.t(), RDF.IRI.t(), Context.t(), non_neg_integer()) :: [RDF.Triple.t()]
   def build_pattern(ast, expr_iri, context, depth \\ 0) do
+    do_build_pattern(ast, expr_iri, context, depth) ++
+      source_location_triples(ast, expr_iri, context)
+  end
+
+  defp do_build_pattern(ast, expr_iri, context, depth) do
     case detect_pattern_type(ast) do
       :literal_pattern -> build_literal_pattern(ast, expr_iri, context)
       :variable_pattern -> build_variable_pattern(ast, expr_iri, context)
