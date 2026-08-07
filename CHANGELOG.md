@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added contextual `FileAnalyzer.analyze_string/3` and `analyze_string!/3` APIs for
+  caller-classified project and dependency source.
+- Added `Pipeline.build_graph_for_modules_result/3` for strict graph construction.
+
+### Changed
+
+- Full project expression resources now use stable, source-scoped structural identities;
+  multi-clause functions retain deterministic clause order.
+
+### Fixed
+
+- Activated full expression builders for contextual string analysis and made clause body,
+  guard, collection, map, tuple, and range expression resources distinct and reachable.
+- Preserved control-flow roles, source spans, parameter patterns, keyword/map keys, and
+  map-update structure in rooted full-expression graphs.
+
+### Compatibility
+
+- Legacy `analyze_string/1` and `/2` and dependency analysis remain lightweight.
+
+### Safety
+
+- Contextual full-mode analysis returns no partial graph on builder failure and enforces
+  100,000-resource, depth-100, and 500,000-triple limits.
+
 ## [0.1.0] - 2025-01-01
 
 ### Added

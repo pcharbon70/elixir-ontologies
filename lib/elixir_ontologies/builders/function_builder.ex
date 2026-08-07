@@ -57,7 +57,7 @@ defmodule ElixirOntologies.Builders.FunctionBuilder do
       "https://example.org/code#MyApp/hello/0"
   """
 
-  alias ElixirOntologies.Builders.{ClauseBuilder, Context, Helpers}
+  alias ElixirOntologies.Builders.{ClauseBuilder, Context, ExpressionBuilder, Helpers}
   alias ElixirOntologies.{IRI, NS}
   alias ElixirOntologies.Extractors.Function, as: FunctionExtractor
   alias NS.{Structure, Core}
@@ -105,6 +105,19 @@ defmodule ElixirOntologies.Builders.FunctionBuilder do
   """
   @spec build(FunctionExtractor.t(), Context.t()) :: {RDF.IRI.t(), [RDF.Triple.t()]}
   def build(function_info, context) do
+    build(function_info, context, [])
+  end
+
+  @doc """
+  Builds RDF triples for a function with explicit builder options.
+
+  The `:expression_builder` option is forwarded to every function clause. When
+  omitted, full expression extraction is selected from the effective builder
+  context.
+  """
+  @spec build(FunctionExtractor.t(), Context.t(), keyword()) ::
+          {RDF.IRI.t(), [RDF.Triple.t()]}
+  def build(function_info, context, opts) do
     # Generate function IRI
     function_iri = generate_function_iri(function_info, context)
 
@@ -121,7 +134,7 @@ defmodule ElixirOntologies.Builders.FunctionBuilder do
         build_docstring_triple(function_iri, function_info) ++
         build_delegate_triple(function_iri, function_info, context) ++
         build_location_triple(function_iri, function_info, context) ++
-        build_clause_triples(function_info, function_iri, context)
+        build_clause_triples(function_info, function_iri, context, opts)
 
     # Flatten and deduplicate
     triples = List.flatten(triples) |> Enum.uniq()
@@ -337,12 +350,21 @@ defmodule ElixirOntologies.Builders.FunctionBuilder do
   # ===========================================================================
 
   # Build triples for function clauses using ClauseBuilder
-  defp build_clause_triples(function_info, function_iri, context) do
+  defp build_clause_triples(function_info, function_iri, context, opts) do
     clauses = function_info.clauses || []
+
+    expression_builder =
+      Keyword.get_lazy(opts, :expression_builder, fn ->
+        if Context.full_mode_for_file?(context, context.file_path),
+          do: ExpressionBuilder,
+          else: nil
+      end)
 
     Enum.flat_map(clauses, fn clause_info ->
       {_clause_iri, clause_triples} =
-        ClauseBuilder.build_clause(clause_info, function_iri, context)
+        ClauseBuilder.build_clause(clause_info, function_iri, context,
+          expression_builder: expression_builder
+        )
 
       clause_triples
     end)

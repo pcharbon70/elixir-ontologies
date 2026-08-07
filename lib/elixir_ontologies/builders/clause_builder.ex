@@ -188,7 +188,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
     triples = triples ++ build_core_clause_triples(clause_iri, clause_info, function_iri)
 
     # FunctionHead triples (includes parameters and guard)
-    {head_bnode, head_triples} =
+    {head_node, head_triples} =
       build_function_head(
         clause_iri,
         clause_info,
@@ -199,15 +199,21 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
 
     triples =
       triples ++
-        head_triples ++ [Helpers.object_property(clause_iri, Structure.hasHead(), head_bnode)]
+        head_triples ++ [Helpers.object_property(clause_iri, Structure.hasHead(), head_node)]
 
     # FunctionBody triples
-    {body_bnode, body_triples} =
-      build_function_body(clause_info, context, expression_builder, build_expressions?)
+    {body_node, body_triples} =
+      build_function_body(
+        clause_iri,
+        clause_info,
+        context,
+        expression_builder,
+        build_expressions?
+      )
 
     triples =
       triples ++
-        body_triples ++ [Helpers.object_property(clause_iri, Structure.hasBody(), body_bnode)]
+        body_triples ++ [Helpers.object_property(clause_iri, Structure.hasBody(), body_node)]
 
     # Flatten and deduplicate
     triples = List.flatten(triples) |> Enum.uniq()
@@ -255,25 +261,38 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
          expression_builder,
          build_expressions?
        ) do
-    head_bnode = Helpers.blank_node("function_head")
+    head_node =
+      if build_expressions?,
+        do: RDF.IRI.new("#{clause_iri}/head"),
+        else: Helpers.blank_node("function_head")
 
     # Extract parameters
-    {parameter_iris, parameter_triples} = build_parameters(clause_iri, clause_info, context)
+    {parameter_iris, parameter_triples} =
+      build_parameters(
+        clause_iri,
+        clause_info,
+        context,
+        expression_builder,
+        build_expressions?
+      )
 
-    # Build RDF list for parameters
-    {list_head, list_triples} = Helpers.build_rdf_list(parameter_iris)
+    # Full mode must not introduce runtime-generated blank node identifiers.
+    {list_head, list_triples} =
+      if build_expressions?,
+        do: build_scoped_rdf_list(parameter_iris, clause_iri),
+        else: Helpers.build_rdf_list(parameter_iris)
 
     # Head triples
     # Guard triples if present
     head_triples =
       [
         # rdf:type struct:FunctionHead
-        Helpers.type_triple(head_bnode, Structure.FunctionHead),
+        Helpers.type_triple(head_node, Structure.FunctionHead),
         # struct:hasParameters <list_head>
-        Helpers.object_property(head_bnode, Structure.hasParameters(), list_head)
+        Helpers.object_property(head_node, Structure.hasParameters(), list_head)
       ] ++
         build_guard_triples(
-          head_bnode,
+          head_node,
           clause_info,
           context,
           expression_builder,
@@ -283,7 +302,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
     # Combine all triples
     all_triples = head_triples ++ parameter_triples ++ list_triples
 
-    {head_bnode, all_triples}
+    {head_node, all_triples}
   end
 
   # Build guard triples if guard is present
@@ -303,7 +322,12 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
       guard_ast ->
         if build_expressions? do
           # Build full expression triples for the guard with guard context marking
-          case expression_builder.build(guard_ast, context, suffix: "guard", guard_context?: true) do
+          suffix = Context.expression_suffix(context, head_bnode, "guard")
+
+          case expression_builder.build(guard_ast, context,
+                 suffix: suffix,
+                 guard_context?: true
+               ) do
             {:ok, {guard_iri, guard_triples}} ->
               # Link to the guard expression
               link_triple = Helpers.object_property(head_bnode, Core.hasGuard(), guard_iri)
@@ -315,15 +339,7 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
               guard_triples ++ [link_triple]
 
             :skip ->
-              # ExpressionBuilder returned skip, fall back to blank node
-              guard_bnode = Helpers.blank_node("guard")
-
-              [
-                # rdf:type core:GuardClause
-                Helpers.type_triple(guard_bnode, Core.GuardClause),
-                # head core:hasGuard guard
-                Helpers.object_property(head_bnode, Core.hasGuard(), guard_bnode)
-              ]
+              raise ArgumentError, "full expression builder skipped a guard expression"
           end
         else
           # Light mode: create GuardClause blank node only
@@ -344,7 +360,13 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
   # ===========================================================================
 
   # Build parameter IRIs and triples from clause head
-  defp build_parameters(clause_iri, clause_info, context) do
+  defp build_parameters(
+         clause_iri,
+         clause_info,
+         context,
+         expression_builder,
+         build_expressions?
+       ) do
     # Extract parameters from clause head
     parameter_asts = clause_info.head[:parameters] || []
 
@@ -372,7 +394,16 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
       parameters
       |> Enum.reduce({[], []}, fn param, {iris, triples} ->
         param_iri = IRI.for_parameter(clause_iri, param.position)
-        param_triples = build_parameter_triples(param_iri, param, context)
+
+        pattern_triples =
+          if build_expressions? do
+            parameter_ast = Enum.at(parameter_asts, param.position)
+            expression_builder.build_pattern(parameter_ast, param_iri, context)
+          else
+            []
+          end
+
+        param_triples = build_parameter_triples(param_iri, param, context) ++ pattern_triples
 
         {iris ++ [param_iri], triples ++ param_triples}
       end)
@@ -422,6 +453,26 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
   defp determine_parameter_class(%Parameter{type: :pattern}), do: Structure.PatternParameter
   defp determine_parameter_class(%Parameter{type: :pin}), do: Structure.PatternParameter
 
+  defp build_scoped_rdf_list([], _clause_iri), do: {RDF.nil(), []}
+
+  defp build_scoped_rdf_list(items, clause_iri) do
+    nodes =
+      items
+      |> Enum.with_index()
+      |> Enum.map(fn {_item, index} -> RDF.IRI.new("#{clause_iri}/parameters/#{index}") end)
+
+    triples =
+      items
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {item, index} ->
+        node = Enum.at(nodes, index)
+        rest = Enum.at(nodes, index + 1, RDF.nil())
+        [{node, RDF.first(), item}, {node, RDF.rest(), rest}]
+      end)
+
+    {List.first(nodes), triples}
+  end
+
   # ===========================================================================
   # FunctionBody Building
   # ===========================================================================
@@ -429,41 +480,42 @@ defmodule ElixirOntologies.Builders.ClauseBuilder do
   # Build FunctionBody blank node or full expression triples
   # When build_expressions? is true, builds full expression triples for the body
   # Otherwise, creates a FunctionBody blank node only
-  defp build_function_body(clause_info, context, expression_builder, build_expressions?) do
+  defp build_function_body(
+         clause_iri,
+         clause_info,
+         context,
+         expression_builder,
+         build_expressions?
+       ) do
+    if build_expressions? and clause_info.body != nil do
+      suffix = Context.expression_suffix(context, clause_iri, "body")
+
+      case expression_builder.build(clause_info.body, context, suffix: suffix) do
+        {:ok, {body_iri, expr_triples}} ->
+          {body_iri, [Helpers.type_triple(body_iri, Structure.FunctionBody) | expr_triples]}
+
+        {:ok, {body_iri, expr_triples, _updated_context}} ->
+          {body_iri, [Helpers.type_triple(body_iri, Structure.FunctionBody) | expr_triples]}
+
+        :skip ->
+          raise ArgumentError, "full expression builder skipped a function body"
+      end
+    else
+      if build_expressions? do
+        body_iri = RDF.IRI.new("#{clause_iri}/body")
+        {body_iri, [Helpers.type_triple(body_iri, Structure.FunctionBody)]}
+      else
+        light_function_body()
+      end
+    end
+  end
+
+  defp light_function_body do
     body_bnode = Helpers.blank_node("function_body")
 
-    body_triples =
-      if build_expressions? and clause_info.body != nil do
-        # Build full expression triples for the body
-        case expression_builder.build(clause_info.body, context, suffix: "body") do
-          {:ok, {_body_iri, expr_triples}} ->
-            # Include expression triples plus the FunctionBody type
-            [
-              # rdf:type struct:FunctionBody
-              Helpers.type_triple(body_bnode, Structure.FunctionBody)
-            ] ++ expr_triples
-
-          {:ok, {_body_iri, expr_triples, _updated_context}} ->
-            # Include expression triples plus the FunctionBody type (context-based counter version)
-            [
-              # rdf:type struct:FunctionBody
-              Helpers.type_triple(body_bnode, Structure.FunctionBody)
-            ] ++ expr_triples
-
-          :skip ->
-            [
-              # rdf:type struct:FunctionBody
-              Helpers.type_triple(body_bnode, Structure.FunctionBody)
-            ]
-        end
-      else
-        # Light mode: create FunctionBody blank node only
-        [
-          # rdf:type struct:FunctionBody
-          Helpers.type_triple(body_bnode, Structure.FunctionBody)
-        ]
-      end
-
-    {body_bnode, body_triples}
+    {body_bnode,
+     [
+       Helpers.type_triple(body_bnode, Structure.FunctionBody)
+     ]}
   end
 end

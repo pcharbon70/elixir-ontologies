@@ -75,6 +75,7 @@ defmodule ElixirOntologies.Builders.Orchestrator do
 
   alias ElixirOntologies.Builders.{
     Context,
+    ExpressionBuilder,
     ModuleBuilder,
     FunctionBuilder,
     ProtocolBuilder,
@@ -227,8 +228,13 @@ defmodule ElixirOntologies.Builders.Orchestrator do
   defp build_functions(analysis, _module_iri, context) do
     functions = Map.get(analysis, :functions, [])
 
+    opts =
+      if Context.full_mode_for_file?(context, context.file_path),
+        do: [expression_builder: ExpressionBuilder],
+        else: []
+
     Enum.flat_map(functions, fn function_info ->
-      {_function_iri, triples} = FunctionBuilder.build(function_info, context)
+      {_function_iri, triples} = FunctionBuilder.build(function_info, context, opts)
       # Add containment triple linking function to module
       triples
     end)
@@ -358,16 +364,22 @@ defmodule ElixirOntologies.Builders.Orchestrator do
   end
 
   defp build_control_flow(analysis, module_iri, context) do
-    control_flow = Map.get(analysis, :control_flow, %{})
-    containing_function = derive_containing_function(module_iri)
+    if Context.full_mode_for_file?(context, context.file_path) do
+      # Full-mode control flow is built from each clause body so ownership and
+      # structural identity remain rooted in the actual function clause.
+      []
+    else
+      control_flow = Map.get(analysis, :control_flow, %{})
+      containing_function = derive_containing_function(module_iri)
 
-    conditionals = build_conditionals(control_flow, containing_function, context)
-    cases = build_cases(control_flow, containing_function, context)
-    withs = build_withs(control_flow, containing_function, context)
-    receives = build_receives(control_flow, containing_function, context)
-    comprehensions = build_comprehensions(control_flow, containing_function, context)
+      conditionals = build_conditionals(control_flow, containing_function, context)
+      cases = build_cases(control_flow, containing_function, context)
+      withs = build_withs(control_flow, containing_function, context)
+      receives = build_receives(control_flow, containing_function, context)
+      comprehensions = build_comprehensions(control_flow, containing_function, context)
 
-    conditionals ++ cases ++ withs ++ receives ++ comprehensions
+      conditionals ++ cases ++ withs ++ receives ++ comprehensions
+    end
   end
 
   defp build_conditionals(control_flow, containing_function, context) do
@@ -446,15 +458,19 @@ defmodule ElixirOntologies.Builders.Orchestrator do
   end
 
   defp build_exceptions(analysis, module_iri, context) do
-    exceptions = Map.get(analysis, :exceptions, %{})
-    containing_function = derive_containing_function(module_iri)
+    if Context.full_mode_for_file?(context, context.file_path) do
+      []
+    else
+      exceptions = Map.get(analysis, :exceptions, %{})
+      containing_function = derive_containing_function(module_iri)
 
-    tries = build_tries(exceptions, containing_function, context)
-    raises = build_raises(exceptions, containing_function, context)
-    throws = build_throws(exceptions, containing_function, context)
-    exits = build_exits(exceptions, containing_function, context)
+      tries = build_tries(exceptions, containing_function, context)
+      raises = build_raises(exceptions, containing_function, context)
+      throws = build_throws(exceptions, containing_function, context)
+      exits = build_exits(exceptions, containing_function, context)
 
-    tries ++ raises ++ throws ++ exits
+      tries ++ raises ++ throws ++ exits
+    end
   end
 
   defp build_tries(exceptions, containing_function, context) do

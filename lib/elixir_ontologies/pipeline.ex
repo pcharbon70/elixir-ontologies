@@ -29,6 +29,10 @@ defmodule ElixirOntologies.Pipeline do
 
   Both are enabled by default for optimal performance.
 
+  `build_graph_for_modules_result/3` is the strict exception: contextual full-mode
+  analysis invokes it sequentially so a builder failure can be returned without a
+  partial graph.
+
   ## Options
 
   - `:parallel` - Enable/disable parallel processing (default: `true`)
@@ -178,6 +182,51 @@ defmodule ElixirOntologies.Pipeline do
     # Merge all RDF graphs into single ElixirOntologies.Graph
     merge_graphs(rdf_graphs)
   end
+
+  @doc """
+  Strict graph builder used by explicit full-expression analysis.
+
+  Unlike `build_graph_for_modules/3`, this function returns the first module
+  build failure and returns no partial in-memory graph.
+
+  ## Parameters
+
+  - `modules` - Extracted module analyses to build
+  - `context` - Effective builder context
+  - `opts` - Builder selection options passed to module construction
+
+  Returns `{:ok, graph}` only after every module succeeds, or
+  `{:error, {:module_graph_failed, reason}}`. Contextual analysis calls this function
+  sequentially; direct callers may provide the normal builder include/exclude options.
+  """
+  @spec build_graph_for_modules_result([ModuleAnalysis.t()], Context.t(), keyword()) ::
+          {:ok, Graph.t()} | {:error, term()}
+  def build_graph_for_modules_result(modules, context, opts \\ []) do
+    try do
+      modules
+      |> Enum.reduce_while({:ok, []}, fn module, {:ok, graphs} ->
+        case build_module_graph(module, context, opts) do
+          {:ok, graph} ->
+            {:cont, {:ok, [graph | graphs]}}
+
+          {:error, reason} ->
+            {:halt, {:error, {:module_graph_failed, builder_error_category(reason)}}}
+        end
+      end)
+      |> case do
+        {:ok, graphs} -> {:ok, graphs |> Enum.reverse() |> merge_graphs()}
+        {:error, _reason} = error -> error
+      end
+    rescue
+      error -> {:error, {:module_graph_failed, {error.__struct__, :builder_exception}}}
+    catch
+      kind, _reason -> {:error, {:module_graph_failed, {kind, :builder_failure}}}
+    end
+  end
+
+  defp builder_error_category(reason) when is_atom(reason), do: reason
+  defp builder_error_category({category, _detail}) when is_atom(category), do: category
+  defp builder_error_category(_reason), do: :unknown_builder_error
 
   # ===========================================================================
   # Private - Module Processing
