@@ -18,6 +18,7 @@ defmodule ElixirOntologies.SHACL.Model.PropertyShape do
   ### String Constraints
   - `pattern` - Compiled regex pattern for string matching (sh:pattern)
   - `min_length` - Minimum string length (sh:minLength)
+  - `max_length` - Maximum string length (sh:maxLength)
 
   ### Numeric Constraints
   - `min_inclusive` - Minimum inclusive value for numbers (sh:minInclusive)
@@ -146,6 +147,8 @@ defmodule ElixirOntologies.SHACL.Model.PropertyShape do
     pattern: nil,
     # non_neg_integer() | nil
     min_length: nil,
+    # non_neg_integer() | nil
+    max_length: nil,
 
     # Numeric constraints
     # integer() | float() | nil
@@ -180,6 +183,7 @@ defmodule ElixirOntologies.SHACL.Model.PropertyShape do
           class: RDF.IRI.t() | nil,
           pattern: Regex.t() | nil,
           min_length: non_neg_integer() | nil,
+          max_length: non_neg_integer() | nil,
           min_inclusive: integer() | float() | nil,
           max_inclusive: integer() | float() | nil,
           in: [RDF.Term.t()],
